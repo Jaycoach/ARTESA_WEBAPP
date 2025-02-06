@@ -5,21 +5,48 @@
     "version": "1.0.0",
     "description": "Documentación de la API para WEB APP LA ARTESA"
   },
+  "servers": [
+    {
+      "url": "http://localhost:3000/api",
+      "description": "Servidor local"
+    }
+  ],
   "paths": {
     "/users": {
       "get": {
+        "tags": ["Users"],
         "summary": "Obtener lista de usuarios",
         "responses": {
           "200": {
-            "description": "Lista de usuarios"
+            "description": "Lista de usuarios",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "integer" },
+                      "nombre": { "type": "string" },
+                      "correo": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error del servidor"
           }
         }
       }
     },
-    "/api/auth/register": {
+    "/auth/register": {
       "post": {
+        "tags": ["Auth"],
         "summary": "Registrar un nuevo usuario",
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -28,7 +55,8 @@
                   "nombre": { "type": "string" },
                   "correo": { "type": "string" },
                   "contraseña": { "type": "string" }
-                }
+                },
+                "required": ["nombre", "correo", "contraseña"]
               }
             }
           }
@@ -36,6 +64,9 @@
         "responses": {
           "201": {
             "description": "Usuario registrado exitosamente"
+          },
+          "400": {
+            "description": "Datos inválidos"
           }
         }
       }
