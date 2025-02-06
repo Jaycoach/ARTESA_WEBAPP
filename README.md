@@ -28,5 +28,10 @@ Este proyecto es una API para la aplicación web **LA ARTESA**, que permite gest
 
 ### **1. Clonar el Repositorio**
 ```bash
-git clone https://github.com/Jaycoach/ARTESA_WEBAPPgii.git
+git clone https://github.com/Jaycoach/ARTESA_WEBAPP.git
 cd mi-proyecto
+
+## Documentación
+
+- [CHANGELOG](CHANGELOG.md): Registro de cambios en la base de datos y el proyecto.
+- [Diagrama ER](docs/er-diagram.svg): Diagrama entidad-relación de la base de datos.
