@@ -1,0 +1,20 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+      "title": "LAARTESA API",
+      "version": "1.0.0",
+      "description": "Documentación de la API para WEB APP LA ARTESA"
+    },
+    "paths": {
+      "/users": {
+        "get": {
+          "summary": "Obtener lista de usuarios",
+          "responses": {
+            "200": {
+              "description": "Lista de usuarios"
+            }
+          }
+        }
+      }
+    }
+  }
