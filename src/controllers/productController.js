@@ -12,7 +12,7 @@ exports.createProduct = async (req, res) => {
 
 exports.getProduct = async (req, res) => {
   try {
-    const product = await Product.findByCode(req.params.code);
+    const product = await Product.findById(req.params.productId);
     if (!product) {
       return res.status(404).json({ message: 'Product not found' });
     }
@@ -24,11 +24,9 @@ exports.getProduct = async (req, res) => {
 
 exports.updateProductImage = async (req, res) => {
   try {
-    const product = await Product.updateImage(req.params.code, req.body.imageUrl);
+    const product = await Product.updateImage(req.params.productId, req.body.imageUrl);
     res.status(200).json(product);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
-
-// Otros controladores como update, delete, etc.

@@ -85,15 +85,16 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "code": { "type": "string" },
+                  "name": { "type": "string" },
                   "description": { "type": "string" },
                   "priceList1": { "type": "number" },
                   "priceList2": { "type": "number" },
                   "priceList3": { "type": "number" },
+                  "stock": { "type": "integer" },
                   "barcode": { "type": "string" },
                   "imageUrl": { "type": "string" }
                 },
-                "required": ["code", "description"]
+                "required": ["name"]
               }
             }
           }
@@ -111,17 +112,17 @@
         }
       }
     },
-    "/products/{code}": {
+    "/products/{productId}": {
       "get": {
         "tags": ["Products"],
-        "summary": "Obtener un producto por código",
+        "summary": "Obtener un producto por ID",
         "parameters": [
           {
-            "name": "code",
+            "name": "productId",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "integer"
             }
           }
         ],
@@ -133,13 +134,17 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": { "type": "string" },
+                    "product_id": { "type": "integer" },
+                    "name": { "type": "string" },
                     "description": { "type": "string" },
                     "priceList1": { "type": "number" },
                     "priceList2": { "type": "number" },
                     "priceList3": { "type": "number" },
+                    "stock": { "type": "integer" },
                     "barcode": { "type": "string" },
-                    "imageUrl": { "type": "string" }
+                    "imageUrl": { "type": "string" },
+                    "created_at": { "type": "string", "format": "date-time" },
+                    "updated_at": { "type": "string", "format": "date-time" }
                   }
                 }
               }
@@ -158,11 +163,11 @@
         "summary": "Actualizar la imagen de un producto",
         "parameters": [
           {
-            "name": "code",
+            "name": "productId",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "integer"
             }
           }
         ],
