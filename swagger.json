@@ -68,7 +68,127 @@
           "400": {
             "description": "Datos inválidos"
           },
-          "500": { "description": "Error interno del servidor" 
+          "500": {
+            "description": "Error interno del servidor"
+          }
+        }
+      }
+    },
+    "/products": {
+      "post": {
+        "tags": ["Products"],
+        "summary": "Crear un nuevo producto",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "code": { "type": "string" },
+                  "description": { "type": "string" },
+                  "priceList1": { "type": "number" },
+                  "priceList2": { "type": "number" },
+                  "priceList3": { "type": "number" },
+                  "barcode": { "type": "string" },
+                  "imageUrl": { "type": "string" }
+                },
+                "required": ["code", "description"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Producto creado exitosamente"
+          },
+          "400": {
+            "description": "Datos inválidos"
+          },
+          "500": {
+            "description": "Error interno del servidor"
+          }
+        }
+      }
+    },
+    "/products/{code}": {
+      "get": {
+        "tags": ["Products"],
+        "summary": "Obtener un producto por código",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Detalles del producto",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "string" },
+                    "description": { "type": "string" },
+                    "priceList1": { "type": "number" },
+                    "priceList2": { "type": "number" },
+                    "priceList3": { "type": "number" },
+                    "barcode": { "type": "string" },
+                    "imageUrl": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Producto no encontrado"
+          },
+          "500": {
+            "description": "Error interno del servidor"
+          }
+        }
+      },
+      "put": {
+        "tags": ["Products"],
+        "summary": "Actualizar la imagen de un producto",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "imageUrl": { "type": "string" }
+                },
+                "required": ["imageUrl"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Imagen del producto actualizada"
+          },
+          "400": {
+            "description": "Datos inválidos"
+          },
+          "500": {
+            "description": "Error interno del servidor"
           }
         }
       }

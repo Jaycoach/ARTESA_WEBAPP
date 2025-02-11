@@ -78,3 +78,49 @@ CREATE TRIGGER update_order_details_updated_at
 BEFORE UPDATE ON Order_Details
 FOR EACH ROW
 EXECUTE FUNCTION update_updated_at_column();
+
+# Changelog
+
+## [1.1.0] - 2023-10-25
+
+### Añadido
+- Entidad de productos con campos: código, descripción, listas de precios, código de barras e imagen.
+- Integración de Multer para la subida de imágenes a Amazon S3.
+- Documentación de la API en Swagger para los endpoints de productos.
+
+### Cambiado
+- Estructura del proyecto para incluir la capa de servicios.
+- Configuración de variables de entorno para AWS S3.
+
+### Corregido
+- Errores menores en la autenticación de usuarios.
+- Campos adicionales en la tabla `products`:
+  - `code`: Código único del producto.
+  - `price_list1`, `price_list2`, `price_list3`: Listas de precios.
+  - `barcode`: Código de barras único.
+  - `image_url`: URL de la imagen del producto.
+
+#### Script SQL
+
+```sql
+-- Agregar campo "code"
+ALTER TABLE products
+ADD COLUMN code VARCHAR(50) UNIQUE NOT NULL;
+
+-- Agregar campos para las listas de precios
+ALTER TABLE products
+ADD COLUMN price_list1 NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
+ADD COLUMN price_list2 NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
+ADD COLUMN price_list3 NUMERIC(10, 2) NOT NULL DEFAULT 0.00;
+
+-- Agregar campo "barcode"
+ALTER TABLE products
+ADD COLUMN barcode VARCHAR(100) UNIQUE;
+
+-- Agregar campo "image_url"
+ALTER TABLE products
+ADD COLUMN image_url TEXT;
+
+-- (Opcional) Renombrar el campo "price" a "price_list1"
+ALTER TABLE products
+RENAME COLUMN price TO price_list1;
