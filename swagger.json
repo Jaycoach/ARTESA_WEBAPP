@@ -202,6 +202,61 @@
           }
         }
       }
+    },
+    "/orders": {
+      "post": {
+        "tags": ["Orders"],
+        "summary": "Crear una nueva orden",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "user_id": { "type": "integer" },
+                  "total_amount": { "type": "number" },
+                  "details": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "product_id": { "type": "integer" },
+                        "quantity": { "type": "integer" },
+                        "unit_price": { "type": "number" }
+                      },
+                      "required": ["product_id", "quantity", "unit_price"]
+                    }
+                  }
+                },
+                "required": ["user_id", "total_amount", "details"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Orden creada exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string" },
+                    "order_id": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos"
+          },
+          "500": {
+            "description": "Error interno del servidor"
+          }
+        }
+      }
     }
   }
 }

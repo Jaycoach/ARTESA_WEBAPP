@@ -8,6 +8,7 @@ const app = express();
 const userRoutes = require('./src/routes/userRoutes');
 const authRoutes = require('./src/routes/authRoutes');
 const productRoutes = require('./src/routes/productRoutes');
+const orderRoutes = require('./src/routes/orderRoutes');
 const PORT = process.env.PORT || 3000;
 
 // Configuración de Multer (Local y S3)
@@ -77,6 +78,7 @@ if (process.env.NODE_ENV !== 'production') {
 app.use('/api', userRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api', productRoutes);
+app.use('/api', orderRoutes);
 
 // Swagger
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));

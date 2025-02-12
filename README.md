@@ -160,3 +160,31 @@ Documentación Adicional
 CHANGELOG: Registro de cambios en la base de datos y el proyecto.
 
 Diagrama ER: Diagrama entidad-relación de la base de datos.
+
+# API de Pedidos
+
+## Endpoints
+
+### Crear una orden
+- **POST** `/api/orders`
+- Crea una nueva orden con detalles asociados.
+- Body:
+  ```json
+  {
+    "user_id": 1,
+    "total_amount": 100.00,
+    "details": [
+      {
+        "product_id": 101,
+        "quantity": 2,
+        "unit_price": 25.00
+      }
+    ]
+  }
+
+---
+
+### Paso 9: Probar la aplicación
+1. Inicia el servidor:
+   ```bash
+   npm start

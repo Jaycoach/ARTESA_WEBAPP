@@ -102,7 +102,6 @@ EXECUTE FUNCTION update_updated_at_column();
 
 #### Script SQL
 
-```sql
 -- Agregar campo "code"
 ALTER TABLE products
 ADD COLUMN code VARCHAR(50) UNIQUE NOT NULL;
@@ -124,3 +123,8 @@ ADD COLUMN image_url TEXT;
 -- (Opcional) Renombrar el campo "price" a "price_list1"
 ALTER TABLE products
 RENAME COLUMN price TO price_list1;
+
+## [1.0.0] - 2025-02-12
+### Added
+- Endpoint para crear órdenes con detalles.
+- Validación en la base de datos para evitar órdenes sin detalles.
