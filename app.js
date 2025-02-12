@@ -76,7 +76,7 @@ if (process.env.NODE_ENV !== 'production') {
 // Rutas de la API
 app.use('/api', userRoutes);
 app.use('/api/auth', authRoutes);
-app.use('/api/products', productRoutes);
+app.use('/api', productRoutes);
 
 // Swagger
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));

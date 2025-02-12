@@ -56,7 +56,7 @@
                   "correo": { "type": "string" },
                   "contraseña": { "type": "string" }
                 },
-                "required": ["name", "mail", "password"]
+                "required": ["nombre", "correo", "contraseña"]
               }
             }
           }
@@ -157,7 +157,9 @@
             "description": "Error interno del servidor"
           }
         }
-      },
+      }
+    },
+    "/products/{productId}/image": {
       "put": {
         "tags": ["Products"],
         "summary": "Actualizar la imagen de un producto",
@@ -191,6 +193,9 @@
           },
           "400": {
             "description": "Datos inválidos"
+          },
+          "404": {
+            "description": "Producto no encontrado"
           },
           "500": {
             "description": "Error interno del servidor"
