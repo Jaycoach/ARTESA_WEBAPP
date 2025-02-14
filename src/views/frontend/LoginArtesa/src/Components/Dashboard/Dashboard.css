@@ -1,1 +1,24 @@
-/*# sourceMappingURL=Dashboard.css.map */
+.dashboard {
+  display: flex;
+  height: 100vh;
+  background-color: #f8f9fa;
+}
+
+/* Ajusta el contenedor del dashboard */
+.dashboard-layout {
+  display: flex;
+  width: 100%;
+  height: 100%;
+}
+
+/* Contenido principal del dashboard */
+.dashboard-content {
+  flex: 1;
+  margin-left: 250px; /* Igual al ancho del Sidebar */
+  padding: 2rem;
+  background-color: white;
+  border-radius: 10px;
+  margin: 20px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  overflow-x: auto;
+}/*# sourceMappingURL=Dashboard.css.map */

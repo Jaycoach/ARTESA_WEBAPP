@@ -1,5 +1,6 @@
 import './App.css'
 import Dashboard from './Components/Dashboard/Dashboard'
+import Sidebar from './Components/Dashboard/Sidebar Section/Sidebar'
 import Login from './Components/Login/Login'
 import Register from './Components/Register/Register'
 

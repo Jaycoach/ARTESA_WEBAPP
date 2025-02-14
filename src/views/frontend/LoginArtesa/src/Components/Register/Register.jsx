@@ -18,6 +18,7 @@ const Register = () => {
         <div className="RegisterPage flex">
         <div className="container flex">
             <div className="imgDiv">
+
                 <img src={img} alt="registerImg" />
                 <div className="textDiv">
                     <h2 className="title">Creado para ARTESA</h2>
@@ -35,12 +36,19 @@ const Register = () => {
                 <div className="headerDiv">
                 <img src={logo} alt="Logo Artesa" />
                 <h3>Registrate</h3>
+
                 </div>
                 <form action="" className="form grid">
-                    <span className="showMessage">Register Status will go here</span>
-                    
+                <div className="inputDiv">
+                        <label htmlFor="name">Nombre:</label>
+                        <div className="input flex">
+                            <MdMarkEmailRead className="icon"/>
+                            <input type="text" id="name" placeholder="Escriba su Nombre:" />
+                        </div>
+                    </div>
+
                     <div className="inputDiv">
-                        <label htmlFor="email">Email</label>
+                        <label htmlFor="mail">Email</label>
                         <div className="input flex">
                             <MdMarkEmailRead className="icon"/>
                             <input type="email" id="email" placeholder="Escriba su Email (usuario):" />
