@@ -128,3 +128,8 @@ RENAME COLUMN price TO price_list1;
 ### Added
 - Endpoint para crear órdenes con detalles.
 - Validación en la base de datos para evitar órdenes sin detalles.
+
+## [1.0.0] - 2025-02-14
+### Added
+- ADD branch Features/frontEnd
+- Merge desarrollo FrontEnd con Git
