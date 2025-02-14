@@ -53,11 +53,11 @@ const Login = () => {
                         </div>
                     </div>
 
+                    <Link to={'/Dashboard'}>
                     <button type="submit" className="btn flex">
                         <span>Iniciar sesión</span>
-                        <TiArrowRightOutline className="icon" />
-                    </button>
-
+                        <TiArrowRightOutline className="icon" /></button>
+                    </Link>
                     <span className="forgotPassword">
                         Olvidaste tu contraseña? <a href="">Haz Clic Aquí</a>
                     </span>
