@@ -9,3 +9,4 @@ router.get('/products/:productId', productController.getProduct);
 router.put('/products/:productId/image', productController.updateProductImage);
 
 module.exports = router;
+

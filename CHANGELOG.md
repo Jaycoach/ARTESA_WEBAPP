@@ -133,3 +133,26 @@ RENAME COLUMN price TO price_list1;
 ### Added
 - ADD branch Features/frontEnd
 - Merge desarrollo FrontEnd con Git
+
+# CHANGELOG
+
+## [1.2.0] - 2025-02-21
+### Added
+- Integración completa del sistema de autenticación Frontend-Backend
+- Script de hasheo de contraseñas (scripts/hashPasswords.js)
+- Nueva configuración de API en Frontend (src/views/frontend/LoginArtesa/src/api/config.js)
+- Rutas seguras para productos (src/routes/secureProductRoutes.js)
+- Botón de cierre de sesión en Sidebar
+
+### Changed
+- Actualización del controlador de autenticación (src/controllers/authController.js)
+- Mejora del middleware de autenticación (src/middleware/auth.js)
+- Actualización del modelo de usuario (src/models/userModel.js)
+- Restructuración de rutas de autenticación y productos
+- Corrección de la ruta de autenticación en app.js
+- Actualización de configuración Vite
+
+### Security
+- Implementación de sistema robusto de autenticación JWT
+- Mejora en manejo de contraseñas con bcrypt
+- Implementación de rutas protegidas

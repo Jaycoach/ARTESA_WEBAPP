@@ -188,3 +188,53 @@ Diagrama ER: Diagrama entidad-relación de la base de datos.
 1. Inicia el servidor:
    ```bash
    npm start
+
+# LA ARTESA - WEB APP Documentation
+
+## Estructura del Proyecto
+
+### Backend
+
+/
+├── scripts/
+│   └── hashPasswords.js          # Utilidad para hasheo de contraseñas
+├── src/
+│   ├── config/
+│   ├── controllers/
+│   │   └── authController.js     # Controlador de autenticación
+│   ├── middleware/
+│   │   └── auth.js              # Middleware de autenticación
+│   ├── models/
+│   │   └── userModel.js         # Modelo de usuario
+│   ├── routes/
+│   │   ├── authRoutes.js        # Rutas de autenticación
+│   │   ├── productRoutes.js     # Rutas de productos
+│   │   └── secureProductRoutes.js # Rutas protegidas
+│   └── views/
+│       └── frontend/
+│           └── LoginArtesa/     # Aplicación Frontend
+├── app.js                       # Entrada principal del servidor
+└── package.json
+
+### Frontend
+/src/views/frontend/LoginArtesa/
+├── src/
+│   ├── api/
+│   │   └── config.js           # Configuración de API
+│   └── Components/
+│       └── Dashboard/
+│           └── Sidebar Section/
+│               ├── Sidebar.jsx
+│               └── sidebar.css
+
+
+## Sistema de Autenticación
+
+### Backend
+- `authController.js`: Maneja login y registro
+- `auth.js`: Middleware para protección de rutas
+- `secureProductRoutes.js`: Rutas que requieren autenticación
+
+### Frontend
+- `config.js`: Configuración de endpoints y headers
+- `Sidebar.jsx`: Incluye funcionalidad de logout

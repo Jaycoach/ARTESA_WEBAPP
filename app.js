@@ -4,12 +4,24 @@ const swaggerDocument = require('./swagger.json');
 const multer = require('multer');
 const aws = require('aws-sdk');
 const path = require('path');
+const cors = require('cors');
+
 const app = express();
 const userRoutes = require('./src/routes/userRoutes');
 const authRoutes = require('./src/routes/authRoutes');
 const productRoutes = require('./src/routes/productRoutes');
 const orderRoutes = require('./src/routes/orderRoutes');
+const secureProductRoutes = require('./src/routes/secureProductRoutes');
 const PORT = process.env.PORT || 3000;
+
+// Configuración de CORS - Agregar esto antes de otras configuraciones de middleware
+app.use(cors({
+    origin: '*', // En producción, deberías especificar los dominios permitidos
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+    credentials: true, // Permite credenciales
+    maxAge: 86400 // Caché preflight por 24 horas
+}));
 
 // Configuración de Multer (Local y S3)
 let upload;
@@ -26,12 +38,12 @@ if (process.env.NODE_ENV === 'production') {
     storage: multerS3({
       s3: s3,
       bucket: process.env.AWS_S3_BUCKET_NAME,
-      acl: 'public-read', // Permite acceso público a los archivos
+      acl: 'public-read',
       metadata: function (req, file, cb) {
         cb(null, { fieldName: file.fieldname });
       },
       key: function (req, file, cb) {
-        cb(null, Date.now().toString() + path.extname(file.originalname)); // Nombre del archivo
+        cb(null, Date.now().toString() + path.extname(file.originalname));
       },
     }),
   });
@@ -39,10 +51,10 @@ if (process.env.NODE_ENV === 'production') {
   // Configuración local
   const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-      cb(null, 'uploads/'); // Carpeta donde se guardarán las imágenes
+      cb(null, 'uploads/');
     },
     filename: function (req, file, cb) {
-      cb(null, Date.now() + path.extname(file.originalname)); // Nombre del archivo
+      cb(null, Date.now() + path.extname(file.originalname));
     },
   });
 
@@ -58,12 +70,11 @@ app.post('/upload', upload.single('image'), (req, res) => {
     return res.status(400).json({ message: 'No se ha subido ningún archivo' });
   }
 
-  // Devuelve la URL de la imagen
   let imageUrl;
   if (process.env.NODE_ENV === 'production') {
-    imageUrl = req.file.location; // URL de S3
+    imageUrl = req.file.location;
   } else {
-    imageUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`; // URL local
+    imageUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
   }
 
   res.json({ imageUrl });
@@ -79,6 +90,25 @@ app.use('/api', userRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api', productRoutes);
 app.use('/api', orderRoutes);
+app.use('/api', secureProductRoutes);
+
+//verificación rutas
+console.log('Rutas registradas:', app._router.stack
+  .filter(r => r.route || r.name === 'router')
+  .map(r => {
+    if (r.route) {
+      return {
+        path: r.route.path,
+        methods: Object.keys(r.route.methods)
+      };
+    } else {
+      return {
+        name: r.name,
+        handle: r.handle.name,
+        regexp: r.regexp.toString()
+      };
+    }
+  }));
 
 // Swagger
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
