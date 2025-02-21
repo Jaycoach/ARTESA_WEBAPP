@@ -3,14 +3,19 @@ const pool = require('../config/db');
 
 class PasswordReset {
   static async createToken(userId, token, expiresAt) {
-    const query = `
-      INSERT INTO password_resets (user_id, token, expires_at)
-      VALUES ($1, $2, $3)
-      RETURNING *
-    `;
-    const values = [userId, token, expiresAt];
-    const result = await pool.query(query, values);
-    return result.rows[0];
+    try {
+      const query = `
+        INSERT INTO password_resets (user_id, token, expires_at)
+        VALUES ($1, $2, $3)
+        RETURNING *
+      `;
+      const values = [userId, token, expiresAt];
+      const result = await pool.query(query, values);
+      return result.rows[0];
+    } catch (error) {
+      console.error('Error al crear token:', error);
+      throw new Error('Error al generar token de recuperación');
+    }
   }
 
   static async findByToken(token) {

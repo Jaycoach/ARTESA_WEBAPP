@@ -7,10 +7,10 @@ const EmailService = require('../services/EmailService');
 class PasswordResetController {
   async requestReset(req, res) {
     try {
-      const { email } = req.body;
+      const { mail } = req.body;
       
       // Buscar usuario
-      const user = await userModel.findByEmail(email);
+      const user = await userModel.findByEmail(mail);
       if (!user) {
         return res.status(200).json({ 
           message: 'Si el correo existe, recibirás instrucciones para restablecer tu contraseña'
@@ -24,8 +24,24 @@ class PasswordResetController {
       // Guardar token
       await PasswordReset.createToken(user.user_id, resetToken, expiresAt);
 
+      // En desarrollo, mostrar el token para pruebas
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Token generado para pruebas:', resetToken);
+      }
+
       // Enviar email
-      await EmailService.sendPasswordResetEmail(email, resetToken);
+      try {
+        await EmailService.sendPasswordResetEmail(mail, resetToken);
+      } catch (emailError) {
+        console.error('Error al enviar email:', emailError);
+        // En desarrollo, aún así devolvemos éxito para poder probar con el token
+        if (process.env.NODE_ENV === 'development') {
+          return res.json({ 
+            message: 'Token generado (modo desarrollo)',
+            token: resetToken // Solo en desarrollo
+          });
+        }
+      }
 
       res.json({ 
         message: 'Si el correo existe, recibirás instrucciones para restablecer tu contraseña'
