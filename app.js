@@ -12,6 +12,7 @@ const userRoutes = require('./src/routes/userRoutes');
 const authRoutes = require('./src/routes/authRoutes');
 const productRoutes = require('./src/routes/productRoutes');
 const orderRoutes = require('./src/routes/orderRoutes');
+const passwordResetRoutes = require('./src/routes/passwordResetRoutes');
 const PORT = process.env.PORT || 3000;
 
 // Configuración de CORS mejorada
@@ -63,6 +64,7 @@ app.use(API_PREFIX, userRoutes);
 app.use(`${API_PREFIX}/auth`, authRoutes);
 app.use(API_PREFIX, productRoutes);
 app.use(API_PREFIX, orderRoutes);
+app.use('/api/password', passwordResetRoutes);
 
 // Configuración de Multer para uploads
 const storage = multer.diskStorage({

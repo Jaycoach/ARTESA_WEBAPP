@@ -11,7 +11,7 @@
       "description": "Servidor Local"
     },
     {
-      "url": "https://6b22-149-88-111-210.ngrok-free.app",
+      "url": "https://f686-160-173-184-21.ngrok-free.app",
       "description": "Servidor Ngrok"
     }
   ],
@@ -73,38 +73,268 @@
           "Auth"
         ],
         "summary": "Registrar un nuevo usuario",
+        "security": [],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
+                "required": ["name", "mail", "password"],
                 "properties": {
-                  "nombre": {
-                    "type": "string"
+                  "name": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "description": "Nombre del usuario"
                   },
-                  "correo": {
-                    "type": "string"
+                  "mail": {
+                    "type": "string",
+                    "format": "email",
+                    "maxLength": 100,
+                    "description": "Correo electrónico del usuario (debe ser único)"
                   },
-                  "contraseña": {
-                    "type": "string"
+                  "password": {
+                    "type": "string",
+                    "format": "password",
+                    "minLength": 6,
+                    "maxLength": 255,
+                    "description": "Contraseña del usuario (mínimo 6 caracteres)"
+                  },
+                  "rol_id": {
+                    "type": "integer",
+                    "default": 2,
+                    "description": "ID del rol del usuario (2 = usuario normal por defecto)"
                   }
-                },
-                "required": [
-                  "nombre",
-                  "correo",
-                  "contraseña"
-                ]
+                }
+              },
+              "example": {
+                "name": "John Doe",
+                "mail": "john@example.com",
+                "password": "123456"
               }
             }
           }
         },
         "responses": {
           "201": {
-            "description": "Usuario registrado exitosamente"
+            "description": "Usuario registrado exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "token": {
+                      "type": "string"
+                    },
+                    "user": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "integer"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "mail": {
+                          "type": "string"
+                        },
+                        "role": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "400": {
             "description": "Datos inválidos"
+          },
+          "500": {
+            "description": "Error interno del servidor"
+          }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Iniciar sesión",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["mail", "password"],
+                "properties": {
+                  "mail": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Correo electrónico del usuario"
+                  },
+                  "password": {
+                    "type": "string",
+                    "format": "password",
+                    "description": "Contraseña del usuario"
+                  }
+                }
+              },
+              "example": {
+                "mail": "john@example.com",
+                "password": "123456"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login exitoso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "token": {
+                      "type": "string"
+                    },
+                    "user": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "integer"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "mail": {
+                          "type": "string"
+                        },
+                        "role": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Credenciales inválidas"
+          },
+          "500": {
+            "description": "Error interno del servidor"
+          }
+        }
+      }
+    },
+    "/api/password/request-reset": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Solicitar recuperación de contraseña",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email"],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Correo electrónico del usuario"
+                  }
+                }
+              },
+              "example": {
+                "email": "usuario@example.com"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Solicitud procesada exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Si el correo existe, recibirás instrucciones para restablecer tu contraseña"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno del servidor"
+          }
+        }
+      }
+    },
+    "/api/password/reset": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Restablecer contraseña",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["token", "newPassword"],
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "description": "Token de recuperación recibido por email"
+                  },
+                  "newPassword": {
+                    "type": "string",
+                    "format": "password",
+                    "minLength": 6,
+                    "description": "Nueva contraseña"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Contraseña actualizada exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Contraseña actualizada exitosamente"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Token inválido o expirado"
           },
           "500": {
             "description": "Error interno del servidor"

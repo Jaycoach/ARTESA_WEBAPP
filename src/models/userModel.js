@@ -95,6 +95,21 @@ const getAllUsers = async () => {
     return rows;
 };
 
+// Actualizar contraseña
+const updatePassword = async (userId, newPassword) => {
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    const query = `
+        UPDATE users 
+        SET password = $1,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE user_id = $2
+        RETURNING user_id, mail, updated_at;
+    `;
+    const values = [hashedPassword, userId];
+    const { rows } = await pool.query(query, values);
+    return rows[0];
+};
+
 module.exports = {
     createUser,
     findByEmail,
@@ -102,5 +117,6 @@ module.exports = {
     verifyPassword,
     updateUser,
     deleteUser,
-    getAllUsers
+    getAllUsers,
+    updatePassword
 };

@@ -238,3 +238,77 @@ Diagrama ER: Diagrama entidad-relación de la base de datos.
 ### Frontend
 - `config.js`: Configuración de endpoints y headers
 - `Sidebar.jsx`: Incluye funcionalidad de logout
+
+
+# Sistema de Recuperación de Contraseña
+
+## Nuevas Funcionalidades
+
+### Recuperación de Contraseña
+El sistema ahora incluye un flujo completo de recuperación de contraseña:
+
+1. **Solicitud de Recuperación**
+   - Endpoint: `POST /api/password/request-reset`
+   - El usuario proporciona su correo electrónico
+   - Se envía un email con un token de recuperación
+
+2. **Restablecimiento de Contraseña**
+   - Endpoint: `POST /api/password/reset`
+   - El usuario proporciona el token y la nueva contraseña
+   - Validación de token y actualización segura
+
+### Configuración Requerida
+
+1. Variables de Entorno
+```env
+SMTP_HOST=tu-servidor-smtp
+SMTP_PORT=587
+SMTP_USER=tu-usuario
+SMTP_PASS=tu-contraseña
+SMTP_FROM=noreply@tudominio.com
+FRONTEND_URL=http://tu-frontend-url
+```
+
+2. Base de Datos
+```sql
+-- Ejecutar el script de creación de tabla password_resets
+-- Ver archivo de migración para detalles
+```
+
+### Seguridad
+- Tokens criptográficamente seguros
+- Expiración automática de tokens
+- Protección contra enumeración de usuarios
+- Tokens de un solo uso
+
+### Documentación API
+La documentación completa está disponible en Swagger:
+- Local: http://localhost:3000/api-docs
+- Producción: https://tu-dominio.com/api-docs
+
+## Integración Frontend
+
+### Flujo de Recuperación
+1. Usuario solicita recuperación en la página de login
+2. Ingresa su correo electrónico
+3. Recibe email con link de recuperación
+4. Accede al link y establece nueva contraseña
+5. Redirección a login con mensaje de éxito
+
+### Endpoints
+```javascript
+// Solicitar recuperación
+const requestReset = async (email) => {
+  const response = await fetch('/api/password/request-reset', {
+    method: 'POST',
+    body: JSON.stringify({ email })
+  });
+};
+
+// Restablecer contraseña
+const resetPassword = async (token, newPassword) => {
+  const response = await fetch('/api/password/reset', {
+    method: 'POST',
+    body: JSON.stringify({ token, newPassword })
+  });
+};

@@ -156,3 +156,27 @@ RENAME COLUMN price TO price_list1;
 - Implementación de sistema robusto de autenticación JWT
 - Mejora en manejo de contraseñas con bcrypt
 - Implementación de rutas protegidas
+
+## [1.2.0] - 2024-02-21
+
+### Añadido
+- Sistema de recuperación de contraseña
+  - Endpoint para solicitar recuperación (/api/password/request-reset)
+  - Endpoint para restablecer contraseña (/api/password/reset)
+  - Integración con servicio de correo electrónico
+- Nueva tabla `password_resets` en la base de datos
+- Documentación Swagger actualizada para los nuevos endpoints
+
+### Modificado
+- Modelo de Usuario extendido con método updatePassword
+- Actualización de la documentación API
+
+### Seguridad
+- Implementación de tokens seguros para recuperación de contraseña
+- Tokens de un solo uso con expiración
+- Protección contra enumeración de usuarios
+
+### Base de Datos
+- Nueva tabla para gestión de tokens de recuperación de contraseña
+- Índices optimizados para búsqueda de tokens
+- Trigger para limpieza automática de tokens expirados
