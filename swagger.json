@@ -7,14 +7,34 @@
   },
   "servers": [
     {
-      "url": "http://localhost:3000/api",
-      "description": "Servidor local"
+      "url": "http://localhost:3000",
+      "description": "Servidor Local"
+    },
+    {
+      "url": "https://6b22-149-88-111-210.ngrok-free.app",
+      "description": "Servidor Ngrok"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "security": [
+    {
+      "bearerAuth": []
     }
   ],
   "paths": {
-    "/users": {
+    "/api/users": {
       "get": {
-        "tags": ["Users"],
+        "tags": [
+          "Users"
+        ],
         "summary": "Obtener lista de usuarios",
         "responses": {
           "200": {
@@ -26,9 +46,15 @@
                   "items": {
                     "type": "object",
                     "properties": {
-                      "id": { "type": "integer" },
-                      "nombre": { "type": "string" },
-                      "correo": { "type": "string" }
+                      "id": {
+                        "type": "integer"
+                      },
+                      "nombre": {
+                        "type": "string"
+                      },
+                      "correo": {
+                        "type": "string"
+                      }
                     }
                   }
                 }
@@ -41,9 +67,11 @@
         }
       }
     },
-    "/auth/register": {
+    "/api/auth/register": {
       "post": {
-        "tags": ["Auth"],
+        "tags": [
+          "Auth"
+        ],
         "summary": "Registrar un nuevo usuario",
         "requestBody": {
           "required": true,
@@ -52,11 +80,21 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "nombre": { "type": "string" },
-                  "correo": { "type": "string" },
-                  "contraseña": { "type": "string" }
+                  "nombre": {
+                    "type": "string"
+                  },
+                  "correo": {
+                    "type": "string"
+                  },
+                  "contraseña": {
+                    "type": "string"
+                  }
                 },
-                "required": ["nombre", "correo", "contraseña"]
+                "required": [
+                  "nombre",
+                  "correo",
+                  "contraseña"
+                ]
               }
             }
           }
@@ -74,9 +112,11 @@
         }
       }
     },
-    "/products": {
+    "/api/products": {
       "post": {
-        "tags": ["Products"],
+        "tags": [
+          "Products"
+        ],
         "summary": "Crear un nuevo producto",
         "requestBody": {
           "required": true,
@@ -85,16 +125,34 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "name": { "type": "string" },
-                  "description": { "type": "string" },
-                  "priceList1": { "type": "number" },
-                  "priceList2": { "type": "number" },
-                  "priceList3": { "type": "number" },
-                  "stock": { "type": "integer" },
-                  "barcode": { "type": "string" },
-                  "imageUrl": { "type": "string" }
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "priceList1": {
+                    "type": "number"
+                  },
+                  "priceList2": {
+                    "type": "number"
+                  },
+                  "priceList3": {
+                    "type": "number"
+                  },
+                  "stock": {
+                    "type": "integer"
+                  },
+                  "barcode": {
+                    "type": "string"
+                  },
+                  "imageUrl": {
+                    "type": "string"
+                  }
                 },
-                "required": ["name"]
+                "required": [
+                  "name"
+                ]
               }
             }
           }
@@ -112,9 +170,11 @@
         }
       }
     },
-    "/products/{productId}": {
+    "/api/products/{productId}": {
       "get": {
-        "tags": ["Products"],
+        "tags": [
+          "Products"
+        ],
         "summary": "Obtener un producto por ID",
         "parameters": [
           {
@@ -134,17 +194,41 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "product_id": { "type": "integer" },
-                    "name": { "type": "string" },
-                    "description": { "type": "string" },
-                    "priceList1": { "type": "number" },
-                    "priceList2": { "type": "number" },
-                    "priceList3": { "type": "number" },
-                    "stock": { "type": "integer" },
-                    "barcode": { "type": "string" },
-                    "imageUrl": { "type": "string" },
-                    "created_at": { "type": "string", "format": "date-time" },
-                    "updated_at": { "type": "string", "format": "date-time" }
+                    "product_id": {
+                      "type": "integer"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "priceList1": {
+                      "type": "number"
+                    },
+                    "priceList2": {
+                      "type": "number"
+                    },
+                    "priceList3": {
+                      "type": "number"
+                    },
+                    "stock": {
+                      "type": "integer"
+                    },
+                    "barcode": {
+                      "type": "string"
+                    },
+                    "imageUrl": {
+                      "type": "string"
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "updated_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
                   }
                 }
               }
@@ -159,9 +243,11 @@
         }
       }
     },
-    "/products/{productId}/image": {
+    "/api/products/{productId}/image": {
       "put": {
-        "tags": ["Products"],
+        "tags": [
+          "Products"
+        ],
         "summary": "Actualizar la imagen de un producto",
         "parameters": [
           {
@@ -180,9 +266,13 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "imageUrl": { "type": "string" }
+                  "imageUrl": {
+                    "type": "string"
+                  }
                 },
-                "required": ["imageUrl"]
+                "required": [
+                  "imageUrl"
+                ]
               }
             }
           }
@@ -203,9 +293,11 @@
         }
       }
     },
-    "/orders": {
+    "/api/orders": {
       "post": {
-        "tags": ["Orders"],
+        "tags": [
+          "Orders"
+        ],
         "summary": "Crear una nueva orden",
         "requestBody": {
           "required": true,
@@ -214,22 +306,40 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "user_id": { "type": "integer" },
-                  "total_amount": { "type": "number" },
+                  "user_id": {
+                    "type": "integer"
+                  },
+                  "total_amount": {
+                    "type": "number"
+                  },
                   "details": {
                     "type": "array",
                     "items": {
                       "type": "object",
                       "properties": {
-                        "product_id": { "type": "integer" },
-                        "quantity": { "type": "integer" },
-                        "unit_price": { "type": "number" }
+                        "product_id": {
+                          "type": "integer"
+                        },
+                        "quantity": {
+                          "type": "integer"
+                        },
+                        "unit_price": {
+                          "type": "number"
+                        }
                       },
-                      "required": ["product_id", "quantity", "unit_price"]
+                      "required": [
+                        "product_id",
+                        "quantity",
+                        "unit_price"
+                      ]
                     }
                   }
                 },
-                "required": ["user_id", "total_amount", "details"]
+                "required": [
+                  "user_id",
+                  "total_amount",
+                  "details"
+                ]
               }
             }
           }
@@ -242,8 +352,12 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "message": { "type": "string" },
-                    "order_id": { "type": "integer" }
+                    "message": {
+                      "type": "string"
+                    },
+                    "order_id": {
+                      "type": "integer"
+                    }
                   }
                 }
               }

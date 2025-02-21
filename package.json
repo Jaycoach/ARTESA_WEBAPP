@@ -3,7 +3,12 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start:dev": "NODE_ENV=development nodemon app.js",
+    "start:ngrok": "NODE_ENV=development NGROK_URL=https://tu-url-ngrok.ngrok-free.app nodemon app.js",
+    "start:prod": "NODE_ENV=production node app.js",
+    "generate-swagger": "node generate-swagger.js",
+    "start": "npm run generate-swagger && node app.js"
   },
   "keywords": [],
   "author": "",
