@@ -1,119 +1,41 @@
-import React from "react";
-import './sidebar.css';
-import logo from '/src/LoginsAssets/logo_artesa.png';
+import React, { useState } from "react";
+import "./Sidebar.scss";
 
-//Import Icons ========>
-import { IoMdSpeedometer } from "react-icons/io";
-import { TbTruckDelivery } from "react-icons/tb";
-import { MdOutlineExplore } from "react-icons/md";
-import { AiOutlineProduct } from "react-icons/ai";
-import { PiChartPieSliceDuotone } from "react-icons/pi";
-import { FiTrendingUp } from "react-icons/fi";
-import { FaRegCreditCard } from "react-icons/fa";
+const Sidebar = ({ setActiveSection }) => {
+  const [collapsed, setCollapsed] = useState(true);
 
+  return (
+    <div
+    className={`sidebar ${collapsed ? "collapsed" : ""}`}
+    onMouseEnter={() => setCollapsed(false)}  
+    onMouseLeave={() => setCollapsed(true)}
+    >
+    <button className="toggle-btn" onClick={() => setCollapsed(!collapsed)}>
+      {collapsed ? "▶" : "◀"}
+    </button>
 
-const Sidebar = () => {
-    return (
-        <div className="sidebar flex">
-
-            <div className="logoDiv flex">
-                <img src={logo} alt="Logo"/>
-            </div>
-
-            <div className="menuDiv">
-                <h3 className="menuTitle">
-                    Menu Rapido
-                </h3>
-                <ul className="menuList grid">
-                    <li className="listItem">
-                        <a href="#" className="menuLink flex">
-                            <IoMdSpeedometer className="icon" />
-                            <span className="smallText">
-                                Dashboard
-                            </span>
-                        </a>
-
-                    </li>
-
-                    <li className="listItem">
-                        <a href="#" className="menuLink flex">
-                            <TbTruckDelivery className="icon" />
-                            <span className="smallText">
-                                Mis Ordenes
-                            </span>
-                        </a>
-
-                    </li>
-
-                    <li className="listItem">
-                        <a href="#" className="menuLink flex">
-                            <MdOutlineExplore className="icon" />
-                            <span className="smallText">
-                                Explorar
-                            </span>
-                        </a>
-
-                    </li>
-
-                    <li className="listItem">
-                        <a href="#" className="menuLink flex">
-                            <AiOutlineProduct className="icon" />
-                            <span className="smallText">
-                                Productos
-                            </span>
-                        </a>
-
-                    </li>
-                </ul>
-            </div>
-            <div className="settingsDiv">
-                <h3 className="settingsTitle">
-                    Configuración
-                </h3>
-                <ul className="menuList grid">
-                    <li className="listItem">
-                        <a href="#" className="menuLink flex">
-                            <FiTrendingUp className="icon" />
-                            <span className="smallText">
-                                Reportes
-                            </span>
-                        </a>
-
-                    </li>
-
-                    <li className="listItem">
-                        <a href="#" className="menuLink flex">
-                            <PiChartPieSliceDuotone className="icon" />
-                            <span className="smallText">
-                                Seccion
-                            </span>
-                        </a>
-
-                    </li>
-
-                    <li className="listItem">
-                        <a href="#" className="menuLink flex">
-                            <FaRegCreditCard className="icon" />
-                            <span className="smallText">
-                                Facturas
-                            </span>
-                        </a>
-
-                    </li>
-
-                    <li className="listItem">
-                        <a href="#" className="menuLink flex">
-                            <AiOutlineProduct className="icon" />
-                            <span className="smallText">
-                                Seccion
-                            </span>
-                        </a>
-
-                    </li>
-                </ul>
-            </div>
-        </div>
-    );
-}
+    <div className="sidebar-menu">
+      {!collapsed && <h3>Menú</h3>}
+      <ul>
+        <li>
+          <button onClick={() => setActiveSection("home")}>Inicio</button>
+        </li>
+        <li>
+          <button onClick={() => setActiveSection("orders")}>Pedidos</button>
+        </li>
+        <li>
+          <button onClick={() => setActiveSection("invoices")}>Facturas</button>
+        </li>
+        <li>
+          <button onClick={() => setActiveSection("products")}>Productos</button>
+        </li>
+        <li>
+          <button onClick={() => setActiveSection("settings")}>Configuración</button>
+        </li>
+      </ul>
+    </div>
+  </div>
+);
+};
 
 export default Sidebar;

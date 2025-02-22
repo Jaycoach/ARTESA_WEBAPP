@@ -1,37 +1,40 @@
-import './App.css'
-import Dashboard from './Components/Dashboard/Dashboard'
-import Sidebar from './Components/Dashboard/Sidebar Section/Sidebar'
-import Login from './Components/Login/Login'
-import Register from './Components/Register/Register'
+import './App.css';
+import Dashboard from './Components/Dashboard/Dashboard';
+import Login from './Components/Login/Login';
+import Register from './Components/Register/Register';
+import NotFound from './Components/NotFound/NotFound';
+import ResetPassword from './Components/resetPassword/ResetPassword';
 
-//Import React react dom
-import {
-  createBrowserRouter,
-  RouterProvider
-}   from 'react-router-dom'
+// Import React Router
+import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 
-//Create Router Functions
+// Crear Router con estructura mejorada
 const router = createBrowserRouter([
-{
-  path: '/',
-  element: <div><Login/></div>
-},
-{
-  path: '/Register',
-  element: <div><Register/></div>
-},
-{
-  path: '/Dashboard',
-  element: <div><Dashboard/></div>
-}
-])
+  {
+    path: '/',
+    element: <Login />,
+  },
+  {
+    path: '/ResetPassword/:token',
+    element: <ResetPassword />,
+  },
+  {
+    path: '/register',
+    element: <Register />,
+  },
+  {
+    path: '/dashboard',
+    element: <Dashboard />,
+  },
+  {
+    path: '*', // Ruta 404 para páginas no encontradas
+    element: <NotFound />,
+  },
+]);
 
 function App() {
-  return (
-    <div>
-      <RouterProvider router={router}/>
-    </div>
-  )
+  return <RouterProvider router={router} />;
+  
 }
 
-export default App
+export default App;

@@ -1,43 +1,107 @@
 :root {
-    --primary-color: #f9f9f9;
-    --hover-color: #f1f1f1;
-    --palegreen-color: #f4ff5b;
-    --whiteColor: #fff;
-    --blackColor: #000;
-    --greyText: #808080;
-    --bgColor: hsl(113, 11%, 85%);
-    --inputColor: hsl(300, 12%, 97%);
-    /* Font Sizes */
-    --biggestFontSize: 2.5rem;
-    --h1FontSize: 1.5rem;
-    --h2FontSize: 1.25rem;
-    --h3FontSize: 1rem;
-    --normalFontSize: 0.938rem;
-    --smallFontSize: 0.813rem;
-    --smallestFontSize: 0.75rem;
-  }
+  --primary-color: #687e8d;
+  --secondary-color: #f6db8e;
+  --hover-color: #f6db8e;
+  --accent-color: #f6754e;
+  --whiteColor: #ffffff;
+  --blackColor: #000000;
+  --greyText: #808080;
+  --bgColor: #2c3e50; // Azul oscuro para sidebar
+  --inputColor: #f6db8e;
+  --buttonColor: #f6754e;
+  --hoverButton: #e5c374; // Amarillo más oscuro para hover
+  
+  /* Font Sizes */
+  --biggestFontSize: 2.5rem;
+  --h1FontSize: 1.5rem;
+  --h2FontSize: 1.25rem;
+  --h3FontSize: 1rem;
+  --normalFontSize: 0.938rem;
+  --smallFontSize: 0.813rem;
+  --smallestFontSize: 0.75rem;
+}
 
 .sidebar {
-    background: var(--whiteColor);
-    box-shadow: 1px 0px 4px var(--greyText);
-    width: 200px;
-    height: 100%;
-    gap: 3rem;
-    overflow: auto;
-    display: flex;
-    flex-direction: column;
-    z-index: 1000;
+  width: 200px; 
+  min-height: calc(100vh - 60px); // Altura completa
+  background-color: var(--bgColor);
+  color: var(--whiteColor);
+  transition: width 0.3s ease-in-out;
+  position: fixed; // Fijo en pantalla
+  left: 0;
+  top: 60px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 2px 0px 10px rgba(0, 0, 0, 0.2);
 
-    .logoDiv{
-        padding-left: 1.5rem;
-        cursor: pointer;
+  &.collapsed {
+    width: 60px;
+
+    .sidebar-menu h3 {
+      display: none;
     }
 
-    img{
-        max-width: 100px;
-        margin-right: .5rem;
-        background: var(--inputColor);
-        border-radius: 2px;
-        padding: .2rem;
+    .sidebar-menu ul li button {
+      justify-content: center;
+      font-size: 0;
+    }
+
+    .toggle-btn {
+      left: 15px;
     }
   }
+
+  .toggle-btn {
+    position: absolute;
+    top: 10px;
+    right: -15px;
+    background-color: #34495e;
+    border: none;
+    color: var(--whiteColor);
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 50%;
+    transition: background 0.3s ease-in-out;
+
+    &:hover {
+      background: var(--hoverButton);
+    }
+  }
+
+  .sidebar-menu {
+    padding: 20px;
+
+    h3 {
+      font-size: var(--h3FontSize);
+      margin-bottom: 20px;
+    }
+
+    ul {
+      list-style: none;
+      padding: 0;
+
+      li {
+        margin-bottom: 10px;
+
+        button {
+          background: none;
+          border: none;
+          color: var(--whiteColor);
+          font-size: var(--normalFontSize);
+          width: 100%;
+          text-align: left;
+          padding: 12px 15px;
+          border-radius: 5px;
+          cursor: pointer;
+          transition: background 0.3s ease-in-out;
+
+          &:hover {
+            background: var(--hoverButton);
+            color: var(--blackColor);
+          }
+        }
+      }
+    }
+  }
+}

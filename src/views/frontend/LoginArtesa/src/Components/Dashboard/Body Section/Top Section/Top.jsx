@@ -1,12 +1,35 @@
-import React from "react";
-import './top.css';
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom"; // Para la redirección
+import { FaUserCircle } from "react-icons/fa"; // Ícono de usuario
+import "./Top.scss";
 
 const Top = () => {
-    return (
-      <div className="top-section">
-        <h2>Top</h2>
-        {/* Aquí puede ir más contenido */}
-      </div>
-    );
+  const [menuOpen, setMenuOpen] = useState(false);
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    navigate("/"); // Redirigir a la página de login
   };
+
+  return (
+    <div className="top-section">
+      <h1>Dashboard</h1>
+
+      <div className="user-container">
+        <button className="user-icon" onClick={() => setMenuOpen(!menuOpen)}>
+          <FaUserCircle size={30} />
+        </button>
+
+        {menuOpen && (
+          <div className="user-menu">
+            <button onClick={() => console.log("Cuenta")}>Cuenta</button>
+            <button onClick={() => console.log("Configuración")}>Configuración</button>
+            <button onClick={handleLogout}>Cerrar Sesión</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 export default Top;

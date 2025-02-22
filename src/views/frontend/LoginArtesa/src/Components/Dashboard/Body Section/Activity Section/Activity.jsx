@@ -1,28 +1,17 @@
 import React from "react";
-import './Activity.css';
+import "./Activity.scss";
 
 const Activity = () => {
-    return (
-        <div className="activity">
-            <div className="activity-header">
-                <h1>Activity</h1>
-            </div>
-            <div className="activity-content">
-                <div className="activity-card">
-                    <h2>Today</h2>
-                    <p>Nothing to show here</p>
-                </div>
-                <div className="activity-card">
-                    <h2>Yesterday</h2>
-                    <p>Nothing to show here</p>
-                </div>
-                <div className="activity-card">
-                    <h2>Last Week</h2>
-                    <p>Nothing to show here</p>
-                </div>
-            </div>
-        </div>
-    );
-}
+  return (
+    <div className="activity-section">
+      <h2>Actividad Reciente</h2>
+      <ul>
+        <li>Ordenes     </li>
+        <li>Producto agotado:</li>
+        <li>Reporte de ordenes generado</li>
+      </ul>
+    </div>
+  );
+};
 
 export default Activity;
