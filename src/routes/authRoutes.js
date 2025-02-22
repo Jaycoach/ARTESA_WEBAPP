@@ -1,9 +1,27 @@
 const express = require('express');
-const { registerUser, loginUser } = require('../controllers/authController');
-
 const router = express.Router();
+const authController = require('../controllers/authController');
+const authValidators = require('../validators/authValidators');
+const { sanitizeBody } = require('../middleware/security');
 
-router.post('/register', registerUser);
-router.post('/login', loginUser);
+// Registro de usuario
+router.post(
+  '/register',
+  sanitizeBody,
+  authValidators.validateName,
+  authValidators.validateEmail,
+  authValidators.validatePassword,
+  authController.registerUser
+);
+
+// Login de usuario
+router.post(
+  '/login',
+  sanitizeBody,
+  authValidators.validateEmail,
+  authValidators.validatePassword,
+  authValidators.validateLoginAttempts,
+  authController.loginUser
+);
 
 module.exports = router;

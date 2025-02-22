@@ -6,6 +6,7 @@ const multer = require('multer');
 const aws = require('aws-sdk');
 const path = require('path');
 const cors = require('cors');
+const security = require('./src/middleware/security');
 
 const app = express();
 const userRoutes = require('./src/routes/userRoutes');
@@ -51,6 +52,12 @@ app.use((err, req, res, next) => {
   }
   next(err);
 });
+
+// Aplicar middlewares de seguridad globalmente
+app.use(security.securityHeaders);
+app.use(security.sanitizeBody);
+app.use(security.sanitizeParams);
+app.use(security.validateQueryParams);
 
 // Configuración base de la API
 app.use(express.json());

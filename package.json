@@ -20,12 +20,15 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
     "multer-s3": "^3.0.1",
     "nodemailer": "^6.10.0",
+    "password-validator": "^5.3.0",
     "pg": "^8.13.2",
     "swagger-ui-express": "^5.0.1",
+    "validator": "^13.12.0",
     "vite": "^6.1.0"
   }
 }

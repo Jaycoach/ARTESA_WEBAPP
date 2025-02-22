@@ -1,44 +1,72 @@
 // src/controllers/authController.js
+
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const pool = require('../config/db');
+const DatabaseUtils = require('../utils/dbUtils');
+const AuthValidators = require('../validators/authValidators');
+const rateLimit = require('express-rate-limit');
+
+// Cache para intentos de login fallidos
+const loginAttempts = new Map();
+
+// Rate limiter para login
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 5, // 5 intentos
+  message: 'Demasiados intentos de login. Por favor, intenta más tarde.'
+});
 
 const loginUser = async (req, res) => {
     try {
-        const { mail, password } = req.body;  // Cambiado de email a mail
-
-        // Validar que se proporcionaron mail y password
-        if (!mail || !password) {
-            return res.status(400).json({ message: 'Correo y contraseña son requeridos' });
+        // Validar email
+        const emailValidation = AuthValidators.validateEmail(req.body.mail);
+        if (!emailValidation.isValid) {
+            return res.status(400).json({ message: emailValidation.error });
         }
 
-        // Buscar el usuario en la base de datos
-        const result = await pool.query(
+        // Validar password
+        const passwordValidation = AuthValidators.validatePassword(req.body.password);
+        if (!passwordValidation.isValid) {
+            return res.status(400).json({ message: passwordValidation.error });
+        }
+
+        const mail = emailValidation.sanitizedValue;
+        const password = req.body.password;
+
+        // Verificar intentos de login
+        const userAttempts = loginAttempts.get(mail) || { count: 0, timestamp: Date.now() };
+        const attemptsValidation = AuthValidators.validateLoginAttempts(userAttempts.count);
+        if (!attemptsValidation.isValid) {
+            return res.status(429).json({ message: attemptsValidation.error });
+        }
+
+        // Buscar usuario usando parametrización segura
+        const result = await DatabaseUtils.query(
             'SELECT * FROM users WHERE mail = $1',
             [mail]
         );
 
         const user = result.rows[0];
 
-        // Verificar si el usuario existe
+        // Verificar si el usuario existe (usar mensaje genérico por seguridad)
         if (!user) {
-            return res.status(401).json({ message: 'Correo o contraseña incorrectos' });
+            incrementLoginAttempts(mail);
+            return res.status(401).json({ 
+                message: 'Credenciales inválidas' 
+            });
         }
 
         let isValidPassword = false;
 
-        // Verificar si la contraseña está hasheada
+        // Verificar contraseña
         if (user.password.startsWith('$2b$')) {
-            // Contraseña hasheada - usar bcrypt.compare
             isValidPassword = await bcrypt.compare(password, user.password);
         } else {
-            // Contraseña sin hashear - comparación directa
+            // Migración automática a bcrypt
             isValidPassword = password === user.password;
-            
-            // Opcional: Hashear la contraseña automáticamente para futuras validaciones
             if (isValidPassword) {
-                const hashedPassword = await bcrypt.hash(password, 10);
-                await pool.query(
+                const hashedPassword = await bcrypt.hash(password, 12);
+                await DatabaseUtils.query(
                     'UPDATE users SET password = $1, updated_at = CURRENT_TIMESTAMP WHERE mail = $2',
                     [hashedPassword, mail]
                 );
@@ -46,28 +74,39 @@ const loginUser = async (req, res) => {
         }
 
         if (!isValidPassword) {
-            return res.status(401).json({ message: 'Correo o contraseña incorrectos' });
+            incrementLoginAttempts(mail);
+            return res.status(401).json({ 
+                message: 'Credenciales inválidas' 
+            });
         }
 
-        // Generar token JWT
+        // Reset intentos de login al tener éxito
+        loginAttempts.delete(mail);
+
+        // Generar token JWT con payload mínimo
         const token = jwt.sign(
             { 
-                userId: user.id, 
-                mail: user.mail,
-                name: user.name,
-                role: user.rol_id 
+                sub: user.id,
+                role: user.rol_id
             },
             process.env.JWT_SECRET,
-            { expiresIn: '24h' }
+            { 
+                expiresIn: '1h',
+                algorithm: 'HS256'
+            }
         );
 
-        // Enviar respuesta exitosa
+        // Registrar login exitoso
+        await DatabaseUtils.query(
+            'INSERT INTO login_history (user_id, login_timestamp, ip_address) VALUES ($1, CURRENT_TIMESTAMP, $2)',
+            [user.id, req.ip]
+        );
+
+        // Enviar respuesta con información mínima necesaria
         res.json({
-            message: 'Login exitoso',
             token,
             user: {
                 id: user.id,
-                mail: user.mail,
                 name: user.name,
                 role: user.rol_id
             }
@@ -81,67 +120,79 @@ const loginUser = async (req, res) => {
 
 const registerUser = async (req, res) => {
     try {
-        const { name, mail, password } = req.body;  // Cambiado para coincidir con el swagger
+        // Validar todos los campos
+        const emailValidation = AuthValidators.validateEmail(req.body.mail);
+        const passwordValidation = AuthValidators.validatePassword(req.body.password);
+        const nameValidation = AuthValidators.validateName(req.body.name);
 
-        // Validaciones básicas
-        if (!mail || !password || !name) {
-            return res.status(400).json({ 
-                message: 'Todos los campos son requeridos',
-                details: {
-                    mail: !mail ? 'El correo es requerido' : null,
-                    password: !password ? 'La contraseña es requerida' : null,
-                    name: !name ? 'El nombre es requerido' : null
-                }
-            });
+        // Recolectar todos los errores
+        const errors = {};
+        if (!emailValidation.isValid) errors.mail = emailValidation.error;
+        if (!passwordValidation.isValid) errors.password = passwordValidation.error;
+        if (!nameValidation.isValid) errors.name = nameValidation.error;
+
+        if (Object.keys(errors).length > 0) {
+            return res.status(400).json({ errors });
         }
 
-        // Validar longitud mínima de contraseña
-        if (password.length < 6) {
-            return res.status(400).json({ 
-                message: 'La contraseña debe tener al menos 6 caracteres' 
-            });
-        }
+        // Usar valores sanitizados
+        const mail = emailValidation.sanitizedValue;
+        const name = nameValidation.sanitizedValue;
+        const password = req.body.password;
 
-        // Verificar si el usuario ya existe
-        const existingUser = await pool.query(
-            'SELECT * FROM users WHERE mail = $1',
+        // Verificar usuario existente de forma segura
+        const existingUser = await DatabaseUtils.query(
+            'SELECT 1 FROM users WHERE mail = $1',
             [mail]
         );
 
         if (existingUser.rows.length > 0) {
-            return res.status(400).json({ message: 'El correo electrónico ya está registrado' });
+            return res.status(400).json({ 
+                message: 'El correo electrónico ya está registrado' 
+            });
         }
 
-        // Hashear la contraseña
-        const hashedPassword = await bcrypt.hash(password, 10);
+        // Hashear contraseña con salt fuerte
+        const hashedPassword = await bcrypt.hash(password, 12);
 
-        // Insertar nuevo usuario con rol_id por defecto (2)
-        const result = await pool.query(
-            'INSERT INTO users (name, mail, password, rol_id, created_at, updated_at) VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) RETURNING *',
-            [name, mail, hashedPassword, 2]  // rol_id = 2 por defecto
-        );
+        // Usar transacción para el registro
+        const newUser = await DatabaseUtils.executeTransaction(async (client) => {
+            // Insertar usuario
+            const result = await client.query(
+                `INSERT INTO users (name, mail, password, rol_id, created_at, updated_at) 
+                 VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) 
+                 RETURNING id, name, rol_id`,
+                [name, mail, hashedPassword, 2]
+            );
 
-        const newUser = result.rows[0];
+            // Registrar la creación en el historial
+            await client.query(
+                `INSERT INTO user_history (user_id, action, ip_address, timestamp)
+                 VALUES ($1, 'REGISTER', $2, CURRENT_TIMESTAMP)`,
+                [result.rows[0].id, req.ip]
+            );
 
-        // Generar token JWT
+            return result.rows[0];
+        });
+
+        // Generar token JWT con payload mínimo
         const token = jwt.sign(
             { 
-                userId: newUser.id, 
-                mail: newUser.mail,
-                name: newUser.name,
-                role: newUser.rol_id 
+                sub: newUser.id,
+                role: newUser.rol_id
             },
             process.env.JWT_SECRET,
-            { expiresIn: '24h' }
+            { 
+                expiresIn: '1h',
+                algorithm: 'HS256'
+            }
         );
 
-        // Enviar respuesta exitosa
+        // Enviar respuesta con información mínima necesaria
         res.status(201).json({
-            message: 'Usuario registrado exitosamente',
             token,
             user: {
                 id: newUser.id,
-                mail: newUser.mail,
                 name: newUser.name,
                 role: newUser.rol_id
             }
@@ -153,7 +204,16 @@ const registerUser = async (req, res) => {
     }
 };
 
+// Función auxiliar para incrementar intentos de login
+function incrementLoginAttempts(mail) {
+    const attempts = loginAttempts.get(mail) || { count: 0, timestamp: Date.now() };
+    attempts.count++;
+    attempts.timestamp = Date.now();
+    loginAttempts.set(mail, attempts);
+}
+
 module.exports = {
     loginUser,
-    registerUser
+    registerUser,
+    loginLimiter
 };

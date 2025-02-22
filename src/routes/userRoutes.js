@@ -1,8 +1,15 @@
 const express = require('express');
-const { getUsers } = require('../controllers/userController');
-
 const router = express.Router();
+const { verifyToken, checkRole } = require('../middleware/auth');
+const { sanitizeBody, sanitizeParams, validateQueryParams } = require('../middleware/security');
+const { getUsers, getUserById, updateUser } = require('../controllers/userController');
 
-router.get('/users', getUsers);
+// Aplicar middleware de seguridad a todas las rutas
+router.use(sanitizeBody, sanitizeParams, validateQueryParams);
+
+// Rutas específicas
+router.get('/users', verifyToken, checkRole(['admin']), getUsers);
+router.get('/users/:id', verifyToken, getUserById);
+router.put('/users/:id', verifyToken, updateUser);
 
 module.exports = router;

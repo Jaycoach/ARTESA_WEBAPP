@@ -180,3 +180,21 @@ RENAME COLUMN price TO price_list1;
 - Nueva tabla para gestión de tokens de recuperación de contraseña
 - Índices optimizados para búsqueda de tokens
 - Trigger para limpieza automática de tokens expirados
+
+# Changelog
+
+## [1.1.0] - 2023-06-08
+
+### Added
+- Implementación de validadores de autenticación en el archivo `authValidators.js`.
+- Sanitización de datos en el middleware de seguridad (`sanitizeBody`, `sanitizeParams`, `validateQueryParams`).
+- Limitador de velocidad (rate limiting) en las solicitudes de autenticación utilizando el módulo 'express-rate-limit'.
+- Validación de intentos de login para prevenir ataques de fuerza bruta.
+
+### Changed
+- Refactorización del archivo `authRoutes.js` para utilizar los validadores y middleware de seguridad.
+- Actualización de las rutas de registro y login de usuario para incluir validaciones y sanitización de datos.
+
+### Dependencies
+- Se agregó la dependencia 'password-validator' para la validación de contraseñas.
+- Se agregó la dependencia 'express-rate-limit' para el limitador de velocidad en las solicitudes de autenticación.
