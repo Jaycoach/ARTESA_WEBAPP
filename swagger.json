@@ -89,7 +89,7 @@
                   },
                   "mail": {
                     "type": "string",
-                    "format": "email",
+                    "format": "mail",
                     "maxLength": 100,
                     "description": "Correo electrónico del usuario (debe ser único)"
                   },
@@ -177,7 +177,7 @@
                 "properties": {
                   "mail": {
                     "type": "string",
-                    "format": "email",
+                    "format": "mail",
                     "description": "Correo electrónico del usuario"
                   },
                   "password": {
@@ -250,17 +250,17 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["email"],
+                "required": ["mail"],
                 "properties": {
-                  "email": {
+                  "mail": {
                     "type": "string",
-                    "format": "email",
+                    "format": "mail",
                     "description": "Correo electrónico del usuario"
                   }
                 }
               },
               "example": {
-                "email": "usuario@example.com"
+                "mail": "usuario@example.com"
               }
             }
           }
@@ -289,59 +289,59 @@
       }
     },
     "/api/password/reset": {
-      "post": {
-        "tags": ["Auth"],
-        "summary": "Restablecer contraseña",
-        "security": [],
-        "requestBody": {
-          "required": true,
+    "post": {
+      "tags": ["Auth"],
+      "summary": "Restablecer contraseña usando token",
+      "security": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "required": ["token", "newPassword"],
+              "properties": {
+                "token": {
+                  "type": "string",
+                  "description": "Token recibido por correo electrónico"
+                },
+                "newPassword": {
+                  "type": "string",
+                  "format": "password",
+                  "minLength": 6,
+                  "description": "Nueva contraseña del usuario"
+                }
+              }
+            }
+          }
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Contraseña actualizada exitosamente",
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["token", "newPassword"],
                 "properties": {
-                  "token": {
+                  "message": {
                     "type": "string",
-                    "description": "Token de recuperación recibido por email"
-                  },
-                  "newPassword": {
-                    "type": "string",
-                    "format": "password",
-                    "minLength": 6,
-                    "description": "Nueva contraseña"
+                    "example": "Contraseña actualizada exitosamente"
                   }
                 }
               }
             }
           }
         },
-        "responses": {
-          "200": {
-            "description": "Contraseña actualizada exitosamente",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string",
-                      "example": "Contraseña actualizada exitosamente"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Token inválido o expirado"
-          },
-          "500": {
-            "description": "Error interno del servidor"
-          }
+        "400": {
+          "description": "Token inválido o expirado"
+        },
+        "500": {
+          "description": "Error interno del servidor"
         }
       }
-    },
+    }
+  },
     "/api/products": {
       "post": {
         "tags": [

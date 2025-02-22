@@ -17,7 +17,10 @@ const createUser = async (name, mail, password, rol_id) => {
 // Buscar usuario por email
 const findByEmail = async (mail) => {
     const query = `
-        SELECT * FROM users 
+        SELECT 
+        id AS user_id, 
+        mail 
+        FROM users 
         WHERE mail = $1;
     `;
     const values = [mail];
@@ -102,12 +105,17 @@ const updatePassword = async (userId, newPassword) => {
         UPDATE users 
         SET password = $1,
             updated_at = CURRENT_TIMESTAMP
-        WHERE user_id = $2
-        RETURNING user_id, mail, updated_at;
+        WHERE id = $2
+        RETURNING id, mail, updated_at;
     `;
     const values = [hashedPassword, userId];
-    const { rows } = await pool.query(query, values);
-    return rows[0];
+    try {
+        const result = await pool.query(query, values);
+        return result;
+      } catch (error) {
+        console.error('Error al actualizar contraseña:', error);
+        throw error;
+      }
 };
 
 module.exports = {
