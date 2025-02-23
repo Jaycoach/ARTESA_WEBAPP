@@ -2,17 +2,18 @@ const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 const userModel = require('../models/userModel');
 const PasswordReset = require('../models/PasswordReset');
-const EmailService = require('../services/EmailService');
+const logger = require('../config/logger');
 
 class PasswordResetController {
   async requestReset(req, res) {
     try {
       const { mail } = req.body;
-      console.log('Mail recibido:', mail);
+      logger.debug('Mail recibido:', mail);
       
       // Buscar usuario
       const user = await userModel.findByEmail(mail);
-      console.log('Usuario encontrado:', user);
+      logger.debug('Usuario encontrado:', user);
+      
       if (!user) {
         return res.status(200).json({ 
           message: 'Si el correo existe, recibirás instrucciones para restablecer tu contraseña'
@@ -21,7 +22,7 @@ class PasswordResetController {
 
       // Verificar explícitamente el user_id
       if (!user.user_id) {
-        console.error('No se encontró user_id para el usuario');
+        logger.error('No se encontró user_id para el usuario');
         return res.status(400).json({ 
           error: 'No se pudo identificar el usuario' 
         });
@@ -29,39 +30,26 @@ class PasswordResetController {
 
       // Generar token único
       const resetToken = crypto.randomBytes(32).toString('hex');
-      console.log('Token generado:', resetToken);
+      logger.debug('Token generado:', resetToken);
       const expiresAt = new Date(Date.now() + 3600000); // 1 hora
 
       // Guardar token
-      const tokenRecord = await PasswordReset.createToken(user.user_id, resetToken, expiresAt);
-      console.log('Registro de token:', tokenRecord);
+      await PasswordReset.createToken(user.user_id, resetToken, expiresAt);
 
       // En desarrollo, mostrar el token para pruebas
       if (process.env.NODE_ENV === 'development') {
-        console.log('Token generado para pruebas:', resetToken);
+        logger.info('Token generado para pruebas:', resetToken);
+        return res.json({ 
+          message: 'Token generado (modo desarrollo)',
+          token: resetToken
+        });
       }
 
-      // Enviar email
-      try {
-        console.log('Intentando enviar correo a:', mail);
-        await EmailService.sendPasswordResetEmail(mail, resetToken);
-        console.log('Correo enviado exitosamente');
-      } catch (emailError) {
-        console.error('Error completo al enviar email:', emailError);
-        // En desarrollo, aún así devolvemos éxito para poder probar con el token
-        if (process.env.NODE_ENV === 'development') {
-          return res.json({ 
-            message: 'Token generado (modo desarrollo)',
-            token: resetToken // Solo en desarrollo
-          });
-        }
-      }
-  
       res.json({ 
         message: 'Si el correo existe, recibirás instrucciones para restablecer tu contraseña'
       });
     } catch (error) {
-      console.error('Error detallado en recuperación de contraseña:', error);
+      logger.error('Error detallado en recuperación de contraseña:', error);
       res.status(500).json({ 
         error: 'Error al procesar la solicitud de recuperación de contraseña' 
       });
@@ -72,32 +60,65 @@ class PasswordResetController {
     try {
       const { token, newPassword } = req.body;
 
-      // Verificar token
+      // 1. Verificación del token
       const resetRequest = await PasswordReset.findByToken(token);
       if (!resetRequest) {
+        logger.warn('Token inválido o expirado', { token: token.substring(0, 10) });
         return res.status(400).json({ 
           error: 'Token inválido o expirado' 
         });
       }
 
-      console.log('Reset Request:', resetRequest);
-
-      // Hash nueva contraseña
+      // 2. Generar nuevo hash
       const hashedPassword = await bcrypt.hash(newPassword, 10);
+      
+      // Debug: Verificar el hash generado
+      logger.debug('Verificación de hash generado', {
+        passwordLength: newPassword.length,
+        hashLength: hashedPassword.length,
+        hashStart: hashedPassword.substring(0, 7)
+      });
 
-      // Actualizar contraseña
+      // 3. Verificar que el hash es válido antes de guardarlo
+      try {
+        const verificationTest = await bcrypt.compare(newPassword, hashedPassword);
+        if (!verificationTest) {
+          throw new Error('Hash verification failed');
+        }
+        logger.debug('Verificación de hash exitosa');
+      } catch (verifyError) {
+        logger.error('Error en verificación de hash', verifyError);
+        throw verifyError;
+      }
+
+      // 4. Actualizar la contraseña
       await userModel.updatePassword(resetRequest.user_id, hashedPassword);
 
-      // Marcar token como usado
+      // 5. Marcar token como usado
       await PasswordReset.markAsUsed(token);
 
-      res.json({ 
-        message: 'Contraseña actualizada exitosamente' 
+      // 6. Hacer una verificación final
+      const user = await userModel.findById(resetRequest.user_id);
+      const finalCheck = await bcrypt.compare(newPassword, user.password);
+      
+      logger.info('Reset de contraseña completado', {
+        userId: resetRequest.user_id,
+        verificationSuccess: finalCheck
+      });
+
+      return res.json({ 
+        success: true,
+        message: 'Contraseña actualizada exitosamente',
+        verified: finalCheck
       });
     } catch (error) {
-      console.error('Error al restablecer contraseña:', error);
-      res.status(500).json({ 
-        error: 'Error al restablecer la contraseña' 
+      logger.error('Error en reset de contraseña', {
+        error: error.message,
+        stack: error.stack
+      });
+      return res.status(500).json({
+        success: false,
+        message: 'Error al restablecer la contraseña'
       });
     }
   }

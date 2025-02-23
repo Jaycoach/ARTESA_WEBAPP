@@ -1,219 +1,372 @@
-// src/controllers/authController.js
-
+const pool = require('../config/db');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const DatabaseUtils = require('../utils/dbUtils');
-const AuthValidators = require('../validators/authValidators');
 const rateLimit = require('express-rate-limit');
+const winston = require('winston');
 
-// Cache para intentos de login fallidos
-const loginAttempts = new Map();
-
-// Rate limiter para login
-const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 5, // 5 intentos
-  message: 'Demasiados intentos de login. Por favor, intenta más tarde.'
+// Configuración de logging con Winston
+const logger = winston.createLogger({
+    level: 'debug',
+    format: winston.format.combine(
+        winston.format.timestamp(),
+        winston.format.json()
+    ),
+    transports: [
+        new winston.transports.Console({
+            format: winston.format.combine(
+                winston.format.colorize(),
+                winston.format.simple()
+            )
+        }),
+        new winston.transports.File({ 
+            filename: 'logs/auth.log',
+            level: 'debug'
+        }),
+        new winston.transports.File({ 
+            filename: 'logs/errors.log', 
+            level: 'error' 
+        })
+    ]
 });
 
-const loginUser = async (req, res) => {
-    try {
-        // Validar email
-        const emailValidation = AuthValidators.validateEmail(req.body.mail);
-        if (!emailValidation.isValid) {
-            return res.status(400).json({ message: emailValidation.error });
-        }
+// Configuración del rate limiter
+const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutos
+    max: 5,
+    message: 'Demasiados intentos de login. Por favor, intenta más tarde.',
+    standardHeaders: true,
+    legacyHeaders: false
+});
 
-        // Validar password
-        const passwordValidation = AuthValidators.validatePassword(req.body.password);
-        if (!passwordValidation.isValid) {
-            return res.status(400).json({ message: passwordValidation.error });
-        }
+class AuthController {
+    // Mapa para rastreo de intentos de login
+    static loginAttempts = new Map();
+    
+    // Constantes de clase usando getters
+    static get MAX_LOGIN_ATTEMPTS() { return 5; }
+    static get LOCKOUT_TIME() { return 15 * 60 * 1000; } // 15 minutos
+    static get PASSWORD_HASH_ROUNDS() { return 10; }
 
-        const mail = emailValidation.sanitizedValue;
-        const password = req.body.password;
+    // Método para registrar intentos de login
+    static async logLoginAttempt(userId, ipAddress, status = 'success', details = null, req = null) {
+        try {
+            const logEntry = {
+                user_id: userId,
+                ip_address: ipAddress,
+                status: status,
+                attempt_details: details,
+                user_agent: req?.headers?.['user-agent'] || null,
+                timestamp: new Date()
+            };
 
-        // Verificar intentos de login
-        const userAttempts = loginAttempts.get(mail) || { count: 0, timestamp: Date.now() };
-        const attemptsValidation = AuthValidators.validateLoginAttempts(userAttempts.count);
-        if (!attemptsValidation.isValid) {
-            return res.status(429).json({ message: attemptsValidation.error });
-        }
+            await pool.query(
+                `INSERT INTO login_history 
+                (user_id, ip_address, status, attempt_details, user_agent) 
+                VALUES ($1, $2, $3, $4, $5)`,
+                [userId, ipAddress, status, details, logEntry.user_agent]
+            );
 
-        // Buscar usuario usando parametrización segura
-        const result = await DatabaseUtils.query(
-            'SELECT * FROM users WHERE mail = $1',
-            [mail]
-        );
-
-        const user = result.rows[0];
-
-        // Verificar si el usuario existe (usar mensaje genérico por seguridad)
-        if (!user) {
-            incrementLoginAttempts(mail);
-            return res.status(401).json({ 
-                message: 'Credenciales inválidas' 
+            if (status === 'success') {
+                logger.info('Inicio de sesión exitoso', logEntry);
+            } else {
+                logger.warn('Intento de inicio de sesión fallido', logEntry);
+            }
+        } catch (error) {
+            logger.error('Error al registrar intento de login', {
+                error: error.message,
+                stack: error.stack
             });
         }
+    }
 
-        let isValidPassword = false;
+    // Método para incrementar y verificar intentos de login
+    static incrementLoginAttempts(mail) {
+        const currentAttempts = this.loginAttempts.get(mail) || { 
+            count: 0, 
+            timestamp: Date.now() 
+        };
 
-        // Verificar contraseña
-        if (user.password.startsWith('$2b$')) {
-            isValidPassword = await bcrypt.compare(password, user.password);
-        } else {
-            // Migración automática a bcrypt
-            isValidPassword = password === user.password;
-            if (isValidPassword) {
-                const hashedPassword = await bcrypt.hash(password, 12);
-                await DatabaseUtils.query(
-                    'UPDATE users SET password = $1, updated_at = CURRENT_TIMESTAMP WHERE mail = $2',
-                    [hashedPassword, mail]
+        if (currentAttempts.count >= this.MAX_LOGIN_ATTEMPTS) {
+            const timeElapsed = Date.now() - currentAttempts.timestamp;
+            if (timeElapsed < this.LOCKOUT_TIME) {
+                const remainingTime = Math.ceil((this.LOCKOUT_TIME - timeElapsed) / 1000);
+                throw new Error(`Cuenta bloqueada. Intente nuevamente en ${remainingTime} segundos`);
+            }
+            currentAttempts.count = 0;
+        }
+
+        currentAttempts.count++;
+        currentAttempts.timestamp = Date.now();
+        this.loginAttempts.set(mail, currentAttempts);
+
+        logger.warn('Incremento de intentos de login', { 
+            mail,
+            attemptCount: currentAttempts.count 
+        });
+
+        return currentAttempts;
+    }
+
+    // Método para generar token JWT
+    static generateToken(user) {
+        try {
+            const token = jwt.sign(
+                {
+                    id: user.id,
+                    mail: user.mail,
+                    name: user.name,
+                    rol_id: user.rol_id
+                },
+                process.env.JWT_SECRET,
+                { expiresIn: '24h' }
+            );
+
+            logger.info('Token generado exitosamente', { 
+                userId: user.id,
+                mail: user.mail 
+            });
+
+            return token;
+        } catch (error) {
+            logger.error('Error al generar token', {
+                error: error.message,
+                userId: user.id
+            });
+            throw new Error('Error al generar token de autenticación');
+        }
+    }
+
+    // Método principal de login
+    static async login(req, res) {
+        try {
+            const { mail, password } = req.body;
+
+            // 1. Verificación inicial de credenciales
+            if (!mail || !password) {
+                logger.warn('Intento de login sin credenciales completas', {
+                    mail: mail || 'No proporcionado',
+                    hasPassword: !!password
+                });
+                return res.status(400).json({
+                    success: false,
+                    message: 'Credenciales incompletas'
+                });
+            }
+
+            // 2. Verificar intentos de login
+            try {
+                const attempts = this.incrementLoginAttempts(mail);
+                if (attempts.count >= this.MAX_LOGIN_ATTEMPTS) {
+                    const error = new Error('Demasiados intentos fallidos');
+                    error.remainingTime = Math.ceil(
+                        (this.LOCKOUT_TIME - (Date.now() - attempts.timestamp)) / 1000
+                    );
+                    throw error;
+                }
+            } catch (error) {
+                return res.status(429).json({
+                    success: false,
+                    message: error.message,
+                    remainingTime: error.remainingTime
+                });
+            }
+
+            // 3. Buscar usuario y verificar estado
+            const query = `
+                SELECT 
+                    id,
+                    name,
+                    mail,
+                    password,
+                    rol_id,
+                    is_active
+                FROM users 
+                WHERE mail = $1 AND is_active = true
+            `;
+            
+            const result = await pool.query(query, [mail]);
+
+            if (result.rows.length === 0) {
+                await this.logLoginAttempt(
+                    null, 
+                    req.ip, 
+                    'failed', 
+                    'Usuario no encontrado o inactivo', 
+                    req
                 );
+                return res.status(401).json({
+                    success: false,
+                    message: 'Credenciales inválidas'
+                });
             }
-        }
 
-        if (!isValidPassword) {
-            incrementLoginAttempts(mail);
-            return res.status(401).json({ 
-                message: 'Credenciales inválidas' 
+            const user = result.rows[0];
+
+            // 4. Verificación de contraseña
+            try {
+                if (!user.password) {
+                    logger.error(`Hash de contraseña no encontrado para usuario: ${mail}`);
+                    return res.status(500).json({
+                        success: false,
+                        message: 'Error en la verificación de credenciales'
+                    });
+                }
+
+                const isValidPassword = await bcrypt.compare(password, user.password);
+                logger.debug(`Resultado de comparación de contraseña para ${mail}: ${isValidPassword}`);
+
+                if (!isValidPassword) {
+                    await this.logLoginAttempt(
+                        user.id, 
+                        req.ip, 
+                        'failed', 
+                        'Contraseña incorrecta', 
+                        req
+                    );
+                    return res.status(401).json({
+                        success: false,
+                        message: 'Credenciales inválidas'
+                    });
+                }
+
+                // 5. Autenticación exitosa
+                const token = this.generateToken(user);
+                this.loginAttempts.delete(mail); // Resetear intentos
+
+                await this.logLoginAttempt(
+                    user.id,
+                    req.ip,
+                    'success',
+                    null,
+                    req
+                );
+
+                return res.status(200).json({
+                    success: true,
+                    message: 'Login exitoso',
+                    data: {
+                        token,
+                        user: {
+                            id: user.id,
+                            name: user.name,
+                            mail: user.mail,
+                            rol_id: user.rol_id
+                        }
+                    }
+                });
+
+            } catch (compareError) {
+                logger.error('Error en la comparación de contraseñas', {
+                    error: compareError.message,
+                    stack: compareError.stack,
+                    userId: user.id
+                });
+                
+                return res.status(500).json({
+                    success: false,
+                    message: 'Error en la verificación de credenciales'
+                });
+            }
+
+        } catch (error) {
+            logger.error('Error en el proceso de login', {
+                error: error.message,
+                stack: error.stack
+            });
+            
+            return res.status(500).json({
+                success: false,
+                message: 'Error interno del servidor',
+                error: process.env.NODE_ENV === 'development' ? error.message : undefined
             });
         }
-
-        // Reset intentos de login al tener éxito
-        loginAttempts.delete(mail);
-
-        // Generar token JWT con payload mínimo
-        const token = jwt.sign(
-            { 
-                sub: user.id,
-                role: user.rol_id
-            },
-            process.env.JWT_SECRET,
-            { 
-                expiresIn: '1h',
-                algorithm: 'HS256'
-            }
-        );
-
-        // Registrar login exitoso
-        await DatabaseUtils.query(
-            'INSERT INTO login_history (user_id, login_timestamp, ip_address) VALUES ($1, CURRENT_TIMESTAMP, $2)',
-            [user.id, req.ip]
-        );
-
-        // Enviar respuesta con información mínima necesaria
-        res.json({
-            token,
-            user: {
-                id: user.id,
-                name: user.name,
-                role: user.rol_id
-            }
-        });
-
-    } catch (error) {
-        console.error('Error en login:', error);
-        res.status(500).json({ message: 'Error interno del servidor' });
     }
-};
 
-const registerUser = async (req, res) => {
-    try {
-        // Validar todos los campos
-        const emailValidation = AuthValidators.validateEmail(req.body.mail);
-        const passwordValidation = AuthValidators.validatePassword(req.body.password);
-        const nameValidation = AuthValidators.validateName(req.body.name);
+    // Método de registro
+    static async register(req, res) {
+        try {
+            const { name, mail, password } = req.body;
 
-        // Recolectar todos los errores
-        const errors = {};
-        if (!emailValidation.isValid) errors.mail = emailValidation.error;
-        if (!passwordValidation.isValid) errors.password = passwordValidation.error;
-        if (!nameValidation.isValid) errors.name = nameValidation.error;
+            // 1. Verificar si el usuario ya existe
+            const userExists = await pool.query(
+                'SELECT id FROM users WHERE mail = $1',
+                [mail]
+            );
 
-        if (Object.keys(errors).length > 0) {
-            return res.status(400).json({ errors });
-        }
+            if (userExists.rows.length > 0) {
+                logger.warn('Intento de registro con correo existente', { mail });
+                return res.status(400).json({
+                    success: false,
+                    message: 'El correo electrónico ya está registrado'
+                });
+            }
 
-        // Usar valores sanitizados
-        const mail = emailValidation.sanitizedValue;
-        const name = nameValidation.sanitizedValue;
-        const password = req.body.password;
+            // 2. Hash de la contraseña
+            const hashedPassword = await bcrypt.hash(password, this.PASSWORD_HASH_ROUNDS);
 
-        // Verificar usuario existente de forma segura
-        const existingUser = await DatabaseUtils.query(
-            'SELECT 1 FROM users WHERE mail = $1',
-            [mail]
-        );
+            // 3. Insertar nuevo usuario
+            const result = await pool.query(
+                `INSERT INTO users 
+                (name, mail, password, rol_id, is_active) 
+                VALUES ($1, $2, $3, $4, true)
+                RETURNING id, name, mail, rol_id`,
+                [name, mail, hashedPassword, 2] // rol_id 2 = usuario normal
+            );
 
-        if (existingUser.rows.length > 0) {
-            return res.status(400).json({ 
-                message: 'El correo electrónico ya está registrado' 
+            const newUser = result.rows[0];
+            const token = this.generateToken(newUser);
+
+            logger.info('Usuario registrado exitosamente', {
+                mail: mail,
+                userId: newUser.id
+            });
+
+            return res.status(201).json({
+                success: true,
+                message: 'Usuario registrado exitosamente',
+                data: {
+                    token,
+                    user: {
+                        id: newUser.id,
+                        name: newUser.name,
+                        mail: newUser.mail,
+                        rol_id: newUser.rol_id
+                    }
+                }
+            });
+
+        } catch (error) {
+            logger.error('Error en el proceso de registro', {
+                error: error.message,
+                stack: error.stack,
+                mail: req.body.mail
+            });
+
+            return res.status(500).json({
+                success: false,
+                message: 'Error interno del servidor',
+                error: process.env.NODE_ENV === 'development' ? error.message : undefined
             });
         }
-
-        // Hashear contraseña con salt fuerte
-        const hashedPassword = await bcrypt.hash(password, 12);
-
-        // Usar transacción para el registro
-        const newUser = await DatabaseUtils.executeTransaction(async (client) => {
-            // Insertar usuario
-            const result = await client.query(
-                `INSERT INTO users (name, mail, password, rol_id, created_at, updated_at) 
-                 VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) 
-                 RETURNING id, name, rol_id`,
-                [name, mail, hashedPassword, 2]
-            );
-
-            // Registrar la creación en el historial
-            await client.query(
-                `INSERT INTO user_history (user_id, action, ip_address, timestamp)
-                 VALUES ($1, 'REGISTER', $2, CURRENT_TIMESTAMP)`,
-                [result.rows[0].id, req.ip]
-            );
-
-            return result.rows[0];
-        });
-
-        // Generar token JWT con payload mínimo
-        const token = jwt.sign(
-            { 
-                sub: newUser.id,
-                role: newUser.rol_id
-            },
-            process.env.JWT_SECRET,
-            { 
-                expiresIn: '1h',
-                algorithm: 'HS256'
-            }
-        );
-
-        // Enviar respuesta con información mínima necesaria
-        res.status(201).json({
-            token,
-            user: {
-                id: newUser.id,
-                name: newUser.name,
-                role: newUser.rol_id
-            }
-        });
-
-    } catch (error) {
-        console.error('Error en registro:', error);
-        res.status(500).json({ message: 'Error interno del servidor' });
     }
-};
 
-// Función auxiliar para incrementar intentos de login
-function incrementLoginAttempts(mail) {
-    const attempts = loginAttempts.get(mail) || { count: 0, timestamp: Date.now() };
-    attempts.count++;
-    attempts.timestamp = Date.now();
-    loginAttempts.set(mail, attempts);
+    // Método para verificar token JWT
+    static async verifyToken(token) {
+        try {
+            return jwt.verify(token, process.env.JWT_SECRET);
+        } catch (error) {
+            logger.error('Error al verificar token', {
+                error: error.message,
+                token: token.substring(0, 10) + '...' // Log seguro del token
+            });
+            throw new Error('Token inválido o expirado');
+        }
+    }
 }
 
 module.exports = {
-    loginUser,
-    registerUser,
+    login: AuthController.login.bind(AuthController),
+    register: AuthController.register.bind(AuthController),
+    verifyToken: AuthController.verifyToken.bind(AuthController),
     loginLimiter
 };

@@ -1,27 +1,32 @@
+// src/routes/authRoutes.js
 const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/authController');
-const authValidators = require('../validators/authValidators');
-const { sanitizeBody } = require('../middleware/security');
+const AuthValidators = require('../validators/authValidators');
+const { sanitizeBody, securityHeaders } = require('../middleware/security');
 
-// Registro de usuario
+// Aplicar headers de seguridad a todas las rutas
+router.use(securityHeaders);
+
+// Ruta de registro
 router.post(
-  '/register',
-  sanitizeBody,
-  authValidators.validateName,
-  authValidators.validateEmail,
-  authValidators.validatePassword,
-  authController.registerUser
+    '/register',
+    sanitizeBody,
+    AuthValidators.validateName,
+    AuthValidators.validateEmail,
+    AuthValidators.validatePassword,
+    authController.register
 );
 
-// Login de usuario
+// Ruta de login
 router.post(
-  '/login',
-  sanitizeBody,
-  authValidators.validateEmail,
-  authValidators.validatePassword,
-  authValidators.validateLoginAttempts,
-  authController.loginUser
+    '/login',
+    authController.loginLimiter,
+    sanitizeBody,
+    AuthValidators.validateLoginData,
+    AuthValidators.validateEmail,
+    AuthValidators.validatePassword,
+    authController.login
 );
 
 module.exports = router;

@@ -1,93 +1,159 @@
+// src/validators/authValidators.js
 const validator = require('validator');
 const passwordValidator = require('password-validator');
 
-const passwordSchema = new passwordValidator();
-passwordSchema
-  .is().min(8)
-  .is().max(100)
-  .has().uppercase()
-  .has().lowercase() 
-  .has().digits(1)
-  .has().not().spaces()
-  .is().not().oneOf(['Password123', 'Password1', '12345678']);
+// Esquema de validación para la contraseña
+const passwordSchema = {
+  minLength: 8,
+  maxLength: 100,
+  requireSpecialChar: false,
+  requireNumber: false,
+  requireUppercase: false,
+  requireLowercase: false
+};
+
+const createPasswordSchema = () => {
+  const schema = new passwordValidator();
+  return schema
+    .is().min(passwordSchema.minLength)
+    .is().max(passwordSchema.maxLength)
+    .has().uppercase()
+    .has().lowercase()
+    .has().digits(passwordSchema.minDigits)
+    .has().not().spaces()
+    .is().not().oneOf(['Password123', 'Password1', '12345678']);
+};
+
+const PASSWORD_ERROR_MESSAGES = {
+  min: `La contraseña debe tener al menos ${passwordSchema.minLength} caracteres`,
+  max: `La contraseña no puede tener más de ${passwordSchema.maxLength} caracteres`,
+  uppercase: 'La contraseña debe tener al menos una mayúscula',
+  lowercase: 'La contraseña debe tener al menos una minúscula',
+  digits: 'La contraseña debe tener al menos un número',
+  spaces: 'La contraseña no puede contener espacios',
+  oneOf: 'La contraseña es demasiado común'
+};
 
 class AuthValidators {
-  static validateEmail(email) {
-    if (!email) {
-      return { isValid: false, error: 'El correo electrónico es requerido' };
+  static #passwordSchema = createPasswordSchema();
+
+  static validateEmail(req, res, next) {
+    const { mail } = req.body;
+
+    if (!mail) {
+      return res.status(400).json({
+        success: false,
+        message: 'El correo electrónico es requerido'
+      });
     }
 
-    if (!validator.isEmail(email)) {
-      return { isValid: false, error: 'El correo electrónico no es válido' };
+    if (!validator.isEmail(mail)) {
+      return res.status(400).json({
+        success: false,
+        message: 'El formato del correo electrónico no es válido'
+      });
     }
 
-    const sanitizedEmail = validator.normalizeEmail(email.toLowerCase());
-    return { isValid: true, sanitizedValue: sanitizedEmail };
+    req.body.mail = validator.normalizeEmail(mail.toLowerCase());
+    next();
   }
 
-  static validatePassword(password) {
+  // Función para validar la contraseña
+  static validatePassword = (req, res, next) => {
+    const { password } = req.body;
+
     if (!password) {
-      return { isValid: false, error: 'La contraseña es requerida' };
+      return res.status(400).json({
+        success: false,
+        message: 'La contraseña es requerida'
+      });
     }
 
-    const validationResult = passwordSchema.validate(password, { list: true });
-    if (validationResult.length > 0) {
-      const errorMessages = {
-        min: 'La contraseña debe tener al menos 8 caracteres',
-        max: 'La contraseña no puede tener más de 100 caracteres',
-        uppercase: 'La contraseña debe tener al menos una mayúscula',
-        lowercase: 'La contraseña debe tener al menos una minúscula',
-        digits: 'La contraseña debe tener al menos un número',
-        spaces: 'La contraseña no puede contener espacios',
-        oneOf: 'La contraseña es demasiado común'
-      };
-
-      return { 
-        isValid: false, 
-        error: validationResult.map(err => errorMessages[err]).join(', ')
-      };
+    if (password.length < passwordSchema.minLength || password.length > passwordSchema.maxLength) {
+      return res.status(400).json({
+        success: false,
+        message: `La contraseña debe tener entre ${passwordSchema.minLength} y ${passwordSchema.maxLength} caracteres`
+      });
     }
 
-    return { isValid: true };
-  }
+    next();
+  };
 
-  static validateName(name) {
+  static validateName(req, res, next) {
+    const { name } = req.body;
+
     if (!name) {
-      return { isValid: false, error: 'El nombre es requerido' };
+      return res.status(400).json({
+        status: 'error',
+        message: 'El nombre es requerido'
+      });
     }
 
     if (!validator.isLength(name, { min: 2, max: 50 })) {
-      return { 
-        isValid: false, 
-        error: 'El nombre debe tener entre 2 y 50 caracteres' 
-      };
+      return res.status(400).json({
+        status: 'error',
+        message: 'El nombre debe tener entre 2 y 50 caracteres'
+      });
     }
 
-    const sanitizedName = validator.escape(name.trim());
-    return { isValid: true, sanitizedValue: sanitizedName };
+    req.body.name = validator.escape(name.trim());
+    next();
   }
 
-  static validatePasswordResetToken(token) {
+  // Función para validar los datos de login
+  static validateLoginData = (req, res, next) => {
+    const { mail, password } = req.body;
+
+    // Validar que se proporcionaron ambos campos
+    if (!mail || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'El correo electrónico y la contraseña son requeridos'
+      });
+    }
+
+    // Si todo está bien, continuar
+    next();
+  };
+
+  static validateLoginAttempts(req, res, next) {
+    const loginAttempts = req.loginAttempts || { count: 0, timestamp: Date.now() };
+    const maxAttempts = 5;
+    const windowMs = 15 * 60 * 1000; // 15 minutos
+
+    if (loginAttempts.count >= maxAttempts) {
+      const timeLeft = Math.ceil((windowMs - (Date.now() - loginAttempts.timestamp)) / 1000);
+      if (timeLeft > 0) {
+        return res.status(429).json({
+          status: 'error',
+          message: `Demasiados intentos fallidos. Por favor, espere ${timeLeft} segundos.`
+        });
+      }
+      // Reset attempts if window has passed
+      req.loginAttempts = { count: 0, timestamp: Date.now() };
+    }
+
+    next();
+  }
+
+  static validatePasswordResetToken(req, res, next) {
+    const { token } = req.body;
+
     if (!token) {
-      return { isValid: false, error: 'El token es requerido' };
+      return res.status(400).json({
+        status: 'error',
+        message: 'El token es requerido'
+      });
     }
 
     if (!validator.isHexadecimal(token) || token.length !== 64) {
-      return { isValid: false, error: 'Token inválido' };
+      return res.status(400).json({
+        status: 'error',
+        message: 'Token inválido'
+      });
     }
 
-    return { isValid: true, sanitizedValue: token };
-  }
-
-  static validateLoginAttempts(attempts, maxAttempts = 5, windowMs = 15 * 60 * 1000) {
-    if (attempts >= maxAttempts) {
-      const timeLeft = Math.ceil((windowMs - (Date.now() - attempts.timestamp)) / 1000);
-      return {
-        isValid: false,
-        error: `Demasiados intentos fallidos. Por favor, espera ${timeLeft} segundos.`
-      };
-    }
-    return { isValid: true };
+    next();
   }
 }
 

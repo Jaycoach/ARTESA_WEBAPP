@@ -8,7 +8,7 @@ const { getUsers, getUserById, updateUser } = require('../controllers/userContro
 router.use(sanitizeBody, sanitizeParams, validateQueryParams);
 
 // Rutas específicas
-router.get('/users', verifyToken, checkRole(['admin']), getUsers);
+router.get('/users', verifyToken, checkRole([1]), getUsers); // usando ID del rol
 router.get('/users/:id', verifyToken, getUserById);
 router.put('/users/:id', verifyToken, updateUser);
 

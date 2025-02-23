@@ -1,5 +1,6 @@
 const pool = require('../config/db');
 const bcrypt = require('bcrypt');
+const logger = require('../config/logger');
 
 // Crear usuario
 const createUser = async (name, mail, password, rol_id) => {
@@ -32,7 +33,7 @@ const findByEmail = async (mail) => {
 const findById = async (id) => {
     const query = `
         SELECT * FROM users 
-        WHERE user_id = $1;
+        WHERE id = $1;
     `;
     const values = [id];
     const { rows } = await pool.query(query, values);
@@ -67,7 +68,7 @@ const updateUser = async (id, updateData) => {
         UPDATE users 
         SET ${updates.join(', ')}, 
             updated_at = CURRENT_TIMESTAMP
-        WHERE user_id = $${paramCount}
+        WHERE id = $${paramCount}
         RETURNING *;
     `;
 
@@ -79,7 +80,7 @@ const updateUser = async (id, updateData) => {
 const deleteUser = async (id) => {
     const query = `
         DELETE FROM users 
-        WHERE user_id = $1 
+        WHERE id = $1 
         RETURNING *;
     `;
     const values = [id];
@@ -90,7 +91,7 @@ const deleteUser = async (id) => {
 // Obtener todos los usuarios
 const getAllUsers = async () => {
     const query = `
-        SELECT user_id, name, mail, rol_id, created_at, updated_at 
+        SELECT id, name, mail, rol_id, created_at, updated_at 
         FROM users 
         ORDER BY created_at DESC;
     `;
@@ -99,23 +100,50 @@ const getAllUsers = async () => {
 };
 
 // Actualizar contraseña
-const updatePassword = async (userId, newPassword) => {
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
+// En userModel.js
+
+const updatePassword = async (userId, hashedPassword) => {
+    // 1. Verificar que recibimos un hash válido
+    if (!hashedPassword || !hashedPassword.startsWith('$2b$')) {
+        throw new Error('Invalid password hash format');
+    }
+
+    // 2. Actualizar en la base de datos
     const query = `
         UPDATE users 
-        SET password = $1,
+        SET 
+            password = $1,
             updated_at = CURRENT_TIMESTAMP
         WHERE id = $2
-        RETURNING id, mail, updated_at;
+        RETURNING id, mail, password, updated_at
     `;
-    const values = [hashedPassword, userId];
+
     try {
-        const result = await pool.query(query, values);
+        const result = await pool.query(query, [hashedPassword, userId]);
+        
+        if (result.rows.length === 0) {
+            throw new Error('Usuario no encontrado');
+        }
+
+        // 3. Verificar que el hash se guardó correctamente
+        const updatedUser = result.rows[0];
+        if (updatedUser.password !== hashedPassword) {
+            throw new Error('Hash verification failed after update');
+        }
+
+        logger.info('Contraseña actualizada exitosamente', {
+            userId,
+            updatedAt: result.rows[0].updated_at
+        });
+
         return result;
-      } catch (error) {
-        console.error('Error al actualizar contraseña:', error);
+    } catch (error) {
+        logger.error('Error al actualizar contraseña:', {
+            userId,
+            error: error.message
+        });
         throw error;
-      }
+    }
 };
 
 module.exports = {
