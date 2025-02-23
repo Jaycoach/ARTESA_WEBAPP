@@ -3,6 +3,7 @@ const bcrypt = require('bcrypt');
 const userModel = require('../models/userModel');
 const PasswordReset = require('../models/PasswordReset');
 const logger = require('../config/logger');
+const EmailService = require('../services/EmailService');
 
 class PasswordResetController {
   async requestReset(req, res) {
@@ -36,6 +37,18 @@ class PasswordResetController {
       // Guardar token
       await PasswordReset.createToken(user.user_id, resetToken, expiresAt);
 
+      // Enviar correo con el token
+      try {
+        await EmailService.sendPasswordResetEmail(mail, resetToken);
+        logger.info('Correo de recuperación enviado', { mail });
+      } catch (emailError) {
+        logger.error('Error al enviar correo de recuperación', { 
+          error: emailError.message,
+          mail 
+        });
+        // No retornamos el error al cliente por seguridad
+      }
+
       // En desarrollo, mostrar el token para pruebas
       if (process.env.NODE_ENV === 'development') {
         logger.info('Token generado para pruebas:', resetToken);
@@ -66,6 +79,26 @@ class PasswordResetController {
         logger.warn('Token inválido o expirado', { token: token.substring(0, 10) });
         return res.status(400).json({ 
           error: 'Token inválido o expirado' 
+        });
+      }
+
+      // 1.5 Obtener usuario y verificar contraseña actual
+      const currentUser = await userModel.findById(resetRequest.user_id);
+      if (!currentUser) {
+        logger.error('Usuario no encontrado para el token de reset');
+        return res.status(400).json({
+          error: 'Error al procesar la solicitud'
+        });
+      }
+
+      // Verificar que la nueva contraseña no sea igual a la actual
+      const isSamePassword = await bcrypt.compare(newPassword, currentUser.password);
+      if (isSamePassword) {
+        logger.warn('Intento de usar la misma contraseña', {
+          userId: resetRequest.user_id
+        });
+        return res.status(400).json({
+          error: 'La nueva contraseña no puede ser igual a la actual'
         });
       }
 

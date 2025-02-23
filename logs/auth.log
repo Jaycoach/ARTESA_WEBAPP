@@ -4,3 +4,17 @@
 {"level":"debug","message":"Resultado de comparación de contraseña para jaycoach@hotmail.com: true","timestamp":"2025-02-23T19:50:32.724Z"}
 {"level":"info","mail":"jaycoach@hotmail.com","message":"Token generado exitosamente","timestamp":"2025-02-23T19:50:32.728Z","userId":1}
 {"attempt_details":null,"ip_address":"::1","level":"info","message":"Inicio de sesión exitoso","status":"success","timestamp":"2025-02-23T19:50:32.728Z","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 AVG/132.0.0.0","user_id":1}
+{"attemptCount":1,"level":"warn","mail":"jaycoach@hotmail.com","message":"Incremento de intentos de login","timestamp":"2025-02-23T20:50:02.901Z"}
+{"level":"debug","message":"Resultado de comparación de contraseña para jaycoach@hotmail.com: true","timestamp":"2025-02-23T20:50:03.126Z"}
+{"level":"info","mail":"jaycoach@hotmail.com","message":"Token generado exitosamente","timestamp":"2025-02-23T20:50:03.130Z","userId":1}
+{"attempt_details":null,"ip_address":"::1","level":"info","message":"Inicio de sesión exitoso","status":"success","timestamp":"2025-02-23T20:50:03.131Z","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 AVG/132.0.0.0","user_id":1}
+{"level":"debug","message":"Mail recibido:","timestamp":"2025-02-23T20:51:10.434Z"}
+{"level":"debug","mail":"jaycoach@hotmail.com","message":"Usuario encontrado:","timestamp":"2025-02-23T20:51:10.466Z","user_id":1}
+{"level":"debug","message":"Token generado:","timestamp":"2025-02-23T20:51:10.466Z"}
+{"level":"info","message":"Token generado para pruebas:","timestamp":"2025-02-23T20:51:10.473Z"}
+{"level":"info","message":"Conexión SMTP verificada exitosamente","timestamp":"2025-02-23T20:58:45.546Z"}
+{"level":"info","message":"Conexión SMTP verificada exitosamente","timestamp":"2025-02-23T21:01:53.994Z"}
+{"level":"debug","message":"Mail recibido:","timestamp":"2025-02-23T21:03:18.043Z"}
+{"level":"debug","mail":"mohernand@estoyhot.com","message":"Usuario encontrado:","timestamp":"2025-02-23T21:03:18.090Z","user_id":3}
+{"level":"debug","message":"Token generado:","timestamp":"2025-02-23T21:03:18.091Z"}
+{"level":"info","message":"Token generado para pruebas:","timestamp":"2025-02-23T21:03:18.100Z"}
