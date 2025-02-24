@@ -1,10 +1,15 @@
 const nodemailer = require('nodemailer');
-const logger = require('../config/logger'); 
+const { createContextLogger } = require('../config/logger');
+
+// Crear una instancia del logger con contexto
+const logger = createContextLogger('EmailService');
 
 class EmailService {
   constructor() {
-    console.log('Puerto SMTP:', process.env.SMTP_PORT);
-    console.log('Puerto SMTP (parseado):', parseInt(process.env.SMTP_PORT));
+    logger.debug('Inicializando EmailService', {
+      smtpHost: process.env.SMTP_HOST,
+      smtpPort: parseInt(process.env.SMTP_PORT)
+    });
 
     this.transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST,
@@ -26,7 +31,7 @@ class EmailService {
         await this.transporter.verify();
         logger.info('Conexión SMTP verificada exitosamente');
     } catch (error) {
-        logger.error('Error al verificar conexión SMTP:', error);
+        logger.error('Error al verificar conexión SMTP:', { error: error.message });
         throw error;
     }
   }
@@ -80,7 +85,10 @@ class EmailService {
 
         return info;
     } catch (error) {
-        logger.error('Error al enviar correo:', error);
+        logger.error('Error al enviar correo:', {
+            error: error.message,
+            stack: error.stack
+        });
         throw new Error(`Error al enviar el correo: ${error.message}`);
     }
   }

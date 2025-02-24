@@ -2,32 +2,11 @@ const pool = require('../config/db');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const rateLimit = require('express-rate-limit');
-const winston = require('winston');
+const { createContextLogger } = require('../config/logger');
+const Roles = require('../models/Roles');
 
-// Configuración de logging con Winston
-const logger = winston.createLogger({
-    level: 'debug',
-    format: winston.format.combine(
-        winston.format.timestamp(),
-        winston.format.json()
-    ),
-    transports: [
-        new winston.transports.Console({
-            format: winston.format.combine(
-                winston.format.colorize(),
-                winston.format.simple()
-            )
-        }),
-        new winston.transports.File({ 
-            filename: 'logs/auth.log',
-            level: 'debug'
-        }),
-        new winston.transports.File({ 
-            filename: 'logs/errors.log', 
-            level: 'error' 
-        })
-    ]
-});
+// Crear una instancia del logger con contexto
+const logger = createContextLogger('AuthController');
 
 // Configuración del rate limiter
 const loginLimiter = rateLimit({
@@ -74,7 +53,8 @@ class AuthController {
         } catch (error) {
             logger.error('Error al registrar intento de login', {
                 error: error.message,
-                stack: error.stack
+                stack: error.stack,
+                userId
             });
         }
     }
@@ -101,21 +81,27 @@ class AuthController {
 
         logger.warn('Incremento de intentos de login', { 
             mail,
-            attemptCount: currentAttempts.count 
+            attemptCount: currentAttempts.count,
+            timestamp: new Date(currentAttempts.timestamp)
         });
 
         return currentAttempts;
     }
 
     // Método para generar token JWT
-    static generateToken(user) {
+    static async generateToken(user) {
         try {
+            // Obtener el nombre del rol
+            const roles = await Roles.getRoles();
+            const roleName = Object.keys(roles).find(key => roles[key] === user.rol_id) || 'UNKNOWN';
+
             const token = jwt.sign(
                 {
                     id: user.id,
                     mail: user.mail,
                     name: user.name,
-                    rol_id: user.rol_id
+                    rol_id: user.rol_id,
+                    role: roleName
                 },
                 process.env.JWT_SECRET,
                 { expiresIn: '24h' }
@@ -123,13 +109,15 @@ class AuthController {
 
             logger.info('Token generado exitosamente', { 
                 userId: user.id,
-                mail: user.mail 
+                mail: user.mail,
+                role: roleName
             });
 
             return token;
         } catch (error) {
             logger.error('Error al generar token', {
                 error: error.message,
+                stack: error.stack,
                 userId: user.id
             });
             throw new Error('Error al generar token de autenticación');
@@ -140,6 +128,7 @@ class AuthController {
     static async login(req, res) {
         try {
             const { mail, password } = req.body;
+            logger.debug('Iniciando proceso de login', { mail });
 
             // 1. Verificación inicial de credenciales
             if (!mail || !password) {
@@ -164,6 +153,10 @@ class AuthController {
                     throw error;
                 }
             } catch (error) {
+                logger.warn('Cuenta bloqueada por múltiples intentos', {
+                    mail,
+                    remainingTime: error.remainingTime
+                });
                 return res.status(429).json({
                     success: false,
                     message: error.message,
@@ -174,14 +167,16 @@ class AuthController {
             // 3. Buscar usuario y verificar estado
             const query = `
                 SELECT 
-                    id,
-                    name,
-                    mail,
-                    password,
-                    rol_id,
-                    is_active
-                FROM users 
-                WHERE mail = $1 AND is_active = true
+                    u.id,
+                    u.name,
+                    u.mail,
+                    u.password,
+                    u.rol_id,
+                    u.is_active,
+                    r.nombre as role_name
+                FROM users u
+                JOIN roles r ON u.rol_id = r.id
+                WHERE u.mail = $1 AND u.is_active = true
             `;
             
             const result = await pool.query(query, [mail]);
@@ -205,7 +200,10 @@ class AuthController {
             // 4. Verificación de contraseña
             try {
                 if (!user.password) {
-                    logger.error(`Hash de contraseña no encontrado para usuario: ${mail}`);
+                    logger.error('Hash de contraseña no encontrado', { 
+                        userId: user.id,
+                        mail 
+                    });
                     return res.status(500).json({
                         success: false,
                         message: 'Error en la verificación de credenciales'
@@ -213,7 +211,10 @@ class AuthController {
                 }
 
                 const isValidPassword = await bcrypt.compare(password, user.password);
-                logger.debug(`Resultado de comparación de contraseña para ${mail}: ${isValidPassword}`);
+                logger.debug('Resultado de verificación de contraseña', {
+                    userId: user.id,
+                    isValid: isValidPassword
+                });
 
                 if (!isValidPassword) {
                     await this.logLoginAttempt(
@@ -230,7 +231,7 @@ class AuthController {
                 }
 
                 // 5. Autenticación exitosa
-                const token = this.generateToken(user);
+                const token = await this.generateToken(user);
                 this.loginAttempts.delete(mail); // Resetear intentos
 
                 await this.logLoginAttempt(
@@ -241,6 +242,12 @@ class AuthController {
                     req
                 );
 
+                logger.info('Login exitoso', {
+                    userId: user.id,
+                    mail: user.mail,
+                    role: user.role_name
+                });
+
                 return res.status(200).json({
                     success: true,
                     message: 'Login exitoso',
@@ -250,7 +257,10 @@ class AuthController {
                             id: user.id,
                             name: user.name,
                             mail: user.mail,
-                            rol_id: user.rol_id
+                            role: {
+                                id: user.rol_id,
+                                name: user.role_name
+                            }
                         }
                     }
                 });
@@ -271,13 +281,17 @@ class AuthController {
         } catch (error) {
             logger.error('Error en el proceso de login', {
                 error: error.message,
-                stack: error.stack
+                stack: error.stack,
+                mail
             });
+            
+            const errorMessage = process.env.NODE_ENV === 'development' 
+                ? error.message 
+                : 'Error interno del servidor';
             
             return res.status(500).json({
                 success: false,
-                message: 'Error interno del servidor',
-                error: process.env.NODE_ENV === 'development' ? error.message : undefined
+                message: errorMessage
             });
         }
     }
@@ -286,6 +300,7 @@ class AuthController {
     static async register(req, res) {
         try {
             const { name, mail, password } = req.body;
+            logger.debug('Iniciando proceso de registro', { mail });
 
             // 1. Verificar si el usuario ya existe
             const userExists = await pool.query(
@@ -304,21 +319,44 @@ class AuthController {
             // 2. Hash de la contraseña
             const hashedPassword = await bcrypt.hash(password, this.PASSWORD_HASH_ROUNDS);
 
-            // 3. Insertar nuevo usuario
+            // 3. Obtener el rol de usuario por defecto
+            const userRoleId = await Roles.getRoleId('USER');
+            if (!userRoleId) {
+                logger.error('No se pudo obtener el ID del rol de usuario');
+                throw new Error('Error en la configuración de roles');
+            }
+
+            // 4. Insertar nuevo usuario
             const result = await pool.query(
                 `INSERT INTO users 
                 (name, mail, password, rol_id, is_active) 
                 VALUES ($1, $2, $3, $4, true)
                 RETURNING id, name, mail, rol_id`,
-                [name, mail, hashedPassword, 2] // rol_id 2 = usuario normal
+                [name, mail, hashedPassword, userRoleId]
             );
 
             const newUser = result.rows[0];
-            const token = this.generateToken(newUser);
+
+            // 5. Obtener el nombre del rol
+            const { rows: roleRows } = await pool.query(
+                'SELECT nombre FROM roles WHERE id = $1',
+                [userRoleId]
+            );
+
+            const userWithRole = {
+                ...newUser,
+                role: {
+                    id: userRoleId,
+                    name: roleRows[0]?.nombre
+                }
+            };
+
+            const token = await this.generateToken(userWithRole);
 
             logger.info('Usuario registrado exitosamente', {
+                userId: newUser.id,
                 mail: mail,
-                userId: newUser.id
+                role: roleRows[0]?.nombre
             });
 
             return res.status(201).json({
@@ -330,7 +368,10 @@ class AuthController {
                         id: newUser.id,
                         name: newUser.name,
                         mail: newUser.mail,
-                        rol_id: newUser.rol_id
+                        role: {
+                            id: userRoleId,
+                            name: roleRows[0]?.nombre
+                        }
                     }
                 }
             });
@@ -342,10 +383,13 @@ class AuthController {
                 mail: req.body.mail
             });
 
+            const errorMessage = process.env.NODE_ENV === 'development' 
+                ? error.message 
+                : 'Error interno del servidor';
+
             return res.status(500).json({
                 success: false,
-                message: 'Error interno del servidor',
-                error: process.env.NODE_ENV === 'development' ? error.message : undefined
+                message: errorMessage
             });
         }
     }
@@ -353,11 +397,19 @@ class AuthController {
     // Método para verificar token JWT
     static async verifyToken(token) {
         try {
-            return jwt.verify(token, process.env.JWT_SECRET);
+            const decoded = jwt.verify(token, process.env.JWT_SECRET);
+            
+            // Verificar si el rol sigue siendo válido
+            const roles = await Roles.getRoles();
+            if (!Object.values(roles).includes(decoded.rol_id)) {
+                throw new Error('Rol no válido');
+            }
+
+            return decoded;
         } catch (error) {
             logger.error('Error al verificar token', {
                 error: error.message,
-                token: token.substring(0, 10) + '...' // Log seguro del token
+                tokenPrefix: token.substring(0, 10) + '...'
             });
             throw new Error('Token inválido o expirado');
         }

@@ -1,18 +1,25 @@
 const pool = require('../config/db');
+const Roles = require('../models/Roles');
+const { createContextLogger } = require('../config/logger');
+const logger = createContextLogger('UserController');
 
 const getUsers = async (req, res) => {
   try {
     const { rows } = await pool.query(`
-      SELECT id, name, mail, rol_id, created_at, is_active 
-      FROM users
-      ORDER BY created_at DESC
+      SELECT u.id, u.name, u.mail, u.rol_id, u.created_at, u.is_active, r.nombre as role_name
+      FROM users u
+      JOIN roles r ON u.rol_id = r.id
+      ORDER BY u.created_at DESC
     `);
 
     const sanitizedUsers = rows.map(user => ({
       id: user.id,
       username: user.name,
       email: user.mail,
-      role: user.rol_id,
+      role: {
+        id: user.rol_id,
+        name: user.role_name
+      },
       createdAt: user.created_at,
       isActive: user.is_active
     }));
@@ -22,7 +29,7 @@ const getUsers = async (req, res) => {
       data: sanitizedUsers
     });
   } catch (err) {
-    console.error('Error en getUsers:', err);
+    logger.error('Error en getUsers:', err);
     return res.status(500).json({
       status: 'error',
       message: 'Error interno del servidor'
@@ -35,7 +42,15 @@ const getUserById = async (req, res) => {
     const { id } = req.params;
     const requestingUser = req.user;
 
-    if (requestingUser.id !== parseInt(id) && requestingUser.role !== 'admin') {
+    // Verificar si el usuario es administrador
+    const adminRoleId = await Roles.getRoleId('ADMIN');
+    const isAdmin = requestingUser.rol_id === adminRoleId;
+
+    if (requestingUser.id !== parseInt(id) && !isAdmin) {
+      logger.warn('Intento de acceso no autorizado a información de usuario', {
+        requestingUserId: requestingUser.id,
+        targetUserId: id
+      });
       return res.status(403).json({
         status: 'error',
         message: 'No tienes permiso para ver esta información'
@@ -43,7 +58,10 @@ const getUserById = async (req, res) => {
     }
 
     const { rows } = await pool.query(
-      'SELECT id, name, mail, rol_id, created_at, is_active FROM users WHERE id = $1',
+      `SELECT u.id, u.name, u.mail, u.rol_id, u.created_at, u.is_active, r.nombre as role_name
+       FROM users u
+       JOIN roles r ON u.rol_id = r.id
+       WHERE u.id = $1`,
       [id]
     );
 
@@ -61,13 +79,16 @@ const getUserById = async (req, res) => {
         id: user.id,
         username: user.name,
         email: user.mail,
-        role: user.rol_id,
+        role: {
+          id: user.rol_id,
+          name: user.role_name
+        },
         createdAt: user.created_at,
         isActive: user.is_active
       }
     });
   } catch (err) {
-    console.error('Error en getUserById:', err);
+    logger.error('Error en getUserById:', err);
     return res.status(500).json({
       status: 'error',
       message: 'Error interno del servidor'
@@ -81,7 +102,15 @@ const updateUser = async (req, res) => {
     const requestingUser = req.user;
     const { name, mail } = req.body;
 
-    if (requestingUser.id !== parseInt(id) && requestingUser.role !== 'admin') {
+    // Verificar si el usuario es administrador
+    const adminRoleId = await Roles.getRoleId('ADMIN');
+    const isAdmin = requestingUser.rol_id === adminRoleId;
+
+    if (requestingUser.id !== parseInt(id) && !isAdmin) {
+      logger.warn('Intento de actualización no autorizada', {
+        requestingUserId: requestingUser.id,
+        targetUserId: id
+      });
       return res.status(403).json({
         status: 'error',
         message: 'No tienes permiso para actualizar esta información'
@@ -94,7 +123,7 @@ const updateUser = async (req, res) => {
            mail = COALESCE($2, mail),
            updated_at = CURRENT_TIMESTAMP
        WHERE id = $3
-       RETURNING id, name, mail, updated_at`,
+       RETURNING id, name, mail, rol_id, updated_at`,
       [name, mail, id]
     );
 
@@ -105,13 +134,31 @@ const updateUser = async (req, res) => {
       });
     }
 
-    const updatedUser = rows[0];
+    // Obtener el nombre del rol
+    const { rows: roleRows } = await pool.query(
+      'SELECT nombre FROM roles WHERE id = $1',
+      [rows[0].rol_id]
+    );
+
+    const updatedUser = {
+      ...rows[0],
+      role: {
+        id: rows[0].rol_id,
+        name: roleRows[0]?.nombre
+      }
+    };
+
+    logger.info('Usuario actualizado exitosamente', {
+      userId: updatedUser.id,
+      updatedFields: { name, mail }
+    });
+
     return res.status(200).json({
       status: 'success',
       data: updatedUser
     });
   } catch (err) {
-    console.error('Error en updateUser:', err);
+    logger.error('Error en updateUser:', err);
     return res.status(500).json({
       status: 'error',
       message: 'Error interno del servidor'

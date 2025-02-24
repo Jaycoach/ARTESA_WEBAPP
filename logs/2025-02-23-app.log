@@ -1,0 +1,52 @@
+{"context":"EmailService","level":"debug","message":"Inicializando EmailService","smtpHost":"sandbox.smtp.mailtrap.io","smtpPort":2525,"timestamp":"2025-02-23 22:05:10"}
+{"context":"EmailService","level":"info","message":"Conexión SMTP verificada exitosamente","timestamp":"2025-02-23 22:05:12"}
+{"context":"AuthController","level":"debug","mail":"mohernand@estoyhot.com","message":"Iniciando proceso de login","timestamp":"2025-02-23 22:07:58"}
+{"attemptCount":1,"context":"AuthController","level":"warn","mail":"mohernand@estoyhot.com","message":"Incremento de intentos de login","timestamp":"2025-02-23T22:07:58.510Z"}
+{"context":"AuthController","isValid":false,"level":"debug","message":"Resultado de verificación de contraseña","timestamp":"2025-02-23 22:07:58","userId":3}
+{"attempt_details":"Contraseña incorrecta","context":"AuthController","ip_address":"::1","level":"warn","message":"Intento de inicio de sesión fallido","status":"failed","timestamp":"2025-02-23T22:07:58.595Z","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 AVG/132.0.0.0","user_id":3}
+{"context":"AuthController","level":"debug","mail":"mohernand@estoyhot.com","message":"Iniciando proceso de login","timestamp":"2025-02-23 22:08:00"}
+{"attemptCount":2,"context":"AuthController","level":"warn","mail":"mohernand@estoyhot.com","message":"Incremento de intentos de login","timestamp":"2025-02-23T22:08:00.960Z"}
+{"context":"AuthController","isValid":false,"level":"debug","message":"Resultado de verificación de contraseña","timestamp":"2025-02-23 22:08:01","userId":3}
+{"attempt_details":"Contraseña incorrecta","context":"AuthController","ip_address":"::1","level":"warn","message":"Intento de inicio de sesión fallido","status":"failed","timestamp":"2025-02-23T22:08:01.012Z","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 AVG/132.0.0.0","user_id":3}
+{"context":"AuthController","level":"debug","mail":"mohernand@estoyhot.com","message":"Iniciando proceso de login","timestamp":"2025-02-23 22:08:01"}
+{"attemptCount":3,"context":"AuthController","level":"warn","mail":"mohernand@estoyhot.com","message":"Incremento de intentos de login","timestamp":"2025-02-23T22:08:01.574Z"}
+{"context":"AuthController","isValid":false,"level":"debug","message":"Resultado de verificación de contraseña","timestamp":"2025-02-23 22:08:01","userId":3}
+{"attempt_details":"Contraseña incorrecta","context":"AuthController","ip_address":"::1","level":"warn","message":"Intento de inicio de sesión fallido","status":"failed","timestamp":"2025-02-23T22:08:01.626Z","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 AVG/132.0.0.0","user_id":3}
+{"context":"AuthController","level":"debug","mail":"mohernand@estoyhot.com","message":"Iniciando proceso de login","timestamp":"2025-02-23 22:08:02"}
+{"attemptCount":4,"context":"AuthController","level":"warn","mail":"mohernand@estoyhot.com","message":"Incremento de intentos de login","timestamp":"2025-02-23T22:08:02.109Z"}
+{"context":"AuthController","isValid":false,"level":"debug","message":"Resultado de verificación de contraseña","timestamp":"2025-02-23 22:08:02","userId":3}
+{"attempt_details":"Contraseña incorrecta","context":"AuthController","ip_address":"::1","level":"warn","message":"Intento de inicio de sesión fallido","status":"failed","timestamp":"2025-02-23T22:08:02.162Z","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 AVG/132.0.0.0","user_id":3}
+{"context":"AuthController","level":"debug","mail":"mohernand@estoyhot.com","message":"Iniciando proceso de login","timestamp":"2025-02-23 22:08:02"}
+{"attemptCount":5,"context":"AuthController","level":"warn","mail":"mohernand@estoyhot.com","message":"Incremento de intentos de login","timestamp":"2025-02-23T22:08:02.547Z"}
+{"context":"AuthController","level":"warn","mail":"mohernand@estoyhot.com","message":"Cuenta bloqueada por múltiples intentos","remainingTime":900,"timestamp":"2025-02-23 22:08:02"}
+{"context":"AuthController","level":"debug","mail":"mohernand@estoyhot.com","message":"Iniciando proceso de login","timestamp":"2025-02-23 22:32:34"}
+{"attemptCount":1,"context":"AuthController","level":"warn","mail":"mohernand@estoyhot.com","message":"Incremento de intentos de login","timestamp":"2025-02-23T22:32:34.082Z"}
+{"context":"AuthController","isValid":true,"level":"debug","message":"Resultado de verificación de contraseña","timestamp":"2025-02-23 22:32:34","userId":3}
+{"context":"AuthController","level":"info","mail":"mohernand@estoyhot.com","message":"Token generado exitosamente","role":"USUARIO","timestamp":"2025-02-23 22:32:34","userId":3}
+{"attempt_details":null,"context":"AuthController","ip_address":"::1","level":"info","message":"Inicio de sesión exitoso","status":"success","timestamp":"2025-02-23T22:32:34.199Z","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 AVG/132.0.0.0","user_id":3}
+{"context":"AuthController","level":"info","mail":"mohernand@estoyhot.com","message":"Login exitoso","role":"usuario","timestamp":"2025-02-23 22:32:34","userId":3}
+{"context":"EmailService","level":"debug","message":"Inicializando EmailService","smtpHost":"sandbox.smtp.mailtrap.io","smtpPort":2525,"timestamp":"2025-02-23 22:38:27"}
+{"context":"EmailService","level":"info","message":"Conexión SMTP verificada exitosamente","timestamp":"2025-02-23 22:38:28"}
+{"context":"PasswordResetController","level":"info","mail":"mohernand@estoyhot.com","message":"Iniciando solicitud de reset de contraseña","timestamp":"2025-02-23 22:38:38"}
+{"context":"EmailService","level":"info","message":"Intentando enviar correo de recuperación","resetUrl":"http://localhost:5173/reset-password/60dfff89d27168a02992be91ce261d48accf1ee5c86fe3930ad457dd5594b8c1","timestamp":"2025-02-23 22:38:38","to":"mohernand@estoyhot.com"}
+{"context":"EmailService","level":"info","message":"Correo enviado exitosamente","messageId":"<7d397a69-5efe-7ed1-72f9-955c88e41e45@laartesa.com>","response":"250 2.0.0 Ok: queued","timestamp":"2025-02-23 22:38:40"}
+{"context":"PasswordResetController","level":"info","mail":"mohernand@estoyhot.com","message":"Correo de recuperación enviado exitosamente","timestamp":"2025-02-23 22:38:40"}
+{"context":"PasswordResetController","level":"info","message":"Token generado para pruebas","timestamp":"2025-02-23 22:38:40","token":"60dfff89d27168a02992be91ce261d48accf1ee5c86fe3930ad457dd5594b8c1"}
+{"context":"PasswordResetController","level":"warn","message":"Intento de usar la misma contraseña","timestamp":"2025-02-23 22:39:51","userId":3}
+{"context":"PasswordResetController","error":"logger.error is not a function","level":"error","message":"Error en el proceso de reset de contraseña","stack":"TypeError: logger.error is not a function\n    at Object.updatePassword (C:\\Users\\jayco\\OneDrive\\CLIENTES\\MASORG\\Desarrollo\\LaArtesa\\src\\models\\userModel.js:141:16)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async resetPassword (C:\\Users\\jayco\\OneDrive\\CLIENTES\\MASORG\\Desarrollo\\LaArtesa\\src\\controllers\\passwordResetController.js:130:7)","timestamp":"2025-02-23 22:40:08"}
+{"context":"EmailService","level":"debug","message":"Inicializando EmailService","smtpHost":"sandbox.smtp.mailtrap.io","smtpPort":2525,"timestamp":"2025-02-23 22:42:25"}
+{"context":"EmailService","level":"info","message":"Conexión SMTP verificada exitosamente","timestamp":"2025-02-23 22:42:26"}
+{"context":"PasswordResetController","level":"info","mail":"mohernand@estoyhot.com","message":"Iniciando solicitud de reset de contraseña","timestamp":"2025-02-23 22:43:01"}
+{"context":"EmailService","level":"info","message":"Intentando enviar correo de recuperación","resetUrl":"http://localhost:5173/reset-password/67ca6d86bd4e09dae43f15f1ce8ee705e4b78ad5e616737104cb5c0b597e219b","timestamp":"2025-02-23 22:43:01","to":"mohernand@estoyhot.com"}
+{"context":"EmailService","level":"info","message":"Correo enviado exitosamente","messageId":"<664112c4-d11b-8176-a6ae-f2d0d17a9639@laartesa.com>","response":"250 2.0.0 Ok: queued","timestamp":"2025-02-23 22:43:03"}
+{"context":"PasswordResetController","level":"info","mail":"mohernand@estoyhot.com","message":"Correo de recuperación enviado exitosamente","timestamp":"2025-02-23 22:43:03"}
+{"context":"PasswordResetController","level":"info","message":"Token generado para pruebas","timestamp":"2025-02-23 22:43:03","token":"67ca6d86bd4e09dae43f15f1ce8ee705e4b78ad5e616737104cb5c0b597e219b"}
+{"context":"PasswordResetController","level":"warn","message":"Intento de usar la misma contraseña","timestamp":"2025-02-23 22:43:33","userId":3}
+{"context":"UserModel","level":"info","message":"Contraseña actualizada exitosamente","timestamp":"2025-02-23 22:43:49","updatedAt":"2025-02-23T22:43:49.809Z","userId":3}
+{"context":"PasswordResetController","level":"info","message":"Reset de contraseña completado exitosamente","success":true,"timestamp":"2025-02-23 22:43:49","userId":3}
+{"context":"AuthController","level":"debug","mail":"mohernand@estoyhot.com","message":"Iniciando proceso de login","timestamp":"2025-02-23 22:44:32"}
+{"attemptCount":1,"context":"AuthController","level":"warn","mail":"mohernand@estoyhot.com","message":"Incremento de intentos de login","timestamp":"2025-02-23T22:44:32.445Z"}
+{"context":"AuthController","isValid":true,"level":"debug","message":"Resultado de verificación de contraseña","timestamp":"2025-02-23 22:44:32","userId":3}
+{"context":"AuthController","level":"info","mail":"mohernand@estoyhot.com","message":"Token generado exitosamente","role":"USUARIO","timestamp":"2025-02-23 22:44:32","userId":3}
+{"attempt_details":null,"context":"AuthController","ip_address":"::1","level":"info","message":"Inicio de sesión exitoso","status":"success","timestamp":"2025-02-23T22:44:32.563Z","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 AVG/132.0.0.0","user_id":3}
+{"context":"AuthController","level":"info","mail":"mohernand@estoyhot.com","message":"Login exitoso","role":"usuario","timestamp":"2025-02-23 22:44:32","userId":3}
