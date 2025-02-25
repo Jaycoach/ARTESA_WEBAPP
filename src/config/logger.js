@@ -1,6 +1,13 @@
 const winston = require('winston');
 require('winston-daily-rotate-file');
 const path = require('path');
+const rootDir = path.resolve(__dirname, '../..');
+
+// Asegurar que el directorio de logs existe
+const logDir = path.join(rootDir, 'logs');
+if (!fs.existsSync(logDir)) {
+    fs.mkdirSync(logDir, { recursive: true });
+}
 
 // Definir formatos personalizados
 const customFormat = winston.format.combine(
@@ -12,11 +19,12 @@ const customFormat = winston.format.combine(
 
 // Configurar transporte para archivo rotativo
 const fileRotateTransport = new winston.transports.DailyRotateFile({
-    filename: path.join('logs', '%DATE%-app.log'),
+    filename: path.join(logDir, '%DATE%-app.log'),
     datePattern: 'YYYY-MM-DD',
     maxSize: '20m',
     maxFiles: '14d',
     auditFile: path.join('logs', 'audit.json'),
+    level: 'error',
     zippedArchive: true,
     format: customFormat
 });

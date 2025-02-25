@@ -8,12 +8,20 @@ const path = require('path');
 const cors = require('cors');
 const security = require('./src/middleware/security');
 
+const {
+  sensitiveApiLimiter,
+  standardApiLimiter,
+  enhancedSecurityHeaders,
+  suspiciousActivityTracker
+} = require('./src/middleware/enhancedSecurity');
+
 const app = express();
 const userRoutes = require('./src/routes/userRoutes');
 const authRoutes = require('./src/routes/authRoutes');
 const productRoutes = require('./src/routes/productRoutes');
 const orderRoutes = require('./src/routes/orderRoutes');
 const passwordResetRoutes = require('./src/routes/passwordResetRoutes');
+const paymentRoutes = require('./src/routes/paymentRoutes');
 const PORT = process.env.PORT || 3000;
 
 // Configuración de CORS mejorada
@@ -58,6 +66,17 @@ app.use(security.securityHeaders);
 app.use(security.sanitizeBody);
 app.use(security.sanitizeParams);
 app.use(security.validateQueryParams);
+
+// Aplicar headers de seguridad mejorados a todas las rutas
+app.use(enhancedSecurityHeaders);
+
+// Aplicar tracker de actividad sospechosa
+app.use(suspiciousActivityTracker);
+
+// Aplicar rate limiting según el tipo de ruta
+app.use('/api/auth', sensitiveApiLimiter);
+app.use('/api/secure', sensitiveApiLimiter);
+app.use('/api', standardApiLimiter);
 
 // Configuración base de la API
 app.use(express.json());
@@ -118,6 +137,9 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument, {
     url: '/swagger.json'
   }
 }));
+
+// Rutas de pago 
+app.use('/api/payments', paymentRoutes);
 
 // Manejador de errores global
 app.use((err, req, res, next) => {

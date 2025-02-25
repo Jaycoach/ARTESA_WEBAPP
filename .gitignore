@@ -1,6 +1,46 @@
 node_modules/
+
+# Archivos de configuración y secretos
 .env
+.env.*
 .env.local
 .env.*.local
+config/secrets.js
+*.pem
+*.key
+*.cert
+*.p12
+config/*.json
+config/secrets.json
+certificates/
+
+# Logs y archivos de debug
+logs/
+*.log
+logs/*.log
+*/logs
+*/logs/*
+npm-debug.log*
+
+# Archivos de sistema
+.DS_Store
+.idea/
+.vscode/
+
+# Dependencias y builds
+node_modules/
+dist/
+build/
+coverage/
+
+# Archivos temporales
+tmp/
+temp/
+.tmp/
+
+# Archivos de auditoría de seguridad
+security-audit/
+vulnerability-reports/
+
 # Carpeta de tests
 tests/
