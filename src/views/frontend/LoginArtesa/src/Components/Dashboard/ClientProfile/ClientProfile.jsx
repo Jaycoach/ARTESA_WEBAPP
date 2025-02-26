@@ -3,7 +3,7 @@ import './ClientProfile.scss';
 import API from '../../../api/config';
 import { FaTimes, FaUpload } from 'react-icons/fa';
 
-const ClientProfile = ({ user, onClose }) => {
+const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
   const [formData, setFormData] = useState({
     // Datos básicos
     nombre: '',
@@ -13,7 +13,7 @@ const ClientProfile = ({ user, onClose }) => {
     ciudad: '',
     pais: 'Colombia',
     telefono: '',
-    email: user?.email || '',
+    email: user?.email || user?.mail || '',
     
     // Información empresarial
     razonSocial: '',
@@ -81,7 +81,7 @@ const ClientProfile = ({ user, onClose }) => {
           setFormData(prev => ({
             ...prev,
             email: user.mail || user.email || '', // Consideramos ambos campos por compatibilidad
-            nombre: user.name || '' 
+            nombre: user.nombre || user.name || '' 
           }));
         }
       }
@@ -93,7 +93,8 @@ const ClientProfile = ({ user, onClose }) => {
       // Si hay usuario pero no tiene ID, al menos usamos su email
       setFormData(prev => ({
         ...prev,
-        email: user.mail || user.email || ''
+        email: user.mail || user.email || '',
+        nombre: user.nombre || user.name || ''
       }));
     }
   }, [user]);
@@ -162,8 +163,8 @@ const ClientProfile = ({ user, onClose }) => {
       }));
       
       // Notificar al Dashboard sobre el cambio de nombre si existe la función
-      if (typeof props.onProfileUpdate === 'function') {
-        props.onProfileUpdate(formData.nombre);
+      if (typeof onProfileUpdate === 'function') {
+        onProfileUpdate(formData.nombre);
       }
       
       setSuccess('Perfil guardado correctamente');

@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import "../../App.css";
 import "./Dashboard.css";
 // Importing Components ==========>
@@ -6,28 +6,43 @@ import Sidebar from "./Sidebar Section/Sidebar";
 import Top from "./Body Section/Top Section/Top";
 import Listing from "./Body Section/Listing Section/Listing";
 import Activity from "./Body Section/Activity Section/Activity";
-import ClientProfile from "./ClientProfile/ClientProfile"; // Agregar Nuevo componente
+import ClientProfile from "./ClientProfile/ClientProfile";
 import { FaUserCircle } from "react-icons/fa";
 
 const Dashboard = () => {
   const [user, setUser] = useState(null);
   const [showProfile, setShowProfile] = useState(false);
   const [userName, setUserName] = useState('');
+  const [userEmail, setUserEmail] = useState('');
 
   useEffect(() => {
     // Obtener información del usuario del localStorage
     const userInfo = localStorage.getItem('user');
     if (userInfo) {
-      const userData = JSON.parse(userInfo);
-      setUser(userData);
-      
-      // Obtener el nombre desde ClientProfile si está disponible
-      const clientProfile = localStorage.getItem('clientProfile');
-      if (clientProfile) {
-        const profileData = JSON.parse(clientProfile);
-        if (profileData.nombre) {
-          setUserName(profileData.nombre);
+      try {
+        const userData = JSON.parse(userInfo);
+        setUser(userData);
+        
+        // Extraer nombre y email del usuario
+        if (userData.nombre) {
+          setUserName(userData.nombre);
+        } else if (userData.name) {
+          setUserName(userData.name);
         }
+        
+        // Establecer el email del usuario
+        setUserEmail(userData.email || userData.mail || '');
+        
+        // Verificar si hay un perfil guardado en localStorage
+        const clientProfile = localStorage.getItem('clientProfile');
+        if (clientProfile) {
+          const profileData = JSON.parse(clientProfile);
+          if (profileData.nombre) {
+            setUserName(profileData.nombre);
+          }
+        }
+      } catch (error) {
+        console.error("Error al parsear datos del usuario:", error);
       }
     }
   }, []);
@@ -56,17 +71,17 @@ const Dashboard = () => {
               <div className="user-profile-info" onClick={toggleProfile}>
                 <FaUserCircle className="user-icon" />
                 <div className="user-details">
-                  <span className="user-name">{userName || user.nombre || user.email}</span>
-                  <span className="profile-label">Información del Perfil</span>
+                  <span className="user-name">{userName || userEmail}</span>
+                  <span className="profile-label">Ver perfil</span>
                 </div>
               </div>
             </div>
           )}
 
-          <h1>Welcome to the Dashboard</h1>
-          <p>Here you can manage your products and sales.</p>
+          <h1>Bienvenido al Panel de Control</h1>
+          <p>Aquí puedes gestionar tus productos y ventas.</p>
 
-          {/* Aquí puedes agregar más secciones del dashboard */}
+          {/* Secciones del dashboard */}
           <Top />
           <Listing />
           <Activity />
@@ -84,4 +99,5 @@ const Dashboard = () => {
     </div>
   );
 };
+
 export default Dashboard;
