@@ -18,7 +18,7 @@ import { MdEmail } from "react-icons/md"
 const Login = () => {
     const navigate = useNavigate();
     const [formData, setFormData] = useState({
-        email: '',
+        mail: '',
         password: ''
     });
     const [error, setError] = useState('');
@@ -35,18 +35,25 @@ const Login = () => {
         e.preventDefault();
         setLoading(true);
         setError('');
-
+    
         try {
-            const response = await API.post('/auth/login', formData);
+            const response = await API.post('/auth/login', {
+                mail: formData.email,
+                password: formData.password
+            });
             
-            // Guardar el token en localStorage
-            localStorage.setItem('token', response.data.token);
-            localStorage.setItem('user', JSON.stringify(response.data.user));
-
-            // Redireccionar al dashboard
+            localStorage.setItem('token', response.data.data.token);
+            localStorage.setItem('user', JSON.stringify(response.data.data.user));
+    
             navigate('/Dashboard');
         } catch (error) {
-            setError(error.response?.data?.message || 'Error en el inicio de sesión');
+            const errorMessage = 
+                error.response?.data?.message || 
+                error.response?.data?.error || 
+                'Error en el inicio de sesión';
+            
+            setError(errorMessage);
+            console.error('Login error:', error.response?.data);
         } finally {
             setLoading(false);
         }
@@ -77,11 +84,18 @@ const Login = () => {
                     </div>
 
                     <form onSubmit={handleSubmit} className="form grid">
-                        {error && (
-                            <span className="showMessage error">
-                                {error}
-                            </span>
-                        )}
+                    {error && (
+                        <div className="showMessage" style={{
+                            display: 'block', 
+                            color: 'white', 
+                            backgroundColor: 'red', 
+                            padding: '10px', 
+                            borderRadius: '5px',
+                            marginBottom: '10px'
+                        }}>
+                            {error}
+                        </div>
+                    )}
                         
                         <div className="inputDiv">
                             <label htmlFor="email">Correo electrónico</label>

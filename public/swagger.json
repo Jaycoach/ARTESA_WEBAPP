@@ -1,0 +1,1834 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "LAARTESA API",
+    "version": "1.1.0",
+    "description": "Documentación de la API para WEB APP LA ARTESA",
+    "license": {
+      "name": "Privada"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Servidor Local"
+    },
+    {
+      "url": "https://f686-160-173-184-21.ngrok-free.app",
+      "description": "Servidor Ngrok"
+    },
+    {
+      "url": "https://tudominio.com",
+      "description": "Servidor de Producción"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Ingrese el token JWT en el formato: Bearer <token>"
+      },
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Ingrese el token JWT en el formato - Bearer <token>"
+      }
+    },
+    "schemas": {
+      "LoginRequest": {
+        "type": "object",
+        "required": [
+          "mail",
+          "password"
+        ],
+        "properties": {
+          "mail": {
+            "type": "string",
+            "format": "email",
+            "description": "Correo electrónico del usuario",
+            "example": "usuario@example.com"
+          },
+          "password": {
+            "type": "string",
+            "format": "password",
+            "description": "Contraseña del usuario",
+            "example": "contraseña123"
+          }
+        },
+        "example": {
+          "mail": "usuario@example.com",
+          "password": "contraseña123"
+        }
+      },
+      "LoginResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": "Login exitoso"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "token": {
+                "type": "string",
+                "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+              },
+              "user": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "integer",
+                    "example": 1
+                  },
+                  "name": {
+                    "type": "string",
+                    "example": "John Doe"
+                  },
+                  "mail": {
+                    "type": "string",
+                    "example": "john@example.com"
+                  },
+                  "role": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "integer",
+                        "example": 2
+                      },
+                      "name": {
+                        "type": "string",
+                        "example": "USER"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "RegisterRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "mail",
+          "password"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Nombre completo del usuario",
+            "example": "John Doe"
+          },
+          "mail": {
+            "type": "string",
+            "format": "email",
+            "description": "Correo electrónico del usuario",
+            "example": "john@example.com"
+          },
+          "password": {
+            "type": "string",
+            "format": "password",
+            "description": "Contraseña del usuario",
+            "example": "Contraseña123"
+          }
+        }
+      },
+      "OrderDetail": {
+        "type": "object",
+        "required": [
+          "product_id",
+          "quantity",
+          "unit_price"
+        ],
+        "properties": {
+          "product_id": {
+            "type": "integer",
+            "description": "ID del producto",
+            "example": 2
+          },
+          "quantity": {
+            "type": "integer",
+            "description": "Cantidad del producto",
+            "example": 3
+          },
+          "unit_price": {
+            "type": "number",
+            "format": "float",
+            "description": "Precio unitario del producto",
+            "example": 50
+          },
+          "order_detail_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "order_id": {
+            "type": "integer",
+            "example": 1
+          }
+        }
+      },
+      "CreateOrderRequest": {
+        "type": "object",
+        "required": [
+          "user_id",
+          "total_amount",
+          "details"
+        ],
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "description": "ID del usuario que realiza la orden",
+            "example": 1
+          },
+          "total_amount": {
+            "type": "number",
+            "format": "float",
+            "description": "Monto total de la orden",
+            "example": 51.98
+          },
+          "details": {
+            "type": "array",
+            "description": "Detalles de los productos en la orden",
+            "items": {
+              "$ref": "#/components/schemas/OrderDetail"
+            }
+          }
+        }
+      },
+      "CreateOrderResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "example": "Orden creada exitosamente"
+          },
+          "order_id": {
+            "type": "object",
+            "properties": {
+              "order_id": {
+                "type": "integer",
+                "example": 1
+              },
+              "details_count": {
+                "type": "integer",
+                "example": 2
+              }
+            }
+          }
+        }
+      },
+      "RequestResetRequest": {
+        "type": "object",
+        "required": [
+          "mail"
+        ],
+        "properties": {
+          "mail": {
+            "type": "string",
+            "format": "email",
+            "description": "Correo electrónico del usuario",
+            "example": "usuario@example.com"
+          }
+        }
+      },
+      "RequestResetResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "example": "Si el correo existe, recibirás instrucciones para restablecer tu contraseña"
+          },
+          "token": {
+            "type": "string",
+            "description": "Token de restablecimiento (solo en entorno de desarrollo)",
+            "example": "8f7d8fca7e3b2a1d6e5f4c3b2a1d6e5f4c3b2a1d6e5f4c3b2a1d6e5f4c3b2a1d"
+          }
+        }
+      },
+      "ResetPasswordRequest": {
+        "type": "object",
+        "required": [
+          "token",
+          "newPassword"
+        ],
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "Token de restablecimiento recibido por correo",
+            "example": "8f7d8fca7e3b2a1d6e5f4c3b2a1d6e5f4c3b2a1d6e5f4c3b2a1d6e5f4c3b2a1d"
+          },
+          "newPassword": {
+            "type": "string",
+            "format": "password",
+            "description": "Nueva contraseña del usuario",
+            "example": "NuevaContraseña123"
+          }
+        }
+      },
+      "ResetPasswordResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": "Contraseña actualizada exitosamente"
+          }
+        }
+      },
+      "Product": {
+        "type": "object",
+        "properties": {
+          "product_id": {
+            "type": "integer",
+            "description": "Identificador único del producto",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "description": "Nombre del producto",
+            "example": "Pantalón casual"
+          },
+          "description": {
+            "type": "string",
+            "description": "Descripción detallada del producto",
+            "example": "Pantalón de algodón de alta calidad"
+          },
+          "price_list1": {
+            "type": "number",
+            "format": "float",
+            "description": "Precio en la lista 1 (precio normal)",
+            "example": 59.99
+          },
+          "price_list2": {
+            "type": "number",
+            "format": "float",
+            "description": "Precio en la lista 2 (precio mayorista)",
+            "example": 49.99
+          },
+          "price_list3": {
+            "type": "number",
+            "format": "float",
+            "description": "Precio en la lista 3 (precio especial)",
+            "example": 39.99
+          },
+          "stock": {
+            "type": "integer",
+            "description": "Cantidad disponible en inventario",
+            "example": 100
+          },
+          "barcode": {
+            "type": "string",
+            "description": "Código de barras único del producto",
+            "example": 7501234567890
+          },
+          "image_url": {
+            "type": "string",
+            "description": "URL de la imagen del producto",
+            "example": "https://example.com/images/product.jpg"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Fecha y hora de creación"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Fecha y hora de última actualización"
+          }
+        }
+      },
+      "ProductResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": "Operación exitosa"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Product"
+          }
+        }
+      },
+      "CreateProductRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "priceList1",
+          "stock"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Nombre del producto",
+            "example": "Pantalón casual"
+          },
+          "description": {
+            "type": "string",
+            "description": "Descripción detallada del producto",
+            "example": "Pantalón de algodón de alta calidad"
+          },
+          "priceList1": {
+            "type": "number",
+            "format": "float",
+            "description": "Precio en la lista 1 (precio normal)",
+            "example": 59.99
+          },
+          "priceList2": {
+            "type": "number",
+            "format": "float",
+            "description": "Precio en la lista 2 (precio mayorista)",
+            "example": 49.99
+          },
+          "priceList3": {
+            "type": "number",
+            "format": "float",
+            "description": "Precio en la lista 3 (precio especial)",
+            "example": 39.99
+          },
+          "stock": {
+            "type": "integer",
+            "description": "Cantidad disponible en inventario",
+            "example": 100
+          },
+          "barcode": {
+            "type": "string",
+            "description": "Código de barras único del producto",
+            "example": 7501234567890
+          },
+          "imageUrl": {
+            "type": "string",
+            "description": "URL de la imagen del producto",
+            "example": "https://example.com/images/product.jpg"
+          }
+        }
+      },
+      "UpdateProductImageRequest": {
+        "type": "object",
+        "required": [
+          "imageUrl"
+        ],
+        "properties": {
+          "imageUrl": {
+            "type": "string",
+            "description": "Nueva URL de la imagen del producto",
+            "example": "https://example.com/images/product-updated.jpg"
+          }
+        }
+      },
+      "UploadResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": "Imagen subida exitosamente"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "fileName": {
+                "type": "string",
+                "example": "1623459874123.jpg"
+              },
+              "relativePath": {
+                "type": "string",
+                "example": "/uploads/1623459874123.jpg"
+              },
+              "imageUrl": {
+                "type": "string",
+                "example": "http://localhost:3000/uploads/1623459874123.jpg"
+              }
+            }
+          }
+        }
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "ID único del usuario",
+            "example": 1
+          },
+          "username": {
+            "type": "string",
+            "description": "Nombre completo del usuario",
+            "example": "John Doe"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Correo electrónico del usuario",
+            "example": "john@example.com"
+          },
+          "role": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer",
+                "description": "ID del rol",
+                "example": 2
+              },
+              "name": {
+                "type": "string",
+                "description": "Nombre del rol",
+                "example": "USER"
+              }
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Fecha y hora de creación del usuario"
+          },
+          "isActive": {
+            "type": "boolean",
+            "description": "Indica si el usuario está activo",
+            "example": true
+          },
+          "name": {
+            "type": "string",
+            "description": "Nombre del usuario",
+            "example": "John Doe"
+          },
+          "mail": {
+            "type": "string",
+            "format": "email",
+            "description": "Correo electrónico del usuario",
+            "example": "john@example.com"
+          },
+          "rol_id": {
+            "type": "integer",
+            "description": "ID del rol del usuario",
+            "example": 2
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Fecha de creación del usuario"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Fecha de última actualización"
+          },
+          "is_active": {
+            "type": "boolean",
+            "description": "Indica si el usuario está activo",
+            "example": true
+          }
+        }
+      },
+      "UserResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "success"
+          },
+          "data": {
+            "$ref": "#/components/schemas/User"
+          }
+        }
+      },
+      "UsersResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "success"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/User"
+            }
+          }
+        }
+      },
+      "UpdateUserRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Nuevo nombre del usuario",
+            "example": "John Updated Doe"
+          },
+          "mail": {
+            "type": "string",
+            "format": "email",
+            "description": "Nuevo correo electrónico del usuario",
+            "example": "john.updated@example.com"
+          }
+        }
+      },
+      "UserDetails": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "Identificador único del usuario",
+            "example": 1
+          },
+          "username": {
+            "type": "string",
+            "description": "Nombre completo del usuario",
+            "example": "John Doe"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Correo electrónico del usuario",
+            "example": "john@example.com"
+          },
+          "role": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer",
+                "description": "ID del rol",
+                "example": 2
+              },
+              "name": {
+                "type": "string",
+                "description": "Nombre del rol",
+                "example": "USER"
+              }
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Fecha y hora de creación del usuario"
+          },
+          "isActive": {
+            "type": "boolean",
+            "description": "Indica si el usuario está activo",
+            "example": true
+          }
+        }
+      },
+      "Order": {
+        "type": "object",
+        "properties": {
+          "order_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "user_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "order_date": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "total_amount": {
+            "type": "number",
+            "format": "float",
+            "example": 150
+          }
+        }
+      }
+    },
+    "responses": {
+      "UnauthorizedError": {
+        "description": "Token de acceso no proporcionado o inválido",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "example": "error"
+                },
+                "message": {
+                  "type": "string",
+                  "example": "Token inválido o expirado"
+                }
+              }
+            }
+          }
+        }
+      },
+      "ForbiddenError": {
+        "description": "No tiene permisos suficientes para esta acción",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "example": "error"
+                },
+                "message": {
+                  "type": "string",
+                  "example": "No tiene permisos para realizar esta acción"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/api/auth/login": {
+      "post": {
+        "summary": "Inicio de sesión de usuario",
+        "description": "Autentica a un usuario y devuelve un token JWT",
+        "tags": [
+          "Auth"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "mail",
+                  "password"
+                ],
+                "properties": {
+                  "mail": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Correo electrónico del usuario"
+                  },
+                  "password": {
+                    "type": "string",
+                    "format": "password",
+                    "description": "Contraseña del usuario"
+                  }
+                },
+                "$ref": "#/components/schemas/LoginRequest"
+              },
+              "example": {
+                "mail": "usuario@example.com",
+                "password": "contraseña123"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login exitoso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Login exitoso"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "token": {
+                          "type": "string",
+                          "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                        },
+                        "user": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "integer",
+                              "example": 1
+                            },
+                            "name": {
+                              "type": "string",
+                              "example": "John Doe"
+                            },
+                            "mail": {
+                              "type": "string",
+                              "example": "john@example.com"
+                            },
+                            "role": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "integer",
+                                  "example": 2
+                                },
+                                "name": {
+                                  "type": "string",
+                                  "example": "USER"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Credenciales incompletas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Credenciales incompletas"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Credenciales inválidas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Credenciales inválidas"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Demasiados intentos de login",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Demasiados intentos fallidos. Por favor, espere 300 segundos."
+                    },
+                    "remainingTime": {
+                      "type": "integer",
+                      "example": 300
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno del servidor"
+          }
+        }
+      }
+    },
+    "/api/auth/register": {
+      "post": {
+        "summary": "Registro de nuevo usuario",
+        "description": "Registra un nuevo usuario en el sistema y devuelve un token JWT",
+        "tags": [
+          "Auth"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "mail",
+                  "password"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "Nombre completo del usuario",
+                    "minLength": 2,
+                    "maxLength": 50,
+                    "example": "John Doe"
+                  },
+                  "mail": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Correo electrónico del usuario (debe ser único)",
+                    "example": "john@example.com"
+                  },
+                  "password": {
+                    "type": "string",
+                    "format": "password",
+                    "description": "Contraseña del usuario (mínimo 8 caracteres)",
+                    "minLength": 8,
+                    "example": "Contraseña123"
+                  }
+                },
+                "$ref": "#/components/schemas/RegisterRequest"
+              },
+              "example": {
+                "name": "John Doe",
+                "mail": "john@example.com",
+                "password": "Contraseña123"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Usuario registrado exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Usuario registrado exitosamente"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "token": {
+                          "type": "string",
+                          "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                        },
+                        "user": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "integer",
+                              "example": 1
+                            },
+                            "name": {
+                              "type": "string",
+                              "example": "John Doe"
+                            },
+                            "mail": {
+                              "type": "string",
+                              "example": "john@example.com"
+                            },
+                            "role": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "integer",
+                                  "example": 2
+                                },
+                                "name": {
+                                  "type": "string",
+                                  "example": "USER"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos o correo ya registrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "El correo electrónico ya está registrado"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno del servidor"
+          }
+        }
+      }
+    },
+    "/api/orders": {
+      "post": {
+        "summary": "Crear una nueva orden",
+        "description": "Crea una nueva orden con sus detalles asociados",
+        "tags": [
+          "Orders"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOrderRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Orden creada exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateOrderResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos o falta de información necesaria"
+          },
+          "401": {
+            "description": "No autorizado - Token no proporcionado o inválido"
+          },
+          "500": {
+            "description": "Error interno del servidor"
+          }
+        }
+      }
+    },
+    "/api/orders/{orderId}": {
+      "get": {
+        "summary": "Obtener detalles de una orden",
+        "description": "Recupera información detallada de una orden específica",
+        "tags": [
+          "Orders"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "orderId",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "ID de la orden a consultar"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Detalles de la orden recuperados exitosamente"
+          },
+          "401": {
+            "description": "No autorizado - Token no proporcionado o inválido"
+          },
+          "403": {
+            "description": "Prohibido - Sin permisos para acceder a esta orden"
+          },
+          "404": {
+            "description": "Orden no encontrada"
+          },
+          "500": {
+            "description": "Error interno del servidor"
+          }
+        }
+      }
+    },
+    "/api/orders/user/{userId}": {
+      "get": {
+        "summary": "Obtener órdenes de un usuario",
+        "description": "Recupera todas las órdenes realizadas por un usuario específico",
+        "tags": [
+          "Orders"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "userId",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "ID del usuario cuyas órdenes se quieren consultar"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Listado de órdenes recuperado exitosamente"
+          },
+          "401": {
+            "description": "No autorizado - Token no proporcionado o inválido"
+          },
+          "403": {
+            "description": "Prohibido - Sin permisos para acceder a estas órdenes"
+          },
+          "500": {
+            "description": "Error interno del servidor"
+          }
+        }
+      }
+    },
+    "/api/password/request-reset": {
+      "post": {
+        "summary": "Solicitar restablecimiento de contraseña",
+        "description": "Envía un correo electrónico con un token para restablecer la contraseña",
+        "tags": [
+          "Auth"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestResetRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Solicitud procesada exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestResetResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos"
+          },
+          "500": {
+            "description": "Error interno del servidor"
+          }
+        }
+      }
+    },
+    "/api/password/reset": {
+      "post": {
+        "summary": "Restablecer contraseña",
+        "description": "Establece una nueva contraseña utilizando el token recibido",
+        "tags": [
+          "Auth"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetPasswordRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Contraseña actualizada exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResetPasswordResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Token inválido, expirado o datos incorrectos"
+          },
+          "500": {
+            "description": "Error interno del servidor"
+          }
+        }
+      }
+    },
+    "/api/products": {
+      "post": {
+        "summary": "Crear un nuevo producto",
+        "description": "Crea un nuevo producto en el sistema",
+        "tags": [
+          "Products"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProductRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Producto creado exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos o incompletos"
+          },
+          "401": {
+            "description": "No autorizado - Token no proporcionado o inválido"
+          },
+          "403": {
+            "description": "Prohibido - Sin permisos para crear productos"
+          },
+          "500": {
+            "description": "Error interno del servidor"
+          }
+        }
+      },
+      "get": {
+        "summary": "Obtener todos los productos",
+        "description": "Recupera la lista de todos los productos disponibles",
+        "tags": [
+          "Products"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista de productos recuperada exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Product"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autorizado - Token no proporcionado o inválido"
+          },
+          "500": {
+            "description": "Error interno del servidor"
+          }
+        }
+      }
+    },
+    "/api/products/{productId}": {
+      "get": {
+        "summary": "Obtener un producto por ID",
+        "description": "Recupera la información detallada de un producto específico",
+        "tags": [
+          "Products"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "productId",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "ID del producto a consultar"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Producto recuperado exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ID de producto inválido"
+          },
+          "401": {
+            "description": "No autorizado - Token no proporcionado o inválido"
+          },
+          "404": {
+            "description": "Producto no encontrado"
+          },
+          "500": {
+            "description": "Error interno del servidor"
+          }
+        }
+      },
+      "put": {
+        "summary": "Actualizar un producto",
+        "description": "Actualiza la información de un producto existente",
+        "tags": [
+          "Products"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "productId",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "ID del producto a actualizar"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProductRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Producto actualizado exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos o ID de producto inválido"
+          },
+          "401": {
+            "description": "No autorizado - Token no proporcionado o inválido"
+          },
+          "403": {
+            "description": "Prohibido - Sin permisos para actualizar productos"
+          },
+          "404": {
+            "description": "Producto no encontrado"
+          },
+          "500": {
+            "description": "Error interno del servidor"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Eliminar un producto",
+        "description": "Elimina un producto existente del sistema",
+        "tags": [
+          "Products"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "productId",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "ID del producto a eliminar"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Producto eliminado exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Producto eliminado exitosamente"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Product"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ID de producto inválido"
+          },
+          "401": {
+            "description": "No autorizado - Token no proporcionado o inválido"
+          },
+          "403": {
+            "description": "Prohibido - Sin permisos para eliminar productos"
+          },
+          "404": {
+            "description": "Producto no encontrado"
+          },
+          "500": {
+            "description": "Error interno del servidor"
+          }
+        }
+      }
+    },
+    "/api/products/{productId}/image": {
+      "put": {
+        "summary": "Actualizar la imagen de un producto",
+        "description": "Actualiza solo la URL de la imagen de un producto existente",
+        "tags": [
+          "Products"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "productId",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "ID del producto cuya imagen se actualizará"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProductImageRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Imagen de producto actualizada exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos o ID de producto inválido"
+          },
+          "401": {
+            "description": "No autorizado - Token no proporcionado o inválido"
+          },
+          "403": {
+            "description": "Prohibido - Sin permisos para actualizar productos"
+          },
+          "404": {
+            "description": "Producto no encontrado"
+          },
+          "500": {
+            "description": "Error interno del servidor"
+          }
+        }
+      }
+    },
+    "/api/upload": {
+      "post": {
+        "summary": "Subir una imagen",
+        "description": "Sube una imagen al servidor y devuelve la URL para acceder a ella",
+        "tags": [
+          "Uploads"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "image"
+                ],
+                "properties": {
+                  "image": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Archivo de imagen a subir (JPG, PNG, GIF)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Imagen subida exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No se ha subido ningún archivo o el formato no es válido"
+          },
+          "401": {
+            "description": "No autorizado - Token no proporcionado o inválido"
+          },
+          "500": {
+            "description": "Error interno del servidor"
+          }
+        }
+      }
+    },
+    "/api/upload/{fileName}": {
+      "delete": {
+        "summary": "Eliminar una imagen",
+        "description": "Elimina una imagen previamente subida al servidor",
+        "tags": [
+          "Uploads"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "fileName",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Nombre del archivo a eliminar"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Imagen eliminada exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Imagen eliminada exitosamente"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Nombre de archivo no proporcionado"
+          },
+          "401": {
+            "description": "No autorizado - Token no proporcionado o inválido"
+          },
+          "403": {
+            "description": "Prohibido - Sin permisos para eliminar archivos"
+          },
+          "404": {
+            "description": "Archivo no encontrado"
+          },
+          "500": {
+            "description": "Error interno del servidor"
+          }
+        }
+      }
+    },
+    "/api/users": {
+      "get": {
+        "summary": "Obtener todos los usuarios",
+        "description": "Recupera la lista de todos los usuarios (requiere rol de administrador)",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista de usuarios recuperada exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsersResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autorizado - Token no proporcionado o inválido"
+          },
+          "403": {
+            "description": "Prohibido - Sin permisos de administrador"
+          },
+          "500": {
+            "description": "Error interno del servidor"
+          }
+        }
+      }
+    },
+    "/api/users/{id}": {
+      "get": {
+        "summary": "Obtener un usuario por ID",
+        "description": "Recupera los detalles de un usuario específico (el propio usuario o requiere rol de administrador)",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "ID del usuario a consultar"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Detalles del usuario recuperados exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autorizado - Token no proporcionado o inválido"
+          },
+          "403": {
+            "description": "Prohibido - Sin permisos para ver este usuario"
+          },
+          "404": {
+            "description": "Usuario no encontrado"
+          },
+          "500": {
+            "description": "Error interno del servidor"
+          }
+        }
+      },
+      "put": {
+        "summary": "Actualizar un usuario",
+        "description": "Actualiza los datos de un usuario existente (el propio usuario o requiere rol de administrador)",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "ID del usuario a actualizar"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateUserRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Usuario actualizado exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "success"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "integer",
+                          "example": 1
+                        },
+                        "name": {
+                          "type": "string",
+                          "example": "John Updated Doe"
+                        },
+                        "mail": {
+                          "type": "string",
+                          "example": "john.updated@example.com"
+                        },
+                        "role": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "integer",
+                              "example": 2
+                            },
+                            "name": {
+                              "type": "string",
+                              "example": "USER"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autorizado - Token no proporcionado o inválido"
+          },
+          "403": {
+            "description": "Prohibido - Sin permisos para actualizar este usuario"
+          },
+          "404": {
+            "description": "Usuario no encontrado"
+          },
+          "500": {
+            "description": "Error interno del servidor"
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Auth",
+      "description": "Endpoints de autenticación y gestión de usuarios"
+    }
+  ]
+}
