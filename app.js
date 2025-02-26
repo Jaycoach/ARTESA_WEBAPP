@@ -1,11 +1,10 @@
 require('dotenv').config();
 const express = require('express');
-const swaggerUi = require('swagger-ui-express');
-const swaggerDocument = require('./swagger.json');
-const multer = require('multer');
-const aws = require('aws-sdk');
+// Importa correctamente el archivo de configuración personalizado
+const setupSwagger = require('./src/config/express-swagger');
 const path = require('path');
 const cors = require('cors');
+const fs = require('fs');
 const security = require('./src/middleware/security');
 
 const {
@@ -22,7 +21,19 @@ const productRoutes = require('./src/routes/productRoutes');
 const orderRoutes = require('./src/routes/orderRoutes');
 const passwordResetRoutes = require('./src/routes/passwordResetRoutes');
 const paymentRoutes = require('./src/routes/paymentRoutes');
+const uploadRoutes = require('./src/routes/uploadRoutes');
 const PORT = process.env.PORT || 3000;
+
+// Prefix para todas las rutas de la API
+const API_PREFIX = '/api';
+
+// Inicializa Swagger con tu configuración personalizada
+// Como tu módulo personalizado devuelve una función que acepta app como parámetro
+setupSwagger(app);
+
+// Actualiza los servidores si está disponible en las variables de entorno
+// Nota: Esto no tendrá efecto porque la configuración ya fue aplicada
+// Considera mover esta lógica a tu archivo express-swagger.js si es necesaria
 
 // Configuración de CORS mejorada
 app.use(cors({
@@ -61,6 +72,10 @@ app.use((err, req, res, next) => {
   next(err);
 });
 
+// Configuración base de la API
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
 // Aplicar middlewares de seguridad globalmente
 app.use(security.securityHeaders);
 app.use(security.sanitizeBody);
@@ -74,72 +89,27 @@ app.use(enhancedSecurityHeaders);
 app.use(suspiciousActivityTracker);
 
 // Aplicar rate limiting según el tipo de ruta
-app.use('/api/auth', sensitiveApiLimiter);
-app.use('/api/secure', sensitiveApiLimiter);
-app.use('/api', standardApiLimiter);
+app.use(`${API_PREFIX}/auth`, sensitiveApiLimiter);
+app.use(`${API_PREFIX}/secure`, sensitiveApiLimiter);
+app.use(API_PREFIX, standardApiLimiter);
 
-// Configuración base de la API
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Asegurar que el directorio de uploads exista
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
 
-// Prefix todas las rutas de la API
-const API_PREFIX = '/api';
+// Servir archivos estáticos desde la carpeta uploads
+app.use(`${API_PREFIX}/uploads`, express.static('uploads'));
 
-// Rutas con prefijo - aseguramos que las rutas internas no dupliquen el prefijo
+// Rutas de la API con prefijo
 app.use(API_PREFIX, userRoutes);
 app.use(`${API_PREFIX}/auth`, authRoutes);
 app.use(API_PREFIX, productRoutes);
 app.use(API_PREFIX, orderRoutes);
-app.use('/api/password', passwordResetRoutes);
-
-// Configuración de Multer para uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, 'uploads/'),
-  filename: (req, file, cb) => cb(null, Date.now() + path.extname(file.originalname))
-});
-
-const upload = multer({ storage });
-
-// Ruta de upload con el prefijo API
-app.post(`${API_PREFIX}/upload`, upload.single('image'), (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ message: 'No se ha subido ningún archivo' });
-  }
-
-  const imageUrl = `${req.protocol}://${req.get('host')}${API_PREFIX}/uploads/${req.file.filename}`;
-  res.json({ imageUrl });
-});
-
-// Servir archivos estáticos
-app.use(`${API_PREFIX}/uploads`, express.static('uploads'));
-
-// Configuración de Swagger
-const swaggerOptions = {
-  explorer: true,
-  swaggerOptions: {
-    urls: [
-      {
-        url: `${API_PREFIX}/swagger.json`,
-        name: 'Default'
-      }
-    ]
-  }
-};
-
-// Rutas de Swagger - mantenemos la ruta original /api-docs
-app.get('/swagger.json', (req, res) => {
-  res.json(swaggerDocument);
-});
-
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument, {
-  explorer: true,
-  swaggerOptions: {
-    url: '/swagger.json'
-  }
-}));
-
-// Rutas de pago 
-app.use('/api/payments', paymentRoutes);
+app.use(API_PREFIX, uploadRoutes); // Rutas para la gestión de uploads
+app.use(`${API_PREFIX}/password`, passwordResetRoutes);
+app.use(`${API_PREFIX}/payments`, paymentRoutes);
 
 // Manejador de errores global
 app.use((err, req, res, next) => {
@@ -153,5 +123,5 @@ app.use((err, req, res, next) => {
 // Iniciar servidor
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en http://localhost:${PORT}`);
-  console.log(`Documentación API disponible en http://localhost:${PORT}${API_PREFIX}/docs`);
+  console.log(`Documentación API disponible en http://localhost:${PORT}/api-docs`);
 });

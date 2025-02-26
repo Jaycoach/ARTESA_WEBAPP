@@ -8,6 +8,88 @@ const Roles = require('../models/Roles');
 // Crear una instancia del logger con contexto
 const logger = createContextLogger('AuthController');
 
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     LoginRequest:
+ *       type: object
+ *       required:
+ *         - mail
+ *         - password
+ *       properties:
+ *         mail:
+ *           type: string
+ *           format: email
+ *           description: Correo electrónico del usuario
+ *         password:
+ *           type: string
+ *           format: password
+ *           description: Contraseña del usuario
+ *       example:
+ *         mail: usuario@example.com
+ *         password: contraseña123
+ *     
+ *     LoginResponse:
+ *       type: object
+ *       properties:
+ *         success:
+ *           type: boolean
+ *           example: true
+ *         message:
+ *           type: string
+ *           example: Login exitoso
+ *         data:
+ *           type: object
+ *           properties:
+ *             token:
+ *               type: string
+ *               example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *             user:
+ *               type: object
+ *               properties:
+ *                 id:
+ *                   type: integer
+ *                   example: 1
+ *                 name:
+ *                   type: string
+ *                   example: John Doe
+ *                 mail:
+ *                   type: string
+ *                   example: john@example.com
+ *                 role:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *                       example: 2
+ *                     name:
+ *                       type: string
+ *                       example: USER
+ *     
+ *     RegisterRequest:
+ *       type: object
+ *       required:
+ *         - name
+ *         - mail
+ *         - password
+ *       properties:
+ *         name:
+ *           type: string
+ *           description: Nombre completo del usuario
+ *           example: John Doe
+ *         mail:
+ *           type: string
+ *           format: email
+ *           description: Correo electrónico del usuario
+ *           example: john@example.com
+ *         password:
+ *           type: string
+ *           format: password
+ *           description: Contraseña del usuario
+ *           example: Contraseña123
+ */
+
 // Configuración del rate limiter
 const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutos
@@ -124,7 +206,35 @@ class AuthController {
         }
     }
 
-    // Método principal de login
+    /**
+     * @swagger
+     * /api/auth/login:
+     *   post:
+     *     summary: Inicio de sesión de usuario
+     *     description: Autentica a un usuario y devuelve un token JWT
+     *     tags: [Auth]
+     *     requestBody:
+     *       required: true
+     *       content:
+     *         application/json:
+     *           schema:
+     *             $ref: '#/components/schemas/LoginRequest'
+     *     responses:
+     *       200:
+     *         description: Login exitoso
+     *         content:
+     *           application/json:
+     *             schema:
+     *               $ref: '#/components/schemas/LoginResponse'
+     *       400:
+     *         description: Credenciales incompletas
+     *       401:
+     *         description: Credenciales inválidas
+     *       429:
+     *         description: Demasiados intentos de login
+     *       500:
+     *         description: Error interno del servidor
+     */
     static async login(req, res) {
         try {
             const { mail, password } = req.body;
@@ -296,7 +406,31 @@ class AuthController {
         }
     }
 
-    // Método de registro
+    /**
+     * @swagger
+     * /api/auth/register:
+     *   post:
+     *     summary: Registro de nuevo usuario
+     *     description: Registra un nuevo usuario en el sistema y devuelve un token JWT
+     *     tags: [Auth]
+     *     requestBody:
+     *       required: true
+     *       content:
+     *         application/json:
+     *           schema:
+     *             $ref: '#/components/schemas/RegisterRequest'
+     *     responses:
+     *       201:
+     *         description: Usuario registrado exitosamente
+     *         content:
+     *           application/json:
+     *             schema:
+     *               $ref: '#/components/schemas/LoginResponse'
+     *       400:
+     *         description: Datos inválidos o correo ya registrado
+     *       500:
+     *         description: Error interno del servidor
+     */
     static async register(req, res) {
         try {
             const { name, mail, password } = req.body;

@@ -62,7 +62,12 @@ const sanitizeParams = (req, res, next) => {
 const validateQueryParams = (req, res, next) => {
   const sqlInjectionPattern = /('|"|;|--|\/\*|\*\/|xp_|sp_|exec|execute|insert|select|delete|update|drop|union|into|load_file|outfile)/i;
   
-  const checkValue = (value) => {
+  const checkValue = (value, key) => {
+    // Excepción para URLs de imágenes
+    if (key === 'imageUrl' && typeof value === 'string') {
+      return true; // Permitir cualquier valor para imageUrl
+    }
+    
     if (typeof value === 'string' && sqlInjectionPattern.test(value)) {
       return false;
     }
@@ -72,7 +77,7 @@ const validateQueryParams = (req, res, next) => {
   // Revisar query params
   if (req.query) {
     for (let key in req.query) {
-      if (!checkValue(req.query[key])) {
+      if (!checkValue(req.query[key], key)) {
         return res.status(403).json({ 
           error: 'Invalid query parameter detected' 
         });
@@ -86,7 +91,7 @@ const validateQueryParams = (req, res, next) => {
       for (let key in obj) {
         if (typeof obj[key] === 'object' && obj[key] !== null) {
           if (!checkObject(obj[key])) return false;
-        } else if (!checkValue(obj[key])) {
+        } else if (!checkValue(obj[key], key)) {
           return false;
         }
       }

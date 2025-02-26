@@ -3,6 +3,103 @@ const Roles = require('../models/Roles');
 const { createContextLogger } = require('../config/logger');
 const logger = createContextLogger('UserController');
 
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     User:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: integer
+ *           description: Identificador único del usuario
+ *           example: 1
+ *         username:
+ *           type: string
+ *           description: Nombre completo del usuario
+ *           example: John Doe
+ *         email:
+ *           type: string
+ *           format: email
+ *           description: Correo electrónico del usuario
+ *           example: john@example.com
+ *         role:
+ *           type: object
+ *           properties:
+ *             id:
+ *               type: integer
+ *               description: ID del rol
+ *               example: 2
+ *             name:
+ *               type: string
+ *               description: Nombre del rol
+ *               example: USER
+ *         createdAt:
+ *           type: string
+ *           format: date-time
+ *           description: Fecha y hora de creación del usuario
+ *         isActive:
+ *           type: boolean
+ *           description: Indica si el usuario está activo
+ *           example: true
+ *     
+ *     UserResponse:
+ *       type: object
+ *       properties:
+ *         status:
+ *           type: string
+ *           example: success
+ *         data:
+ *           $ref: '#/components/schemas/User'
+ *     
+ *     UsersResponse:
+ *       type: object
+ *       properties:
+ *         status:
+ *           type: string
+ *           example: success
+ *         data:
+ *           type: array
+ *           items:
+ *             $ref: '#/components/schemas/User'
+ *     
+ *     UpdateUserRequest:
+ *       type: object
+ *       properties:
+ *         name:
+ *           type: string
+ *           description: Nuevo nombre del usuario
+ *           example: John Updated Doe
+ *         mail:
+ *           type: string
+ *           format: email
+ *           description: Nuevo correo electrónico del usuario
+ *           example: john.updated@example.com
+ */
+
+/**
+ * @swagger
+ * /api/users:
+ *   get:
+ *     summary: Obtener todos los usuarios
+ *     description: Recupera la lista de todos los usuarios (requiere rol de administrador)
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Lista de usuarios recuperada exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/UsersResponse'
+ *       401:
+ *         description: No autorizado - Token no proporcionado o inválido
+ *       403:
+ *         description: Prohibido - Sin permisos de administrador
+ *       500:
+ *         description: Error interno del servidor
+ */
 const getUsers = async (req, res) => {
   try {
     const { rows } = await pool.query(`
@@ -37,6 +134,38 @@ const getUsers = async (req, res) => {
   }
 };
 
+/**
+ * @swagger
+ * /api/users/{id}:
+ *   get:
+ *     summary: Obtener un usuario por ID
+ *     description: Recupera los detalles de un usuario específico (el propio usuario o requiere rol de administrador)
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID del usuario a consultar
+ *     responses:
+ *       200:
+ *         description: Detalles del usuario recuperados exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/UserResponse'
+ *       401:
+ *         description: No autorizado - Token no proporcionado o inválido
+ *       403:
+ *         description: Prohibido - Sin permisos para ver este usuario
+ *       404:
+ *         description: Usuario no encontrado
+ *       500:
+ *         description: Error interno del servidor
+ */
 const getUserById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -96,6 +225,69 @@ const getUserById = async (req, res) => {
   }
 };
 
+/**
+ * @swagger
+ * /api/users/{id}:
+ *   put:
+ *     summary: Actualizar un usuario
+ *     description: Actualiza los datos de un usuario existente (el propio usuario o requiere rol de administrador)
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID del usuario a actualizar
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/UpdateUserRequest'
+ *     responses:
+ *       200:
+ *         description: Usuario actualizado exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *                       example: 1
+ *                     name:
+ *                       type: string
+ *                       example: John Updated Doe
+ *                     mail:
+ *                       type: string
+ *                       example: john.updated@example.com
+ *                     role:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: integer
+ *                           example: 2
+ *                         name:
+ *                           type: string
+ *                           example: USER
+ *       401:
+ *         description: No autorizado - Token no proporcionado o inválido
+ *       403:
+ *         description: Prohibido - Sin permisos para actualizar este usuario
+ *       404:
+ *         description: Usuario no encontrado
+ *       500:
+ *         description: Error interno del servidor
+ */
 const updateUser = async (req, res) => {
   try {
     const { id } = req.params;
