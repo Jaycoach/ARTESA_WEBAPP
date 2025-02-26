@@ -5,8 +5,9 @@ const cors = require('cors');
 const fs = require('fs');
 const security = require('./src/middleware/security');
 
-// Importación para Swagger (solo necesitamos el módulo personalizado)
-const setupSwagger = require('./src/config/express-swagger');
+// Importaciones de Swagger 
+const swaggerUi = require('swagger-ui-express');
+const swaggerSpecs = require('./src/config/swagger');
 
 const {
   sensitiveApiLimiter,
@@ -28,12 +29,31 @@ const PORT = process.env.PORT || 3000;
 // Prefix para todas las rutas de la API
 const API_PREFIX = '/api';
 
-// Inicializar Swagger con tu configuración personalizada
-// Esta línea genera la configuración de Swagger y configura las rutas
-setupSwagger(app);
+// Configurar opciones de Swagger UI
+const swaggerUiOptions = {
+  explorer: true,
+  swaggerOptions: {
+    persistAuthorization: true,
+    docExpansion: 'list',
+    defaultModelsExpandDepth: 1,
+    defaultModelExpandDepth: 1,
+    displayRequestDuration: true,
+    filter: true,
+    tryItOutEnabled: true, // Habilitar el botón Try It Out por defecto
+    supportedSubmitMethods: ['get', 'post', 'put', 'delete', 'patch', 'options', 'head'],
+  },
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: "API LAARTESA - Documentación",
+};
 
-// Eliminar la configuración adicional de swaggerOptions y de swaggerDocs
-// así como la configuración manual de app.use('/api-docs', ...)
+// Configurar Swagger UI
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpecs, swaggerUiOptions));
+
+// Exponer el JSON de Swagger para herramientas externas
+app.get('/swagger.json', (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.send(swaggerSpecs);
+});
 
 // Configuración de CORS mejorada
 app.use(cors({
@@ -124,4 +144,5 @@ app.use((err, req, res, next) => {
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en http://localhost:${PORT}`);
   console.log(`Documentación API disponible en http://localhost:${PORT}/api-docs`);
+  console.log(`Especificación Swagger disponible en http://localhost:${PORT}/swagger.json`);
 });

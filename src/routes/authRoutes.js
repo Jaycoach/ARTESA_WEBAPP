@@ -43,7 +43,7 @@ router.use(securityHeaders);
  *             mail: "usuario@example.com"
  *             password: "contraseña123"
  *     responses:
- *       200:
+ *       '200':
  *         description: Login exitoso
  *         content:
  *           application/json:
@@ -83,7 +83,7 @@ router.use(securityHeaders);
  *                             name:
  *                               type: string
  *                               example: USER
- *       400:
+ *       '400':
  *         description: Credenciales incompletas
  *         content:
  *           application/json:
@@ -96,7 +96,7 @@ router.use(securityHeaders);
  *                 message:
  *                   type: string
  *                   example: Credenciales incompletas
- *       401:
+ *       '401':
  *         description: Credenciales inválidas
  *         content:
  *           application/json:
@@ -109,7 +109,7 @@ router.use(securityHeaders);
  *                 message:
  *                   type: string
  *                   example: Credenciales inválidas
- *       429:
+ *       '429':
  *         description: Demasiados intentos fallidos
  *         content:
  *           application/json:
@@ -125,7 +125,7 @@ router.use(securityHeaders);
  *                 remainingTime:
  *                   type: integer
  *                   example: 300
- *       500:
+ *       '500':
  *         description: Error interno del servidor
  */
 router.post(
@@ -178,7 +178,7 @@ router.post(
  *             mail: "john@example.com"
  *             password: "Contraseña123"
  *     responses:
- *       201:
+ *       '201':
  *         description: Usuario registrado exitosamente
  *         content:
  *           application/json:
@@ -218,7 +218,7 @@ router.post(
  *                             name:
  *                               type: string
  *                               example: USER
- *       400:
+ *       '400':
  *         description: Datos inválidos o correo ya registrado
  *         content:
  *           application/json:
@@ -231,7 +231,7 @@ router.post(
  *                 message:
  *                   type: string
  *                   example: El correo electrónico ya está registrado
- *       500:
+ *       '500':
  *         description: Error interno del servidor
  */
 router.post(

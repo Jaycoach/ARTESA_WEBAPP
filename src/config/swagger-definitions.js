@@ -95,46 +95,115 @@
  *                       type: string
  *                       example: USER
  *     
+ *     RegisterRequest:
+ *       type: object
+ *       required:
+ *         - name
+ *         - mail
+ *         - password
+ *       properties:
+ *         name:
+ *           type: string
+ *           description: Nombre completo del usuario
+ *           example: John Doe
+ *         mail:
+ *           type: string
+ *           format: email
+ *           description: Correo electrónico del usuario
+ *           example: john@example.com
+ *         password:
+ *           type: string
+ *           format: password
+ *           description: Contraseña del usuario
+ *           example: Contraseña123
+ *     
+ *     UserDetails:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: integer
+ *           description: Identificador único del usuario
+ *           example: 1
+ *         username:
+ *           type: string
+ *           description: Nombre completo del usuario
+ *           example: John Doe
+ *         email:
+ *           type: string
+ *           format: email
+ *           description: Correo electrónico del usuario
+ *           example: john@example.com
+ *         role:
+ *           type: object
+ *           properties:
+ *             id:
+ *               type: integer
+ *               description: ID del rol
+ *               example: 2
+ *             name:
+ *               type: string
+ *               description: Nombre del rol
+ *               example: USER
+ *         createdAt:
+ *           type: string
+ *           format: date-time
+ *           description: Fecha y hora de creación del usuario
+ *         isActive:
+ *           type: boolean
+ *           description: Indica si el usuario está activo
+ *           example: true
+ *
  *     Product:
  *       type: object
  *       properties:
  *         product_id:
  *           type: integer
+ *           description: Identificador único del producto
  *           example: 1
  *         name:
  *           type: string
- *           example: Producto Ejemplo
+ *           description: Nombre del producto
+ *           example: Pantalón casual
  *         description:
  *           type: string
- *           example: Descripción detallada del producto
+ *           description: Descripción detallada del producto
+ *           example: Pantalón de algodón de alta calidad
  *         price_list1:
  *           type: number
  *           format: float
- *           example: 100.00
+ *           description: Precio en la lista 1 (precio normal)
+ *           example: 59.99
  *         price_list2:
  *           type: number
  *           format: float
- *           example: 90.00
+ *           description: Precio en la lista 2 (precio mayorista)
+ *           example: 49.99
  *         price_list3:
  *           type: number
  *           format: float
- *           example: 80.00
+ *           description: Precio en la lista 3 (precio especial)
+ *           example: 39.99
  *         stock:
  *           type: integer
- *           example: 50
+ *           description: Cantidad disponible en inventario
+ *           example: 100
  *         barcode:
  *           type: string
+ *           description: Código de barras único del producto
  *           example: 7501234567890
  *         image_url:
  *           type: string
+ *           description: URL de la imagen del producto
  *           example: https://example.com/images/product.jpg
  *         created_at:
  *           type: string
  *           format: date-time
+ *           description: Fecha y hora de creación
  *         updated_at:
  *           type: string
  *           format: date-time
- *     
+ *           description: Fecha y hora de última actualización
+ *
  *     Order:
  *       type: object
  *       properties:
@@ -171,4 +240,33 @@
  *           type: number
  *           format: float
  *           example: 50.00
+ * 
+ *   responses:
+ *     UnauthorizedError:
+ *       description: Token de acceso no proporcionado o inválido
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               status:
+ *                 type: string
+ *                 example: error
+ *               message:
+ *                 type: string
+ *                 example: Token inválido o expirado
+ *
+ *     ForbiddenError:
+ *       description: No tiene permisos suficientes para esta acción
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               status:
+ *                 type: string
+ *                 example: error
+ *               message:
+ *                 type: string
+ *                 example: No tiene permisos para realizar esta acción
  */
