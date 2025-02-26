@@ -46,14 +46,9 @@ const swaggerUiOptions = {
   customSiteTitle: "API LAARTESA - Documentación",
 };
 
-// Configurar Swagger UI
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpecs, swaggerUiOptions));
-
-// Exponer el JSON de Swagger para herramientas externas
-app.get('/swagger.json', (req, res) => {
-  res.setHeader('Content-Type', 'application/json');
-  res.send(swaggerSpecs);
-});
+// Configuración base de la API
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Configuración de CORS mejorada
 app.use(cors({
@@ -65,7 +60,7 @@ app.use(cors({
       process.env.PROD_URL
     ].filter(Boolean);
 
-    // Permitir solicitudes sin origen (como las de Postman)
+    // Permitir solicitudes sin origen (como las de Postman o Swagger UI)
     if (!origin) return callback(null, true);
     
     if (allowedOrigins.indexOf(origin) !== -1 || origin.includes('ngrok-free.app')) {
@@ -92,10 +87,6 @@ app.use((err, req, res, next) => {
   next(err);
 });
 
-// Configuración base de la API
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
 // Aplicar middlewares de seguridad globalmente
 app.use(security.securityHeaders);
 app.use(security.sanitizeBody);
@@ -121,6 +112,15 @@ if (!fs.existsSync(uploadsDir)) {
 
 // Servir archivos estáticos desde la carpeta uploads
 app.use(`${API_PREFIX}/uploads`, express.static('uploads'));
+
+// Configurar Swagger UI - Colocamos esto después de la configuración CORS y de seguridad
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpecs, swaggerUiOptions));
+
+// Exponer el JSON de Swagger para herramientas externas
+app.get('/swagger.json', (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.send(swaggerSpecs);
+});
 
 // Rutas de la API con prefijo
 app.use(API_PREFIX, userRoutes);
