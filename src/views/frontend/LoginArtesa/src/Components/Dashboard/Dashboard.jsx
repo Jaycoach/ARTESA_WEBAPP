@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { createContext, useState, useContext, useEffect } from "react";
 import "../../App.css";
 import "./Dashboard.css";
 // Importing Components ==========>
@@ -7,7 +7,6 @@ import Top from "./Body Section/Top Section/Top";
 import Listing from "./Body Section/Listing Section/Listing";
 import Activity from "./Body Section/Activity Section/Activity";
 import ClientProfile from "./ClientProfile/ClientProfile"; // Agregar Nuevo componente
-import { createContext, useState, useContext } from "react";
 import { FaUserCircle } from "react-icons/fa";
 
 const Dashboard = () => {
@@ -15,10 +14,16 @@ const Dashboard = () => {
   const [showProfile, setShowProfile] = useState(false);
 
   useEffect(() => {
-    // Obtener información del usuario del localStorage
+    // Obtener información del usuario del localStorage (guardada durante el login)
     const userInfo = localStorage.getItem('user');
     if (userInfo) {
-      setUser(JSON.parse(userInfo));
+      try {
+        setUser(JSON.parse(userInfo));
+      } catch (error) {
+        console.error("Error al parsear información del usuario:", error);
+        // No establecemos usuario predeterminado en caso de error para que el usuario
+        // sea redirigido a la página de login
+      }
     }
   }, []);
 
