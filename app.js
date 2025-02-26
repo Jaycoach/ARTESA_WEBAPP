@@ -20,6 +20,7 @@ const app = express();
 const userRoutes = require('./src/routes/userRoutes');
 const authRoutes = require('./src/routes/authRoutes');
 const productRoutes = require('./src/routes/productRoutes');
+const secureProductRoutes = require('./src/routes/secureProductRoutes');
 const orderRoutes = require('./src/routes/orderRoutes');
 const passwordResetRoutes = require('./src/routes/passwordResetRoutes');
 const paymentRoutes = require('./src/routes/paymentRoutes');
@@ -126,6 +127,7 @@ app.get('/swagger.json', (req, res) => {
 app.use(API_PREFIX, userRoutes);
 app.use(`${API_PREFIX}/auth`, authRoutes);
 app.use(API_PREFIX, productRoutes);
+app.use(API_PREFIX, secureProductRoutes);
 app.use(API_PREFIX, orderRoutes);
 app.use(API_PREFIX, uploadRoutes); // Rutas para la gestión de uploads
 app.use(`${API_PREFIX}/password`, passwordResetRoutes);

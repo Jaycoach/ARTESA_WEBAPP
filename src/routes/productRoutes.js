@@ -1,3 +1,4 @@
+// src/routes/productRoutes.js
 const express = require('express');
 const router = express.Router();
 const productController = require('../controllers/productController');
@@ -73,21 +74,33 @@ router.use(sanitizeBody, sanitizeParams);
  * Obtener todos los productos
  * @route GET /products
  * @group Products - Operaciones relacionadas con productos
+ * @security BearerAuth
  * @returns {ProductsResponse} 200 - Lista de productos obtenida exitosamente
+ * @returns {object} 401 - No autorizado
  * @returns {object} 500 - Error interno del servidor
  */
-router.get('/products', productController.getProducts);
+router.get('/products', 
+  verifyToken, 
+  checkRole([1, 2]), // Permitir acceso a todos los usuarios autenticados
+  productController.getProducts
+);
 
 /**
  * Obtener producto por ID
  * @route GET /products/{productId}
  * @group Products - Operaciones relacionadas con productos
  * @param {number} productId.path.required - ID del producto
+ * @security BearerAuth
  * @returns {ProductResponse} 200 - Producto obtenido exitosamente
+ * @returns {object} 401 - No autorizado
  * @returns {object} 404 - Producto no encontrado
  * @returns {object} 500 - Error interno del servidor
  */
-router.get('/products/:productId', productController.getProduct);
+router.get('/products/:productId', 
+  verifyToken, 
+  checkRole([1, 2]), // Permitir acceso a todos los usuarios autenticados
+  productController.getProduct
+);
 
 /**
  * Crear un nuevo producto
