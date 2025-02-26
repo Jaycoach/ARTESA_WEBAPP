@@ -1,11 +1,12 @@
 require('dotenv').config();
 const express = require('express');
-// Importa correctamente el archivo de configuración personalizado
-const setupSwagger = require('./src/config/express-swagger');
 const path = require('path');
 const cors = require('cors');
 const fs = require('fs');
 const security = require('./src/middleware/security');
+
+// Importación para Swagger (solo necesitamos el módulo personalizado)
+const setupSwagger = require('./src/config/express-swagger');
 
 const {
   sensitiveApiLimiter,
@@ -27,13 +28,12 @@ const PORT = process.env.PORT || 3000;
 // Prefix para todas las rutas de la API
 const API_PREFIX = '/api';
 
-// Inicializa Swagger con tu configuración personalizada
-// Como tu módulo personalizado devuelve una función que acepta app como parámetro
+// Inicializar Swagger con tu configuración personalizada
+// Esta línea genera la configuración de Swagger y configura las rutas
 setupSwagger(app);
 
-// Actualiza los servidores si está disponible en las variables de entorno
-// Nota: Esto no tendrá efecto porque la configuración ya fue aplicada
-// Considera mover esta lógica a tu archivo express-swagger.js si es necesaria
+// Eliminar la configuración adicional de swaggerOptions y de swaggerDocs
+// así como la configuración manual de app.use('/api-docs', ...)
 
 // Configuración de CORS mejorada
 app.use(cors({

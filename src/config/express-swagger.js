@@ -6,7 +6,7 @@ module.exports = (app) => {
   // Configuración base de Swagger
   const options = {
     info: {
-      version: '1.0.0',
+      version: '1.1.0',
       title: 'LAARTESA API',
       description: 'Documentación de la API para WEB APP LA ARTESA',
       license: {
@@ -27,37 +27,41 @@ module.exports = (app) => {
         description: 'Ingrese el token JWT en el formato: Bearer <token>'
       },
     },
-    baseDir: path.join(__dirname, '..'),
+    baseDir: path.join(__dirname, '..'),// Cambiado para apuntar al directorio raíz del proyecto
     // Patrones de archivos que contienen anotaciones
     filesPattern: [
-      '../controllers/*.js',
-      '../routes/*.js', 
-      '../models/*.js'
+      './**/*.js'
     ],
     // URL donde se servirá la documentación
     swaggerUIPath: '/api-docs',
     // URL donde se servirá el JSON de la API
     exposeApiDocs: true,
+    swaggerUIPath: '/api-docs',
+    exposeApiDocs: true,
     apiDocsPath: '/swagger.json',
-    // Personalización de la UI con opciones interactivas
     swaggerUiOptions: {
       explorer: true,
       customCss: '.swagger-ui .topbar { display: none }',
       customSiteTitle: "API LAARTESA - Documentación",
-      // Opciones para mejorar la interactividad
-      docExpansion: 'list',
+      docExpansion: 'none',      // Expandir/colapsar por defecto
       deepLinking: true,
+      tagsSorter: 'alpha',
+      operationsSorter: 'alpha',
       filter: true,
       persistAuthorization: true,
-      tryItOutEnabled: true, // Habilitar el botón "Try it out" por defecto
-      displayOperationId: false,
+      tryItOutEnabled: true,     // Habilitar el botón "Try it out" por defecto
       displayRequestDuration: true,
-      requestSnippetsEnabled: true,
       syntaxHighlight: {
         activate: true,
         theme: 'agate'
       }
     },
+    defaultModelsExpandDepth: 1,
+    defaultModelExpandDepth: 1,
+    showExtensions: true,
+    defaultModelRendering: 'model',
+    displayRequestDuration: true,
+    displayOperationId: false,
   };
 
   // Actualiza los servidores si está disponible en las variables de entorno
