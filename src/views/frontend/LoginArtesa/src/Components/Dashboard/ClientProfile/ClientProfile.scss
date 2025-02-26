@@ -1,0 +1,262 @@
+/* Variables from the app */
+:root {
+    --primary-color: #f9f9f9;
+    --hover-color: #f1f1f1;
+    --palegreen-color: #f4ff5b;
+    --whiteColor: #fff;
+    --blackColor: #000;
+    --greyText: #808080;
+    --bgColor: hsl(113, 11%, 85%);
+    --inputColor: hsl(300, 12%, 97%);
+  }
+  
+  /* Overlay para el modal */
+  .client-profile-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 2000;
+    overflow-y: auto;
+    padding: 20px;
+  }
+  
+  /* Contenedor principal del formulario */
+  .client-profile-container {
+    background-color: var(--whiteColor);
+    border-radius: 10px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+    width: 90%;
+    max-width: 1000px;
+    max-height: 90vh;
+    overflow-y: auto;
+    position: relative;
+  }
+  
+  /* Cabecera del formulario */
+  .client-profile-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    border-bottom: 1px solid #eee;
+    position: sticky;
+    top: 0;
+    background-color: var(--whiteColor);
+    z-index: 10;
+    
+    h2 {
+      margin: 0;
+      font-size: var(--h2FontSize);
+      color: var(--blackColor);
+    }
+    
+    .close-button {
+      background: none;
+      border: none;
+      font-size: 1.5rem;
+      cursor: pointer;
+      color: var(--greyText);
+      
+      &:hover {
+        color: var(--blackColor);
+      }
+    }
+  }
+  
+  /* Contenido del formulario */
+  .client-profile-content {
+    padding: 20px;
+  }
+  
+  /* Mensajes de error y éxito */
+  .profile-error-message,
+  .profile-success-message {
+    padding: 10px 15px;
+    margin-bottom: 20px;
+    border-radius: 5px;
+    font-weight: 500;
+  }
+  
+  .profile-error-message {
+    background-color: #ffe6e6;
+    color: #d32f2f;
+    border-left: 4px solid #d32f2f;
+  }
+  
+  .profile-success-message {
+    background-color: #e7f6e7;
+    color: #2e7d32;
+    border-left: 4px solid #2e7d32;
+  }
+  
+  /* Estilos del formulario */
+  .client-profile-form {
+    display: flex;
+    flex-direction: column;
+    gap: 25px;
+  }
+  
+  /* Secciones del formulario */
+  .form-section {
+    background-color: var(--primary-color);
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    
+    .section-title {
+      margin-top: 0;
+      margin-bottom: 15px;
+      font-size: var(--h3FontSize);
+      font-weight: 600;
+      color: var(--blackColor);
+      border-bottom: 1px solid #eee;
+      padding-bottom: 10px;
+    }
+  }
+  
+  /* Filas de campos */
+  .form-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    margin-bottom: 15px;
+    
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+  
+  /* Grupos de campos */
+  .form-group {
+    flex: 1;
+    min-width: 200px;
+    
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 500;
+      font-size: var(--smallFontSize);
+    }
+    
+    input, select {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      background-color: var(--whiteColor);
+      font-size: var(--normalFontSize);
+      transition: border-color 0.3s;
+      
+      &:focus {
+        outline: none;
+        border-color: var(--palegreen-color);
+      }
+    }
+  }
+  
+  /* Estilos para los campos de carga de archivos */
+  .file-upload {
+    margin-bottom: 15px;
+    
+    .file-selected {
+      color: #2e7d32;
+      font-size: 0.8rem;
+    }
+    
+    .file-input-container {
+      position: relative;
+      margin-top: 8px;
+      
+      .file-input {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        opacity: 0;
+        cursor: pointer;
+        z-index: 2;
+      }
+      
+      .file-label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 15px;
+        background-color: var(--inputColor);
+        border-radius: 6px;
+        font-size: var(--smallFontSize);
+        cursor: pointer;
+        transition: background-color 0.3s;
+        width: 100%;
+        
+        &:hover {
+          background-color: var(--hover-color);
+        }
+      }
+    }
+  }
+  
+  /* Botones de acción del formulario */
+  .form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 15px;
+    margin-top: 20px;
+    
+    button {
+      padding: 12px 24px;
+      border-radius: 6px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      border: none;
+    }
+    
+    .cancel-btn {
+      background-color: var(--greyText);
+      color: var(--whiteColor);
+      
+      &:hover {
+        // Reemplazamos darken(#808080, 10%) con un color más oscuro directamente
+        background-color: #666666; // ~10% más oscuro que #808080
+      }
+    }
+    
+    .submit-btn {
+      background-color: var(--palegreen-color);
+      color: var(--blackColor);
+      
+      &:hover {
+        // Reemplazamos darken(#f4ff5b, 10%) con un color más oscuro directamente
+        background-color: #daeb35; // ~10% más oscuro que #f4ff5b
+      }
+      
+      &:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
+      }
+    }
+  }
+  
+  /* Media queries para responsive */
+  @media (max-width: 768px) {
+    .client-profile-container {
+      width: 95%;
+    }
+    
+    .form-row {
+      flex-direction: column;
+      gap: 15px;
+    }
+    
+    .form-group {
+      width: 100%;
+    }
+  }
