@@ -3,13 +3,13 @@ import './listing.css';
 
 const Listing = () => {
   const orders = [
-    { id: 1, customer: "Juan Pérez", items: ["Pan Blanco", "Croissant"], total: 15.5 },
-    { id: 2, customer: "María Gómez", items: ["Donas", "Pan Integral"], total: 10.0 },
+    { id: 1, customer: "Lina Romero", items: ["Pan Blanco", "Croissant"], total: 15.5 },
+    { id: 2, customer: "Lukas Zuniga", items: ["Donas", "Pan Integral"], total: 10.0 },
   ];
 
   return (
     <div className="order-list">
-      <h2>Órdenes Activas</h2>
+      <h2>Pedidos activo</h2>
       <table>
         <thead>
           <tr>

@@ -6,9 +6,9 @@ const Activity = () => {
     <div className="activity-section">
       <h2>Actividad Reciente</h2>
       <ul>
-        <li>Ordenes     </li>
-        <li>Producto agotado:</li>
-        <li>Reporte de ordenes generado</li>
+        <li></li>
+        <li></li>
+        <li></li>
       </ul>
     </div>
   );

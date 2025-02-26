@@ -116,7 +116,7 @@ const Register = () => {
                     </button>
 
                     <span className="forgotPassword">
-                    <a href="#" onClick={() => navigate("/#", { state: { forgotPassword: true } })}>
+                    <a href="#" onClick={() => navigate("/Login#", { state: { forgotPassword: true } })}>
                     Recuperar aquí
                 </a>
                     </span>

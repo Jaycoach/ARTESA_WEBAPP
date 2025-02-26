@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import "./OrderForm.scss";
+import "./Orders.scss";
 
 const OrderForm = () => {
   const [order, setOrder] = useState({
@@ -61,7 +61,7 @@ const OrderForm = () => {
           />
         </div>
 
-        <button type="submit">Crear Orden</button>
+        <button type="submit">Crear Pedido</button>
       </form>
     </div>
   );
