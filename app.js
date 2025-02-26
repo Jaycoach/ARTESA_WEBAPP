@@ -43,7 +43,39 @@ const swaggerUiOptions = {
     tryItOutEnabled: true, // Habilitar el botón Try It Out por defecto
     supportedSubmitMethods: ['get', 'post', 'put', 'delete', 'patch', 'options', 'head'],
   },
-  customCss: '.swagger-ui .topbar { display: none }',
+  customCss: `
+    .swagger-ui .topbar { display: none }
+    /* Arreglar posicionamiento de botones */
+    .swagger-ui .opblock .opblock-summary-control {
+      display: flex;
+      align-items: center;
+    }
+    .swagger-ui .btn-group {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+    }
+    .swagger-ui .try-out {
+      margin-right: 8px;
+    }
+    .swagger-ui .btn {
+      margin: 0 5px;
+    }
+    .swagger-ui .opblock .try-out__btn {
+      margin-right: 10px;
+    }
+    /* Asegurar que los botones no se superpongan */
+    .swagger-ui .try-out {
+      position: relative;
+      z-index: 1;
+    }
+    .swagger-ui .try-out__btn {
+      z-index: 2;
+    }
+    .swagger-ui .btn-cancel {
+      z-index: 2;
+    }
+  `,
   customSiteTitle: "API LAARTESA - Documentación",
 };
 
