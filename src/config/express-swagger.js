@@ -30,19 +30,33 @@ module.exports = (app) => {
     baseDir: path.join(__dirname, '..'),
     // Patrones de archivos que contienen anotaciones
     filesPattern: [
-      // Asegúrate de que estas rutas sean correctas para tu estructura de proyecto
-      './**/*.js', // Esto buscará en todas las carpetas dentro de src
+      '../controllers/*.js',
+      '../routes/*.js', 
+      '../models/*.js'
     ],
     // URL donde se servirá la documentación
     swaggerUIPath: '/api-docs',
     // URL donde se servirá el JSON de la API
     exposeApiDocs: true,
     apiDocsPath: '/swagger.json',
-    // Personalización de la UI
+    // Personalización de la UI con opciones interactivas
     swaggerUiOptions: {
       explorer: true,
       customCss: '.swagger-ui .topbar { display: none }',
-      customSiteTitle: "API LAARTESA - Documentación"
+      customSiteTitle: "API LAARTESA - Documentación",
+      // Opciones para mejorar la interactividad
+      docExpansion: 'list',
+      deepLinking: true,
+      filter: true,
+      persistAuthorization: true,
+      tryItOutEnabled: true, // Habilitar el botón "Try it out" por defecto
+      displayOperationId: false,
+      displayRequestDuration: true,
+      requestSnippetsEnabled: true,
+      syntaxHighlight: {
+        activate: true,
+        theme: 'agate'
+      }
     },
   };
 
@@ -61,6 +75,6 @@ module.exports = (app) => {
     });
   }
 
-  // Retornar la configuración inicializada
+  // Inicializar y retornar la configuración
   return expressJSDocSwagger(app)(options);
 };
