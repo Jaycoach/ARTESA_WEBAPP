@@ -56,6 +56,18 @@
   flex-direction: column;
 }
 
+.user-name {
+  font-weight: 600;
+  color: var(--blackColor);
+  font-size: var(--normalFontSize);
+  transition: color 0.2s;
+}
+
+.user-profile-info:hover .user-name {
+  color: var(--palegreen-color);
+  text-decoration: underline;
+}
+
 .user-email {
   font-weight: 500;
   color: var(--blackColor);

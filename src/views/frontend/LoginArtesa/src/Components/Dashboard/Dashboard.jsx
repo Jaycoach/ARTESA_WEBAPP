@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect } from "react";
+import React, { createContext, useState, useEffect } from 'react';
 import "../../App.css";
 import "./Dashboard.css";
 // Importing Components ==========>
@@ -12,23 +12,33 @@ import { FaUserCircle } from "react-icons/fa";
 const Dashboard = () => {
   const [user, setUser] = useState(null);
   const [showProfile, setShowProfile] = useState(false);
+  const [userName, setUserName] = useState('');
 
   useEffect(() => {
-    // Obtener información del usuario del localStorage (guardada durante el login)
+    // Obtener información del usuario del localStorage
     const userInfo = localStorage.getItem('user');
     if (userInfo) {
-      try {
-        setUser(JSON.parse(userInfo));
-      } catch (error) {
-        console.error("Error al parsear información del usuario:", error);
-        // No establecemos usuario predeterminado en caso de error para que el usuario
-        // sea redirigido a la página de login
+      const userData = JSON.parse(userInfo);
+      setUser(userData);
+      
+      // Obtener el nombre desde ClientProfile si está disponible
+      const clientProfile = localStorage.getItem('clientProfile');
+      if (clientProfile) {
+        const profileData = JSON.parse(clientProfile);
+        if (profileData.nombre) {
+          setUserName(profileData.nombre);
+        }
       }
     }
   }, []);
 
   const toggleProfile = () => {
     setShowProfile(!showProfile);
+  };
+
+  // Función para actualizar el nombre del usuario desde el ClientProfile
+  const updateUserName = (name) => {
+    setUserName(name);
   };
 
   return (
@@ -46,7 +56,7 @@ const Dashboard = () => {
               <div className="user-profile-info" onClick={toggleProfile}>
                 <FaUserCircle className="user-icon" />
                 <div className="user-details">
-                  <span className="user-email">{user.email}</span>
+                  <span className="user-name">{userName || user.nombre || user.email}</span>
                   <span className="profile-label">Información del Perfil</span>
                 </div>
               </div>
@@ -65,7 +75,11 @@ const Dashboard = () => {
       
       {/* Modal del formulario de perfil */}
       {showProfile && user && (
-        <ClientProfile user={user} onClose={toggleProfile} />
+        <ClientProfile 
+          user={user} 
+          onClose={toggleProfile} 
+          onProfileUpdate={updateUserName}
+        />
       )}
     </div>
   );

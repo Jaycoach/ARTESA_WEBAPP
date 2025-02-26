@@ -155,17 +155,19 @@ const ClientProfile = ({ user, onClose }) => {
         }
       });
       
-      setSuccess('Perfil guardado correctamente');
-      setExistingProfile(response.data);
+      // Guardar perfil en localStorage para acceso rápido
+    localStorage.setItem('clientProfile', JSON.stringify({
+        nombre: formData.nombre,
+        email: formData.email
+      }));
       
-      // Actualizar la información del usuario en localStorage con el nombre actualizado
-      // para que se refleje en toda la aplicación
-      if (formData.nombre) {
-        const userInfo = JSON.parse(localStorage.getItem('user') || '{}');
-        userInfo.name = formData.nombre;
-        localStorage.setItem('user', JSON.stringify(userInfo));
+      // Notificar al Dashboard sobre el cambio de nombre si existe la función
+      if (typeof props.onProfileUpdate === 'function') {
+        props.onProfileUpdate(formData.nombre);
       }
       
+      setSuccess('Perfil guardado correctamente');
+      setExistingProfile(response.data);
     } catch (error) {
       setError(error.response?.data?.message || 'Error al guardar el perfil');
     } finally {
