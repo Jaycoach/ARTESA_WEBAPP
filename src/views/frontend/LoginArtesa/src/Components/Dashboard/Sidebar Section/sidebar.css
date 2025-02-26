@@ -28,42 +28,14 @@
   flex-direction: column;
   z-index: 1000;
 }
-
 .sidebar .logoDiv {
   padding-left: 1.5rem;
   cursor: pointer;
 }
-
 .sidebar img {
   max-width: 100px;
   margin-right: 0.5rem;
   background: var(--inputColor);
   border-radius: 2px;
   padding: 0.2rem;
-}
-
-/* Nuevos estilos para el botón de logout */
-.logout-btn {
-  background: none;
-  border: none;
-  width: 100%;
-  padding: 0;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  color: var(--greyText);
-  transition: all 0.3s ease;
-}
-
-.logout-btn:hover {
-  color: var(--palegreen-color);
-  background: var(--hover-color);
-}
-
-.logout-btn .icon {
-  margin-right: 0.5rem;
-}
-
-.logout-btn .smallText {
-  font-size: var(--smallFontSize);
-}
+}/*# sourceMappingURL=sidebar.css.map */

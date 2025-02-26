@@ -14,11 +14,54 @@
 /* Contenido principal del dashboard */
 .dashboard-content {
   flex: 1;
-  margin-left: 250px; /* Igual al ancho del Sidebar */
+  margin-left: 200px; /* Ancho del Sidebar */
   padding: 2rem;
   background-color: white;
   border-radius: 10px;
   margin: 20px;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
   overflow-x: auto;
+}
+
+/* Estilos para la sección de perfil de usuario */
+.user-profile-section {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #eee;
+}
+
+.user-profile-info {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  padding: 10px;
+  border-radius: 8px;
+  transition: background-color 0.3s;
+}
+
+.user-profile-info:hover {
+  background-color: var(--inputColor);
+}
+
+.user-icon {
+  font-size: 2rem;
+  color: var(--greyText);
+  margin-right: 10px;
+}
+
+.user-details {
+  display: flex;
+  flex-direction: column;
+}
+
+.user-email {
+  font-weight: 500;
+  color: var(--blackColor);
+}
+
+.profile-label {
+  font-size: var(--smallFontSize);
+  color: var(--greyText);
 }
