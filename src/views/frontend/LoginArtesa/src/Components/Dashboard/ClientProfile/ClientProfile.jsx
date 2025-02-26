@@ -53,9 +53,13 @@ const ClientProfile = ({ user, onClose }) => {
     // Verificar si el usuario ya tiene un perfil
     const fetchProfile = async () => {
       try {
+        // Intentar obtener el perfil del usuario desde la API
         const response = await API.get(`/client-profile/${user.id}`);
+        
+        // Si existe un perfil, actualizar el estado
         if (response.data) {
           setExistingProfile(response.data);
+          
           // Precargar los datos existentes (excepto los archivos)
           const profileData = { ...response.data };
           delete profileData.fotocopiaCedula;
@@ -66,14 +70,31 @@ const ClientProfile = ({ user, onClose }) => {
             ...prev,
             ...profileData,
           }));
+          
+          console.log('Perfil cargado desde la API');
         }
       } catch (error) {
         console.log('No existe perfil previo o error al obtenerlo');
+        
+        // Si no existe perfil, inicializar con el email del usuario logueado
+        if (user) {
+          setFormData(prev => ({
+            ...prev,
+            email: user.mail || user.email || '', // Consideramos ambos campos por compatibilidad
+            nombre: user.name || '' 
+          }));
+        }
       }
     };
     
     if (user && user.id) {
       fetchProfile();
+    } else if (user) {
+      // Si hay usuario pero no tiene ID, al menos usamos su email
+      setFormData(prev => ({
+        ...prev,
+        email: user.mail || user.email || ''
+      }));
     }
   }, [user]);
   
@@ -124,6 +145,7 @@ const ClientProfile = ({ user, onClose }) => {
       
       const method = existingProfile ? 'put' : 'post';
       
+      // Realizar la solicitud a la API
       const response = await API({
         method,
         url: endpoint,
@@ -132,6 +154,17 @@ const ClientProfile = ({ user, onClose }) => {
           'Content-Type': 'multipart/form-data'
         }
       });
+      
+      // Guardar perfil en localStorage para acceso rápido
+    localStorage.setItem('clientProfile', JSON.stringify({
+        nombre: formData.nombre,
+        email: formData.email
+      }));
+      
+      // Notificar al Dashboard sobre el cambio de nombre si existe la función
+      if (typeof props.onProfileUpdate === 'function') {
+        props.onProfileUpdate(formData.nombre);
+      }
       
       setSuccess('Perfil guardado correctamente');
       setExistingProfile(response.data);

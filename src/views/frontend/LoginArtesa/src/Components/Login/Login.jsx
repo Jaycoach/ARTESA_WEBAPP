@@ -18,7 +18,7 @@ import { MdEmail } from "react-icons/md"
 const Login = () => {
     const navigate = useNavigate();
     const [formData, setFormData] = useState({
-        mail: '',
+        mail: '', // Mantenemos mail para compatibilidad con la API
         password: ''
     });
     const [error, setError] = useState('');
@@ -37,14 +37,17 @@ const Login = () => {
         setError('');
     
         try {
+            // Usar la API real ya que está activa
             const response = await API.post('/auth/login', {
-                mail: formData.email,
+                mail: formData.mail,
                 password: formData.password
             });
             
+            // Si la API responde correctamente, guardar el token y la información del usuario
             localStorage.setItem('token', response.data.data.token);
             localStorage.setItem('user', JSON.stringify(response.data.data.user));
-    
+            
+            // Redireccionar al dashboard
             navigate('/Dashboard');
         } catch (error) {
             const errorMessage = 
@@ -98,13 +101,13 @@ const Login = () => {
                     )}
                         
                         <div className="inputDiv">
-                            <label htmlFor="email">Correo electrónico</label>
+                            <label htmlFor="mail">Correo electrónico</label>
                             <div className="input flex">
                                 <MdEmail className="icon"/>
                                 <input 
                                     type="email" 
-                                    id="email"
-                                    value={formData.email}
+                                    id="mail"
+                                    value={formData.mail}
                                     onChange={handleChange}
                                     placeholder="Escriba su correo electrónico"
                                     required
