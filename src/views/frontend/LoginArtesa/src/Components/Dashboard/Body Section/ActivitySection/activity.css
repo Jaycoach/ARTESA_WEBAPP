@@ -1,0 +1,45 @@
+:root {
+  --primary-color: #687e8d;
+  --secondary-color: #f6db8e;
+  --hover-color: #f6db8e;
+  --accent-color: #f6754e; /* Color naranja tostado */
+  --whiteColor: #ffffff; /* Color blanco */
+  --blackColor: #000000;
+  --greyText: #808080;
+  --bgColor: #687e8d;
+  --inputColor: #f6db8e;
+  --buttonColor: #f6754e;
+  /* Font Sizes */
+  --biggestFontSize: 2.5rem;
+  --h1FontSize: 1.5rem;
+  --h2FontSize: 1.25rem;
+  --h3FontSize: 1rem;
+  --normalFontSize: 0.938rem;
+  --smallFontSize: 0.813rem;
+  --smallestFontSize: 0.75rem;
+}
+
+.activity-section {
+  background-color: white;
+  border-radius: 10px;
+  padding: 20px;
+  box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
+  margin-top: 20px;
+}
+.activity-section h2 {
+  font-size: 1.2rem;
+  margin-bottom: 15px;
+  color: #34495e;
+}
+.activity-section ul {
+  list-style: none;
+  padding: 0;
+}
+.activity-section ul li {
+  background-color: #f4f4f9;
+  padding: 10px;
+  margin-bottom: 10px;
+  border-radius: 5px;
+  font-size: 0.9rem;
+  color: #333;
+}/*# sourceMappingURL=activity.css.map */
