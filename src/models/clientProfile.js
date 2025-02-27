@@ -1,201 +1,327 @@
+// src/models/ClientProfile.js
+const pool = require('../config/db');
+const { createContextLogger } = require('../config/logger');
+
+// Crear una instancia del logger con contexto
+const logger = createContextLogger('ClientProfileModel');
+
 /**
- * Este modelo representa la estructura de la tabla para almacenar
- * la información del perfil de cliente en la base de datos PostgreSQL.
+ * Clase que representa el modelo de perfiles de cliente
+ * @class ClientProfile
  */
-
-module.exports = (sequelize, DataTypes) => {
-  const ClientProfile = sequelize.define('client_profile', {
-    // ID único para cada perfil
-    id: {
-      type: DataTypes.INTEGER,
-      primaryKey: true,
-      autoIncrement: true
-    },
-    
-    // Relación con el usuario (llave foránea)
-    userId: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-      references: {
-        model: 'users',
-        key: 'id'
-      },
-      onUpdate: 'CASCADE',
-      onDelete: 'CASCADE',
-      field: "userId" // Importante para PostgreSQL
-    },
-    
-    // Información Básica
-    nombre: {
-      type: DataTypes.STRING,
-      allowNull: false
-    },
-    tipoDocumento: {
-      type: DataTypes.ENUM('CC', 'CE', 'PASAPORTE'),
-      allowNull: false,
-      defaultValue: 'CC',
-      field: "tipoDocumento" // Importante para PostgreSQL
-    },
-    numeroDocumento: {
-      type: DataTypes.STRING,
-      allowNull: false,
-      field: "numeroDocumento" // Importante para PostgreSQL
-    },
-    direccion: {
-      type: DataTypes.STRING,
-      allowNull: false
-    },
-    ciudad: {
-      type: DataTypes.STRING,
-      allowNull: false
-    },
-    pais: {
-      type: DataTypes.STRING,
-      allowNull: false,
-      defaultValue: 'Colombia'
-    },
-    telefono: {
-      type: DataTypes.STRING,
-      allowNull: false
-    },
-    email: {
-      type: DataTypes.STRING,
-      allowNull: false,
-      validate: {
-        isEmail: true
+class ClientProfile {
+  /**
+   * Obtiene un perfil de cliente por su ID
+   * @async
+   * @param {number} clientId - ID del perfil de cliente
+   * @returns {Promise<Object|null>} - Perfil de cliente encontrado o null si no existe
+   * @throws {Error} Si ocurre un error en la consulta
+   */
+  static async getById(clientId) {
+    try {
+      logger.debug('Buscando perfil de cliente por ID', { clientId });
+      
+      const query = `
+        SELECT cp.*, u.name as user_name, u.mail as user_email 
+        FROM client_profiles cp
+        LEFT JOIN users u ON cp.user_id = u.id
+        WHERE cp.client_id = $1;
+      `;
+      
+      const { rows } = await pool.query(query, [clientId]);
+      
+      if (rows.length === 0) {
+        logger.debug('Perfil de cliente no encontrado', { clientId });
+        return null;
       }
-    },
-    
-    // Información Empresarial
-    razonSocial: {
-      type: DataTypes.STRING,
-      allowNull: true,
-      field: "razonSocial" // Importante para PostgreSQL
-    },
-    nit: {
-      type: DataTypes.STRING,
-      allowNull: true
-    },
-    representanteLegal: {
-      type: DataTypes.STRING,
-      allowNull: true,
-      field: "representanteLegal" // Importante para PostgreSQL
-    },
-    actividadComercial: {
-      type: DataTypes.STRING,
-      allowNull: true,
-      field: "actividadComercial" // Importante para PostgreSQL
-    },
-    sectorEconomico: {
-      type: DataTypes.STRING,
-      allowNull: true,
-      field: "sectorEconomico" // Importante para PostgreSQL
-    },
-    tamanoEmpresa: {
-      type: DataTypes.ENUM('Microempresa', 'Pequeña', 'Mediana', 'Grande'),
-      allowNull: true,
-      defaultValue: 'Microempresa',
-      field: "tamanoEmpresa" // Importante para PostgreSQL
-    },
-    
-    // Información Financiera
-    ingresosMensuales: {
-      type: DataTypes.DECIMAL(15, 2),
-      allowNull: true,
-      field: "ingresosMensuales" // Importante para PostgreSQL
-    },
-    patrimonio: {
-      type: DataTypes.DECIMAL(15, 2),
-      allowNull: true
-    },
-    
-    // Información Bancaria
-    entidadBancaria: {
-      type: DataTypes.STRING,
-      allowNull: true,
-      field: "entidadBancaria" // Importante para PostgreSQL
-    },
-    tipoCuenta: {
-      type: DataTypes.ENUM('Ahorros', 'Corriente'),
-      allowNull: true,
-      defaultValue: 'Ahorros',
-      field: "tipoCuenta" // Importante para PostgreSQL
-    },
-    numeroCuenta: {
-      type: DataTypes.STRING,
-      allowNull: true,
-      field: "numeroCuenta" // Importante para PostgreSQL
-    },
-    
-    // Información de Contacto Alternativo
-    nombreContacto: {
-      type: DataTypes.STRING,
-      allowNull: true,
-      field: "nombreContacto" // Importante para PostgreSQL
-    },
-    cargoContacto: {
-      type: DataTypes.STRING,
-      allowNull: true,
-      field: "cargoContacto" // Importante para PostgreSQL
-    },
-    telefonoContacto: {
-      type: DataTypes.STRING,
-      allowNull: true,
-      field: "telefonoContacto" // Importante para PostgreSQL
-    },
-    emailContacto: {
-      type: DataTypes.STRING,
-      allowNull: true,
-      field: "emailContacto", // Importante para PostgreSQL
-      validate: {
-        isEmail: true
-      }
-    },
-    
-    // Rutas de los documentos cargados
-    fotocopiaCedula: {
-      type: DataTypes.STRING,
-      allowNull: true,
-      field: "fotocopiaCedula" // Importante para PostgreSQL
-    },
-    fotocopiaRut: {
-      type: DataTypes.STRING,
-      allowNull: true,
-      field: "fotocopiaRut" // Importante para PostgreSQL
-    },
-    anexosAdicionales: {
-      type: DataTypes.STRING,
-      allowNull: true,
-      field: "anexosAdicionales" // Importante para PostgreSQL
-    },
-    
-    // Campos para auditoría
-    createdAt: {
-      type: DataTypes.DATE,
-      allowNull: false,
-      defaultValue: DataTypes.NOW,
-      field: "createdAt" // Importante para PostgreSQL
-    },
-    updatedAt: {
-      type: DataTypes.DATE,
-      allowNull: false,
-      defaultValue: DataTypes.NOW,
-      field: "updatedAt" // Importante para PostgreSQL
+      
+      logger.debug('Perfil de cliente encontrado', { clientId });
+      return rows[0];
+    } catch (error) {
+      logger.error('Error al buscar perfil de cliente por ID', { 
+        error: error.message,
+        clientId
+      });
+      throw error;
     }
-  }, {
-    tableName: 'client_profiles',
-    timestamps: true,
-    underscored: false, // Importante para PostgreSQL - mantener camelCase
-    freezeTableName: true
-  });
+  }
+  
+  /**
+   * Obtiene un perfil de cliente por ID de usuario
+   * @async
+   * @param {number} userId - ID del usuario
+   * @returns {Promise<Object|null>} - Perfil de cliente encontrado o null si no existe
+   * @throws {Error} Si ocurre un error en la consulta
+   */
+  static async getByUserId(userId) {
+    try {
+      logger.debug('Buscando perfil de cliente por ID de usuario', { userId });
+      
+      const query = `
+        SELECT cp.*, u.name as user_name, u.mail as user_email 
+        FROM client_profiles cp
+        LEFT JOIN users u ON cp.user_id = u.id
+        WHERE cp.user_id = $1;
+      `;
+      
+      const { rows } = await pool.query(query, [userId]);
+      
+      if (rows.length === 0) {
+        logger.debug('Perfil de cliente no encontrado por ID de usuario', { userId });
+        return null;
+      }
+      
+      logger.debug('Perfil de cliente encontrado por ID de usuario', { userId });
+      return rows[0];
+    } catch (error) {
+      logger.error('Error al buscar perfil de cliente por ID de usuario', { 
+        error: error.message,
+        userId
+      });
+      throw error;
+    }
+  }
+  
+  /**
+   * Obtiene todos los perfiles de clientes
+   * @async
+   * @returns {Promise<Array<Object>>} - Lista de perfiles de clientes
+   * @throws {Error} Si ocurre un error en la consulta
+   */
+  static async getAll() {
+    try {
+      logger.debug('Obteniendo todos los perfiles de clientes');
+      
+      const query = `
+        SELECT cp.*, u.name as user_name, u.mail as user_email 
+        FROM client_profiles cp
+        LEFT JOIN users u ON cp.user_id = u.id
+        ORDER BY cp.company_name;
+      `;
+      
+      const { rows } = await pool.query(query);
+      
+      logger.debug('Perfiles de clientes obtenidos', { count: rows.length });
+      return rows;
+    } catch (error) {
+      logger.error('Error al obtener todos los perfiles de clientes', { 
+        error: error.message
+      });
+      throw error;
+    }
+  }
+  
+  /**
+   * Crea un nuevo perfil de cliente
+   * @async
+   * @param {Object} clientData - Datos del perfil de cliente
+   * @returns {Promise<Object>} - Perfil de cliente creado
+   * @throws {Error} Si ocurre un error en la inserción
+   */
+  static async create(clientData) {
+    try {
+      logger.debug('Creando nuevo perfil de cliente', { 
+        userId: clientData.user_id,
+        companyName: clientData.company_name
+      });
+      
+      const {
+        user_id,
+        company_name,
+        contact_name,
+        contact_phone,
+        contact_email,
+        address,
+        city,
+        country,
+        tax_id,
+        price_list,
+        notes,
+        fotocopia_cedula,
+        fotocopia_rut,
+        anexos_adicionales
+      } = clientData;
+      
+      const query = `
+        INSERT INTO client_profiles
+        (user_id, company_name, contact_name, contact_phone, contact_email, 
+         address, city, country, tax_id, price_list, notes,
+         fotocopia_cedula, fotocopia_rut, anexos_adicionales)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        RETURNING *;
+      `;
+      
+      const values = [
+        user_id,
+        company_name,
+        contact_name,
+        contact_phone,
+        contact_email,
+        address,
+        city,
+        country,
+        tax_id,
+        price_list,
+        notes,
+        fotocopia_cedula,
+        fotocopia_rut,
+        anexos_adicionales
+      ];
+      
+      const { rows } = await pool.query(query, values);
+      
+      logger.info('Perfil de cliente creado exitosamente', { 
+        clientId: rows[0].client_id,
+        companyName: company_name
+      });
+      
+      return rows[0];
+    } catch (error) {
+      logger.error('Error al crear perfil de cliente', { 
+        error: error.message,
+        companyName: clientData.company_name
+      });
+      throw error;
+    }
+  }
+  
+  /**
+   * Actualiza un perfil de cliente existente
+   * @async
+   * @param {number} clientId - ID del perfil de cliente
+   * @param {Object} updateData - Datos a actualizar
+   * @returns {Promise<Object|null>} - Perfil actualizado o null si no existe
+   * @throws {Error} Si ocurre un error en la actualización
+   */
+  static async update(clientId, updateData) {
+    try {
+      logger.debug('Actualizando perfil de cliente', { 
+        clientId,
+        fields: Object.keys(updateData)
+      });
+      
+      // Construir la consulta dinámicamente
+      const allowedFields = [
+        'user_id', 'company_name', 'contact_name', 'contact_phone',
+        'contact_email', 'address', 'city', 'country', 'tax_id',
+        'price_list', 'notes', 'fotocopia_cedula', 'fotocopia_rut',
+        'anexos_adicionales'
+      ];
+      
+      const updates = [];
+      const values = [];
+      let paramCount = 1;
+      
+      Object.entries(updateData).forEach(([key, value]) => {
+        if (allowedFields.includes(key) && value !== undefined) {
+          updates.push(`${key} = $${paramCount}`);
+          values.push(value);
+          paramCount++;
+        }
+      });
+      
+      if (updates.length === 0) {
+        logger.warn('No se proporcionaron campos válidos para actualizar', { clientId });
+        return null;
+      }
+      
+      values.push(clientId);
+      
+      const query = `
+        UPDATE client_profiles
+        SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP
+        WHERE client_id = $${paramCount}
+        RETURNING *;
+      `;
+      
+      const { rows } = await pool.query(query, values);
+      
+      if (rows.length === 0) {
+        logger.warn('Perfil de cliente no encontrado al actualizar', { clientId });
+        return null;
+      }
+      
+      logger.info('Perfil de cliente actualizado exitosamente', { 
+        clientId,
+        companyName: rows[0].company_name
+      });
+      
+      return rows[0];
+    } catch (error) {
+      logger.error('Error al actualizar perfil de cliente', { 
+        error: error.message,
+        clientId
+      });
+      throw error;
+    }
+  }
+  
+  /**
+   * Elimina un perfil de cliente
+   * @async
+   * @param {number} clientId - ID del perfil de cliente
+   * @returns {Promise<Object|null>} - Perfil eliminado o null si no existe
+   * @throws {Error} Si ocurre un error en la eliminación
+   */
+  static async delete(clientId) {
+    try {
+      logger.debug('Eliminando perfil de cliente', { clientId });
+      
+      const query = 'DELETE FROM client_profiles WHERE client_id = $1 RETURNING *;';
+      
+      const { rows } = await pool.query(query, [clientId]);
+      
+      if (rows.length === 0) {
+        logger.warn('Perfil de cliente no encontrado al eliminar', { clientId });
+        return null;
+      }
+      
+      logger.info('Perfil de cliente eliminado exitosamente', { 
+        clientId,
+        companyName: rows[0].company_name
+      });
+      
+      return rows[0];
+    } catch (error) {
+      logger.error('Error al eliminar perfil de cliente', { 
+        error: error.message,
+        clientId
+      });
+      throw error;
+    }
+  }
+  
+  /**
+   * Verifica si un usuario ya tiene un perfil
+   * @async
+   * @param {number} userId - ID del usuario
+   * @returns {Promise<boolean>} - true si el usuario ya tiene un perfil, false en caso contrario
+   * @throws {Error} Si ocurre un error en la consulta
+   */
+  static async userHasProfile(userId) {
+    try {
+      logger.debug('Verificando si el usuario ya tiene un perfil', { userId });
+      
+      const query = 'SELECT client_id FROM client_profiles WHERE user_id = $1 LIMIT 1;';
+      
+      const { rows } = await pool.query(query, [userId]);
+      
+      const hasProfile = rows.length > 0;
+      
+      logger.debug('Resultado de verificación de perfil de usuario', {
+        userId,
+        hasProfile
+      });
+      
+      return hasProfile;
+    } catch (error) {
+      logger.error('Error al verificar si el usuario tiene perfil', { 
+        error: error.message,
+        userId
+      });
+      throw error;
+    }
+  }
+}
 
-  // Asociación con el modelo de Usuario
-  ClientProfile.associate = (models) => {
-    ClientProfile.belongsTo(models.User, {
-      foreignKey: 'userId',
-      as: 'usuario'
-    });
-  };
-
-  return ClientProfile;
-};
+module.exports = ClientProfile;

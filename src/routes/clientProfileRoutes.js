@@ -4,6 +4,15 @@ const router = express.Router();
 const clientProfileController = require('../controllers/clientProfileController');
 const { verifyToken, checkRole } = require('../middleware/auth');
 const { sanitizeBody, sanitizeParams } = require('../middleware/security');
+const fileUpload = require('express-fileupload');
+
+// Middleware para manejar la subida de archivos
+router.use(fileUpload({
+  limits: { fileSize: 10 * 1024 * 1024 }, // Límite de 10MB
+  useTempFiles: false,
+  abortOnLimit: true,
+  responseOnLimit: "Archivo demasiado grande. El límite es de 10MB."
+}));
 
 // Aplicar middleware de seguridad a todas las rutas
 router.use(sanitizeBody, sanitizeParams);
@@ -308,6 +317,82 @@ router.delete('/client-profiles/:id',
   verifyToken, 
   checkRole([1]), // Solo administradores pueden eliminar perfiles
   clientProfileController.deleteProfile
+);
+
+/**
+ * @swagger
+ * /api/client-profiles/{id}/file/{fileType}:
+ *   get:
+ *     summary: Obtener archivo de perfil de cliente
+ *     description: Recupera un archivo asociado al perfil de cliente (cédula, RUT o anexos)
+ *     tags: [ClientProfiles]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID del perfil de cliente
+ *       - in: path
+ *         name: fileType
+ *         required: true
+ *         schema:
+ *           type: string
+ *           enum: [cedula, rut, anexos]
+ *         description: Tipo de archivo a obtener
+ *     responses:
+ *       200:
+ *         description: Archivo recuperado exitosamente
+ *       401:
+ *         description: No autorizado
+ *       404:
+ *         description: Archivo no encontrado
+ *       500:
+ *         description: Error interno del servidor
+ */
+router.get('/client-profiles/:id/file/:fileType',
+  verifyToken,
+  clientProfileController.getFile
+);
+
+/**
+ * @swagger
+ * /api/client-profiles/user/{userId}/file/{fileType}:
+ *   get:
+ *     summary: Obtener archivo de perfil de cliente por ID de usuario
+ *     description: Recupera un archivo asociado al perfil de cliente por ID de usuario
+ *     tags: [ClientProfiles]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID del usuario
+ *       - in: path
+ *         name: fileType
+ *         required: true
+ *         schema:
+ *           type: string
+ *           enum: [cedula, rut, anexos]
+ *         description: Tipo de archivo a obtener
+ *     responses:
+ *       200:
+ *         description: Archivo recuperado exitosamente
+ *       401:
+ *         description: No autorizado
+ *       404:
+ *         description: Archivo no encontrado
+ *       500:
+ *         description: Error interno del servidor
+ */
+router.get('/client-profiles/user/:userId/file/:fileType',
+  verifyToken,
+  clientProfileController.getFileByUserId
 );
 
 module.exports = router;

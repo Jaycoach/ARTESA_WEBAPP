@@ -8,6 +8,7 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const { errorHandler } = require('./src/middleware/errorMiddleware');
 const security = require('./src/middleware/security');
+const fileUpload = require('express-fileupload');
 
 // Importaciones de Swagger 
 const swaggerUi = require('swagger-ui-express');
@@ -129,6 +130,18 @@ app.use((err, req, res, next) => {
   }
   next(err);
 });
+
+app.use(fileUpload({
+  limits: { fileSize: 10 * 1024 * 1024 }, // Límite de 10MB
+  useTempFiles: false,
+  abortOnLimit: true,
+  responseOnLimit: "Archivo demasiado grande. El límite es de 10MB."
+}));
+
+const clientProfilesDir = path.join(__dirname, 'uploads/client-profiles');
+if (!fs.existsSync(clientProfilesDir)) {
+  fs.mkdirSync(clientProfilesDir, { recursive: true });
+}
 
 // Aplicar middlewares de seguridad globalmente
 app.use(security.securityHeaders);

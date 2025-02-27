@@ -129,10 +129,10 @@ class ClientProfileController {
       logger.debug('Obteniendo todos los perfiles de clientes');
       
       const query = `
-        SELECT cp.*, u.name as user_name, u.mail as user_email 
-        FROM client_profiles cp
-        LEFT JOIN users u ON cp.userId = u.id
-        ORDER BY cp.company_name;
+          SELECT cp.*, u.name as user_name, u.mail as user_email 
+          FROM client_profiles cp
+          LEFT JOIN users u ON cp.user_Id = u.id
+          ORDER BY cp.company_name;
       `;
       
       const { rows } = await pool.query(query);
@@ -1160,3 +1160,19 @@ class ClientProfileController {
     }
   }
 }
+
+// Crear una instancia del controlador
+const clientProfileController = new ClientProfileController();
+
+// Exportar los métodos individualmente
+
+module.exports = {
+  getAllProfiles: clientProfileController.getAllProfiles,
+  getProfileById: clientProfileController.getProfileById,
+  getProfileByUserId: clientProfileController.getProfileByUserId,
+  createProfile: clientProfileController.createProfile,
+  updateProfile: clientProfileController.updateProfile,
+  deleteProfile: clientProfileController.deleteProfile,
+  getFile: clientProfileController.getFile,
+  getFileByUserId: clientProfileController.getFileByUserId
+};
