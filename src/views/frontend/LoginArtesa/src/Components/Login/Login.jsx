@@ -18,7 +18,7 @@ const Login = () => {
     const location = useNavigate();
     const [forgotPassword, setForgotPassword] = useState(location.state?.forgotPassword || false);
     const navigate = useNavigate();
-    const [formData, setFormData] = useState({email: '', password: ''});
+    const [formData, setFormData] = useState({mail: '', password: ''});
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const [resetEmail, setResetEmail] = useState("");
@@ -38,14 +38,17 @@ const Login = () => {
         setError('');
 
         try {
-            const response = await API.post('/auth/login', formData);
+          const response = await API.post('/auth/login', {
+            mail: formData.mail,
+            password: formData.password
+        });
             
             // Guardar el token en localStorage
-            localStorage.setItem('token', response.data.token);
-            localStorage.setItem('user', JSON.stringify(response.data.user));
+            localStorage.setItem('token', response.data.data.token);
+            localStorage.setItem('user', JSON.stringify(response.data.data.user));
 
             // Redireccionar al dashboard
-            navigate('/Dashboard');
+            navigate('/dashboard');
         } catch (error) {
             setError(error.response?.data?.message || 'Error en el inicio de sesión');
         } finally {
