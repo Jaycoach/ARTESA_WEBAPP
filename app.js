@@ -36,7 +36,7 @@ const clientProfileRoutes = require('./src/routes/clientProfileRoutes'); // Impo
 
 // Prefix para todas las rutas de la API
 const API_PREFIX = '/api';
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 3000;
 
 // Configurar opciones de Swagger UI
 const swaggerUiOptions = {
