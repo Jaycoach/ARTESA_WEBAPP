@@ -72,7 +72,7 @@ const Login = () => {
         <div className="imgDiv">
           <img src={img} alt="LoginImg" />
           <div className="textDiv">
-            <h2 className="title">Creado para ARTESA</h2>
+            <h2 className="title"> </h2>
             <p>Login Page - Artesa</p>
           </div>
           <div className="footerDiv flex">

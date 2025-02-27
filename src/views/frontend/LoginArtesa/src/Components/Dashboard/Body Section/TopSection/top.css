@@ -26,6 +26,12 @@
   color: white;
   display: flex;
   align-items: center;
+  gap: 8px;
+}
+.top-section .user-container .user-icon .username {
+  font-size: 16px;
+  font-weight: 500;
+  color: white;
 }
 .top-section .user-container .user-menu {
   position: absolute;
