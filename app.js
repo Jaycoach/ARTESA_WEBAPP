@@ -1,8 +1,12 @@
+// Archivo principal de la aplicación
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const cors = require('cors');
 const fs = require('fs');
+const helmet = require('helmet');
+const morgan = require('morgan');
+const { errorHandler } = require('./middleware/errorMiddleware');
 const security = require('./src/middleware/security');
 
 // Importaciones de Swagger 
@@ -16,7 +20,10 @@ const {
   suspiciousActivityTracker
 } = require('./src/middleware/enhancedSecurity');
 
+// Inicializar la aplicación Express
 const app = express();
+
+// Importar rutas
 const userRoutes = require('./src/routes/userRoutes');
 const authRoutes = require('./src/routes/authRoutes');
 const productRoutes = require('./src/routes/productRoutes');
@@ -25,10 +32,11 @@ const orderRoutes = require('./src/routes/orderRoutes');
 const passwordResetRoutes = require('./src/routes/passwordResetRoutes');
 const paymentRoutes = require('./src/routes/paymentRoutes');
 const uploadRoutes = require('./src/routes/uploadRoutes');
-const PORT = process.env.PORT || 3000;
+const clientProfileRoutes = require('./src/routes/clientProfileRoutes'); // Importamos las nuevas rutas
 
 // Prefix para todas las rutas de la API
 const API_PREFIX = '/api';
+const PORT = process.env.PORT || 5000;
 
 // Configurar opciones de Swagger UI
 const swaggerUiOptions = {
@@ -79,9 +87,11 @@ const swaggerUiOptions = {
   customSiteTitle: "API LAARTESA - Documentación",
 };
 
-// Configuración base de la API
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Configuración de middlewares
+app.use(helmet()); // Seguridad HTTP
+app.use(express.json()); // Parsear solicitudes JSON
+app.use(express.urlencoded({ extended: true })); // Parsear datos de formulario
+app.use(morgan('dev')); // Logging
 
 // Configuración de CORS mejorada
 app.use(cors({
@@ -145,6 +155,7 @@ if (!fs.existsSync(uploadsDir)) {
 
 // Servir archivos estáticos desde la carpeta uploads
 app.use(`${API_PREFIX}/uploads`, express.static('uploads'));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Configurar Swagger UI - Colocamos esto después de la configuración CORS y de seguridad
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpecs, swaggerUiOptions));
@@ -164,15 +175,15 @@ app.use(API_PREFIX, orderRoutes);
 app.use(API_PREFIX, uploadRoutes); // Rutas para la gestión de uploads
 app.use(`${API_PREFIX}/password`, passwordResetRoutes);
 app.use(`${API_PREFIX}/payments`, paymentRoutes);
+app.use(API_PREFIX, clientProfileRoutes); // Registramos las nuevas rutas de perfil de cliente
 
-// Manejador de errores global
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({
-    message: 'Error interno del servidor',
-    error: process.env.NODE_ENV === 'development' ? err.message : {}
-  });
+// Ruta de prueba para verificar que el servidor está funcionando
+app.get('/', (req, res) => {
+  res.json({ message: 'API running successfully' });
 });
+
+// Middleware para manejar errores
+app.use(errorHandler);
 
 // Iniciar servidor
 app.listen(PORT, () => {
@@ -180,3 +191,5 @@ app.listen(PORT, () => {
   console.log(`Documentación API disponible en http://localhost:${PORT}/api-docs`);
   console.log(`Especificación Swagger disponible en http://localhost:${PORT}/swagger.json`);
 });
+
+module.exports = app;

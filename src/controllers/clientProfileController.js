@@ -5,7 +5,7 @@ const path = require('path');
 const { v4: uuidv4 } = require('uuid'); // Para generar nombres únicos para los archivos
 
 // Directorio donde se guardarán los archivos subidos
-const uploadDir = path.join(__dirname, '../uploads');
+const uploadDir = path.join(__dirname, '../uploads/client-profiles');
 
 // Asegurarse de que el directorio existe
 if (!fs.existsSync(uploadDir)) {
@@ -38,6 +38,12 @@ const clientProfileController = {
         return res.status(400).json({ message: 'Este usuario ya tiene un perfil, debe actualizarlo' });
       }
       
+      // Verificar si el usuario existe
+      const userExists = await User.findByPk(userId);
+      if (!userExists) {
+        return res.status(404).json({ message: 'Usuario no encontrado' });
+      }
+      
       // Procesar los archivos cargados
       let fotocopiaCedulaPath = null;
       let fotocopiaRutPath = null;
@@ -68,10 +74,18 @@ const clientProfileController = {
       // Crear el perfil en la base de datos
       const newProfile = await ClientProfile.create(profileData);
       
-      return res.status(201).json(newProfile);
+      return res.status(201).json({
+        success: true,
+        data: newProfile,
+        message: 'Perfil de cliente creado exitosamente'
+      });
     } catch (error) {
       console.error('Error al crear perfil:', error);
-      return res.status(500).json({ message: 'Error al crear el perfil', error: error.message });
+      return res.status(500).json({ 
+        success: false,
+        message: 'Error al crear el perfil', 
+        error: error.message 
+      });
     }
   },
   
@@ -80,16 +94,51 @@ const clientProfileController = {
     try {
       const { userId } = req.params;
       
-      const profile = await ClientProfile.findOne({ where: { userId } });
+      const profile = await ClientProfile.findOne({ 
+        where: { userId },
+        include: [
+          {
+            model: User,
+            as: 'usuario',
+            attributes: ['id', 'username', 'email'] // Solo incluir datos no sensibles
+          }
+        ]
+      });
       
       if (!profile) {
-        return res.status(404).json({ message: 'Perfil no encontrado' });
+        return res.status(404).json({ 
+          success: false,
+          message: 'Perfil no encontrado' 
+        });
       }
       
-      return res.status(200).json(profile);
+      // Agregar URLs completas para los archivos
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      const result = profile.toJSON();
+      
+      if (result.fotocopiaCedula) {
+        result.fotocopiaCedulaUrl = `${baseUrl}/api/client-profile/${userId}/file/cedula`;
+      }
+      
+      if (result.fotocopiaRut) {
+        result.fotocopiaRutUrl = `${baseUrl}/api/client-profile/${userId}/file/rut`;
+      }
+      
+      if (result.anexosAdicionales) {
+        result.anexosAdicionalesUrl = `${baseUrl}/api/client-profile/${userId}/file/anexos`;
+      }
+      
+      return res.status(200).json({
+        success: true,
+        data: result
+      });
     } catch (error) {
       console.error('Error al obtener perfil:', error);
-      return res.status(500).json({ message: 'Error al obtener el perfil', error: error.message });
+      return res.status(500).json({ 
+        success: false,
+        message: 'Error al obtener el perfil', 
+        error: error.message 
+      });
     }
   },
   
@@ -102,7 +151,10 @@ const clientProfileController = {
       const existingProfile = await ClientProfile.findOne({ where: { userId } });
       
       if (!existingProfile) {
-        return res.status(404).json({ message: 'Perfil no encontrado' });
+        return res.status(404).json({ 
+          success: false,
+          message: 'Perfil no encontrado' 
+        });
       }
       
       // Procesar los archivos cargados
@@ -143,7 +195,7 @@ const clientProfileController = {
         }
       }
       
-      // Datos para actualizar el perfil
+      // Datos para actualizar el perfil  
       const profileData = {
         ...req.body,
         fotocopiaCedula: fotocopiaCedulaPath,
@@ -155,12 +207,45 @@ const clientProfileController = {
       await existingProfile.update(profileData);
       
       // Obtener el perfil actualizado
-      const updatedProfile = await ClientProfile.findOne({ where: { userId } });
+      const updatedProfile = await ClientProfile.findOne({ 
+        where: { userId },
+        include: [
+          {
+            model: User,
+            as: 'usuario',
+            attributes: ['id', 'username', 'email']
+          }
+        ]
+      });
       
-      return res.status(200).json(updatedProfile);
+      // Agregar URLs completas para los archivos
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      const result = updatedProfile.toJSON();
+      
+      if (result.fotocopiaCedula) {
+        result.fotocopiaCedulaUrl = `${baseUrl}/api/client-profile/${userId}/file/cedula`;
+      }
+      
+      if (result.fotocopiaRut) {
+        result.fotocopiaRutUrl = `${baseUrl}/api/client-profile/${userId}/file/rut`;
+      }
+      
+      if (result.anexosAdicionales) {
+        result.anexosAdicionalesUrl = `${baseUrl}/api/client-profile/${userId}/file/anexos`;
+      }
+      
+      return res.status(200).json({
+        success: true,
+        data: result,
+        message: 'Perfil actualizado exitosamente'
+      });
     } catch (error) {
       console.error('Error al actualizar perfil:', error);
-      return res.status(500).json({ message: 'Error al actualizar el perfil', error: error.message });
+      return res.status(500).json({ 
+        success: false,
+        message: 'Error al actualizar el perfil', 
+        error: error.message 
+      });
     }
   },
   
@@ -173,7 +258,10 @@ const clientProfileController = {
       const existingProfile = await ClientProfile.findOne({ where: { userId } });
       
       if (!existingProfile) {
-        return res.status(404).json({ message: 'Perfil no encontrado' });
+        return res.status(404).json({ 
+          success: false,
+          message: 'Perfil no encontrado' 
+        });
       }
       
       // Eliminar los archivos asociados al perfil
@@ -201,10 +289,17 @@ const clientProfileController = {
       // Eliminar el perfil de la base de datos
       await existingProfile.destroy();
       
-      return res.status(200).json({ message: 'Perfil eliminado correctamente' });
+      return res.status(200).json({ 
+        success: true,
+        message: 'Perfil eliminado correctamente' 
+      });
     } catch (error) {
       console.error('Error al eliminar perfil:', error);
-      return res.status(500).json({ message: 'Error al eliminar el perfil', error: error.message });
+      return res.status(500).json({ 
+        success: false,
+        message: 'Error al eliminar el perfil', 
+        error: error.message 
+      });
     }
   },
   
@@ -217,32 +312,72 @@ const clientProfileController = {
       const profile = await ClientProfile.findOne({ where: { userId } });
       
       if (!profile) {
-        return res.status(404).json({ message: 'Perfil no encontrado' });
+        return res.status(404).json({ 
+          success: false,
+          message: 'Perfil no encontrado' 
+        });
       }
       
-      let filePath;
+      let fileName;
       
       // Determinar qué archivo se está solicitando
       if (fileType === 'cedula' && profile.fotocopiaCedula) {
-        filePath = path.join(uploadDir, profile.fotocopiaCedula);
+        fileName = profile.fotocopiaCedula;
       } else if (fileType === 'rut' && profile.fotocopiaRut) {
-        filePath = path.join(uploadDir, profile.fotocopiaRut);
+        fileName = profile.fotocopiaRut;
       } else if (fileType === 'anexos' && profile.anexosAdicionales) {
-        filePath = path.join(uploadDir, profile.anexosAdicionales);
+        fileName = profile.anexosAdicionales;  
       } else {
-        return res.status(404).json({ message: 'Archivo no encontrado' });
+        return res.status(404).json({ 
+          success: false,
+          message: 'Archivo no encontrado' 
+        });
       }
+      
+      const filePath = path.join(uploadDir, fileName);
       
       // Verificar si el archivo existe
       if (!fs.existsSync(filePath)) {
-        return res.status(404).json({ message: 'Archivo no encontrado en el servidor' });
+        return res.status(404).json({ 
+          success: false,
+          message: 'Archivo no encontrado en el servidor' 
+        });
       }
+      
+      // Obtener el tipo de contenido basado en la extensión del archivo
+      const ext = path.extname(fileName).toLowerCase();
+      let contentType = 'application/octet-stream'; // Por defecto
+      
+      // Mapear extensiones comunes a tipos de contenido
+      const mimeTypes = {
+        '.pdf': 'application/pdf',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.png': 'image/png',
+        '.gif': 'image/gif',
+        '.doc': 'application/msword',
+        '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        '.xls': 'application/vnd.ms-excel',
+        '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        '.txt': 'text/plain'
+      };
+      
+      if (mimeTypes[ext]) {
+        contentType = mimeTypes[ext];
+      }
+      
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
       
       // Enviar el archivo como respuesta
       return res.sendFile(filePath);
     } catch (error) {
       console.error('Error al obtener archivo:', error);
-      return res.status(500).json({ message: 'Error al obtener el archivo', error: error.message });
+      return res.status(500).json({ 
+        success: false,
+        message: 'Error al obtener el archivo', 
+        error: error.message 
+      });
     }
   }
 };
