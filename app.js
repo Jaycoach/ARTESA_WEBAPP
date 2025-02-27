@@ -6,7 +6,7 @@ const cors = require('cors');
 const fs = require('fs');
 const helmet = require('helmet');
 const morgan = require('morgan');
-const { errorHandler } = require('./middleware/errorMiddleware');
+const { errorHandler } = require('./src/middleware/errorMiddleware');
 const security = require('./src/middleware/security');
 
 // Importaciones de Swagger 
