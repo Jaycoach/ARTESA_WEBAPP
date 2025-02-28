@@ -1,22 +1,36 @@
 # **LA ARTESA - WEB APP Documentation**
 
-Este proyecto es una API para la aplicación web **LA ARTESA**, que permite gestionar usuarios, autenticación, productos, pedidos y otras funcionalidades relacionadas con SAP Business One.
+Este proyecto es una API RESTful para la aplicación web **LA ARTESA**, que permite gestionar usuarios, autenticación, productos, pedidos, perfiles de clientes y otras funcionalidades relacionadas con SAP Business One.
 
 ---
 
 ## **Tabla de Contenidos**
 1. [Requisitos](#requisitos)
 2. [Configuración del Proyecto](#configuración-del-proyecto)
-3. [Base de Datos](#base-de-datos)
+   - [Instalación](#instalación)
+   - [Variables de Entorno](#variables-de-entorno)
+3. [Estructura del Proyecto](#estructura-del-proyecto)
+4. [Base de Datos](#base-de-datos)
    - [Estructura de Tablas](#estructura-de-tablas)
-4. [Endpoints](#endpoints)
+   - [Tipos de Datos Personalizados](#tipos-de-datos-personalizados)
+5. [Autenticación y Seguridad](#autenticación-y-seguridad)
+   - [JWT](#jwt)
+   - [Sistema de Roles](#sistema-de-roles)
+   - [Recuperación de Contraseña](#recuperación-de-contraseña)
+   - [Rate Limiting y Protección](#rate-limiting-y-protección)
+6. [Endpoints](#endpoints)
    - [Autenticación](#autenticación)
    - [Usuarios](#usuarios)
    - [Productos](#productos)
-5. [Subida de Imágenes](#subida-de-imágenes)
-6. [Ejecución del Proyecto](#ejecución-del-proyecto)
-7. [Documentación de la API](#documentación-de-la-api)
-8. [Documentación Adicional](#documentación-adicional)
+   - [Pedidos](#pedidos)
+   - [Perfiles de Clientes](#perfiles-de-clientes)
+   - [Pagos](#pagos)
+7. [Subida de Archivos](#subida-de-archivos)
+8. [Sistema de Auditoría](#sistema-de-auditoría)
+9. [Ejecución del Proyecto](#ejecución-del-proyecto)
+10. [Documentación de la API](#documentación-de-la-api)
+11. [Logs y Monitoreo](#logs-y-monitoreo)
+12. [Seguridad](#seguridad)
 
 ---
 
@@ -29,286 +43,415 @@ Este proyecto es una API para la aplicación web **LA ARTESA**, que permite gest
 
 ## **Configuración del Proyecto**
 
-### **1. Clonar el Repositorio**
+### **Instalación**
+
+1. **Clonar el Repositorio**
 ```bash
 git clone https://github.com/Jaycoach/ARTESA_WEBAPP.git
-cd ARTERSA_WEBAPP
-2. Instalar Dependencias
-bash
-Copy
-npm install
-3. Configurar Variables de Entorno
-Crea un archivo .env en la raíz del proyecto y agrega las siguientes variables:
+cd ARTESA_WEBAPP
+```
 
-env
-Copy
+2. **Instalar Dependencias**
+```bash
+npm install
+```
+
+### **Variables de Entorno**
+
+Crea un archivo `.env` en la raíz del proyecto con las siguientes variables:
+
+```env
+# Configuración del servidor
+PORT=3000
+NODE_ENV=development
+
 # Configuración de la base de datos
 DB_HOST=localhost
-DB_USER=admin
-DB_PASSWORD=4dm1n*
+DB_USER=tu_usuario
+DB_PASSWORD=tu_contraseña
 DB_DATABASE=ARTESA_WEBAPP
 DB_PORT=5432
 
 # Configuración de JWT
-JWT_SECRET=mi_secreto_jwt
+JWT_SECRET=tu_secreto_jwt_seguro
+
+# Configuración de Email (para recuperación de contraseña)
+SMTP_HOST=tu_servidor_smtp
+SMTP_PORT=587
+SMTP_USER=tu_usuario_smtp
+SMTP_PASS=tu_contraseña_smtp
+SMTP_FROM=noreply@tudominio.com
+FRONTEND_URL=http://localhost:5173
 
 # Configuración de Multer (Local)
 UPLOADS_DIR=uploads
 
-# Configuración de AWS S3 (solo para producción)
-AWS_ACCESS_KEY_ID=tu-access-key-id
-AWS_SECRET_ACCESS_KEY=tu-secret-access-key
-AWS_REGION=tu-region
-AWS_S3_BUCKET_NAME=nombre-de-tu-bucket-s3
-Base de Datos
-Estructura de Tablas
-La base de datos incluye las siguientes tablas principales:
+# Configuración de AWS S3 (para producción)
+AWS_ACCESS_KEY_ID=tu_access_key_id
+AWS_SECRET_ACCESS_KEY=tu_secret_access_key
+AWS_REGION=tu_region
+AWS_S3_BUCKET_NAME=nombre_de_tu_bucket_s3
 
-products: Almacena información sobre los productos.
+# URL de desarrollo Ngrok (opcional)
+DEV_NGROK_URL=https://tu-subdominio.ngrok-free.app
 
-Campos:
-
-product_id (Serial, PK)
-
-name (VARCHAR)
-
-description (TEXT)
-
-code (VARCHAR, Unique)
-
-price_list1 (NUMERIC)
-
-price_list2 (NUMERIC)
-
-price_list3 (NUMERIC)
-
-barcode (VARCHAR, Unique)
-
-image_url (TEXT)
-
-stock (INT)
-
-created_at (TIMESTAMP)
-
-updated_at (TIMESTAMP)
-
-users: Almacena información de los usuarios.
-
-orders: Almacena información de los pedidos.
-
-order_details: Almacena los detalles de los pedidos.
-
-Para más detalles, consulta el Diagrama ER.
-
-Endpoints
-Autenticación
-Registro de Usuarios: POST /api/auth/register
-
-Inicio de Sesión: POST /api/auth/login
-
-Usuarios
-Obtener Todos los Usuarios: GET /api/users
-
-Obtener un Usuario por ID: GET /api/users/:id
-
-Productos
-Crear un Producto: POST /api/products
-
-Obtener Todos los Productos: GET /api/products
-
-Obtener un Producto por Código: GET /api/products/:code
-
-Actualizar la Imagen de un Producto: PUT /api/products/:code/image
-
-Subida de Imágenes
-La aplicación permite la subida de imágenes utilizando Multer. Durante el desarrollo, las imágenes se almacenan en la carpeta uploads del servidor. En producción, las imágenes se suben a Amazon S3.
-
-Ejemplo de Uso
-Realiza una solicitud POST a http://localhost:3000/upload.
-
-En el cuerpo de la solicitud, selecciona form-data.
-
-Agrega un campo llamado image (de tipo file) y selecciona una imagen para subir.
-
-Si la subida es exitosa, recibirás una respuesta con la URL de la imagen:
-
-json
-Copy
-{
-  "imageUrl": "http://localhost:3000/uploads/1698251234567.jpg"
-}
-Ejecución del Proyecto
-Iniciar el Servidor:
-
-bash
-Copy
-npm start
-El servidor estará disponible en http://localhost:3000.
-
-Acceder a la Documentación de la API:
-
-Visita http://localhost:3000/api-docs para ver la documentación interactiva de la API.
-
-Documentación de la API
-La documentación de la API está disponible en formato Swagger. Puedes acceder a ella en:
-
-Local: http://localhost:3000/api-docs
-
-Producción: http://tu-dominio.com/api-docs
-
-Documentación Adicional
-CHANGELOG: Registro de cambios en la base de datos y el proyecto.
-
-Diagrama ER: Diagrama entidad-relación de la base de datos.
-
-# API de Pedidos
-
-## Endpoints
-
-### Crear una orden
-- **POST** `/api/orders`
-- Crea una nueva orden con detalles asociados.
-- Body:
-  ```json
-  {
-    "user_id": 1,
-    "total_amount": 100.00,
-    "details": [
-      {
-        "product_id": 101,
-        "quantity": 2,
-        "unit_price": 25.00
-      }
-    ]
-  }
+# URL de producción (opcional)
+PROD_URL=https://tu-dominio-de-produccion.com
+```
 
 ---
 
-### Paso 9: Probar la aplicación
-1. Inicia el servidor:
-   ```bash
-   npm start
+## **Estructura del Proyecto**
 
-# LA ARTESA - WEB APP Documentation
-
-## Estructura del Proyecto
-
-### Backend
-
+```
 /
-├── scripts/
-│   └── hashPasswords.js          # Utilidad para hasheo de contraseñas
+├── app.js                       # Punto de entrada principal del servidor
+├── package.json                 # Configuración de dependencias y scripts
+├── scripts/                     # Scripts utilitarios
+│   ├── generateDbDocs.js        # Genera documentación de la base de datos
+│   ├── generate-swagger.js      # Genera documentación Swagger
+│   └── hashPasswords.js         # Utilidad para hashear contraseñas
 ├── src/
-│   ├── config/
-│   ├── controllers/
-│   │   └── authController.js     # Controlador de autenticación
-│   ├── middleware/
-│   │   └── auth.js              # Middleware de autenticación
-│   ├── models/
-│   │   └── userModel.js         # Modelo de usuario
-│   ├── routes/
+│   ├── config/                  # Configuraciones
+│   │   ├── db.js                # Configuración de la base de datos
+│   │   ├── express-swagger.js   # Configuración de Swagger para Express
+│   │   ├── logger.js            # Configuración del sistema de logs
+│   │   └── swagger.js           # Definiciones de Swagger
+│   ├── controllers/             # Controladores de la API
+│   │   ├── authController.js    # Controlador de autenticación
+│   │   ├── clientProfileController.js # Controlador de perfiles de clientes
+│   │   ├── orderController.js   # Controlador de pedidos
+│   │   ├── passwordResetController.js # Controlador de reseteo de contraseñas
+│   │   ├── productController.js # Controlador de productos
+│   │   ├── uploadController.js  # Controlador de subida de archivos
+│   │   └── userController.js    # Controlador de usuarios
+│   ├── middleware/              # Middlewares
+│   │   ├── auth.js              # Middleware de autenticación
+│   │   ├── auditMiddleware.js   # Middleware de auditoría
+│   │   ├── enhancedSecurity.js  # Configuraciones avanzadas de seguridad
+│   │   ├── errorMiddleware.js   # Manejo centralizado de errores
+│   │   ├── paymentSanitization.js # Sanitización para pagos
+│   │   └── security.js          # Middleware de seguridad general
+│   ├── models/                  # Modelos de datos
+│   │   ├── clientProfile.js     # Modelo de perfiles de cliente
+│   │   ├── Order.js             # Modelo de pedidos
+│   │   ├── PasswordReset.js     # Modelo de reseteo de contraseñas
+│   │   ├── Product.js           # Modelo de productos
+│   │   ├── Roles.js             # Modelo de roles
+│   │   └── userModel.js         # Modelo de usuarios
+│   ├── routes/                  # Rutas de la API
 │   │   ├── authRoutes.js        # Rutas de autenticación
+│   │   ├── clientProfileRoutes.js # Rutas de perfiles de clientes
+│   │   ├── orderRoutes.js       # Rutas de pedidos
+│   │   ├── passwordResetRoutes.js # Rutas de reseteo de contraseñas
+│   │   ├── paymentRoutes.js     # Rutas de pagos
 │   │   ├── productRoutes.js     # Rutas de productos
-│   │   └── secureProductRoutes.js # Rutas protegidas
-│   └── views/
-│       └── frontend/
-│           └── LoginArtesa/     # Aplicación Frontend
-├── app.js                       # Entrada principal del servidor
-└── package.json
-
-### Frontend
-/src/views/frontend/LoginArtesa/
-├── src/
-│   ├── api/
-│   │   └── config.js           # Configuración de API
-│   └── Components/
-│       └── Dashboard/
-│           └── Sidebar Section/
-│               ├── Sidebar.jsx
-│               └── sidebar.css
-
-
-## Sistema de Autenticación
-
-### Backend
-- `authController.js`: Maneja login y registro
-- `auth.js`: Middleware para protección de rutas
-- `secureProductRoutes.js`: Rutas que requieren autenticación
-
-### Frontend
-- `config.js`: Configuración de endpoints y headers
-- `Sidebar.jsx`: Incluye funcionalidad de logout
-
-
-# Sistema de Recuperación de Contraseña
-
-## Nuevas Funcionalidades
-
-### Recuperación de Contraseña
-El sistema ahora incluye un flujo completo de recuperación de contraseña:
-
-1. **Solicitud de Recuperación**
-   - Endpoint: `POST /api/password/request-reset`
-   - El usuario proporciona su correo electrónico
-   - Se envía un email con un token de recuperación
-
-2. **Restablecimiento de Contraseña**
-   - Endpoint: `POST /api/password/reset`
-   - El usuario proporciona el token y la nueva contraseña
-   - Validación de token y actualización segura
-
-### Configuración Requerida
-
-1. Variables de Entorno
-```env
-SMTP_HOST=tu-servidor-smtp
-SMTP_PORT=587
-SMTP_USER=tu-usuario
-SMTP_PASS=tu-contraseña
-SMTP_FROM=noreply@tudominio.com
-FRONTEND_URL=http://tu-frontend-url
+│   │   ├── secureProductRoutes.js # Rutas protegidas de productos
+│   │   ├── uploadRoutes.js      # Rutas para subida de archivos
+│   │   └── userRoutes.js        # Rutas de usuarios
+│   ├── security/                # Componentes adicionales de seguridad
+│   │   └── index.js             # Fachada de implementaciones de seguridad
+│   ├── services/                # Servicios
+│   │   ├── AuditService.js      # Servicio de auditoría
+│   │   └── EmailService.js      # Servicio de correo electrónico
+│   ├── utils/                   # Utilidades
+│   │   └── dbUtils.js           # Utilidades para la base de datos
+│   └── validators/              # Validadores
+│       ├── authValidators.js    # Validadores de autenticación
+│       └── paymentValidators.js # Validadores de pagos
+├── uploads/                     # Directorio para archivos subidos
+│   └── client-profiles/         # Archivos de perfiles de clientes
+└── public/                      # Activos públicos
+    └── swagger.json             # Documentación generada de la API
 ```
 
-2. Base de Datos
-```sql
--- Ejecutar el script de creación de tabla password_resets
--- Ver archivo de migración para detalles
+---
+
+## **Base de Datos**
+
+### **Estructura de Tablas**
+
+La base de datos PostgreSQL contiene las siguientes tablas principales:
+
+| Tabla | Descripción |
+|-------|-------------|
+| `users` | Usuarios del sistema con sus credenciales y roles |
+| `roles` | Roles de usuario (Admin, User) |
+| `products` | Catálogo de productos con precios y detalles |
+| `orders` | Pedidos realizados por los usuarios |
+| `order_details` | Detalles de productos en cada pedido |
+| `client_profiles` | Perfiles de clientes comerciales con documentación |
+| `password_resets` | Tokens para recuperación de contraseñas |
+| `login_history` | Historial de intentos de login |
+| `transactions` | Transacciones de pago relacionadas con órdenes |
+| `transaction_audit_log` | Registro de auditoría de transacciones |
+| `audit_anomalies` | Anomalías detectadas en transacciones |
+
+Para una referencia completa de todas las tablas, consulta el archivo [database-structure.md](./docs/database-structure.md).
+
+### **Tipos de Datos Personalizados**
+
+La base de datos utiliza los siguientes tipos ENUM personalizados:
+
+- `audit_event_type`: Tipos de eventos de auditoría (`PAYMENT_INITIATED`, `PAYMENT_PROCESSED`, etc.)
+- `severity_level`: Niveles de severidad (`INFO`, `WARNING`, `ERROR`, `CRITICAL`)
+- `documento_tipo`: Tipos de documentos de identidad (`CC`, `CE`, `PASAPORTE`)
+- `cuenta_tipo`: Tipos de cuentas bancarias (`Ahorros`, `Corriente`)
+- `empresa_tamano`: Tamaños de empresa (`Microempresa`, `Pequeña`, `Mediana`, `Grande`)
+
+---
+
+## **Autenticación y Seguridad**
+
+### **JWT**
+
+El sistema utiliza JSON Web Tokens (JWT) para la autenticación. Cada token incluye:
+
+- ID de usuario
+- Correo electrónico
+- Nombre
+- ID de rol
+- Nombre de rol
+
+Los tokens expiran después de 24 horas, y se verifican en cada solicitud protegida.
+
+### **Sistema de Roles**
+
+Existen dos roles principales en el sistema:
+
+- **ADMIN (ID: 1)**: Acceso completo a todas las funcionalidades
+- **USER (ID: 2)**: Acceso limitado a funcionalidades específicas
+
+El middleware `checkRole` verifica si el usuario tiene permiso para acceder a cada endpoint.
+
+### **Recuperación de Contraseña**
+
+El sistema incluye un flujo completo de recuperación de contraseña:
+
+1. El usuario solicita un reset de contraseña a través del endpoint `/api/password/request-reset`
+2. Se genera un token criptográficamente seguro y se envía por correo
+3. El usuario utiliza este token para establecer una nueva contraseña a través de `/api/password/reset`
+4. Los tokens expiran después de una hora y son de un solo uso
+
+### **Rate Limiting y Protección**
+
+Para prevenir ataques de fuerza bruta y asegurar la disponibilidad del servicio:
+
+- Rate limiting en endpoints de autenticación: 5 intentos cada 15 minutos
+- Rate limiting en endpoints sensibles: 50 solicitudes cada 15 minutos
+- Rate limiting en endpoints estándar: 100 solicitudes cada 15 minutos
+- Bloqueo de cuentas después de múltiples intentos fallidos de login
+- Headers de seguridad para prevenir XSS, clickjacking y otros ataques
+
+---
+
+## **Endpoints**
+
+### **Autenticación**
+
+| Método | Ruta | Descripción | Roles |
+|--------|------|-------------|-------|
+| POST | `/api/auth/login` | Iniciar sesión | Público |
+| POST | `/api/auth/register` | Registrar nuevo usuario | Público |
+| POST | `/api/password/request-reset` | Solicitar recuperación de contraseña | Público |
+| POST | `/api/password/reset` | Establecer nueva contraseña | Público |
+
+### **Usuarios**
+
+| Método | Ruta | Descripción | Roles |
+|--------|------|-------------|-------|
+| GET | `/api/users` | Obtener todos los usuarios | ADMIN |
+| GET | `/api/users/:id` | Obtener usuario por ID | ADMIN, propietario |
+| PUT | `/api/users/:id` | Actualizar usuario | ADMIN, propietario |
+
+### **Productos**
+
+| Método | Ruta | Descripción | Roles |
+|--------|------|-------------|-------|
+| GET | `/api/products` | Obtener todos los productos | ADMIN, USER |
+| GET | `/api/products/:productId` | Obtener producto por ID | ADMIN, USER |
+| POST | `/api/products` | Crear nuevo producto | ADMIN |
+| PUT | `/api/products/:productId` | Actualizar producto | ADMIN |
+| PUT | `/api/products/:productId/image` | Actualizar imagen de producto | ADMIN |
+| DELETE | `/api/products/:productId` | Eliminar producto | ADMIN |
+
+### **Pedidos**
+
+| Método | Ruta | Descripción | Roles |
+|--------|------|-------------|-------|
+| POST | `/api/orders` | Crear un nuevo pedido | ADMIN, USER |
+| GET | `/api/orders/:orderId` | Obtener detalles de un pedido | ADMIN, propietario |
+| GET | `/api/orders/user/:userId` | Obtener pedidos de un usuario | ADMIN, propietario |
+
+### **Perfiles de Clientes**
+
+| Método | Ruta | Descripción | Roles |
+|--------|------|-------------|-------|
+| GET | `/api/client-profiles` | Obtener todos los perfiles | ADMIN |
+| GET | `/api/client-profiles/:id` | Obtener perfil por ID | ADMIN, USER |
+| GET | `/api/client-profiles/user/:userId` | Obtener perfil por ID de usuario | ADMIN, propietario |
+| POST | `/api/client-profiles` | Crear perfil de cliente | ADMIN |
+| PUT | `/api/client-profiles/:id` | Actualizar perfil | ADMIN |
+| DELETE | `/api/client-profiles/:id` | Eliminar perfil | ADMIN |
+| GET | `/api/client-profiles/:id/file/:fileType` | Obtener archivo de perfil | ADMIN, USER |
+| GET | `/api/client-profiles/user/:userId/file/:fileType` | Obtener archivo por ID de usuario | ADMIN, propietario |
+
+### **Pagos**
+
+| Método | Ruta | Descripción | Roles |
+|--------|------|-------------|-------|
+| POST | `/api/payments/process` | Procesar un pago | ADMIN, USER |
+| GET | `/api/payments/status/:transactionId` | Verificar estado de un pago | ADMIN, propietario |
+
+---
+
+## **Subida de Archivos**
+
+El sistema permite subir archivos utilizando Express-FileUpload:
+
+- **Imágenes de productos**: A través de `/api/products/:productId/image`
+- **Documentos de perfiles de clientes**: A través de `/api/client-profiles`
+  - Fotocopia de cédula
+  - Fotocopia de RUT
+  - Anexos adicionales
+- **Imágenes generales**: A través de `/api/upload/images`
+
+Límites y restricciones:
+- Tamaño máximo: 10MB
+- Formatos aceptados: jpg, jpeg, png, gif, webp para imágenes
+- Todos los archivos se almacenan en el directorio `uploads/` con nombres únicos
+
+En producción, los archivos se pueden almacenar en Amazon S3 configurando las variables de entorno correspondientes.
+
+---
+
+## **Sistema de Auditoría**
+
+El sistema cuenta con un robusto sistema de auditoría que registra:
+
+- Intentos de login (exitosos y fallidos)
+- Transacciones de pago
+- Acciones de usuarios en datos sensibles
+- Eventos de seguridad
+
+Características:
+- Detección automática de anomalías
+- Diferentes niveles de severidad (INFO, WARNING, ERROR, CRITICAL)
+- Almacenamiento en base de datos para análisis posterior
+- Redacción automática de datos sensibles
+
+La tabla `transaction_audit_log` almacena todos los eventos con detalles como:
+- Usuario que realizó la acción
+- Dirección IP
+- Timestamp
+- Detalles de la acción
+- Nivel de severidad
+
+---
+
+## **Ejecución del Proyecto**
+
+### **Desarrollo**
+
+```bash
+# Con nodemon para recarga automática
+npm run dev
+
+# Con conexión ngrok (para pruebas externas)
+npm run start:ngrok
 ```
 
-### Seguridad
-- Tokens criptográficamente seguros
-- Expiración automática de tokens
-- Protección contra enumeración de usuarios
-- Tokens de un solo uso
+### **Producción**
 
-### Documentación API
-La documentación completa está disponible en Swagger:
-- Local: http://localhost:3000/api-docs
-- Producción: https://tu-dominio.com/api-docs
+```bash
+npm run start:prod
+```
 
-## Integración Frontend
+### **Herramientas adicionales**
 
-### Flujo de Recuperación
-1. Usuario solicita recuperación en la página de login
-2. Ingresa su correo electrónico
-3. Recibe email con link de recuperación
-4. Accede al link y establece nueva contraseña
-5. Redirección a login con mensaje de éxito
+```bash
+# Generar documentación Swagger
+npm run generate-swagger
 
-### Endpoints
-```javascript
-// Solicitar recuperación
-const requestReset = async (email) => {
-  const response = await fetch('/api/password/request-reset', {
-    method: 'POST',
-    body: JSON.stringify({ email })
-  });
-};
+# Hashear contraseñas existentes en la base de datos
+node scripts/hashPasswords.js
 
-// Restablecer contraseña
-const resetPassword = async (token, newPassword) => {
-  const response = await fetch('/api/password/reset', {
-    method: 'POST',
-    body: JSON.stringify({ token, newPassword })
-  });
-};
+# Generar documentación de la base de datos
+node scripts/generateDbDocs.js
+```
+
+---
+
+## **Documentación de la API**
+
+La documentación interactiva de la API está disponible en Swagger UI:
+
+- Desarrollo: `http://localhost:3000/api-docs`
+- Producción: `https://tu-dominio.com/api-docs`
+
+También se puede acceder al archivo JSON de la especificación en:
+- `http://localhost:3000/swagger.json`
+
+La documentación incluye:
+- Todos los endpoints disponibles
+- Esquemas de solicitud y respuesta
+- Parámetros requeridos
+- Ejemplos de uso
+- Funcionalidad "Try It Out" para probar endpoints directamente
+
+---
+
+## **Logs y Monitoreo**
+
+El sistema utiliza Winston para el logging con las siguientes características:
+
+- Rotación diaria de archivos de log
+- Niveles configurables según entorno (debug en desarrollo, info en producción)
+- Formato JSON para facilitar análisis
+- Logs específicos para:
+  - Errores (`logs/%DATE%-error.log`)
+  - Aplicación general (`logs/%DATE%-app.log`)
+  - Auditoría
+
+Los logs incluyen:
+- Timestamp
+- Contexto (componente que genera el log)
+- Nivel de severidad
+- Mensaje
+- Datos adicionales relevantes
+- Stack trace para errores
+
+---
+
+## **Seguridad**
+
+El proyecto implementa múltiples capas de seguridad:
+
+### **Protección de datos**
+- Contraseñas hasheadas con bcrypt
+- Validación y sanitización de entradas
+- Parámetros preparados en consultas SQL para prevenir inyección
+- Redacción de datos sensibles en logs
+
+### **Protección de API**
+- Autenticación JWT
+- Middleware CORS configurado
+- Rate limiting adaptativo
+- Headers de seguridad HTTP:
+  - Content-Security-Policy
+  - X-Content-Type-Options
+  - X-Frame-Options
+  - X-XSS-Protection
+  - Strict-Transport-Security (en producción)
+
+### **Monitoreo de seguridad**
+- Detección de actividad sospechosa
+- Registro de intentos de login fallidos
+- Alertas sobre anomalías en transacciones
+- Auditoría completa de acciones sensibles
+
+Para más detalles, consulta el archivo [SECURITY.md](./SECURITY.md).
+
+---
+
+> **Nota**: Esta documentación está actualizada al 28 de Febrero de 2025. Consulta el [CHANGELOG.md](./CHANGELOG.md) para ver el historial completo de cambios.
