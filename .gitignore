@@ -1,5 +1,21 @@
 node_modules/
 
+# Archivos de seguridad y documentación sensible
+SECURITY.md
+docs/database-structure.md
+database.md
+scripts/docs/database-structure.md
+
+# Scripts sensibles
+scripts/hashPasswords.js
+scripts/generateDbDocs.js
+
+# Implementaciones de seguridad
+src/security/
+
+# Archivos de configuración con datos sensibles
+src/config/db.js
+
 # Archivos de configuración y secretos
 .env
 .env.*
@@ -38,9 +54,21 @@ tmp/
 temp/
 .tmp/
 
+# Archivos temporales y uploads
+uploads/
+
 # Archivos de auditoría de seguridad
 security-audit/
 vulnerability-reports/
 
 # Carpeta de tests
 tests/
+
+# Documentación detallada generada
+public/swagger.json
+
+# Certificados y claves
+*.pem
+*.key
+*.cert
+*.p12
