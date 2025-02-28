@@ -450,8 +450,6 @@ El proyecto implementa múltiples capas de seguridad:
 - Alertas sobre anomalías en transacciones
 - Auditoría completa de acciones sensibles
 
-Para más detalles, consulta el archivo [SECURITY.md](./SECURITY.md).
-
 ---
 
 > **Nota**: Esta documentación está actualizada al 28 de Febrero de 2025. Consulta el [CHANGELOG.md](./CHANGELOG.md) para ver el historial completo de cambios.
