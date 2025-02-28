@@ -95,11 +95,13 @@ app.use(express.urlencoded({ extended: true })); // Parsear datos de formulario
 app.use(morgan('dev')); // Logging
 
 // Configuración de CORS mejorada
+// Configuración de CORS mejorada
 app.use(cors({
   origin: function(origin, callback) {
     const allowedOrigins = [
       'http://localhost:3000',
       'http://localhost:5173',
+      'http://localhost:5174', // Añadido el puerto 5174
       process.env.DEV_NGROK_URL,
       process.env.PROD_URL
     ].filter(Boolean);
@@ -107,14 +109,19 @@ app.use(cors({
     // Permitir solicitudes sin origen (como las de Postman o Swagger UI)
     if (!origin) return callback(null, true);
     
-    if (allowedOrigins.indexOf(origin) !== -1 || origin.includes('ngrok-free.app')) {
+    // Comprueba si es localhost o contiene ngrok-free.app
+    if (allowedOrigins.includes(origin) || 
+        origin.includes('ngrok-free.app') || 
+        origin.includes('localhost')) {
       callback(null, true);
     } else {
+      console.log('CORS rechazado para origen:', origin);
       callback(new Error('No permitido por CORS'));
     }
   },
   methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Access-Control-Allow-Origin', 'Access-Control-Allow-Credentials'],
   credentials: true,
   preflightContinue: false,
   optionsSuccessStatus: 204
