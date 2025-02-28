@@ -1,200 +1,136 @@
 # CHANGELOG
 
-## [2023-10-01]
-### Base de Datos
-- Se crearon las tablas `Products`, `Orders` y `Order_Details` con sus respectivos campos.
-- Se agregaron las columnas `created_at` y `updated_at` a las tablas `Orders` y `Order_Details`.
-- Se crearon índices para mejorar el rendimiento de las consultas.
-- Se implementaron triggers para actualizar automáticamente el campo `updated_at`.
+Este documento registra todos los cambios significativos en el proyecto LA ARTESA Web App.
 
-#### Script SQL
-
-```sql
--- Tabla Products
-CREATE TABLE Products (
-    product_id SERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
-    description TEXT,
-    price DECIMAL(10, 2) NOT NULL,
-    stock INT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Índices para Products
-CREATE INDEX idx_products_name ON Products(name);
-CREATE INDEX idx_products_created_at ON Products(created_at);
-
--- Tabla Orders
-CREATE TABLE Orders (
-    order_id SERIAL PRIMARY KEY,
-    user_id INT NOT NULL,
-    order_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    total_amount DECIMAL(10, 2) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES Users(user_id) ON DELETE CASCADE
-);
-
--- Índices para Orders
-CREATE INDEX idx_orders_user_id ON Orders(user_id);
-CREATE INDEX idx_orders_order_date ON Orders(order_date);
-CREATE INDEX idx_orders_created_at ON Orders(created_at);
-
--- Tabla Order_Details
-CREATE TABLE Order_Details (
-    order_detail_id SERIAL PRIMARY KEY,
-    order_id INT NOT NULL,
-    product_id INT NOT NULL,
-    quantity INT NOT NULL,
-    unit_price DECIMAL(10, 2) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (order_id) REFERENCES Orders(order_id) ON DELETE CASCADE,
-    FOREIGN KEY (product_id) REFERENCES Products(product_id) ON DELETE CASCADE
-);
-
--- Índices para Order_Details
-CREATE INDEX idx_order_details_order_id ON Order_Details(order_id);
-CREATE INDEX idx_order_details_product_id ON Order_Details(product_id);
-CREATE INDEX idx_order_details_created_at ON Order_Details(created_at);
-
--- Función para actualizar updated_at
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = CURRENT_TIMESTAMP;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- Triggers para actualizar updated_at
-CREATE TRIGGER update_orders_updated_at
-BEFORE UPDATE ON Orders
-FOR EACH ROW
-EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_order_details_updated_at
-BEFORE UPDATE ON Order_Details
-FOR EACH ROW
-EXECUTE FUNCTION update_updated_at_column();
-
-# Changelog
-
-## [1.1.0] - 2023-10-25
+## [v1.2.1] - 2025-02-28
 
 ### Añadido
-- Entidad de productos con campos: código, descripción, listas de precios, código de barras e imagen.
-- Integración de Multer para la subida de imágenes a Amazon S3.
-- Documentación de la API en Swagger para los endpoints de productos.
+- **Sistema completo de perfiles de clientes**
+  - Nuevos endpoints CRUD en `/api/client-profiles`
+  - Soporte para gestión de documentos corporativos (cédula, RUT, anexos)
+  - Implementación de controladores, modelos y rutas asociadas
+  - Validación de unicidad de perfiles por usuario
 
 ### Cambiado
-- Estructura del proyecto para incluir la capa de servicios.
-- Configuración de variables de entorno para AWS S3.
+- **Migración de Swagger a JSDocs**
+  - Reemplazado el archivo JSON estático por documentación integrada en código
+  - Implementación de anotaciones JSDoc en controladores y rutas
+  - Mejora en la interactividad de la documentación de API
+  - Mayor facilidad de mantenimiento al vincular documentación y código
 
-### Corregido
-- Errores menores en la autenticación de usuarios.
-- Campos adicionales en la tabla `products`:
-  - `code`: Código único del producto.
-  - `price_list1`, `price_list2`, `price_list3`: Listas de precios.
-  - `barcode`: Código de barras único.
-  - `image_url`: URL de la imagen del producto.
+### Mejorado
+- Optimización de las rutas de archivos para perfiles de clientes
+- Mayor validación en formularios de perfiles
+- Estructura de directorios para archivos subidos
 
-#### Script SQL
+## [v1.2.0] - 2025-02-21
 
--- Agregar campo "code"
-ALTER TABLE products
-ADD COLUMN code VARCHAR(50) UNIQUE NOT NULL;
+### Añadido
+- **Sistema de recuperación de contraseña**
+  - Nuevos endpoints para solicitar y restablecer contraseñas
+  - Integración con servicio de correo electrónico para envío de tokens
+  - Nueva tabla `password_resets` en la base de datos
+- **Sistema de perfiles de clientes**
+  - Implementación completa de CRUD para perfiles de clientes
+  - Soporte para subida de documentos (cédula, RUT, anexos)
+  - Interfaz para gestión y visualización de perfiles
+- **Sistema de auditoría y seguridad**
+  - Monitoreo de intentos de login
+  - Detección de anomalías en transacciones
+  - Registros detallados de acciones sensibles
+- **Integración del sistema de autenticación Frontend-Backend**
+- **Script de hasheo de contraseñas** (scripts/hashPasswords.js)
 
--- Agregar campos para las listas de precios
-ALTER TABLE products
-ADD COLUMN price_list1 NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
-ADD COLUMN price_list2 NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
-ADD COLUMN price_list3 NUMERIC(10, 2) NOT NULL DEFAULT 0.00;
-
--- Agregar campo "barcode"
-ALTER TABLE products
-ADD COLUMN barcode VARCHAR(100) UNIQUE;
-
--- Agregar campo "image_url"
-ALTER TABLE products
-ADD COLUMN image_url TEXT;
-
--- (Opcional) Renombrar el campo "price" a "price_list1"
-ALTER TABLE products
-RENAME COLUMN price TO price_list1;
-
-## [1.0.0] - 2025-02-12
-### Added
-- Endpoint para crear órdenes con detalles.
-- Validación en la base de datos para evitar órdenes sin detalles.
-
-## [1.0.0] - 2025-02-14
-### Added
-- ADD branch Features/frontEnd
-- Merge desarrollo FrontEnd con Git
-
-# CHANGELOG
-
-## [1.2.0] - 2025-02-21
-### Added
-- Integración completa del sistema de autenticación Frontend-Backend
-- Script de hasheo de contraseñas (scripts/hashPasswords.js)
-- Nueva configuración de API en Frontend (src/views/frontend/LoginArtesa/src/api/config.js)
-- Rutas seguras para productos (src/routes/secureProductRoutes.js)
-- Botón de cierre de sesión en Sidebar
-
-### Changed
-- Actualización del controlador de autenticación (src/controllers/authController.js)
-- Mejora del middleware de autenticación (src/middleware/auth.js)
-- Actualización del modelo de usuario (src/models/userModel.js)
+### Cambiado
+- Actualización del controlador de autenticación (`src/controllers/authController.js`)
+- Mejora del middleware de autenticación (`src/middleware/auth.js`)
+- Actualización del modelo de usuario (`src/models/userModel.js`)
 - Restructuración de rutas de autenticación y productos
 - Corrección de la ruta de autenticación en app.js
 - Actualización de configuración Vite
 
-### Security
+### Seguridad
 - Implementación de sistema robusto de autenticación JWT
 - Mejora en manejo de contraseñas con bcrypt
 - Implementación de rutas protegidas
-
-## [1.2.0] - 2024-02-21
-
-### Añadido
-- Sistema de recuperación de contraseña
-  - Endpoint para solicitar recuperación (/api/password/request-reset)
-  - Endpoint para restablecer contraseña (/api/password/reset)
-  - Integración con servicio de correo electrónico
-- Nueva tabla `password_resets` en la base de datos
-- Documentación Swagger actualizada para los nuevos endpoints
-
-### Modificado
-- Modelo de Usuario extendido con método updatePassword
-- Actualización de la documentación API
-
-### Seguridad
-- Implementación de tokens seguros para recuperación de contraseña
-- Tokens de un solo uso con expiración
+- Tokens de recuperación de contraseña de un solo uso con expiración
 - Protección contra enumeración de usuarios
 
+## [v1.1.0] - 2025-02-20
+
+### Añadido
+- **Entidad de productos con campos extendidos**:
+  - Código único de producto
+  - Múltiples listas de precios
+  - Código de barras
+  - Soporte para imágenes
+- **Integración de Multer** para la subida de imágenes a Amazon S3
+- **Documentación de la API en Swagger** para endpoints de productos
+- **Validadores de autenticación** en el archivo `authValidators.js`
+- **Sanitización de datos** en el middleware de seguridad
+- **Rate limiting** en las solicitudes de autenticación
+- **Validación de intentos de login** para prevenir ataques de fuerza bruta
+
+### Cambiado
+- Estructura del proyecto para incluir la capa de servicios
+- Configuración de variables de entorno para AWS S3
+- Refactorización del archivo `authRoutes.js` para utilizar validadores
+
+### Corregido
+- Errores menores en la autenticación de usuarios
+
 ### Base de Datos
-- Nueva tabla para gestión de tokens de recuperación de contraseña
-- Índices optimizados para búsqueda de tokens
-- Trigger para limpieza automática de tokens expirados
+- Nuevos campos en la tabla `products`:
+  - `code`: Código único del producto
+  - `price_list1`, `price_list2`, `price_list3`: Listas de precios
+  - `barcode`: Código de barras único
+  - `image_url`: URL de la imagen del producto
 
-# Changelog
+## [v1.0.0] - 2025-02-15
 
-## [1.1.0] - 2023-06-08
+### Base de Datos
+- **Creación de la estructura inicial**:
+  - Tabla `Products` para el catálogo de productos
+  - Tabla `Orders` para pedidos de clientes
+  - Tabla `Order_Details` para detalles de cada pedido
+  - Columnas `created_at` y `updated_at` en todas las tablas principales
+- **Optimización de rendimiento**:
+  - Índices para mejorar la velocidad de consultas
+  - Triggers para actualización automática de `updated_at`
 
-### Added
-- Implementación de validadores de autenticación en el archivo `authValidators.js`.
-- Sanitización de datos en el middleware de seguridad (`sanitizeBody`, `sanitizeParams`, `validateQueryParams`).
-- Limitador de velocidad (rate limiting) en las solicitudes de autenticación utilizando el módulo 'express-rate-limit'.
-- Validación de intentos de login para prevenir ataques de fuerza bruta.
+### Añadido
+- **Endpoint para crear órdenes** con detalles
+- **Validación en la base de datos** para evitar órdenes sin detalles
+- **Sistema de autenticación básico** con roles de usuario
+- **API RESTful** para gestión de productos y pedidos
 
-### Changed
-- Refactorización del archivo `authRoutes.js` para utilizar los validadores y middleware de seguridad.
-- Actualización de las rutas de registro y login de usuario para incluir validaciones y sanitización de datos.
+### Sistema
+- Estructura inicial del proyecto Node.js con Express
+- Configuración de conexión a base de datos PostgreSQL
+- Integración de Swagger para documentación de API
+- Implementación de middleware para manejo de errores
 
-### Dependencies
-- Se agregó la dependencia 'password-validator' para la validación de contraseñas.
-- Se agregó la dependencia 'express-rate-limit' para el limitador de velocidad en las solicitudes de autenticación.
+---
+
+## Historial de Dependencias Añadidas
+
+### Versión 1.2.0
+- `nodemailer` para envío de correos electrónicos
+- `winston` y `winston-daily-rotate-file` para sistema de logs
+- `express-fileupload` para manejo de archivos
+- `uuid` para generación de identificadores únicos
+
+### Versión 1.1.0
+- `password-validator` para la validación de contraseñas
+- `express-rate-limit` para el limitador de velocidad en solicitudes
+- `multer` y `multer-s3` para carga de archivos
+- `aws-sdk` para integración con Amazon S3
+
+### Versión 1.0.0
+- `express` como framework web
+- `pg` para conexión con PostgreSQL
+- `bcrypt` para hash de contraseñas
+- `jsonwebtoken` para autenticación JWT
+- `cors` para manejo de CORS
+- `dotenv` para variables de entorno
+- `swagger-jsdoc` y `swagger-ui-express` para documentación de API
