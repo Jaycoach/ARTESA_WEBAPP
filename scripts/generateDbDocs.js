@@ -3,7 +3,7 @@ const fs = require('fs');
 const { Pool } = require('pg');
 
 // Configuración inicial
-require('dotenv').config({ path: '../.env' });
+require('dotenv').config({ path: './.env' });
 
 const pool = new Pool({
     host: process.env.DB_HOST,
@@ -15,18 +15,48 @@ const pool = new Pool({
 
 // Consultas SQL
 const queries = {
+    // Primero, obtener todas las tablas disponibles
+    tables: `
+        SELECT table_name
+        FROM information_schema.tables
+        WHERE table_schema = 'public'
+        AND table_type = 'BASE TABLE'
+        ORDER BY table_name;
+    `,
+    
+    // Obtener información de tipos personalizados (enums, etc.)
+    types: `
+        SELECT 
+            t.typname as type_name,
+            pg_catalog.format_type(t.typbasetype, t.typtypmod) as base_type,
+            t.typtype as type_type,
+            e.enumlabel as enum_value
+        FROM pg_type t
+        LEFT JOIN pg_enum e ON e.enumtypid = t.oid
+        WHERE (t.typtype = 'e' OR t.typtype = 'd') -- enums y dominios
+        AND t.typnamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'public')
+        ORDER BY t.typname, e.enumsortorder;
+    `,
+    
     // Consulta para obtener información básica de columnas
     columns: `
         SELECT 
-            table_name,
-            column_name,
-            data_type,
-            column_default,
-            is_nullable,
-            col_description((table_schema || '.' || table_name)::regclass, ordinal_position) as column_description
-        FROM information_schema.columns
-        WHERE table_schema = 'public'
-        ORDER BY table_name, ordinal_position;
+            c.table_name,
+            c.column_name,
+            c.data_type,
+            c.column_default,
+            c.is_nullable,
+            col_description((c.table_schema || '.' || c.table_name)::regclass, c.ordinal_position) as column_description,
+            CASE 
+                WHEN c.data_type = 'USER-DEFINED' THEN
+                    (SELECT t.typname FROM pg_type t WHERE t.oid = a.atttypid)
+                ELSE NULL
+            END as user_defined_type
+        FROM information_schema.columns c
+        LEFT JOIN pg_catalog.pg_attribute a ON a.attname = c.column_name
+        AND a.attrelid = (c.table_schema || '.' || c.table_name)::regclass::oid
+        WHERE c.table_schema = 'public'
+        ORDER BY c.table_name, c.ordinal_position;
     `,
     
     // Consulta para obtener constraints (incluyendo primary keys)
@@ -97,6 +127,8 @@ const queries = {
 
 async function getTableData() {
     const data = {
+        tables: [],
+        types: [],
         columns: [],
         constraints: [],
         indexes: [],
@@ -104,9 +136,33 @@ async function getTableData() {
     };
 
     try {
+        // Comprobar la conexión y listar los esquemas
+        const schemasResult = await pool.query(`
+            SELECT schema_name 
+            FROM information_schema.schemata 
+            WHERE schema_name NOT LIKE 'pg_%' 
+            AND schema_name != 'information_schema'
+        `);
+        
+        console.log('Esquemas disponibles:', schemasResult.rows.map(r => r.schema_name));
+        
+        // Listar todas las tablas para verificar
+        const tablesResult = await pool.query(`
+            SELECT table_schema, table_name 
+            FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            AND table_type = 'BASE TABLE'
+            ORDER BY table_schema, table_name
+        `);
+        
+        console.log('Tablas encontradas:', tablesResult.rows.map(r => r.table_name));
+        
+        // Ejecutar todas las consultas y almacenar los resultados
         for (const [key, query] of Object.entries(queries)) {
+            console.log(`Ejecutando consulta para obtener ${key}...`);
             const { rows } = await pool.query(query);
             data[key] = rows;
+            console.log(`Obtenidos ${rows.length} registros para ${key}`);
         }
     } catch (error) {
         console.error('Error obteniendo datos:', error);
@@ -120,55 +176,107 @@ function generateMarkdown(data) {
     let markdown = `# Documentación de la Base de Datos\n\n`;
     markdown += `Base de datos: ${process.env.DB_DATABASE}\n`;
     markdown += `Fecha de generación: ${new Date().toLocaleString()}\n\n`;
-    markdown += `## Índice\n\n`;
 
-    // Agrupar datos por tabla
-    const tableGroups = {};
-    data.columns.forEach(row => {
-        if (!tableGroups[row.table_name]) {
-            tableGroups[row.table_name] = {
-                columns: [],
-                constraints: [],
-                indexes: [],
-                relatedViews: []
-            };
-        }
-        tableGroups[row.table_name].columns.push(row);
+    // Sección de tipos personalizados si existen
+    if (data.types.length > 0) {
+        markdown += `## Tipos Personalizados\n\n`;
+        
+        // Agrupar por nombre de tipo
+        const typeGroups = {};
+        data.types.forEach(type => {
+            if (!typeGroups[type.type_name]) {
+                typeGroups[type.type_name] = {
+                    type_name: type.type_name,
+                    base_type: type.base_type,
+                    type_type: type.type_type,
+                    values: []
+                };
+            }
+            if (type.enum_value) {
+                typeGroups[type.type_name].values.push(type.enum_value);
+            }
+        });
+        
+        // Generar documentación para cada tipo
+        Object.values(typeGroups).forEach(type => {
+            markdown += `### Tipo: ${type.type_name}\n\n`;
+            
+            // Para enums, mostrar la lista de valores
+            if (type.type_type === 'e' && type.values.length > 0) {
+                markdown += `**Tipo de dato:** ENUM\n\n`;
+                markdown += `**Valores:**\n\n`;
+                markdown += type.values.map(v => `- \`${v}\``).join('\n');
+                markdown += `\n\n`;
+            } 
+            // Para dominios, mostrar el tipo base
+            else if (type.type_type === 'd') {
+                markdown += `**Tipo de dato:** DOMAIN\n\n`;
+                markdown += `**Tipo base:** ${type.base_type}\n\n`;
+            }
+        });
+        
+        markdown += `---\n\n`;
+    }
+
+    markdown += `## Índice de Tablas\n\n`;
+
+    // Primero construir el índice de tablas completo
+    data.tables.forEach(table => {
+        markdown += `- [Tabla: ${table.table_name}](#tabla-${table.table_name.toLowerCase().replace(/_/g, '-')})\n`;
     });
+    markdown += `\n---\n\n`;
 
-    // Agregar constraints
+    // Crear mapeo de tabla a columnas, constraints, índices, etc.
+    const tableMap = {};
+    
+    // Inicializar el mapa con todas las tablas
+    data.tables.forEach(table => {
+        tableMap[table.table_name] = {
+            columns: [],
+            constraints: [],
+            indexes: [],
+            relatedViews: []
+        };
+    });
+    
+    // Llenar el mapa con los datos
+    data.columns.forEach(column => {
+        if (tableMap[column.table_name]) {
+            tableMap[column.table_name].columns.push(column);
+        }
+    });
+    
     data.constraints.forEach(constraint => {
-        if (tableGroups[constraint.table_name]) {
-            tableGroups[constraint.table_name].constraints.push(constraint);
+        if (tableMap[constraint.table_name]) {
+            tableMap[constraint.table_name].constraints.push(constraint);
         }
     });
-
-    // Agregar índices
+    
     data.indexes.forEach(index => {
-        if (tableGroups[index.table_name]) {
-            tableGroups[index.table_name].indexes.push(index);
+        if (tableMap[index.table_name]) {
+            tableMap[index.table_name].indexes.push(index);
         }
     });
-
-    // Agregar vistas relacionadas
+    
     data.views.forEach(view => {
         if (Array.isArray(view.referenced_tables)) {
             view.referenced_tables.forEach(tableName => {
-                if (tableGroups[tableName]) {
-                    tableGroups[tableName].relatedViews.push(view);
+                if (tableMap[tableName]) {
+                    tableMap[tableName].relatedViews.push(view);
                 }
             });
         }
     });
 
-    // Generar índice
-    Object.keys(tableGroups).sort().forEach(tableName => {
-        markdown += `- [Tabla: ${tableName}](#tabla-${tableName.toLowerCase().replace(/_/g, '-')})\n`;
-    });
-    markdown += `\n---\n\n`;
-
     // Generar documentación para cada tabla
-    for (const [tableName, tableData] of Object.entries(tableGroups)) {
+    for (const tableName of data.tables.map(t => t.table_name)) {
+        if (!tableMap[tableName]) {
+            console.warn(`Advertencia: No se encontraron metadatos para la tabla ${tableName}`);
+            continue;
+        }
+        
+        const tableData = tableMap[tableName];
+        
         markdown += `## Tabla: ${tableName}\n\n`;
 
         // Columnas
@@ -176,7 +284,9 @@ function generateMarkdown(data) {
         markdown += `| Columna | Tipo | Nullable | Default | Descripción |\n`;
         markdown += `|---------|------|----------|----------|-------------|\n`;
         tableData.columns.forEach(column => {
-            markdown += `| ${column.column_name} | ${column.data_type} | ${column.is_nullable} | ${column.column_default || '-'} | ${column.column_description || '-'} |\n`;
+            // Si es un tipo personalizado, mostrar eso en lugar del tipo genérico "USER-DEFINED"
+            const dataType = column.user_defined_type || column.data_type;
+            markdown += `| ${column.column_name} | ${dataType} | ${column.is_nullable} | ${column.column_default || '-'} | ${column.column_description || '-'} |\n`;
         });
         markdown += `\n`;
 
@@ -231,9 +341,9 @@ async function generateDocs() {
         const markdown = generateMarkdown(data);
 
         // Guardar el archivo
-        const docsPath = path.resolve(__dirname, '../docs');
+        const docsPath = path.resolve(__dirname, './docs');
         if (!fs.existsSync(docsPath)) {
-            fs.mkdirSync(docsPath);
+            fs.mkdirSync(docsPath, { recursive: true });
         }
         
         const filePath = path.join(docsPath, 'database-structure.md');
