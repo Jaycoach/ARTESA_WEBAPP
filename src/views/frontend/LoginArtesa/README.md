@@ -3,15 +3,12 @@ Proyecto: Dashboard Artesa - Integración SAP
 Este proyecto consiste en el desarrollo del Dashboard de gestión de pedidos para Artesa, una panadería que busca mejorar la administración de sus productos, pedidos y clientes mediante una interfaz web intuitiva. La aplicación se integra con SAP para la gestión de inventarios y pedidos en tiempo real.
 
 ## 📜 **Índice**
-1. [Tecnologías Utilizadas](#tecnologías-utilizadas)
+1. Arquitectura del Proyecto
 2. [Instalación](#instalación)
-3. [Estructura del Proyecto](#estructura-del-proyecto)
-4. [Variables de Estilo](#variables-de-estilo)
-5. [Desarrollo y Convenciones](#desarrollo-y-convenciones)
-6. [Autenticación y Seguridad](#autenticación-y-seguridad)
-7. [Modo Oscuro](#modo-oscuro)
-8. [Contribuciones](#contribuciones)
-   
+3. Funcionalidades Clave
+4. Identidad Visual
+5. Instalación y Configuración
+
  Arquitectura del Proyecto
 •	Frontend: React.js + Vite
 •	Backend: Node.js + Express (con integración a SAP)
