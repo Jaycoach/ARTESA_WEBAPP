@@ -117,9 +117,10 @@ app.use((err, req, res, next) => {
 });
 
 // =========================================================================
-// CARGA DE ARCHIVOS - Debe ir después de CORS, antes de sanitización
+// CARGA DE ARCHIVOS - Configurado pero NO aplicado globalmente
 // =========================================================================
-app.use(fileUpload({
+// Configuración para fileUpload
+const fileUploadOptions = {
   limits: { fileSize: 10 * 1024 * 1024 }, // Límite de 10MB
   useTempFiles: true,
   tempFileDir: './tmp/',
@@ -129,7 +130,7 @@ app.use(fileUpload({
   debug: process.env.NODE_ENV === 'development',
   createParentPath: true,
   safeFileNames: true
-}));
+};
 
 // Middleware para manejar errores de express-fileupload
 app.use((err, req, res, next) => {
@@ -255,10 +256,14 @@ app.use(`${API_PREFIX}/auth`, authRoutes);
 app.use(API_PREFIX, productRoutes);
 app.use(API_PREFIX, secureProductRoutes);
 app.use(API_PREFIX, orderRoutes);
-app.use(API_PREFIX, uploadRoutes);
+
+// Aplicamos fileUpload sólo a las rutas específicas que lo necesitan
+app.use(`${API_PREFIX}/upload`, fileUpload(fileUploadOptions), uploadRoutes);
+app.use(`${API_PREFIX}/client-profiles`, fileUpload(fileUploadOptions), clientProfileRoutes);
+
+// Rutas que no necesitan fileUpload
 app.use(`${API_PREFIX}/password`, passwordResetRoutes);
 app.use(`${API_PREFIX}/payments`, paymentRoutes);
-app.use(API_PREFIX, clientProfileRoutes);
 
 // Ruta de prueba/estado para verificar que el servidor está funcionando
 app.get('/', (req, res) => {

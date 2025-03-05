@@ -4,7 +4,6 @@ const router = express.Router();
 const clientProfileController = require('../controllers/clientProfileController');
 const { verifyToken, checkRole } = require('../middleware/auth');
 const { sanitizeParams } = require('../middleware/security');
-const fileUpload = require('express-fileupload');
 
 // Aplicar middleware de sanitización a todas las rutas
 router.use(sanitizeParams);
