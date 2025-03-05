@@ -1,3 +1,4 @@
+@charset "UTF-8";
 @import url("https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap");
 * {
   padding: 0;
@@ -7,15 +8,21 @@
 }
 
 :root {
-  --primary-color: #f9f9f9;
-  --hover-color: #f1f1f1;
-  --palegreen-color: #f4ff5b;
-  --whiteColor: #fff;
-  --blackColor: #000;
+  --primary-color: #687e8d;
+  --secondary-color: #f6db8e;
+  --hover-color: #f6db8e;
+  --accent-color: #f6754e;
+  --whiteColor: #ffffff;
+  --blackColor: #000000;
   --greyText: #808080;
-  --bgColor: hsl(113, 11%, 85%);
-  --inputColor: hsl(300, 12%, 97%);
-  /* Font Sizes */
+  --bgColor: #687e8d;
+  --inputColor: #f6db8e;
+  --buttonColor: #f6754e;
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
   --biggestFontSize: 2.5rem;
   --h1FontSize: 1.5rem;
   --h2FontSize: 1.25rem;
@@ -23,6 +30,70 @@
   --normalFontSize: 0.938rem;
   --smallFontSize: 0.813rem;
   --smallestFontSize: 0.75rem;
+}
+
+input, textarea, select {
+  width: 100%;
+  padding: var(--spacing-sm);
+  border: 1px solid var(--greyText);
+  border-radius: 4px;
+  font-size: var(--normalFontSize);
+}
+
+label {
+  font-weight: bold;
+  margin-bottom: var(--spacing-xs);
+}
+
+button {
+  padding: var(--spacing-md);
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: var(--normalFontSize);
+  transition: background 0.3s;
+}
+
+button.primary {
+  background-color: var(--buttonColor);
+  color: var(--whiteColor);
+}
+
+button.primary:hover {
+  background-color: var(--buttonColor);
+  filter: brightness(90%);
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: var(--spacing-md);
+}
+
+.user-profile-container {
+  width: 50%;
+  margin: var(--spacing-lg) auto;
+  padding: var(--spacing-lg);
+  background: var(--whiteColor);
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.submit-btn {
+  margin-top: var(--spacing-md);
+  padding: var(--spacing-md);
+  background-color: var(--buttonColor);
+  color: var(--whiteColor);
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: var(--normalFontSize);
+  transition: background 0.3s;
+}
+
+.submit-btn:hover {
+  background-color: var(--buttonColor);
+  filter: brightness(90%);
 }
 
 .flex {
@@ -67,18 +138,21 @@ img, video {
   display: block;
   color: var(--whiteColor);
   padding: 10px;
-  background: rgb(243, 15, 26);
+  background: var(--hover-color);
   border-radius: 3px;
   text-align: center;
 }
 
 .btn {
+  background: var(--buttonColor);
   border: none;
   outline: none;
   cursor: pointer;
   border-radius: 8px;
+  transition: 0.3s ease;
   padding: 0.8rem 1rem;
-  color: var(--greyText);
+  font-weight: 600;
+  color: var(--whiteColor);
 }
 
 .btn .icon {
@@ -86,11 +160,32 @@ img, video {
 }
 
 .btn:hover {
-  color: var(--primary-color);
-  background: var(--palegreen-color);
+  color: var(--hover-color);
+  background: var(--whiteColor);
 }
 
-.LoginPage, .RegisterPage {
+.error-message {
+  background-color: rgba(255, 0, 0, 0.1); /* Fondo rojo claro */
+  color: red;
+  padding: 5px;
+  border-radius: 5px;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.success-message {
+  color: #ffffff; /* Blanco para buen contraste */
+  background-color: #f6754e; /* Azul institucional */
+  padding: 6px;
+  border-radius: 2px;
+  font-weight: bold;
+  text-align: center;
+  border: 2px solid #687e8d; /* Borde naranja terracota */
+}
+
+.LoginPage, .RegisterPage, .ResetPasswordPage {
+  background: var(--bgColor);
+  color: var(--whiteColor);
   height: 100vh;
   width: 100%;
   margin: auto;
@@ -98,7 +193,7 @@ img, video {
   overflow: hidden;
   box-shadow: 0 7px 50px rgba(0, 0, 0, 0.1);
 }
-.LoginPage .container, .RegisterPage .container {
+.LoginPage .container, .RegisterPage .container, .ResetPasswordPage .container {
   height: 75vh;
   width: 60%;
   margin: auto;
@@ -106,7 +201,7 @@ img, video {
   border-radius: 10px;
   background: hsl(0, 0%, 91%);
 }
-.LoginPage .container .imgDiv, .RegisterPage .container .imgDiv {
+.LoginPage .container .imgDiv, .RegisterPage .container .imgDiv, .ResetPasswordPage .container .imgDiv {
   position: relative;
   height: 100%;
   width: 70%;
@@ -121,10 +216,10 @@ img, video {
   border-radius: 10px;
   overflow: hidden;
 }
-.LoginPage .container .imgDiv img, .LoginPage .container .imgDiv .footerDiv, .RegisterPage .container .imgDiv img, .RegisterPage .container .imgDiv .footerDiv {
+.LoginPage .container .imgDiv img, .LoginPage .container .imgDiv .footerDiv, .RegisterPage .container .imgDiv img, .RegisterPage .container .imgDiv .footerDiv, .ResetPasswordPage .container .imgDiv img, .ResetPasswordPage .container .imgDiv .footerDiv {
   position: absolute;
 }
-.LoginPage .container .imgDiv img, .RegisterPage .container .imgDiv img {
+.LoginPage .container .imgDiv img, .RegisterPage .container .imgDiv img, .ResetPasswordPage .container .imgDiv img {
   height: 100%;
   width: 100%;
   -o-object-fit: cover;
@@ -134,93 +229,99 @@ img, video {
   right: 0;
   left: 0;
 }
-.LoginPage .container .imgDiv .textDiv, .RegisterPage .container .imgDiv .textDiv {
+.LoginPage .container .imgDiv .textDiv, .RegisterPage .container .imgDiv .textDiv, .ResetPasswordPage .container .imgDiv .textDiv {
   position: relative;
 }
-.LoginPage .container .imgDiv .textDiv .title, .RegisterPage .container .imgDiv .textDiv .title {
-  color: var(--whiteColor);
+.LoginPage .container .imgDiv .textDiv .title, .RegisterPage .container .imgDiv .textDiv .title, .ResetPasswordPage .container .imgDiv .textDiv .title {
+  color: var(--accent-color);
   font-size: 35px;
   font-weight: 800;
+  align-items: flex-end;
 }
-.LoginPage .container .imgDiv .textDiv p, .RegisterPage .container .imgDiv .textDiv p {
+.LoginPage .container .imgDiv .textDiv p, .RegisterPage .container .imgDiv .textDiv p, .ResetPasswordPage .container .imgDiv .textDiv p {
   color: var(--whiteColor);
   padding: 1rem;
   font-weight: 400;
 }
-.LoginPage .container .imgDiv .footerDiv, .RegisterPage .container .imgDiv .footerDiv {
+.LoginPage .container .imgDiv .footerDiv, .RegisterPage .container .imgDiv .footerDiv, .ResetPasswordPage .container .imgDiv .footerDiv {
   bottom: 10px;
   padding: 0 1rem;
   height: 60px;
-  background: rgba(255, 255, 255, 0.248);
+  background: rgba(44, 62, 80, 0.5490196078);
   left: 0;
   right: 0;
   justify-content: space-between;
   -webkit-backdrop-filter: blur(1px);
           backdrop-filter: blur(1px);
 }
-.LoginPage .container .imgDiv .text, .RegisterPage .container .imgDiv .text {
+.LoginPage .container .imgDiv .text, .RegisterPage .container .imgDiv .text, .ResetPasswordPage .container .imgDiv .text {
   color: var(--whiteColor);
 }
-.LoginPage .container .imgDiv .btn, .RegisterPage .container .imgDiv .btn {
-  background: var(--whiteColor);
-  color: var(--primary-color);
-  padding: 0.8rem 1.5rem;
-  border-radius: 10px;
-  font-weight: 400;
+.LoginPage .container .imgDiv .btn, .RegisterPage .container .imgDiv .btn, .ResetPasswordPage .container .imgDiv .btn {
+  background: var(--buttonColor);
+  border: none;
+  outline: none;
+  cursor: pointer;
+  border-radius: 8px;
   transition: 0.3s ease;
+  padding: 0.8rem 1rem;
+  font-weight: 600;
+  color: var(--whiteColor);
 }
-.LoginPage .container .imgDiv .btn:hover, .RegisterPage .container .imgDiv .btn:hover {
+.LoginPage .container .imgDiv .btn:hover, .RegisterPage .container .imgDiv .btn:hover, .ResetPasswordPage .container .imgDiv .btn:hover {
   background: var(--hover-color);
   color: var(--blackColor);
 }
-.LoginPage .container .formDiv, .RegisterPage .container .formDiv {
+.LoginPage .container .formDiv, .RegisterPage .container .formDiv, .ResetPasswordPage .container .formDiv {
   flex-basis: 50%;
   margin: auto;
   flex-direction: column;
   gap: 1.5rem;
   transform: translateY(1rem);
 }
-.LoginPage .container .formDiv .headerDiv, .RegisterPage .container .formDiv .headerDiv {
+.LoginPage .container .formDiv .headerDiv, .RegisterPage .container .formDiv .headerDiv, .ResetPasswordPage .container .formDiv .headerDiv {
   width: 60%;
   padding-bottom: 0.5rem;
 }
-.LoginPage .container .formDiv .headerDiv img, .RegisterPage .container .formDiv .headerDiv img {
-  width: 60px;
+.LoginPage .container .formDiv .headerDiv img, .RegisterPage .container .formDiv .headerDiv img, .ResetPasswordPage .container .formDiv .headerDiv img {
+  width: 100px;
   padding-bottom: 0.5rem;
 }
-.LoginPage .container .formDiv .headerDiv h3, .RegisterPage .container .formDiv .headerDiv h3 {
+.LoginPage .container .formDiv .headerDiv h3, .RegisterPage .container .formDiv .headerDiv h3, .ResetPasswordPage .container .formDiv .headerDiv h3 {
   font-size: 25px;
   color: var(--blackColor);
   font-weight: 600;
 }
-.LoginPage .container .form, .RegisterPage .container .form {
+.LoginPage .container .form, .RegisterPage .container .form, .ResetPasswordPage .container .form {
   gap: 1rem;
 }
-.LoginPage .container .form .inputDiv .icon, .RegisterPage .container .form .inputDiv .icon {
+.LoginPage .container .form .inputDiv .icon, .RegisterPage .container .form .inputDiv .icon, .ResetPasswordPage .container .form .inputDiv .icon {
   color: black;
 }
-.LoginPage .container .form .inputDiv input, .RegisterPage .container .form .inputDiv input {
+.LoginPage .container .form .inputDiv input, .RegisterPage .container .form .inputDiv input, .ResetPasswordPage .container .form .inputDiv input {
   background: var(--inputColor);
+  color: var(--blackColor);
   outline: none;
   border: none;
   width: 250px;
 }
-.LoginPage .container .form .inputDiv label, .RegisterPage .container .form .inputDiv label {
+.LoginPage .container .form .inputDiv label, .RegisterPage .container .form .inputDiv label, .ResetPasswordPage .container .form .inputDiv label {
   color: var(--blackColor);
   font-weight: 400;
   font-size: 14px;
   padding: 0.5rem 0;
   display: block;
 }
-.LoginPage .container .form .inputDiv .input, .RegisterPage .container .form .inputDiv .input {
+.LoginPage .container .form .inputDiv .input, .RegisterPage .container .form .inputDiv .input, .ResetPasswordPage .container .form .inputDiv .input {
   gap: 0.5rem;
   padding: 1rem;
   background: var(--inputColor);
+  color: var(--blackColor);
   border-radius: 10px;
 }
-.LoginPage .container .form .btn, .RegisterPage .container .form .btn {
+.LoginPage .container .form .btn, .RegisterPage .container .form .btn, .ResetPasswordPage .container .form .btn {
   padding: 0.8rem;
-  background: var(--greyText);
+  background: var(--buttonColor);
   border-radius: 10px;
   color: var(--whiteColor);
   align-items: center;
@@ -230,26 +331,168 @@ img, video {
   width: 100%;
   transition: 0.3s ease;
 }
-.LoginPage .container .form .btn .icon, .RegisterPage .container .form .btn .icon {
+.LoginPage .container .form .btn .icon, .RegisterPage .container .form .btn .icon, .ResetPasswordPage .container .form .btn .icon {
   font-size: 25px;
   transition: 0.3 ease;
 }
-.LoginPage .container .form .btn:hover, .RegisterPage .container .form .btn:hover {
-  background: var(--blackColor);
-  color: var(--whiteColor);
+.LoginPage .container .form .btn:hover, .RegisterPage .container .form .btn:hover, .ResetPasswordPage .container .form .btn:hover {
+  background: var(--hover-color);
+  color: var(--blackColor);
 }
-.LoginPage .container .form .btn:hover .icon, .RegisterPage .container .form .btn:hover .icon {
+.LoginPage .container .form .btn:hover .icon, .RegisterPage .container .form .btn:hover .icon, .ResetPasswordPage .container .form .btn:hover .icon {
   color: var(--blackColor);
   transform: translateX(5px);
 }
-.LoginPage .container .form .forgotPassword, .RegisterPage .container .form .forgotPassword {
+.LoginPage .container .form .forgotPassword, .RegisterPage .container .form .forgotPassword, .ResetPasswordPage .container .form .forgotPassword {
   color: var(--blackColor);
   font-size: 14px;
   text-align: center;
   opacity: 0.7;
 }
-.LoginPage .container .form .forgotPassword a, .RegisterPage .container .form .forgotPassword a {
+.LoginPage .container .form .forgotPassword a, .RegisterPage .container .form .forgotPassword a, .ResetPasswordPage .container .form .forgotPassword a {
   text-decoration: underline;
   cursor: pointer;
   opacity: 1;
+}
+
+/* ========== Sidebar ========== */
+.sidebar {
+  width: 60px;
+  min-height: calc(100vh - 60px);
+  background-color: var(--bgColor);
+  color: var(--whiteColor);
+  transition: width 0.3s ease-in-out;
+  position: fixed;
+  left: 0;
+  top: 60px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 2px 0px 10px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+}
+.sidebar:hover {
+  width: 200px;
+}
+.sidebar .toggle-btn {
+  position: absolute;
+  top: 20px;
+  right: -20px;
+  width: 35px;
+  height: 35px;
+  background-color: var(--bgColor);
+  border: 2px solid var(--whiteColor);
+  color: var(--whiteColor);
+  cursor: pointer;
+  padding: 5px;
+  border-radius: 50%;
+  transition: all 0.3s ease-in-out;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.sidebar .toggle-btn:hover {
+  background: var(--hoverButton);
+  color: var(--blackColor);
+}
+.sidebar .toggle-btn:hover .toggle-btn {
+  right: -15px;
+}
+.sidebar .sidebar-menu {
+  padding: 20px;
+}
+.sidebar .sidebar-menu h3 {
+  font-size: 1rem;
+  margin-bottom: 20px;
+}
+.sidebar .sidebar-menu ul {
+  list-style: none;
+  padding: 0;
+}
+.sidebar .sidebar-menu ul li {
+  margin-bottom: 10px;
+}
+.sidebar .sidebar-menu ul li button {
+  background: none;
+  border: none;
+  color: var(--whiteColor);
+  font-size: 0; /* Ocultar el texto cuando está colapsado */
+  width: 100%;
+  text-align: left;
+  padding: 12px 15px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.3s ease-in-out, font-size 0.3s ease-in-out;
+}
+.sidebar .sidebar-menu ul li button:hover {
+  background: var(--hoverButton);
+  color: var(--blackColor);
+}
+.sidebar:hover .sidebar-menu ul li button {
+  font-size: 0.938rem; /* Mostrar texto cuando el sidebar está expandido */
+}
+
+/* ========== Dashboard styles ========== */
+.dashboard {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+.dashboard .top-section {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 60px;
+  background-color: #2c3e50;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 20px;
+  box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+}
+.dashboard .top-section h1 {
+  color: white;
+  font-size: 20px;
+}
+.dashboard .dashboard-layout {
+  display: flex;
+  flex: 1;
+  transition: margin-left 0.3s ease-in-out;
+  flex-direction: row;
+  width: 100%;
+  height: calc(100vh - 60px);
+  margin-top: 60px;
+}
+.dashboard .dashboard-content {
+  flex-grow: 1;
+  margin-left: 200px;
+  background: white;
+  border-radius: 20px;
+  padding: 20px;
+  transition: margin-left 0.3s ease-in-out;
+  box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
+}
+.dashboard .order-summary {
+  display: flex;
+  gap: 10px;
+}
+.dashboard .summary-card {
+  padding: 10px;
+  border-radius: 5px;
+}
+.dashboard .summary-card.pending {
+  background: #f9c74f;
+}
+.dashboard .summary-card.completed {
+  background: #90be6d;
+}
+.dashboard .summary-card.canceled {
+  background: #f94144;
+}
+
+/* Expandir el contenido cuando el sidebar está expandido */
+.sidebar:hover ~ .dashboard-layout {
+  margin-left: 200px;
 }/*# sourceMappingURL=App.css.map */

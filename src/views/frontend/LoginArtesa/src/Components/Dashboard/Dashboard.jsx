@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import "../../App.css";
-import "./Dashboard.css";
+import "../../App.scss";
 // Importing Components ==========>
-import Sidebar from "./Sidebar Section/Sidebar";
-import Top from "./Body Section/Top Section/Top";
-import Listing from "./Body Section/Listing Section/Listing";
-import Activity from "./Body Section/Activity Section/Activity";
-import ClientProfile from "./ClientProfile/ClientProfile";
+import Sidebar from "./SidebarSection/Sidebar";
+import Top from "./Body Section/TopSection/Top";
+import Listing from "./Body Section/ListingSection/Listing";
+import Activity from "./Body Section/ActivitySection/Activity";
+//import ClientProfile from "./ClientProfile/ClientProfile";//
+import Banner_dash from  "../../DashboardAssets/Banner_dash2.jpg";
 import { FaUserCircle } from "react-icons/fa";
 
 const Dashboard = () => {
@@ -65,18 +65,8 @@ const Dashboard = () => {
 
         {/* Contenido a la derecha */}
         <div className="dashboard-content">
+          <img src={Banner_dash} alt='Bannerartesa'/>
           {/* Información del usuario en la parte superior */}
-          {user && (
-            <div className="user-profile-section">
-              <div className="user-profile-info" onClick={toggleProfile}>
-                <FaUserCircle className="user-icon" />
-                <div className="user-details">
-                  <span className="user-name">{userName || userEmail}</span>
-                  <span className="profile-label">Ver perfil</span>
-                </div>
-              </div>
-            </div>
-          )}
 
           <h1>Bienvenido al Panel de Control</h1>
           <p>Aquí puedes gestionar tus productos y ventas.</p>
