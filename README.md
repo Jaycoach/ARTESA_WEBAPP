@@ -98,6 +98,13 @@ DEV_NGROK_URL=https://tu-subdominio.ngrok-free.app
 # URL de producción (opcional)
 PROD_URL=https://tu-dominio-de-produccion.com
 ```
+---
+
+# LA ARTESA Web App
+
+## Arquitectura del Sistema
+
+![Arquitectura de LA ARTESA Web App](scripts\docs\images\backend-architecture-diagram.svg)
 
 ---
 
