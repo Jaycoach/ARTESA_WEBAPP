@@ -1,9 +1,9 @@
-// src/routes/clientProfileRoutes.js
+// src/routes/clientProfileRoutes.js - Versión completa
 const express = require('express');
 const router = express.Router();
 const clientProfileController = require('../controllers/clientProfileController');
 const { verifyToken, checkRole } = require('../middleware/auth');
-const { sanitizeBody, sanitizeParams } = require('../middleware/security');
+const { sanitizeParams } = require('../middleware/security');
 const fileUpload = require('express-fileupload');
 
 // Middleware para manejar la subida de archivos
@@ -14,8 +14,8 @@ router.use(fileUpload({
   responseOnLimit: "Archivo demasiado grande. El límite es de 10MB."
 }));
 
-// Aplicar middleware de seguridad a todas las rutas
-router.use(sanitizeBody, sanitizeParams);
+// Aplicar middleware de sanitización a todas las rutas
+router.use(sanitizeParams);
 
 /**
  * @swagger
@@ -36,22 +36,10 @@ router.use(sanitizeBody, sanitizeParams);
  *     responses:
  *       200:
  *         description: Lista de perfiles recuperada exitosamente
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 data:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/ClientProfile'
  *       401:
- *         description: No autorizado - Token no proporcionado o inválido
+ *         description: No autorizado
  *       403:
- *         description: Prohibido - Sin permisos de administrador
+ *         description: Prohibido - No tiene permisos suficientes
  *       500:
  *         description: Error interno del servidor
  */
@@ -80,18 +68,8 @@ router.get('/client-profiles',
  *     responses:
  *       200:
  *         description: Perfil recuperado exitosamente
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 data:
- *                   $ref: '#/components/schemas/ClientProfile'
  *       401:
- *         description: No autorizado - Token no proporcionado o inválido
+ *         description: No autorizado
  *       404:
  *         description: Perfil no encontrado
  *       500:
@@ -104,56 +82,141 @@ router.get('/client-profiles/:id',
 
 /**
  * @swagger
+ * /api/client-profiles/user/{userId}:
+ *   get:
+ *     summary: Obtener perfil de cliente por ID de usuario
+ *     description: Recupera los detalles del perfil de un cliente por su ID de usuario
+ *     tags: [ClientProfiles]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID del usuario
+ *     responses:
+ *       200:
+ *         description: Perfil recuperado exitosamente
+ *       401:
+ *         description: No autorizado
+ *       404:
+ *         description: Perfil no encontrado
+ *       500:
+ *         description: Error interno del servidor
+ */
+router.get('/client-profiles/user/:userId', 
+  verifyToken, 
+  clientProfileController.getProfileByUserId
+);
+
+/**
+ * @swagger
  * /api/client-profiles:
  *   post:
  *     summary: Crear un nuevo perfil de cliente
- *     description: Crea un nuevo perfil de cliente en el sistema
+ *     description: Crea un nuevo perfil de cliente en el sistema con todos los campos del formulario
  *     tags: [ClientProfiles]
  *     security:
  *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
- *         application/json:
+ *         multipart/form-data:
  *           schema:
  *             type: object
- *             required:
- *               - company_name
  *             properties:
- *               user_id:
+ *               userId:
  *                 type: integer
  *                 description: ID del usuario asociado
- *               company_name:
+ *               nombre:
  *                 type: string
- *                 description: Nombre de la empresa
- *               contact_name:
+ *                 description: Nombre completo
+ *               tipoDocumento:
  *                 type: string
- *                 description: Nombre del contacto
- *               contact_phone:
+ *                 enum: [CC, CE, PASAPORTE]
+ *                 description: Tipo de documento de identidad
+ *               numeroDocumento:
  *                 type: string
- *                 description: Teléfono de contacto
- *               contact_email:
- *                 type: string
- *                 format: email
- *                 description: Email de contacto
- *               address:
+ *                 description: Número de documento
+ *               direccion:
  *                 type: string
  *                 description: Dirección física
- *               city:
+ *               ciudad:
  *                 type: string
  *                 description: Ciudad
- *               country:
+ *               pais:
  *                 type: string
  *                 description: País
- *               tax_id:
+ *                 default: Colombia
+ *               telefono:
  *                 type: string
- *                 description: Identificación fiscal
- *               price_list:
- *                 type: integer
- *                 description: Lista de precios asignada (1, 2 o 3)
- *               notes:
+ *                 description: Teléfono de contacto
+ *               email:
  *                 type: string
- *                 description: Notas adicionales
+ *                 format: email
+ *                 description: Correo electrónico
+ *               razonSocial:
+ *                 type: string
+ *                 description: Razón social de la empresa
+ *               nit:
+ *                 type: string
+ *                 description: NIT de la empresa
+ *               representanteLegal:
+ *                 type: string
+ *                 description: Representante legal
+ *               actividadComercial:
+ *                 type: string
+ *                 description: Actividad comercial
+ *               sectorEconomico:
+ *                 type: string
+ *                 description: Sector económico
+ *               tamanoEmpresa:
+ *                 type: string
+ *                 enum: [Microempresa, Pequeña, Mediana, Grande]
+ *                 description: Tamaño de la empresa
+ *               ingresosMensuales:
+ *                 type: string
+ *                 description: Ingresos mensuales promedio
+ *               patrimonio:
+ *                 type: string
+ *                 description: Patrimonio
+ *               entidadBancaria:
+ *                 type: string
+ *                 description: Entidad bancaria
+ *               tipoCuenta:
+ *                 type: string
+ *                 enum: [Ahorros, Corriente]
+ *                 description: Tipo de cuenta bancaria
+ *               numeroCuenta:
+ *                 type: string
+ *                 description: Número de cuenta bancaria
+ *               nombreContacto:
+ *                 type: string
+ *                 description: Nombre del contacto alternativo
+ *               cargoContacto:
+ *                 type: string
+ *                 description: Cargo del contacto alternativo
+ *               telefonoContacto:
+ *                 type: string
+ *                 description: Teléfono del contacto alternativo
+ *               emailContacto:
+ *                 type: string
+ *                 format: email
+ *                 description: Email del contacto alternativo
+ *               fotocopiaCedula:
+ *                 type: string
+ *                 format: binary
+ *                 description: Fotocopia de la cédula
+ *               fotocopiaRut:
+ *                 type: string
+ *                 format: binary
+ *                 description: Fotocopia del RUT
+ *               anexosAdicionales:
+ *                 type: string
+ *                 format: binary
+ *                 description: Anexos adicionales
  *     responses:
  *       201:
  *         description: Perfil creado exitosamente
@@ -169,19 +232,16 @@ router.get('/client-profiles/:id',
  *                   type: string
  *                   example: Perfil de cliente creado exitosamente
  *                 data:
- *                   $ref: '#/components/schemas/ClientProfile'
+ *                   type: object
  *       400:
  *         description: Datos inválidos
  *       401:
- *         description: No autorizado - Token no proporcionado o inválido
- *       403:
- *         description: Prohibido - Sin permisos suficientes
+ *         description: No autorizado
  *       500:
  *         description: Error interno del servidor
  */
 router.post('/client-profiles', 
-  verifyToken, 
-  checkRole([1]), // Solo administradores pueden crear perfiles
+  verifyToken,
   clientProfileController.createProfile
 );
 
@@ -204,41 +264,96 @@ router.post('/client-profiles',
  *     requestBody:
  *       required: true
  *       content:
- *         application/json:
+ *         multipart/form-data:
  *           schema:
  *             type: object
  *             properties:
- *               company_name:
+ *               nombre:
  *                 type: string
- *                 description: Nombre de la empresa
- *               contact_name:
+ *                 description: Nombre completo
+ *               tipoDocumento:
  *                 type: string
- *                 description: Nombre del contacto
- *               contact_phone:
+ *                 enum: [CC, CE, PASAPORTE]
+ *                 description: Tipo de documento de identidad
+ *               numeroDocumento:
  *                 type: string
- *                 description: Teléfono de contacto
- *               contact_email:
- *                 type: string
- *                 format: email
- *                 description: Email de contacto
- *               address:
+ *                 description: Número de documento
+ *               direccion:
  *                 type: string
  *                 description: Dirección física
- *               city:
+ *               ciudad:
  *                 type: string
  *                 description: Ciudad
- *               country:
+ *               pais:
  *                 type: string
  *                 description: País
- *               tax_id:
+ *               telefono:
  *                 type: string
- *                 description: Identificación fiscal
- *               price_list:
- *                 type: integer
- *                 description: Lista de precios asignada (1, 2 o 3)
- *               notes:
+ *                 description: Teléfono de contacto
+ *               email:
  *                 type: string
- *                 description: Notas adicionales
+ *                 format: email
+ *                 description: Correo electrónico
+ *               razonSocial:
+ *                 type: string
+ *                 description: Razón social de la empresa
+ *               nit:
+ *                 type: string
+ *                 description: NIT de la empresa
+ *               representanteLegal:
+ *                 type: string
+ *                 description: Representante legal
+ *               actividadComercial:
+ *                 type: string
+ *                 description: Actividad comercial
+ *               sectorEconomico:
+ *                 type: string
+ *                 description: Sector económico
+ *               tamanoEmpresa:
+ *                 type: string
+ *                 enum: [Microempresa, Pequeña, Mediana, Grande]
+ *                 description: Tamaño de la empresa
+ *               ingresosMensuales:
+ *                 type: string
+ *                 description: Ingresos mensuales promedio
+ *               patrimonio:
+ *                 type: string
+ *                 description: Patrimonio
+ *               entidadBancaria:
+ *                 type: string
+ *                 description: Entidad bancaria
+ *               tipoCuenta:
+ *                 type: string
+ *                 enum: [Ahorros, Corriente]
+ *                 description: Tipo de cuenta bancaria
+ *               numeroCuenta:
+ *                 type: string
+ *                 description: Número de cuenta bancaria
+ *               nombreContacto:
+ *                 type: string
+ *                 description: Nombre del contacto alternativo
+ *               cargoContacto:
+ *                 type: string
+ *                 description: Cargo del contacto alternativo
+ *               telefonoContacto:
+ *                 type: string
+ *                 description: Teléfono del contacto alternativo
+ *               emailContacto:
+ *                 type: string
+ *                 format: email
+ *                 description: Email del contacto alternativo
+ *               fotocopiaCedula:
+ *                 type: string
+ *                 format: binary
+ *                 description: Fotocopia de la cédula
+ *               fotocopiaRut:
+ *                 type: string
+ *                 format: binary
+ *                 description: Fotocopia del RUT
+ *               anexosAdicionales:
+ *                 type: string
+ *                 format: binary
+ *                 description: Anexos adicionales
  *     responses:
  *       200:
  *         description: Perfil actualizado exitosamente
@@ -254,21 +369,18 @@ router.post('/client-profiles',
  *                   type: string
  *                   example: Perfil de cliente actualizado exitosamente
  *                 data:
- *                   $ref: '#/components/schemas/ClientProfile'
+ *                   type: object
  *       400:
  *         description: Datos inválidos
  *       401:
- *         description: No autorizado - Token no proporcionado o inválido
- *       403:
- *         description: Prohibido - Sin permisos suficientes
+ *         description: No autorizado
  *       404:
  *         description: Perfil no encontrado
  *       500:
  *         description: Error interno del servidor
  */
 router.put('/client-profiles/:id', 
-  verifyToken, 
-  checkRole([1]), // Solo administradores pueden actualizar perfiles
+  verifyToken,
   clientProfileController.updateProfile
 );
 
@@ -303,19 +415,18 @@ router.put('/client-profiles/:id',
  *                   type: string
  *                   example: Perfil de cliente eliminado exitosamente
  *                 data:
- *                   $ref: '#/components/schemas/ClientProfile'
+ *                   type: object
  *       401:
- *         description: No autorizado - Token no proporcionado o inválido
+ *         description: No autorizado
  *       403:
- *         description: Prohibido - Sin permisos suficientes
+ *         description: Prohibido - No tiene permisos suficientes
  *       404:
  *         description: Perfil no encontrado
  *       500:
  *         description: Error interno del servidor
  */
 router.delete('/client-profiles/:id', 
-  verifyToken, 
-  checkRole([1]), // Solo administradores pueden eliminar perfiles
+  verifyToken,
   clientProfileController.deleteProfile
 );
 

@@ -1,4 +1,4 @@
-// src/models/ClientProfile.js
+// src/models/ClientProfile.js - Versión actualizada
 const pool = require('../config/db');
 const { createContextLogger } = require('../config/logger');
 
@@ -6,7 +6,8 @@ const { createContextLogger } = require('../config/logger');
 const logger = createContextLogger('ClientProfileModel');
 
 /**
- * Clase que representa el modelo de perfiles de cliente
+ * Clase que representa el modelo de perfiles de cliente actualizado
+ * para coincidir con el formulario del frontend
  * @class ClientProfile
  */
 class ClientProfile {
@@ -22,10 +23,27 @@ class ClientProfile {
       logger.debug('Buscando perfil de cliente por ID', { clientId });
       
       const query = `
-        SELECT cp.*, u.name as user_name, u.mail as user_email 
+        SELECT 
+          client_id,
+          user_id,
+          company_name AS "razonSocial",
+          contact_name AS "nombre",
+          contact_phone AS "telefono",
+          contact_email AS "email",
+          address AS "direccion",
+          city AS "ciudad",
+          country AS "pais",
+          tax_id AS "nit",
+          price_list,
+          notes,
+          fotocopia_cedula AS "fotocopiaCedula",
+          fotocopia_rut AS "fotocopiaRut",
+          anexos_adicionales AS "anexosAdicionales",
+          created_at,
+          updated_at,
+          (SELECT name FROM users WHERE id = cp.user_id) AS user_name
         FROM client_profiles cp
-        LEFT JOIN users u ON cp.user_id = u.id
-        WHERE cp.client_id = $1;
+        WHERE client_id = $1;
       `;
       
       const { rows } = await pool.query(query, [clientId]);
@@ -35,8 +53,23 @@ class ClientProfile {
         return null;
       }
       
+      // Extraer campos adicionales del campo notes si está en formato JSON
+      const profile = rows[0];
+      try {
+        if (profile.notes) {
+          const extraData = JSON.parse(profile.notes);
+          // Combinar el perfil base con los datos extra
+          Object.assign(profile, extraData);
+        }
+      } catch (e) {
+        logger.warn('No se pudo parsear los datos adicionales del perfil', {
+          clientId,
+          error: e.message
+        });
+      }
+      
       logger.debug('Perfil de cliente encontrado', { clientId });
-      return rows[0];
+      return profile;
     } catch (error) {
       logger.error('Error al buscar perfil de cliente por ID', { 
         error: error.message,
@@ -58,10 +91,27 @@ class ClientProfile {
       logger.debug('Buscando perfil de cliente por ID de usuario', { userId });
       
       const query = `
-        SELECT cp.*, u.name as user_name, u.mail as user_email 
+        SELECT 
+          client_id,
+          user_id,
+          company_name AS "razonSocial",
+          contact_name AS "nombre",
+          contact_phone AS "telefono",
+          contact_email AS "email",
+          address AS "direccion",
+          city AS "ciudad",
+          country AS "pais",
+          tax_id AS "nit",
+          price_list,
+          notes,
+          fotocopia_cedula AS "fotocopiaCedula",
+          fotocopia_rut AS "fotocopiaRut",
+          anexos_adicionales AS "anexosAdicionales",
+          created_at,
+          updated_at,
+          (SELECT name FROM users WHERE id = cp.user_id) AS user_name
         FROM client_profiles cp
-        LEFT JOIN users u ON cp.user_id = u.id
-        WHERE cp.user_id = $1;
+        WHERE user_id = $1;
       `;
       
       const { rows } = await pool.query(query, [userId]);
@@ -71,8 +121,23 @@ class ClientProfile {
         return null;
       }
       
+      // Extraer campos adicionales del campo notes si está en formato JSON
+      const profile = rows[0];
+      try {
+        if (profile.notes) {
+          const extraData = JSON.parse(profile.notes);
+          // Combinar el perfil base con los datos extra
+          Object.assign(profile, extraData);
+        }
+      } catch (e) {
+        logger.warn('No se pudo parsear los datos adicionales del perfil', {
+          userId,
+          error: e.message
+        });
+      }
+      
       logger.debug('Perfil de cliente encontrado por ID de usuario', { userId });
-      return rows[0];
+      return profile;
     } catch (error) {
       logger.error('Error al buscar perfil de cliente por ID de usuario', { 
         error: error.message,
@@ -93,16 +158,49 @@ class ClientProfile {
       logger.debug('Obteniendo todos los perfiles de clientes');
       
       const query = `
-        SELECT cp.*, u.name as user_name, u.mail as user_email 
+        SELECT 
+          client_id,
+          user_id,
+          company_name AS "razonSocial",
+          contact_name AS "nombre",
+          contact_phone AS "telefono",
+          contact_email AS "email",
+          address AS "direccion",
+          city AS "ciudad",
+          country AS "pais",
+          tax_id AS "nit",
+          price_list,
+          notes,
+          fotocopia_cedula AS "fotocopiaCedula",
+          fotocopia_rut AS "fotocopiaRut",
+          anexos_adicionales AS "anexosAdicionales",
+          created_at,
+          updated_at,
+          (SELECT name FROM users WHERE id = cp.user_id) AS user_name
         FROM client_profiles cp
-        LEFT JOIN users u ON cp.user_id = u.id
-        ORDER BY cp.company_name;
+        ORDER BY company_name;
       `;
       
       const { rows } = await pool.query(query);
       
-      logger.debug('Perfiles de clientes obtenidos', { count: rows.length });
-      return rows;
+      // Procesar cada perfil para extraer datos adicionales
+      const profiles = rows.map(profile => {
+        try {
+          if (profile.notes) {
+            const extraData = JSON.parse(profile.notes);
+            return { ...profile, ...extraData };
+          }
+        } catch (e) {
+          logger.warn('No se pudo parsear los datos adicionales de un perfil', {
+            clientId: profile.client_id,
+            error: e.message
+          });
+        }
+        return profile;
+      });
+      
+      logger.debug('Perfiles de clientes obtenidos', { count: profiles.length });
+      return profiles;
     } catch (error) {
       logger.error('Error al obtener todos los perfiles de clientes', { 
         error: error.message
@@ -112,7 +210,7 @@ class ClientProfile {
   }
   
   /**
-   * Crea un nuevo perfil de cliente
+   * Crea un nuevo perfil de cliente con mapeo al formulario del frontend
    * @async
    * @param {Object} clientData - Datos del perfil de cliente
    * @returns {Promise<Object>} - Perfil de cliente creado
@@ -120,66 +218,108 @@ class ClientProfile {
    */
   static async create(clientData) {
     try {
-      logger.debug('Creando nuevo perfil de cliente', { 
-        userId: clientData.user_id,
-        companyName: clientData.company_name
-      });
-      
+      // Extraer los campos principales que se almacenan directamente
       const {
-        user_id,
-        company_name,
-        contact_name,
-        contact_phone,
-        contact_email,
-        address,
-        city,
-        country,
-        tax_id,
-        price_list,
-        notes,
-        fotocopia_cedula,
-        fotocopia_rut,
-        anexos_adicionales
+        userId,
+        nombre,
+        email,
+        telefono,
+        direccion,
+        ciudad,
+        pais = 'Colombia',
+        razonSocial,
+        nit,
+        tipoDocumento,
+        numeroDocumento,
+        // Otros campos
+        fotocopiaCedula,
+        fotocopiaRut,
+        anexosAdicionales
       } = clientData;
       
+      logger.debug('Creando nuevo perfil de cliente', { 
+        userId,
+        nombre,
+        email
+      });
+      
+      // Extraer todos los demás campos para almacenarlos como JSON en notes
+      const additionalFields = { ...clientData };
+      
+      // Eliminar campos que ya están mapeados a columnas de la base de datos
+      ['userId', 'nombre', 'email', 'telefono', 'direccion', 'ciudad', 'pais', 
+       'razonSocial', 'nit', 'fotocopiaCedula', 'fotocopiaRut', 'anexosAdicionales'].forEach(key => {
+        delete additionalFields[key];
+      });
+      
+      // Mapear los campos del formulario a los campos de la base de datos
       const query = `
         INSERT INTO client_profiles
         (user_id, company_name, contact_name, contact_phone, contact_email, 
-         address, city, country, tax_id, price_list, notes,
-         fotocopia_cedula, fotocopia_rut, anexos_adicionales)
+         address, city, country, tax_id, notes,
+         fotocopia_cedula, fotocopia_rut, anexos_adicionales, price_list)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         RETURNING *;
       `;
       
+      // Crear JSON con campos adicionales
+      const notesJSON = JSON.stringify(additionalFields);
+      
       const values = [
-        user_id,
-        company_name,
-        contact_name,
-        contact_phone,
-        contact_email,
-        address,
-        city,
-        country,
-        tax_id,
-        price_list,
-        notes,
-        fotocopia_cedula,
-        fotocopia_rut,
-        anexos_adicionales
+        userId,                  // user_id
+        razonSocial || '',       // company_name
+        nombre || '',            // contact_name
+        telefono || '',          // contact_phone
+        email || '',             // contact_email
+        direccion || '',         // address
+        ciudad || '',            // city
+        pais || 'Colombia',      // country
+        nit || '',               // tax_id
+        notesJSON,               // notes (campos adicionales en JSON)
+        fotocopiaCedula || null, // fotocopia_cedula
+        fotocopiaRut || null,    // fotocopia_rut
+        anexosAdicionales || null, // anexos_adicionales
+        1                        // price_list (valor por defecto)
       ];
       
       const { rows } = await pool.query(query, values);
       
+      // Crear un objeto que combine los campos de la base de datos con los adicionales
+      const createdProfile = {
+        ...rows[0],
+        ...additionalFields
+      };
+      
+      // Renombrar campos para coincidir con el formulario
+      const profile = {
+        client_id: createdProfile.client_id,
+        user_id: createdProfile.user_id,
+        nombre: createdProfile.contact_name,
+        email: createdProfile.contact_email,
+        telefono: createdProfile.contact_phone,
+        direccion: createdProfile.address,
+        ciudad: createdProfile.city,
+        pais: createdProfile.country,
+        razonSocial: createdProfile.company_name,
+        nit: createdProfile.tax_id,
+        fotocopiaCedula: createdProfile.fotocopia_cedula,
+        fotocopiaRut: createdProfile.fotocopia_rut,
+        anexosAdicionales: createdProfile.anexos_adicionales,
+        created_at: createdProfile.created_at,
+        updated_at: createdProfile.updated_at,
+        ...additionalFields
+      };
+      
       logger.info('Perfil de cliente creado exitosamente', { 
-        clientId: rows[0].client_id,
-        companyName: company_name
+        clientId: profile.client_id,
+        userId
       });
       
-      return rows[0];
+      return profile;
     } catch (error) {
       logger.error('Error al crear perfil de cliente', { 
         error: error.message,
-        companyName: clientData.company_name
+        userId: clientData.userId
       });
       throw error;
     }
@@ -200,39 +340,72 @@ class ClientProfile {
         fields: Object.keys(updateData)
       });
       
-      // Construir la consulta dinámicamente
-      const allowedFields = [
-        'user_id', 'company_name', 'contact_name', 'contact_phone',
-        'contact_email', 'address', 'city', 'country', 'tax_id',
-        'price_list', 'notes', 'fotocopia_cedula', 'fotocopia_rut',
-        'anexos_adicionales'
-      ];
+      // Extraer campos del formulario
+      const {
+        nombre,
+        email,
+        telefono,
+        direccion,
+        ciudad,
+        pais,
+        razonSocial,
+        nit,
+        fotocopiaCedula,
+        fotocopiaRut,
+        anexosAdicionales,
+        // Otros campos específicos que quizás queramos extraer
+        tipoDocumento,
+        numeroDocumento
+      } = updateData;
       
-      const updates = [];
-      const values = [];
-      let paramCount = 1;
+      // Extraer campos adicionales para almacenar en notes
+      const additionalFields = { ...updateData };
       
-      Object.entries(updateData).forEach(([key, value]) => {
-        if (allowedFields.includes(key) && value !== undefined) {
-          updates.push(`${key} = $${paramCount}`);
-          values.push(value);
-          paramCount++;
-        }
+      // Eliminar campos que ya están mapeados a columnas de la base de datos
+      ['nombre', 'email', 'telefono', 'direccion', 'ciudad', 'pais', 
+       'razonSocial', 'nit', 'fotocopiaCedula', 'fotocopiaRut', 'anexosAdicionales'].forEach(key => {
+        delete additionalFields[key];
       });
       
-      if (updates.length === 0) {
-        logger.warn('No se proporcionaron campos válidos para actualizar', { clientId });
-        return null;
-      }
+      // Crear JSON con campos adicionales
+      const notesJSON = JSON.stringify(additionalFields);
       
-      values.push(clientId);
-      
+      // Construir la consulta de actualización
       const query = `
         UPDATE client_profiles
-        SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP
-        WHERE client_id = $${paramCount}
+        SET 
+          company_name = COALESCE($1, company_name),
+          contact_name = COALESCE($2, contact_name),
+          contact_phone = COALESCE($3, contact_phone),
+          contact_email = COALESCE($4, contact_email),
+          address = COALESCE($5, address),
+          city = COALESCE($6, city),
+          country = COALESCE($7, country),
+          tax_id = COALESCE($8, tax_id),
+          notes = $9,
+          fotocopia_cedula = COALESCE($10, fotocopia_cedula),
+          fotocopia_rut = COALESCE($11, fotocopia_rut),
+          anexos_adicionales = COALESCE($12, anexos_adicionales),
+          updated_at = CURRENT_TIMESTAMP
+        WHERE client_id = $13
         RETURNING *;
       `;
+      
+      const values = [
+        razonSocial,          // company_name
+        nombre,               // contact_name
+        telefono,             // contact_phone
+        email,                // contact_email
+        direccion,            // address
+        ciudad,               // city
+        pais,                 // country
+        nit,                  // tax_id
+        notesJSON,            // notes
+        fotocopiaCedula,      // fotocopia_cedula
+        fotocopiaRut,         // fotocopia_rut
+        anexosAdicionales,    // anexos_adicionales
+        clientId              // client_id para WHERE
+      ];
       
       const { rows } = await pool.query(query, values);
       
@@ -241,12 +414,38 @@ class ClientProfile {
         return null;
       }
       
+      // Crear un objeto que combine los campos de la base de datos con los adicionales
+      const updatedProfile = {
+        ...rows[0],
+        ...additionalFields
+      };
+      
+      // Renombrar campos para coincidir con el formulario
+      const profile = {
+        client_id: updatedProfile.client_id,
+        user_id: updatedProfile.user_id,
+        nombre: updatedProfile.contact_name,
+        email: updatedProfile.contact_email,
+        telefono: updatedProfile.contact_phone,
+        direccion: updatedProfile.address,
+        ciudad: updatedProfile.city,
+        pais: updatedProfile.country,
+        razonSocial: updatedProfile.company_name,
+        nit: updatedProfile.tax_id,
+        fotocopiaCedula: updatedProfile.fotocopia_cedula,
+        fotocopiaRut: updatedProfile.fotocopia_rut,
+        anexosAdicionales: updatedProfile.anexos_adicionales,
+        created_at: updatedProfile.created_at,
+        updated_at: updatedProfile.updated_at,
+        ...additionalFields
+      };
+      
       logger.info('Perfil de cliente actualizado exitosamente', { 
         clientId,
-        companyName: rows[0].company_name
+        razonSocial: updatedProfile.company_name
       });
       
-      return rows[0];
+      return profile;
     } catch (error) {
       logger.error('Error al actualizar perfil de cliente', { 
         error: error.message,
