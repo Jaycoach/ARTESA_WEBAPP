@@ -54,56 +54,115 @@ const saveFile = async (file) => {
  *           type: integer
  *           description: ID del usuario asociado
  *           example: 5
- *         company_name:
+ *         razonSocial:
  *           type: string
- *           description: Nombre de la empresa
+ *           description: Razón social de la empresa
  *           example: Empresa ABC
- *         contact_name:
+ *         nombre:
  *           type: string
  *           description: Nombre del contacto
  *           example: Juan Pérez
- *         contact_phone:
+ *         telefono:
  *           type: string
  *           description: Teléfono de contacto
  *           example: "+57 3001234567"
- *         contact_email:
+ *         email:
  *           type: string
  *           format: email
  *           description: Email de contacto
  *           example: contacto@empresaabc.com
- *         address:
+ *         direccion:
  *           type: string
  *           description: Dirección física
  *           example: Calle 123 #45-67
- *         city:
+ *         ciudad:
  *           type: string
  *           description: Ciudad
  *           example: Bogotá
- *         country:
+ *         pais:
  *           type: string
  *           description: País
  *           example: Colombia
- *         tax_id:
+ *         nit:
  *           type: string
  *           description: Identificación fiscal
  *           example: "901234567-8"
- *         price_list:
- *           type: integer
- *           description: Lista de precios asignada (1, 2 o 3)
- *           example: 2
- *         notes:
+ *         tipoDocumento:
  *           type: string
- *           description: Notas adicionales
- *           example: Cliente preferencial, atender con prioridad
- *         fotocopia_cedula:
+ *           enum: [CC, CE, PASAPORTE]
+ *           description: Tipo de documento de identidad
+ *           example: CC
+ *         numeroDocumento:
+ *           type: string
+ *           description: Número de documento
+ *           example: "1234567890"
+ *         representanteLegal:
+ *           type: string
+ *           description: Representante legal
+ *           example: María Rodríguez
+ *         actividadComercial:
+ *           type: string
+ *           description: Actividad comercial
+ *           example: Venta al por mayor
+ *         sectorEconomico:
+ *           type: string
+ *           description: Sector económico
+ *           example: Comercio
+ *         tamanoEmpresa:
+ *           type: string
+ *           enum: [Microempresa, Pequeña, Mediana, Grande]
+ *           description: Tamaño de la empresa
+ *           example: Pequeña
+ *         ingresosMensuales:
+ *           type: string
+ *           description: Ingresos mensuales promedio
+ *           example: "$10,000,000"
+ *         patrimonio:
+ *           type: string
+ *           description: Patrimonio
+ *           example: "$50,000,000"
+ *         entidadBancaria:
+ *           type: string
+ *           description: Entidad bancaria
+ *           example: Bancolombia
+ *         tipoCuenta:
+ *           type: string
+ *           enum: [Ahorros, Corriente]
+ *           description: Tipo de cuenta bancaria
+ *           example: Corriente
+ *         numeroCuenta:
+ *           type: string
+ *           description: Número de cuenta bancaria
+ *           example: "123456789"
+ *         nombreContacto:
+ *           type: string
+ *           description: Nombre del contacto alternativo
+ *           example: Pedro Gómez
+ *         cargoContacto:
+ *           type: string
+ *           description: Cargo del contacto alternativo
+ *           example: Gerente Financiero
+ *         telefonoContacto:
+ *           type: string
+ *           description: Teléfono del contacto alternativo
+ *           example: "+57 3009876543"
+ *         emailContacto:
+ *           type: string
+ *           format: email
+ *           description: Email del contacto alternativo
+ *           example: pedro@empresaabc.com
+ *         fotocopiaCedula:
  *           type: string
  *           description: Ruta de archivo de la fotocopia de cédula
- *         fotocopia_rut:
+ *           example: "abc123.pdf"
+ *         fotocopiaRut:
  *           type: string
  *           description: Ruta de archivo de la fotocopia del RUT
- *         anexos_adicionales:
+ *           example: "def456.pdf"
+ *         anexosAdicionales:
  *           type: string
  *           description: Ruta de archivo de anexos adicionales
+ *           example: "ghi789.pdf"
  *         created_at:
  *           type: string
  *           format: date-time
@@ -113,7 +172,6 @@ const saveFile = async (file) => {
  *           format: date-time
  *           description: Fecha de última actualización
  */
-
 class ClientProfileController {
   /**
    * @swagger
@@ -406,8 +464,6 @@ class ClientProfileController {
    *       500:
    *         description: Error interno del servidor
    */
-  // Actualización para src/controllers/clientProfileController.js - método createProfile
-
 async createProfile(req, res) {
   try {
     // Depuración inicial
