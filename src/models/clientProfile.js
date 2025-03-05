@@ -208,7 +208,7 @@ class ClientProfile {
       throw error;
     }
   }
-  
+
 /**
  * Crea un nuevo perfil de cliente con mapeo al formulario del frontend
  * @async
@@ -241,6 +241,11 @@ static async create(clientData) {
       email
     });
     
+    // Validar que exista userId
+    if (!userId) {
+      throw new Error('Se requiere el ID de usuario para crear el perfil');
+    }
+    
     // Extraer todos los demás campos para almacenarlos como JSON en notes
     const additionalFields = { ...clientData };
     
@@ -262,7 +267,7 @@ static async create(clientData) {
     
     // Crear JSON con campos adicionales
     const notesJSON = Object.keys(additionalFields).length > 0 ? 
-    JSON.stringify(additionalFields) : null;
+      JSON.stringify(additionalFields) : null;
   
     const values = [
       userId,                  // user_id
@@ -272,16 +277,20 @@ static async create(clientData) {
       email,                   // contact_email
       direccion,               // address
       ciudad,                  // city
-      pais,                    // country
+      pais || 'Colombia',      // country (valor por defecto)
       nit,                     // tax_id
       notesJSON,               // notes (campos adicionales en JSON)
       fotocopiaCedula,         // fotocopia_cedula
       fotocopiaRut,            // fotocopia_rut
       anexosAdicionales,       // anexos_adicionales
-      1                        // price_list (valor por defecto)
+      clientData.listaPrecios || 1 // price_list (valor por defecto: 1)
     ];
     
     const { rows } = await pool.query(query, values);
+    
+    if (rows.length === 0) {
+      throw new Error('No se pudo crear el perfil de cliente');
+    }
     
     // Crear un objeto que combine los campos de la base de datos con los adicionales
     const createdProfile = {
@@ -318,7 +327,8 @@ static async create(clientData) {
   } catch (error) {
     logger.error('Error al crear perfil de cliente', { 
       error: error.message,
-      userId: clientData.userId
+      userId: clientData.userId,
+      stack: error.stack
     });
     throw error;
   }

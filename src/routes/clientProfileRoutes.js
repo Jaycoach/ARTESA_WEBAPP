@@ -277,6 +277,8 @@ router.get('/client-profiles/user/:userId',
   clientProfileController.getProfileByUserId
 );
 
+// Actualización para src/routes/clientProfileRoutes.js
+
 /**
  * @swagger
  * /api/client-profiles:
