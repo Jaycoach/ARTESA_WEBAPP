@@ -222,7 +222,7 @@ router.get('/',
  *       500:
  *         description: Error interno del servidor
  */
-router.get('/:id', 
+router.get('/user/:userId', 
   verifyToken, 
   clientProfileController.getProfileById
 );
@@ -626,9 +626,9 @@ router.delete('/:id',
  *       500:
  *         description: Error interno del servidor
  */
-router.get('/:id/file/:fileType',
+router.get('/user/:userId/file/:fileType',
   verifyToken,
-  clientProfileController.getFile
+  clientProfileController.getFileByUserId
 );
 
 /**

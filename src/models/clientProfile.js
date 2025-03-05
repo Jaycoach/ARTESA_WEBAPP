@@ -14,13 +14,13 @@ class ClientProfile {
   /**
    * Obtiene un perfil de cliente por su ID
    * @async
-   * @param {number} clientId - ID del perfil de cliente
+   * @param {number} userId - ID del perfil de cliente
    * @returns {Promise<Object|null>} - Perfil de cliente encontrado o null si no existe
    * @throws {Error} Si ocurre un error en la consulta
    */
-  static async getById(clientId) {
+  static async getById(userId) {
     try {
-      logger.debug('Buscando perfil de cliente por ID', { clientId });
+      logger.debug('Buscando perfil de cliente por ID', { userId });
       
       const query = `
         SELECT 
@@ -43,13 +43,13 @@ class ClientProfile {
           updated_at,
           (SELECT name FROM users WHERE id = cp.user_id) AS user_name
         FROM client_profiles cp
-        WHERE client_id = $1;
+        WHERE user_id = $1;
       `;
       
-      const { rows } = await pool.query(query, [clientId]);
+      const { rows } = await pool.query(query, [userId]);
       
       if (rows.length === 0) {
-        logger.debug('Perfil de cliente no encontrado', { clientId });
+        logger.debug('Perfil de cliente no encontrado', { userId });
         return null;
       }
       
@@ -63,17 +63,17 @@ class ClientProfile {
         }
       } catch (e) {
         logger.warn('No se pudo parsear los datos adicionales del perfil', {
-          clientId,
+          userId,
           error: e.message
         });
       }
       
-      logger.debug('Perfil de cliente encontrado', { clientId });
+      logger.debug('Perfil de cliente encontrado', { userId });
       return profile;
     } catch (error) {
       logger.error('Error al buscar perfil de cliente por ID', { 
         error: error.message,
-        clientId
+        userId
       });
       throw error;
     }
@@ -192,7 +192,7 @@ class ClientProfile {
           }
         } catch (e) {
           logger.warn('No se pudo parsear los datos adicionales de un perfil', {
-            clientId: profile.client_id,
+            userId: profile.client_id,
             error: e.message
           });
         }
@@ -217,6 +217,11 @@ class ClientProfile {
  * @throws {Error} Si ocurre un error en la inserción
  */
 static async create(clientData) {
+  // Asegurar que solo se pueda crear un perfil por usuario
+  const existingProfile = await this.getByUserId(clientData.userId);
+  if (existingProfile) {
+    throw new Error('El usuario ya tiene un perfil');
+  }
   try {
     // Extraer los campos principales que se almacenan directamente
     const {
@@ -319,7 +324,7 @@ static async create(clientData) {
     };
     
     logger.info('Perfil de cliente creado exitosamente', { 
-      clientId: profile.client_id,
+      userId: profile.client_id,
       userId
     });
     
@@ -337,15 +342,15 @@ static async create(clientData) {
   /**
    * Actualiza un perfil de cliente existente
    * @async
-   * @param {number} clientId - ID del perfil de cliente
+   * @param {number} userId - ID del cliente
    * @param {Object} updateData - Datos a actualizar
    * @returns {Promise<Object|null>} - Perfil actualizado o null si no existe
    * @throws {Error} Si ocurre un error en la actualización
    */
-  static async update(clientId, updateData) {
+  static async update(userId, updateData) {
     try {
       logger.debug('Actualizando perfil de cliente', { 
-        clientId,
+        userId,
         fields: Object.keys(updateData)
       });
       
@@ -396,7 +401,7 @@ static async create(clientData) {
           fotocopia_rut = COALESCE($11, fotocopia_rut),
           anexos_adicionales = COALESCE($12, anexos_adicionales),
           updated_at = CURRENT_TIMESTAMP
-        WHERE client_id = $13
+        WHERE user_id = $13
         RETURNING *;
       `;
       
@@ -413,13 +418,13 @@ static async create(clientData) {
         fotocopiaCedula,      // fotocopia_cedula
         fotocopiaRut,         // fotocopia_rut
         anexosAdicionales,    // anexos_adicionales
-        clientId              // client_id para WHERE
+        userId               // user_id para WHERE
       ];
       
       const { rows } = await pool.query(query, values);
       
       if (rows.length === 0) {
-        logger.warn('Perfil de cliente no encontrado al actualizar', { clientId });
+        logger.warn('Perfil de cliente no encontrado al actualizar', { userId });
         return null;
       }
       
@@ -450,7 +455,7 @@ static async create(clientData) {
       };
       
       logger.info('Perfil de cliente actualizado exitosamente', { 
-        clientId,
+        userId,
         razonSocial: updatedProfile.company_name
       });
       
@@ -458,7 +463,7 @@ static async create(clientData) {
     } catch (error) {
       logger.error('Error al actualizar perfil de cliente', { 
         error: error.message,
-        clientId
+        userId
       });
       throw error;
     }
@@ -467,25 +472,25 @@ static async create(clientData) {
   /**
    * Elimina un perfil de cliente
    * @async
-   * @param {number} clientId - ID del perfil de cliente
+   * @param {number} userId - ID del cliente
    * @returns {Promise<Object|null>} - Perfil eliminado o null si no existe
    * @throws {Error} Si ocurre un error en la eliminación
    */
-  static async delete(clientId) {
+  static async delete(userId) {
     try {
-      logger.debug('Eliminando perfil de cliente', { clientId });
+      logger.debug('Eliminando perfil de cliente', { userId });
       
-      const query = 'DELETE FROM client_profiles WHERE client_id = $1 RETURNING *;';
+      const query = 'DELETE FROM client_profiles WHERE user_id = $1 RETURNING *;';
       
-      const { rows } = await pool.query(query, [clientId]);
+      const { rows } = await pool.query(query, [userId]);
       
       if (rows.length === 0) {
-        logger.warn('Perfil de cliente no encontrado al eliminar', { clientId });
+        logger.warn('Perfil de cliente no encontrado al eliminar', { userId });
         return null;
       }
       
       logger.info('Perfil de cliente eliminado exitosamente', { 
-        clientId,
+        userId,
         companyName: rows[0].company_name
       });
       
@@ -493,7 +498,7 @@ static async create(clientData) {
     } catch (error) {
       logger.error('Error al eliminar perfil de cliente', { 
         error: error.message,
-        clientId
+        userId
       });
       throw error;
     }

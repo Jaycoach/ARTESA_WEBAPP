@@ -1181,15 +1181,15 @@ class ClientProfileController {
 
 async getFile(req, res) {
   try {
-    const { id, fileType } = req.params;
+    const { userId, fileType } = req.params;
     
     logger.debug('Obteniendo archivo de perfil de cliente', { 
-      profileId: id, 
+      userId: userId, 
       fileType 
     });
     
     // Obtener el perfil para verificar si existe y obtener la ruta del archivo
-    const profile = await ClientProfile.getById(id);
+    const profile = await ClientProfile.getById(userId);
     
     if (!profile) {
       logger.warn('Perfil de cliente no encontrado', { profileId: id });
@@ -1210,7 +1210,7 @@ async getFile(req, res) {
       fileName = profile.anexosAdicionales;
     } else {
       logger.warn('Archivo no encontrado en el perfil', { 
-        profileId: id, 
+        userId: userId, 
         fileType 
       });
       
@@ -1225,7 +1225,7 @@ async getFile(req, res) {
     // Verificar si el archivo existe en el sistema de archivos
     if (!fs.existsSync(filePath)) {
       logger.warn('Archivo no encontrado en el servidor', { 
-        profileId: id, 
+        userId: userId, 
         fileType, 
         path: filePath 
       });
@@ -1274,7 +1274,7 @@ async getFile(req, res) {
     logger.error('Error al obtener archivo de perfil de cliente', {
       error: error.message,
       stack: error.stack,
-      profileId: req.params.id,
+      profileId: req.params.userId,
       fileType: req.params.fileType
     });
     
