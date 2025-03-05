@@ -222,7 +222,7 @@ router.get('/',
  *       500:
  *         description: Error interno del servidor
  */
-router.get('/client-profiles/:id', 
+router.get('/:id', 
   verifyToken, 
   clientProfileController.getProfileById
 );
@@ -263,12 +263,10 @@ router.get('/client-profiles/:id',
  *       500:
  *         description: Error interno del servidor
  */
-router.get('/client-profiles/user/:userId', 
+router.get('/user/:userId', 
   verifyToken, 
   clientProfileController.getProfileByUserId
 );
-
-// Actualización para src/routes/clientProfileRoutes.js
 
 /**
  * @swagger
@@ -538,7 +536,7 @@ router.post('/',
  *       500:
  *         description: Error interno del servidor
  */
-router.put('/client-profiles/:id', 
+router.put('/:id', 
   verifyToken,
   clientProfileController.updateProfile
 );
@@ -584,7 +582,7 @@ router.put('/client-profiles/:id',
  *       500:
  *         description: Error interno del servidor
  */
-router.delete('/client-profiles/:id', 
+router.delete('/:id', 
   verifyToken,
   checkRole([1]), // Solo administradores pueden eliminar
   clientProfileController.deleteProfile
@@ -628,7 +626,7 @@ router.delete('/client-profiles/:id',
  *       500:
  *         description: Error interno del servidor
  */
-router.get('/client-profiles/:id/file/:fileType',
+router.get('/:id/file/:fileType',
   verifyToken,
   clientProfileController.getFile
 );
@@ -671,7 +669,7 @@ router.get('/client-profiles/:id/file/:fileType',
  *       500:
  *         description: Error interno del servidor
  */
-router.get('/client-profiles/user/:userId/file/:fileType',
+router.get('/user/:userId/file/:fileType',
   verifyToken,
   clientProfileController.getFileByUserId
 );

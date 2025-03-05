@@ -838,195 +838,211 @@ class ClientProfileController {
    *       500:
    *         description: Error interno del servidor
    */
-  // Actualización de la función updateProfile en src/controllers/clientProfileController.js
-
-async updateProfile(req, res) {
-  try {
-    const { id } = req.params;
-    
-    // Verificar que tengamos datos para actualizar
-    if (Object.keys(req.body).length === 0 && (!req.files || Object.keys(req.files).length === 0)) {
-      return res.status(400).json({
-        success: false,
-        message: 'No se proporcionaron datos para actualizar'
-      });
-    }
-    
-    // Extraer datos de la solicitud
-    const updateData = {};
-    
-    // Mapear campos específicos para estandarizar nombres
-    const fieldMap = {
-      // Campos básicos en camelCase
-      'razonSocial': 'razonSocial',
-      'nombre': 'nombre',
-      'telefono': 'telefono',
-      'email': 'email',
-      'direccion': 'direccion', 
-      'ciudad': 'ciudad',
-      'pais': 'pais',
-      'nit': 'nit',
-      
-      // Campos adicionales
-      'tipoDocumento': 'tipoDocumento',
-      'numeroDocumento': 'numeroDocumento',
-      'representanteLegal': 'representanteLegal',
-      'actividadComercial': 'actividadComercial',
-      'sectorEconomico': 'sectorEconomico',
-      'tamanoEmpresa': 'tamanoEmpresa',
-      'ingresosMensuales': 'ingresosMensuales',
-      'patrimonio': 'patrimonio',
-      'entidadBancaria': 'entidadBancaria',
-      'tipoCuenta': 'tipoCuenta',
-      'numeroCuenta': 'numeroCuenta',
-      'nombreContacto': 'nombreContacto',
-      'cargoContacto': 'cargoContacto',
-      'telefonoContacto': 'telefonoContacto',
-      'emailContacto': 'emailContacto',
-      
-      // Compatibilidad con campos en snake_case
-      'company_name': 'razonSocial',
-      'contact_name': 'nombre',
-      'contact_phone': 'telefono',
-      'contact_email': 'email',
-      'address': 'direccion',
-      'city': 'ciudad',
-      'country': 'pais',
-      'tax_id': 'nit',
-      'price_list': 'listaPrecios',
-      'notes': 'notas'
-    };
-    
-    // Asignar solo los campos que tienen valor
-    Object.keys(req.body).forEach(key => {
-      if (fieldMap[key] && req.body[key] !== undefined && req.body[key] !== '') {
-        updateData[fieldMap[key]] = req.body[key];
-      }
-    });
-    
-    logger.debug('Datos para actualización de perfil de cliente', { 
-      profileId: id,
-      fields: Object.keys(updateData)
-    });
-    
-    // Obtener el perfil actual para verificar si existe
-    const existingProfile = await ClientProfile.getById(id);
-    
-    if (!existingProfile) {
-      logger.warn('Perfil de cliente no encontrado al actualizar', { profileId: id });
-      return res.status(404).json({
-        success: false,
-        message: 'Perfil de cliente no encontrado'
-      });
-    }
-    
-    // Verificar si el usuario tiene permisos para actualizar este perfil
-    if (req.user.rol_id !== 1 && existingProfile.user_id !== req.user.id) {
-      logger.warn('Intento no autorizado de actualizar perfil', {
-        userId: req.user.id,
-        profileId: id,
-        profileOwnerId: existingProfile.user_id
-      });
-      
-      return res.status(403).json({
-        success: false,
-        message: 'No tiene permisos para actualizar este perfil'
-      });
-    }
-    
-    // Procesar archivos si existen
+  async updateProfile(req, res) {
     try {
-      if (req.files) {
-        // Mapeo de campos de archivos para estandarizar
-        const fileFieldMap = {
-          'fotocopiaCedula': 'fotocopiaCedula',
-          'fotocopia_cedula': 'fotocopiaCedula',
-          'fotocopiaRut': 'fotocopiaRut',
-          'fotocopia_rut': 'fotocopiaRut',
-          'anexosAdicionales': 'anexosAdicionales',
-          'anexos_adicionales': 'anexosAdicionales'
-        };
+      const { id } = req.params;
+      
+      // Agregar logs para depuración
+      logger.debug('Iniciando actualización de perfil de cliente', { 
+        profileId: id,
+        method: req.method,
+        path: req.path,
+        bodyFields: Object.keys(req.body),
+        hasFiles: !!req.files,
+        fileFields: req.files ? Object.keys(req.files) : []
+      });
+      
+      // Verificar que tengamos datos para actualizar
+      if (Object.keys(req.body).length === 0 && (!req.files || Object.keys(req.files).length === 0)) {
+        return res.status(400).json({
+          success: false,
+          message: 'No se proporcionaron datos para actualizar'
+        });
+      }
+      
+      // Extraer datos de la solicitud
+      const updateData = {};
+      
+      // Mapear campos específicos para estandarizar nombres
+      const fieldMap = {
+        // Campos básicos en camelCase
+        'razonSocial': 'razonSocial',
+        'nombre': 'nombre',
+        'telefono': 'telefono',
+        'email': 'email',
+        'direccion': 'direccion', 
+        'ciudad': 'ciudad',
+        'pais': 'pais',
+        'nit': 'nit',
         
-        // Procesar cada campo de archivo que exista
-        for (const field in req.files) {
-          if (fileFieldMap[field]) {
-            const standardizedField = fileFieldMap[field];
-            
-            // Eliminar archivo anterior si existe
-            const oldFileField = standardizedField === 'fotocopiaCedula' ? 'fotocopia_cedula' :
-                               standardizedField === 'fotocopiaRut' ? 'fotocopia_rut' : 
-                               'anexos_adicionales';
-                               
-            if (existingProfile[oldFileField]) {
-              const oldPath = path.join(uploadDir, existingProfile[oldFileField]);
-              if (fs.existsSync(oldPath)) {
-                fs.unlinkSync(oldPath);
+        // Campos adicionales
+        'tipoDocumento': 'tipoDocumento',
+        'numeroDocumento': 'numeroDocumento',
+        'representanteLegal': 'representanteLegal',
+        'actividadComercial': 'actividadComercial',
+        'sectorEconomico': 'sectorEconomico',
+        'tamanoEmpresa': 'tamanoEmpresa',
+        'ingresosMensuales': 'ingresosMensuales',
+        'patrimonio': 'patrimonio',
+        'entidadBancaria': 'entidadBancaria',
+        'tipoCuenta': 'tipoCuenta',
+        'numeroCuenta': 'numeroCuenta',
+        'nombreContacto': 'nombreContacto',
+        'cargoContacto': 'cargoContacto',
+        'telefonoContacto': 'telefonoContacto',
+        'emailContacto': 'emailContacto',
+        
+        // Compatibilidad con campos en snake_case
+        'company_name': 'razonSocial',
+        'contact_name': 'nombre',
+        'contact_phone': 'telefono',
+        'contact_email': 'email',
+        'address': 'direccion',
+        'city': 'ciudad',
+        'country': 'pais',
+        'tax_id': 'nit',
+        'price_list': 'listaPrecios',
+        'notes': 'notas'
+      };
+      
+      // Asignar solo los campos que tienen valor
+      Object.keys(req.body).forEach(key => {
+        if (fieldMap[key] && req.body[key] !== undefined && req.body[key] !== '') {
+          updateData[fieldMap[key]] = req.body[key];
+        }
+      });
+      
+      logger.debug('Datos para actualización de perfil de cliente', { 
+        profileId: id,
+        fields: Object.keys(updateData)
+      });
+      
+      // Obtener el perfil actual para verificar si existe
+      const existingProfile = await ClientProfile.getById(id);
+      
+      if (!existingProfile) {
+        logger.warn('Perfil de cliente no encontrado al actualizar', { profileId: id });
+        return res.status(404).json({
+          success: false,
+          message: 'Perfil de cliente no encontrado'
+        });
+      }
+      
+      // Verificar si el usuario tiene permisos para actualizar este perfil
+      if (req.user.rol_id !== 1 && existingProfile.user_id !== req.user.id) {
+        logger.warn('Intento no autorizado de actualizar perfil', {
+          userId: req.user.id,
+          profileId: id,
+          profileOwnerId: existingProfile.user_id
+        });
+        
+        return res.status(403).json({
+          success: false,
+          message: 'No tiene permisos para actualizar este perfil'
+        });
+      }
+      
+      // Procesar archivos si existen
+      try {
+        if (req.files) {
+          // Mapeo de campos de archivos para estandarizar
+          const fileFieldMap = {
+            'fotocopiaCedula': 'fotocopiaCedula',
+            'fotocopia_cedula': 'fotocopiaCedula',
+            'fotocopiaRut': 'fotocopiaRut',
+            'fotocopia_rut': 'fotocopiaRut',
+            'anexosAdicionales': 'anexosAdicionales',
+            'anexos_adicionales': 'anexosAdicionales'
+          };
+          
+          // Procesar cada campo de archivo que exista
+          for (const field in req.files) {
+            if (fileFieldMap[field]) {
+              const standardizedField = fileFieldMap[field];
+              
+              // Eliminar archivo anterior si existe
+              const oldFileField = standardizedField === 'fotocopiaCedula' ? 'fotocopiaCedula' :
+                                 standardizedField === 'fotocopiaRut' ? 'fotocopiaRut' : 
+                                 'anexosAdicionales';
+                                 
+              if (existingProfile[oldFileField]) {
+                const oldPath = path.join(uploadDir, existingProfile[oldFileField]);
+                if (fs.existsSync(oldPath)) {
+                  fs.unlinkSync(oldPath);
+                  logger.debug('Archivo anterior eliminado', { 
+                    path: oldPath, 
+                    field: oldFileField 
+                  });
+                }
               }
+              
+              // Guardar el nuevo archivo
+              updateData[standardizedField] = await saveFile(req.files[field]);
+              logger.debug('Nuevo archivo guardado', { 
+                field: standardizedField, 
+                filename: updateData[standardizedField] 
+              });
             }
-            
-            // Guardar el nuevo archivo
-            updateData[standardizedField] = await saveFile(req.files[field]);
           }
         }
+      } catch (fileError) {
+        logger.error('Error procesando archivos en actualización', {
+          error: fileError.message,
+          stack: fileError.stack,
+          profileId: id
+        });
+        // Continuamos sin archivos
       }
-    } catch (fileError) {
-      logger.error('Error procesando archivos en actualización', {
-        error: fileError.message,
-        stack: fileError.stack,
-        profileId: id
+      
+      // Actualizar el perfil
+      const updatedProfile = await ClientProfile.update(id, updateData);
+      
+      if (!updatedProfile) {
+        return res.status(404).json({
+          success: false,
+          message: 'Error al actualizar perfil'
+        });
+      }
+      
+      // Agregar URLs para archivos en la respuesta
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      
+      if (updatedProfile.fotocopiaCedula) {
+        updatedProfile.fotocopiaCedulaUrl = `${baseUrl}/api/client-profiles/${id}/file/cedula`;
+      }
+      
+      if (updatedProfile.fotocopiaRut) {
+        updatedProfile.fotocopiaRutUrl = `${baseUrl}/api/client-profiles/${id}/file/rut`;
+      }
+      
+      if (updatedProfile.anexosAdicionales) {
+        updatedProfile.anexosAdicionalesUrl = `${baseUrl}/api/client-profiles/${id}/file/anexos`;
+      }
+      
+      logger.info('Perfil de cliente actualizado exitosamente', {
+        profileId: id,
+        razonSocial: updatedProfile.razonSocial || existingProfile.razonSocial
       });
-      // Continuamos sin archivos
-    }
-    
-    // Actualizar el perfil
-    const updatedProfile = await ClientProfile.update(id, updateData);
-    
-    if (!updatedProfile) {
-      return res.status(404).json({
+      
+      res.status(200).json({
+        success: true,
+        message: 'Perfil de cliente actualizado exitosamente',
+        data: updatedProfile
+      });
+    } catch (error) {
+      logger.error('Error al actualizar perfil de cliente', {
+        error: error.message,
+        stack: error.stack,
+        profileId: req.params.id
+      });
+      
+      res.status(500).json({
         success: false,
-        message: 'Error al actualizar perfil'
+        message: 'Error al actualizar perfil de cliente',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
-    
-    // Agregar URLs para archivos en la respuesta
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
-    
-    if (updatedProfile.fotocopiaCedula) {
-      updatedProfile.fotocopiaCedulaUrl = `${baseUrl}/api/client-profiles/${id}/file/cedula`;
-    }
-    
-    if (updatedProfile.fotocopiaRut) {
-      updatedProfile.fotocopiaRutUrl = `${baseUrl}/api/client-profiles/${id}/file/rut`;
-    }
-    
-    if (updatedProfile.anexosAdicionales) {
-      updatedProfile.anexosAdicionalesUrl = `${baseUrl}/api/client-profiles/${id}/file/anexos`;
-    }
-    
-    logger.info('Perfil de cliente actualizado exitosamente', {
-      profileId: id,
-      razonSocial: updatedProfile.razonSocial || existingProfile.razonSocial
-    });
-    
-    res.status(200).json({
-      success: true,
-      message: 'Perfil de cliente actualizado exitosamente',
-      data: updatedProfile
-    });
-  } catch (error) {
-    logger.error('Error al actualizar perfil de cliente', {
-      error: error.message,
-      stack: error.stack,
-      profileId: req.params.id
-    });
-    
-    res.status(500).json({
-      success: false,
-      message: 'Error al actualizar perfil de cliente',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
   }
-}
 
   /**
    * @swagger
