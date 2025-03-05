@@ -1,4 +1,4 @@
-// src/routes/clientProfileRoutes.js - Versión completa
+// src/routes/clientProfileRoutes.js
 const express = require('express');
 const router = express.Router();
 const clientProfileController = require('../controllers/clientProfileController');
@@ -6,7 +6,7 @@ const { verifyToken, checkRole } = require('../middleware/auth');
 const { sanitizeParams } = require('../middleware/security');
 const fileUpload = require('express-fileupload');
 
-// Middleware para manejar la subida de archivos
+// Configuración para la carga de archivos
 router.use(fileUpload({
   limits: { fileSize: 10 * 1024 * 1024 }, // Límite de 10MB
   useTempFiles: false,
@@ -26,6 +26,144 @@ router.use(sanitizeParams);
 
 /**
  * @swagger
+ * components:
+ *   schemas:
+ *     ClientProfile:
+ *       type: object
+ *       properties:
+ *         client_id:
+ *           type: integer
+ *           description: ID único del perfil de cliente
+ *           example: 1
+ *         user_id:
+ *           type: integer
+ *           description: ID del usuario asociado
+ *           example: 5
+ *         razonSocial:
+ *           type: string
+ *           description: Razón social de la empresa
+ *           example: Empresa ABC
+ *         nombre:
+ *           type: string
+ *           description: Nombre del contacto
+ *           example: Juan Pérez
+ *         telefono:
+ *           type: string
+ *           description: Teléfono de contacto
+ *           example: "+57 3001234567"
+ *         email:
+ *           type: string
+ *           format: email
+ *           description: Email de contacto
+ *           example: contacto@empresaabc.com
+ *         direccion:
+ *           type: string
+ *           description: Dirección física
+ *           example: Calle 123 #45-67
+ *         ciudad:
+ *           type: string
+ *           description: Ciudad
+ *           example: Bogotá
+ *         pais:
+ *           type: string
+ *           description: País
+ *           example: Colombia
+ *         nit:
+ *           type: string
+ *           description: Identificación fiscal
+ *           example: "901234567-8"
+ *         price_list:
+ *           type: integer
+ *           description: Lista de precios asignada (1, 2 o 3)
+ *           example: 2
+ *         tipoDocumento:
+ *           type: string
+ *           enum: [CC, CE, PASAPORTE]
+ *           description: Tipo de documento de identidad
+ *           example: CC
+ *         numeroDocumento:
+ *           type: string
+ *           description: Número de documento
+ *           example: "1234567890"
+ *         representanteLegal:
+ *           type: string
+ *           description: Representante legal
+ *           example: María Rodríguez
+ *         actividadComercial:
+ *           type: string
+ *           description: Actividad comercial
+ *           example: Venta al por mayor
+ *         sectorEconomico:
+ *           type: string
+ *           description: Sector económico
+ *           example: Comercio
+ *         tamanoEmpresa:
+ *           type: string
+ *           enum: [Microempresa, Pequeña, Mediana, Grande]
+ *           description: Tamaño de la empresa
+ *           example: Pequeña
+ *         ingresosMensuales:
+ *           type: string
+ *           description: Ingresos mensuales promedio
+ *           example: "$10,000,000"
+ *         patrimonio:
+ *           type: string
+ *           description: Patrimonio
+ *           example: "$50,000,000"
+ *         entidadBancaria:
+ *           type: string
+ *           description: Entidad bancaria
+ *           example: Bancolombia
+ *         tipoCuenta:
+ *           type: string
+ *           enum: [Ahorros, Corriente]
+ *           description: Tipo de cuenta bancaria
+ *           example: Corriente
+ *         numeroCuenta:
+ *           type: string
+ *           description: Número de cuenta bancaria
+ *           example: "123456789"
+ *         nombreContacto:
+ *           type: string
+ *           description: Nombre del contacto alternativo
+ *           example: Pedro Gómez
+ *         cargoContacto:
+ *           type: string
+ *           description: Cargo del contacto alternativo
+ *           example: Gerente Financiero
+ *         telefonoContacto:
+ *           type: string
+ *           description: Teléfono del contacto alternativo
+ *           example: "+57 3009876543"
+ *         emailContacto:
+ *           type: string
+ *           format: email
+ *           description: Email del contacto alternativo
+ *           example: pedro@empresaabc.com
+ *         fotocopiaCedula:
+ *           type: string
+ *           description: Ruta de archivo de la fotocopia de cédula
+ *           example: "abc123.pdf"
+ *         fotocopiaRut:
+ *           type: string
+ *           description: Ruta de archivo de la fotocopia del RUT
+ *           example: "def456.pdf"
+ *         anexosAdicionales:
+ *           type: string
+ *           description: Ruta de archivo de anexos adicionales
+ *           example: "ghi789.pdf"
+ *         created_at:
+ *           type: string
+ *           format: date-time
+ *           description: Fecha de creación del perfil
+ *         updated_at:
+ *           type: string
+ *           format: date-time
+ *           description: Fecha de última actualización
+ */
+
+/**
+ * @swagger
  * /api/client-profiles:
  *   get:
  *     summary: Obtener todos los perfiles de clientes
@@ -36,6 +174,18 @@ router.use(sanitizeParams);
  *     responses:
  *       200:
  *         description: Lista de perfiles recuperada exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/ClientProfile'
  *       401:
  *         description: No autorizado
  *       403:
@@ -68,6 +218,16 @@ router.get('/client-profiles',
  *     responses:
  *       200:
  *         description: Perfil recuperado exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   $ref: '#/components/schemas/ClientProfile'
  *       401:
  *         description: No autorizado
  *       404:
@@ -99,6 +259,16 @@ router.get('/client-profiles/:id',
  *     responses:
  *       200:
  *         description: Perfil recuperado exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   $ref: '#/components/schemas/ClientProfile'
  *       401:
  *         description: No autorizado
  *       404:
@@ -126,10 +296,15 @@ router.get('/client-profiles/user/:userId',
  *         multipart/form-data:
  *           schema:
  *             type: object
+ *             required:
+ *               - razonSocial
  *             properties:
  *               userId:
  *                 type: integer
  *                 description: ID del usuario asociado
+ *               razonSocial:
+ *                 type: string
+ *                 description: Razón social de la empresa
  *               nombre:
  *                 type: string
  *                 description: Nombre completo
@@ -157,9 +332,6 @@ router.get('/client-profiles/user/:userId',
  *                 type: string
  *                 format: email
  *                 description: Correo electrónico
- *               razonSocial:
- *                 type: string
- *                 description: Razón social de la empresa
  *               nit:
  *                 type: string
  *                 description: NIT de la empresa
@@ -232,9 +404,9 @@ router.get('/client-profiles/user/:userId',
  *                   type: string
  *                   example: Perfil de cliente creado exitosamente
  *                 data:
- *                   type: object
+ *                   $ref: '#/components/schemas/ClientProfile'
  *       400:
- *         description: Datos inválidos
+ *         description: Datos inválidos o el usuario ya tiene un perfil
  *       401:
  *         description: No autorizado
  *       500:
@@ -268,6 +440,9 @@ router.post('/client-profiles',
  *           schema:
  *             type: object
  *             properties:
+ *               razonSocial:
+ *                 type: string
+ *                 description: Razón social de la empresa
  *               nombre:
  *                 type: string
  *                 description: Nombre completo
@@ -294,9 +469,6 @@ router.post('/client-profiles',
  *                 type: string
  *                 format: email
  *                 description: Correo electrónico
- *               razonSocial:
- *                 type: string
- *                 description: Razón social de la empresa
  *               nit:
  *                 type: string
  *                 description: NIT de la empresa
@@ -369,7 +541,7 @@ router.post('/client-profiles',
  *                   type: string
  *                   example: Perfil de cliente actualizado exitosamente
  *                 data:
- *                   type: object
+ *                   $ref: '#/components/schemas/ClientProfile'
  *       400:
  *         description: Datos inválidos
  *       401:
@@ -415,7 +587,7 @@ router.put('/client-profiles/:id',
  *                   type: string
  *                   example: Perfil de cliente eliminado exitosamente
  *                 data:
- *                   type: object
+ *                   $ref: '#/components/schemas/ClientProfile'
  *       401:
  *         description: No autorizado
  *       403:
@@ -427,6 +599,7 @@ router.put('/client-profiles/:id',
  */
 router.delete('/client-profiles/:id', 
   verifyToken,
+  checkRole([1]), // Solo administradores pueden eliminar
   clientProfileController.deleteProfile
 );
 
@@ -456,6 +629,11 @@ router.delete('/client-profiles/:id',
  *     responses:
  *       200:
  *         description: Archivo recuperado exitosamente
+ *         content:
+ *           application/octet-stream:
+ *             schema:
+ *               type: string
+ *               format: binary
  *       401:
  *         description: No autorizado
  *       404:
@@ -494,6 +672,11 @@ router.get('/client-profiles/:id/file/:fileType',
  *     responses:
  *       200:
  *         description: Archivo recuperado exitosamente
+ *         content:
+ *           application/octet-stream:
+ *             schema:
+ *               type: string
+ *               format: binary
  *       401:
  *         description: No autorizado
  *       404:
