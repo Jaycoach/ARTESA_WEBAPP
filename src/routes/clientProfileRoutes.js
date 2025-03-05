@@ -180,7 +180,7 @@ router.use(sanitizeParams);
  *       500:
  *         description: Error interno del servidor
  */
-router.get('/client-profiles', 
+router.get('/', 
   verifyToken, 
   checkRole([1]), // Solo administradores
   clientProfileController.getAllProfiles
@@ -399,7 +399,7 @@ router.get('/client-profiles/user/:userId',
  *       500:
  *         description: Error interno del servidor
  */
-router.post('/client-profiles', 
+router.post('/', 
   verifyToken,
   clientProfileController.createProfile
 );
