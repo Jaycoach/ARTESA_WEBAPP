@@ -4,6 +4,7 @@ const { createContextLogger } = require('../config/logger');
 const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
+const ClientProfile = require('../models/clientProfile');
 
 // Crear una instancia del logger con contexto
 const logger = createContextLogger('ClientProfileController');
@@ -1050,16 +1051,7 @@ class ClientProfileController {
 }
 
 // Crear una instancia del controlador
-class ClientProfileController {
-  getAllProfiles = async (req, res) => { /* método descrito arriba */ }
-  getProfileById = async (req, res) => { /* método descrito arriba */ }
-  getProfileByUserId = async (req, res) => { /* método descrito arriba */ }
-  createProfile = async (req, res) => { /* método descrito arriba */ }
-  updateProfile = async (req, res) => { /* método descrito arriba */ }
-  deleteProfile = async (req, res) => { /* método descrito arriba */ }
-  getFile = async (req, res) => { /* método descrito arriba */ }
-  getFileByUserId = async (req, res) => { /* método descrito arriba */ }
-}
+const clientProfileController = new ClientProfileController();
 
 module.exports = {
   getAllProfiles: clientProfileController.getAllProfiles,
