@@ -45,11 +45,17 @@ class Roles {
             logger.debug('Cargando roles desde la base de datos');
             const { rows } = await pool.query('SELECT id, nombre FROM roles');
             this.roles = rows.reduce((acc, role) => {
+                // Almacenar el rol tanto en mayúsculas como en el formato original
                 acc[role.nombre.toUpperCase()] = role.id;
+                acc[role.nombre] = role.id;
                 return acc;
             }, {});
             this.lastUpdate = Date.now();
             logger.info('Roles cargados exitosamente', { roleCount: rows.length });
+            
+            // Log de diagnóstico para mostrar los roles cargados
+            logger.debug('Roles disponibles:', { roles: this.roles });
+            
             return this.roles;
         } catch (error) {
             logger.error('Error al cargar roles', { error: error.message });
@@ -78,14 +84,63 @@ class Roles {
      * @returns {Promise<number|undefined>} ID del rol o undefined si no existe
      */
     static async getRoleId(roleName) {
-        const roles = await this.getRoles();
-        const roleId = roles[roleName.toUpperCase()];
-        
-        if (!roleId) {
-            logger.warn('Rol no encontrado', { roleName });
+        if (!roleName) {
+            logger.warn('Intento de obtener rol con nombre vacío');
+            return undefined;
         }
         
-        return roleId;
+        const roles = await this.getRoles();
+        
+        // Intentar las siguientes variantes:
+        // 1. Exactamente como se proporcionó
+        // 2. En mayúsculas 
+        // 3. En minúsculas
+        const possibleNames = [
+            roleName,
+            roleName.toUpperCase(),
+            roleName.toLowerCase()
+        ];
+        
+        // Buscar el rol en todas las variantes
+        for (const name of possibleNames) {
+            if (roles[name] !== undefined) {
+                return roles[name];
+            }
+        }
+        
+        logger.warn('Rol no encontrado', { 
+            roleName,
+            availableRoles: Object.keys(roles)
+        });
+        
+        // Cargar directamente de la base de datos como fallback
+        try {
+            const { rows } = await pool.query(
+                'SELECT id FROM roles WHERE UPPER(nombre) = UPPER($1)', 
+                [roleName]
+            );
+            
+            if (rows.length > 0) {
+                const roleId = rows[0].id;
+                // Actualizar caché
+                this.roles[roleName] = roleId;
+                this.roles[roleName.toUpperCase()] = roleId;
+                
+                logger.info('Rol encontrado directamente en la BD', {
+                    roleName,
+                    roleId
+                });
+                
+                return roleId;
+            }
+        } catch (error) {
+            logger.error('Error al buscar rol directamente en BD', {
+                error: error.message,
+                roleName
+            });
+        }
+        
+        return undefined;
     }
     
     /**

@@ -1,5 +1,7 @@
+// src/middleware/auth.js
 const jwt = require('jsonwebtoken');
 const logger = require('../config/logger');
+const ROLES = require('../constants/roles');
 
 const verifyToken = (req, res, next) => {
   try {
@@ -61,10 +63,23 @@ const checkRole = (allowedRoles) => {
     // Si se pasa el rol como string, convertirlo a su ID correspondiente
     const roleIds = allowedRoles.map(role => {
       if (typeof role === 'string') {
-        return role.toLowerCase() === 'admin' ? 1 : 2;
+        // Manejar diferentes formatos del nombre del rol
+        const roleName = role.toUpperCase();
+        
+        // Revisar si existe en nuestras constantes de ROLES
+        if (ROLES[roleName] !== undefined) {
+          return ROLES[roleName];
+        } 
+        
+        // Caso alternativo: convertir directamente según convención conocida
+        return roleName === 'ADMIN' ? 1 : (roleName === 'USER' ? 2 : role);
       }
       return role;
     });
+
+    // Log para debugging
+    console.log('Rol del usuario:', req.user.rol_id);
+    console.log('Roles permitidos:', roleIds);
 
     // Verificar si el rol del usuario está en los roles permitidos
     if (!roleIds.includes(req.user.rol_id)) {
