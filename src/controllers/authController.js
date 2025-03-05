@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const rateLimit = require('express-rate-limit');
 const { createContextLogger } = require('../config/logger');
 const Roles = require('../models/Roles');
+const { TokenRevocation } = require('../middleware/tokenRevocation');
 
 // Crear una instancia del logger con contexto
 const logger = createContextLogger('AuthController');
@@ -173,38 +174,51 @@ class AuthController {
     // Método para generar token JWT
     static async generateToken(user) {
         try {
-            // Obtener el nombre del rol
-            const roles = await Roles.getRoles();
-            const roleName = Object.keys(roles).find(key => roles[key] === user.rol_id) || 'UNKNOWN';
-
-            const token = jwt.sign(
-                {
-                    id: user.id,
-                    mail: user.mail,
-                    name: user.name,
-                    rol_id: user.rol_id,
-                    role: roleName
-                },
-                process.env.JWT_SECRET,
-                { expiresIn: '24h' }
-            );
-
-            logger.info('Token generado exitosamente', { 
-                userId: user.id,
-                mail: user.mail,
-                role: roleName
-            });
-
-            return token;
+          // Obtener el nombre del rol
+          const roles = await Roles.getRoles();
+          const roleName = Object.keys(roles).find(key => roles[key] === user.rol_id) || 'UNKNOWN';
+      
+          // Crear payload del token
+          const payload = {
+            id: user.id,
+            mail: user.mail,
+            name: user.name,
+            rol_id: user.rol_id,
+            role: roleName
+          };
+      
+          // Calcular tiempo de expiración
+          const expiresIn = '24h';
+          const expiresInSeconds = 24 * 60 * 60; // 24 horas en segundos
+          const expiresAt = new Date(Date.now() + expiresInSeconds * 1000);
+      
+          // Generar el token
+          const token = jwt.sign(
+            payload,
+            process.env.JWT_SECRET,
+            { expiresIn }
+          );
+      
+          logger.info('Token generado exitosamente', { 
+            userId: user.id,
+            mail: user.mail,
+            role: roleName,
+            expiresAt
+          });
+      
+          // Registrar token activo en la base de datos
+          await TokenRevocation.registerActiveToken(token, user.id, expiresAt);
+      
+          return token;
         } catch (error) {
-            logger.error('Error al generar token', {
-                error: error.message,
-                stack: error.stack,
-                userId: user.id
-            });
-            throw new Error('Error al generar token de autenticación');
+          logger.error('Error al generar token', {
+            error: error.message,
+            stack: error.stack,
+            userId: user.id
+          });
+          throw new Error('Error al generar token de autenticación');
         }
-    }
+      }      
 
     /**
      * @swagger
@@ -352,28 +366,35 @@ class AuthController {
                     req
                 );
 
+                // Revocar tokens anteriores del usuario
+
+                await TokenRevocation.revokeAllUserTokens(user.id, 'new_login');
+
                 logger.info('Login exitoso', {
                     userId: user.id,
                     mail: user.mail,
                     role: user.role_name
                 });
 
+                const expiresInSeconds = 24 * 60 * 60; // 24 horas en segundos
+
                 return res.status(200).json({
                     success: true,
                     message: 'Login exitoso',
                     data: {
-                        token,
-                        user: {
-                            id: user.id,
-                            name: user.name,
-                            mail: user.mail,
-                            role: {
-                                id: user.rol_id,
-                                name: user.role_name
-                            }
+                      token,
+                      expiresIn: expiresInSeconds,
+                      user: {
+                        id: user.id,
+                        name: user.name,
+                        mail: user.mail,
+                        role: {
+                          id: user.rol_id,
+                          name: user.role_name
                         }
+                      }
                     }
-                });
+                  });
 
             } catch (compareError) {
                 logger.error('Error en la comparación de contraseñas', {
@@ -547,6 +568,33 @@ class AuthController {
             });
             throw new Error('Token inválido o expirado');
         }
+    }
+//Añadir método para manejo de tokens al reiniciar el servidor
+// Esta función se llamaría en el arranque de la aplicación
+static async handleServerRestart() {
+    try {
+      logger.info('Verificando tokens en reinicio del servidor');
+      
+      // Invalidar todos los tokens anteriores al reinicio
+      const query = `
+        INSERT INTO revoked_tokens (token_hash, user_id, revoked_at, expires_at, revocation_reason)
+        VALUES ('server_restart', NULL, NOW(), NOW() + INTERVAL '30 days', 'server_restart')
+      `;
+      
+      await pool.query(query);
+      
+      logger.info('Todos los tokens anteriores al reinicio del servidor han sido invalidados');
+      
+      // Limpiar tokens revocados expirados
+      await TokenRevocation.cleanupExpiredTokens();
+      
+      return true;
+    } catch (error) {
+      logger.error('Error al manejar reinicio del servidor para tokens', {
+        error: error.message,
+        stack: error.stack
+      });
+      return false;
     }
 }
 
