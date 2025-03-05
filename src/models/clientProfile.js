@@ -209,122 +209,120 @@ class ClientProfile {
     }
   }
   
-  /**
-   * Crea un nuevo perfil de cliente con mapeo al formulario del frontend
-   * @async
-   * @param {Object} clientData - Datos del perfil de cliente
-   * @returns {Promise<Object>} - Perfil de cliente creado
-   * @throws {Error} Si ocurre un error en la inserción
-   */
-  static async create(clientData) {
-    try {
-      // Extraer los campos principales que se almacenan directamente
-      const {
-        userId,
-        nombre = null,
-        email = null,
-        telefono = null,
-        direccion = null,
-        ciudad = null,
-        pais = null,
-        razonSocial = null,
-        nit = null,
-        tipoDocumento = null,
-        numeroDocumento = null,
-        // Otros campos
-        fotocopiaCedula = null,
-        fotocopiaRut = null,
-        anexosAdicionales = null
-      } = clientData;
-      
-      logger.debug('Creando nuevo perfil de cliente con campos opcionales', { 
-        userId,
-        nombre,
-        email
-      });
-      
-      // Extraer todos los demás campos para almacenarlos como JSON en notes
-      const additionalFields = { ...clientData };
-      
-      // Eliminar campos que ya están mapeados a columnas de la base de datos
-      ['userId', 'nombre', 'email', 'telefono', 'direccion', 'ciudad', 'pais', 
-       'razonSocial', 'nit', 'fotocopiaCedula', 'fotocopiaRut', 'anexosAdicionales'].forEach(key => {
-        delete additionalFields[key];
-      });
-      
-      // Mapear los campos del formulario a los campos de la base de datos
-      const query = `
-        INSERT INTO client_profiles
-        (user_id, company_name, contact_name, contact_phone, contact_email, 
-         address, city, country, tax_id, notes,
-         fotocopia_cedula, fotocopia_rut, anexos_adicionales, price_list)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-        RETURNING *;
-      `;
-      
-      // Crear JSON con campos adicionales
-      const notesJSON = Object.keys(additionalFields).length > 0 ? 
-      JSON.stringify(additionalFields) : null;
+/**
+ * Crea un nuevo perfil de cliente con mapeo al formulario del frontend
+ * @async
+ * @param {Object} clientData - Datos del perfil de cliente
+ * @returns {Promise<Object>} - Perfil de cliente creado
+ * @throws {Error} Si ocurre un error en la inserción
+ */
+static async create(clientData) {
+  try {
+    // Extraer los campos principales que se almacenan directamente
+    const {
+      userId,
+      nombre = null,
+      email = null,
+      telefono = null,
+      direccion = null,
+      ciudad = null,
+      pais = null,
+      razonSocial = null,
+      nit = null,
+      // Campos de archivos
+      fotocopiaCedula = null,
+      fotocopiaRut = null,
+      anexosAdicionales = null
+    } = clientData;
     
-      const values = [
-        userId,                  // user_id
-        razonSocial,             // company_name
-        nombre,                  // contact_name
-        telefono,                // contact_phone
-        email,                   // contact_email
-        direccion,               // address
-        ciudad,                  // city
-        pais,                    // country
-        nit,                     // tax_id
-        notesJSON,               // notes (campos adicionales en JSON)
-        fotocopiaCedula,         // fotocopia_cedula
-        fotocopiaRut,            // fotocopia_rut
-        anexosAdicionales,       // anexos_adicionales
-        1                        // price_list (valor por defecto)
-      ];
-      
-      const { rows } = await pool.query(query, values);
-      
-      // Crear un objeto que combine los campos de la base de datos con los adicionales
-      const createdProfile = {
-        ...rows[0],
-        ...additionalFields
-      };
-      
-      // Renombrar campos para coincidir con el formulario
-      const profile = {
-        client_id: createdProfile.client_id,
-        user_id: createdProfile.user_id,
-        nombre: createdProfile.contact_name,
-        email: createdProfile.contact_email,
-        telefono: createdProfile.contact_phone,
-        direccion: createdProfile.address,
-        ciudad: createdProfile.city,
-        pais: createdProfile.country,
-        razonSocial: createdProfile.company_name,
-        nit: createdProfile.tax_id,
-        fotocopiaCedula: createdProfile.fotocopia_cedula,
-        fotocopiaRut: createdProfile.fotocopia_rut,
-        anexosAdicionales: createdProfile.anexos_adicionales,
-        created_at: createdProfile.created_at,
-        updated_at: createdProfile.updated_at,
-        ...additionalFields
-      };
-      
-      logger.info('Perfil de cliente creado exitosamente', { 
-        clientId: profile.client_id,
-        userId
-      });
-      
-      return profile;
-    } catch (error) {
-      logger.error('Error al crear perfil de cliente', { 
-        error: error.message,
-        userId: clientData.userId
-      });
-      throw error;
-    }
+    logger.debug('Creando nuevo perfil de cliente', { 
+      userId,
+      nombre,
+      email
+    });
+    
+    // Extraer todos los demás campos para almacenarlos como JSON en notes
+    const additionalFields = { ...clientData };
+    
+    // Eliminar campos que ya están mapeados a columnas de la base de datos
+    ['userId', 'nombre', 'email', 'telefono', 'direccion', 'ciudad', 'pais', 
+     'razonSocial', 'nit', 'fotocopiaCedula', 'fotocopiaRut', 'anexosAdicionales'].forEach(key => {
+      delete additionalFields[key];
+    });
+    
+    // Mapear los campos del formulario a los campos de la base de datos
+    const query = `
+      INSERT INTO client_profiles
+      (user_id, company_name, contact_name, contact_phone, contact_email, 
+       address, city, country, tax_id, notes,
+       fotocopia_cedula, fotocopia_rut, anexos_adicionales, price_list)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      RETURNING *;
+    `;
+    
+    // Crear JSON con campos adicionales
+    const notesJSON = Object.keys(additionalFields).length > 0 ? 
+    JSON.stringify(additionalFields) : null;
+  
+    const values = [
+      userId,                  // user_id
+      razonSocial,             // company_name
+      nombre,                  // contact_name
+      telefono,                // contact_phone
+      email,                   // contact_email
+      direccion,               // address
+      ciudad,                  // city
+      pais,                    // country
+      nit,                     // tax_id
+      notesJSON,               // notes (campos adicionales en JSON)
+      fotocopiaCedula,         // fotocopia_cedula
+      fotocopiaRut,            // fotocopia_rut
+      anexosAdicionales,       // anexos_adicionales
+      1                        // price_list (valor por defecto)
+    ];
+    
+    const { rows } = await pool.query(query, values);
+    
+    // Crear un objeto que combine los campos de la base de datos con los adicionales
+    const createdProfile = {
+      ...rows[0],
+      ...additionalFields
+    };
+    
+    // Renombrar campos para coincidir con el formulario
+    const profile = {
+      client_id: createdProfile.client_id,
+      user_id: createdProfile.user_id,
+      nombre: createdProfile.contact_name,
+      email: createdProfile.contact_email,
+      telefono: createdProfile.contact_phone,
+      direccion: createdProfile.address,
+      ciudad: createdProfile.city,
+      pais: createdProfile.country,
+      razonSocial: createdProfile.company_name,
+      nit: createdProfile.tax_id,
+      fotocopiaCedula: createdProfile.fotocopia_cedula,
+      fotocopiaRut: createdProfile.fotocopia_rut,
+      anexosAdicionales: createdProfile.anexos_adicionales,
+      created_at: createdProfile.created_at,
+      updated_at: createdProfile.updated_at,
+      ...additionalFields
+    };
+    
+    logger.info('Perfil de cliente creado exitosamente', { 
+      clientId: profile.client_id,
+      userId
+    });
+    
+    return profile;
+  } catch (error) {
+    logger.error('Error al crear perfil de cliente', { 
+      error: error.message,
+      userId: clientData.userId
+    });
+    throw error;
   }
+}
   
   /**
    * Actualiza un perfil de cliente existente

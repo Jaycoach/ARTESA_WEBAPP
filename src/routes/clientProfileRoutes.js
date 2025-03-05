@@ -72,10 +72,6 @@ router.use(sanitizeParams);
  *           type: string
  *           description: Identificación fiscal
  *           example: "901234567-8"
- *         price_list:
- *           type: integer
- *           description: Lista de precios asignada (1, 2 o 3)
- *           example: 2
  *         tipoDocumento:
  *           type: string
  *           enum: [CC, CE, PASAPORTE]
@@ -299,94 +295,94 @@ router.get('/client-profiles/user/:userId',
  *             properties:
  *               userId:
  *                 type: integer
- *                 description: ID del usuario asociado (opcional)
+ *                 description: ID del usuario asociado
  *               razonSocial:
  *                 type: string
- *                 description: Razón social de la empresa (opcional)
+ *                 description: Razón social de la empresa
  *               nombre:
  *                 type: string
- *                 description: Nombre completo (opcional)
+ *                 description: Nombre completo
  *               tipoDocumento:
  *                 type: string
  *                 enum: [CC, CE, PASAPORTE]
- *                 description: Tipo de documento de identidad (opcional)
+ *                 description: Tipo de documento de identidad
  *               numeroDocumento:
  *                 type: string
- *                 description: Número de documento (opcional)
+ *                 description: Número de documento
  *               direccion:
  *                 type: string
- *                 description: Dirección física (opcional)
+ *                 description: Dirección física
  *               ciudad:
  *                 type: string
- *                 description: Ciudad (opcional)
+ *                 description: Ciudad
  *               pais:
  *                 type: string
- *                 description: País (opcional)
+ *                 description: País
  *                 default: Colombia
  *               telefono:
  *                 type: string
- *                 description: Teléfono de contacto (opcional)
+ *                 description: Teléfono de contacto
  *               email:
  *                 type: string
  *                 format: email
- *                 description: Correo electrónico (opcional)
+ *                 description: Correo electrónico
  *               nit:
  *                 type: string
- *                 description: NIT de la empresa (opcional)
+ *                 description: NIT de la empresa
  *               representanteLegal:
  *                 type: string
- *                 description: Representante legal (opcional)
+ *                 description: Representante legal
  *               actividadComercial:
  *                 type: string
- *                 description: Actividad comercial (opcional)
+ *                 description: Actividad comercial
  *               sectorEconomico:
  *                 type: string
- *                 description: Sector económico (opcional)
+ *                 description: Sector económico
  *               tamanoEmpresa:
  *                 type: string
  *                 enum: [Microempresa, Pequeña, Mediana, Grande]
- *                 description: Tamaño de la empresa (opcional)
+ *                 description: Tamaño de la empresa
  *               ingresosMensuales:
  *                 type: string
- *                 description: Ingresos mensuales promedio (opcional)
+ *                 description: Ingresos mensuales promedio
  *               patrimonio:
  *                 type: string
- *                 description: Patrimonio (opcional)
+ *                 description: Patrimonio
  *               entidadBancaria:
  *                 type: string
- *                 description: Entidad bancaria (opcional)
+ *                 description: Entidad bancaria
  *               tipoCuenta:
  *                 type: string
  *                 enum: [Ahorros, Corriente]
- *                 description: Tipo de cuenta bancaria (opcional)
+ *                 description: Tipo de cuenta bancaria
  *               numeroCuenta:
  *                 type: string
- *                 description: Número de cuenta bancaria (opcional)
+ *                 description: Número de cuenta bancaria
  *               nombreContacto:
  *                 type: string
- *                 description: Nombre del contacto alternativo (opcional)
+ *                 description: Nombre del contacto alternativo
  *               cargoContacto:
  *                 type: string
- *                 description: Cargo del contacto alternativo (opcional)
+ *                 description: Cargo del contacto alternativo
  *               telefonoContacto:
  *                 type: string
- *                 description: Teléfono del contacto alternativo (opcional)
+ *                 description: Teléfono del contacto alternativo
  *               emailContacto:
  *                 type: string
  *                 format: email
- *                 description: Email del contacto alternativo (opcional)
+ *                 description: Email del contacto alternativo
  *               fotocopiaCedula:
  *                 type: string
  *                 format: binary
- *                 description: Fotocopia de la cédula (opcional)
+ *                 description: Fotocopia de la cédula
  *               fotocopiaRut:
  *                 type: string
  *                 format: binary
- *                 description: Fotocopia del RUT (opcional)
+ *                 description: Fotocopia del RUT
  *               anexosAdicionales:
  *                 type: string
  *                 format: binary
- *                 description: Anexos adicionales (opcional)
+ *                 description: Anexos adicionales
  *     responses:
  *       201:
  *         description: Perfil creado exitosamente

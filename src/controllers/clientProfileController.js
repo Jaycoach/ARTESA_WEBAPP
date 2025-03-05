@@ -406,116 +406,150 @@ class ClientProfileController {
    *       500:
    *         description: Error interno del servidor
    */
-  async createProfile(req, res) {
-    try {
-      // Depuración inicial
-      // Extraer datos de la solicitud
-      const clientData = { ...req.body };
+  // Actualización para src/controllers/clientProfileController.js - método createProfile
 
-      logger.debug('Recibiendo datos para perfil de cliente', { 
-        bodyFields: Object.keys(clientData),
-        filesExist: !!req.files,
-        filesFields: req.files ? Object.keys(req.files) : []
-      });
+async createProfile(req, res) {
+  try {
+    // Depuración inicial
+    logger.debug('Recibiendo datos para perfil de cliente', { 
+      bodyFields: Object.keys(req.body),
+      filesExist: !!req.files,
+      filesFields: req.files ? Object.keys(req.files) : []
+    });
+    
+    // Extraer datos de la solicitud - usar solo campos camelCase
+    const clientData = {};
+    
+    // Mapear campos específicos para evitar duplicidad
+    const fieldMap = {
+      // Campos básicos
+      'userId': 'userId',
+      'razonSocial': 'razonSocial',
+      'nombre': 'nombre',
+      'telefono': 'telefono',
+      'email': 'email',
+      'direccion': 'direccion', 
+      'ciudad': 'ciudad',
+      'pais': 'pais',
+      'nit': 'nit',
       
-      // Asegurar que userId sea un entero
-      if (clientData.userId) {
-        clientData.userId = parseInt(clientData.userId);
-      } else if (req.user && req.user.id) {
-        // Si no se proporciona userId, usar el del usuario autenticado
-        clientData.userId = req.user.id;
+      // Campos adicionales
+      'tipoDocumento': 'tipoDocumento',
+      'numeroDocumento': 'numeroDocumento',
+      'representanteLegal': 'representanteLegal',
+      'actividadComercial': 'actividadComercial',
+      'sectorEconomico': 'sectorEconomico',
+      'tamanoEmpresa': 'tamanoEmpresa',
+      'ingresosMensuales': 'ingresosMensuales',
+      'patrimonio': 'patrimonio',
+      'entidadBancaria': 'entidadBancaria',
+      'tipoCuenta': 'tipoCuenta',
+      'numeroCuenta': 'numeroCuenta',
+      'nombreContacto': 'nombreContacto',
+      'cargoContacto': 'cargoContacto',
+      'telefonoContacto': 'telefonoContacto',
+      'emailContacto': 'emailContacto'
+    };
+    
+    // Asignar solo los campos que nos interesan
+    Object.keys(fieldMap).forEach(key => {
+      if (req.body[key] !== undefined) {
+        clientData[fieldMap[key]] = req.body[key];
       }
-      
-      logger.debug('Creando nuevo perfil de cliente', { 
-        userId: clientData.userId,
-        razonSocial: clientData.razonSocial
-      });
-      
-      // Validación básica
-      //if (!clientData.razonSocial) {
-        //return res.status(400).json({
-          //success: false,
-          //message: 'La razón social es requerida'
-        //});
-      //}
-      
-      // Verificar si ya existe un perfil para este usuario
-      if (clientData.userId) {
-        const hasProfile = await ClientProfile.userHasProfile(clientData.userId);
-        
-        if (hasProfile) {
-          return res.status(400).json({
-            success: false,
-            message: 'Este usuario ya tiene un perfil, debe actualizarlo'
-          });
-        }
-      }
-      
-      // Procesar archivos si existen
-      try {
-        if (req.files) {
-          if (req.files.fotocopiaCedula) {
-            clientData.fotocopiaCedula = await saveFile(req.files.fotocopiaCedula);
-          }
-          
-          if (req.files.fotocopiaRut) {
-            clientData.fotocopiaRut = await saveFile(req.files.fotocopiaRut);
-          }
-          
-          if (req.files.anexosAdicionales) {
-            clientData.anexosAdicionales = await saveFile(req.files.anexosAdicionales);
-          }
-        }
-      } catch (fileError) {
-        logger.error('Error procesando archivos', {
-          error: fileError.message,
-          stack: fileError.stack
-        });
-        // Continuamos sin archivos
-      }
-      
-      // Crear el perfil
-      const profile = await ClientProfile.create(clientData);
-      
-      // Agregar URLs para archivos en la respuesta
-      const baseUrl = `${req.protocol}://${req.get('host')}`;
-      
-      if (profile.fotocopiaCedula) {
-        profile.fotocopiaCedulaUrl = `${baseUrl}/api/client-profiles/${profile.client_id}/file/cedula`;
-      }
-      
-      if (profile.fotocopiaRut) {
-        profile.fotocopiaRutUrl = `${baseUrl}/api/client-profiles/${profile.client_id}/file/rut`;
-      }
-      
-      if (profile.anexosAdicionales) {
-        profile.anexosAdicionalesUrl = `${baseUrl}/api/client-profiles/${profile.client_id}/file/anexos`;
-      }
-      
-      logger.info('Perfil de cliente creado exitosamente', {
-        profileId: profile.client_id,
-        userId: clientData.userId
-      });
-      
-      res.status(201).json({
-        success: true,
-        message: 'Perfil de cliente creado exitosamente',
-        data: profile
-      });
-    } catch (error) {
-      logger.error('Error al crear perfil de cliente', {
-        error: error.message,
-        stack: error.stack,
-        userId: req.body?.userId
-      });
-      
-      res.status(500).json({
-        success: false,
-        message: 'Error al crear perfil de cliente',
-        error: process.env.NODE_ENV === 'development' ? error.message : undefined
-      });
+    });
+    
+    // Asegurar que userId sea un entero
+    if (clientData.userId) {
+      clientData.userId = parseInt(clientData.userId);
+    } else if (req.user && req.user.id) {
+      // Si no se proporciona userId, usar el del usuario autenticado
+      clientData.userId = req.user.id;
     }
+    
+    logger.debug('Datos procesados para creación de perfil de cliente', { 
+      userId: clientData.userId,
+      razonSocial: clientData.razonSocial,
+      nombre: clientData.nombre,
+      processedFields: Object.keys(clientData).length
+    });
+    
+    // Verificar si ya existe un perfil para este usuario
+    if (clientData.userId) {
+      const hasProfile = await ClientProfile.userHasProfile(clientData.userId);
+      
+      if (hasProfile) {
+        return res.status(400).json({
+          success: false,
+          message: 'Este usuario ya tiene un perfil, debe actualizarlo'
+        });
+      }
+    }
+    
+    // Procesar archivos si existen
+    try {
+      if (req.files) {
+        if (req.files.fotocopiaCedula) {
+          clientData.fotocopiaCedula = await saveFile(req.files.fotocopiaCedula);
+        }
+        
+        if (req.files.fotocopiaRut) {
+          clientData.fotocopiaRut = await saveFile(req.files.fotocopiaRut);
+        }
+        
+        if (req.files.anexosAdicionales) {
+          clientData.anexosAdicionales = await saveFile(req.files.anexosAdicionales);
+        }
+      }
+    } catch (fileError) {
+      logger.error('Error procesando archivos', {
+        error: fileError.message,
+        stack: fileError.stack
+      });
+      // Continuamos sin archivos
+    }
+    
+    // Crear el perfil
+    const profile = await ClientProfile.create(clientData);
+    
+    // Agregar URLs para archivos en la respuesta
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    
+    if (profile.fotocopiaCedula) {
+      profile.fotocopiaCedulaUrl = `${baseUrl}/api/client-profiles/${profile.client_id}/file/cedula`;
+    }
+    
+    if (profile.fotocopiaRut) {
+      profile.fotocopiaRutUrl = `${baseUrl}/api/client-profiles/${profile.client_id}/file/rut`;
+    }
+    
+    if (profile.anexosAdicionales) {
+      profile.anexosAdicionalesUrl = `${baseUrl}/api/client-profiles/${profile.client_id}/file/anexos`;
+    }
+    
+    logger.info('Perfil de cliente creado exitosamente', {
+      profileId: profile.client_id,
+      userId: clientData.userId
+    });
+    
+    res.status(201).json({
+      success: true,
+      message: 'Perfil de cliente creado exitosamente',
+      data: profile
+    });
+  } catch (error) {
+    logger.error('Error al crear perfil de cliente', {
+      error: error.message,
+      stack: error.stack,
+      userId: req.body?.userId
+    });
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error al crear perfil de cliente',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
+}
 
   /**
    * @swagger
