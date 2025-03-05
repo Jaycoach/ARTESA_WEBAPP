@@ -115,8 +115,10 @@ const findById = async (id) => {
     try {
         logger.debug('Buscando usuario por ID', { userId: id });
         
+        // Asegúrate de que se selecciona explícitamente el campo password
         const query = `
-            SELECT * FROM users 
+            SELECT id, name, mail, password, rol_id, created_at, updated_at, is_active 
+            FROM users 
             WHERE id = $1;
         `;
         const values = [id];
@@ -127,7 +129,10 @@ const findById = async (id) => {
             return null;
         }
         
-        logger.debug('Usuario encontrado por ID', { userId: id });
+        logger.debug('Usuario encontrado por ID', { 
+            userId: id,
+            hasPassword: !!rows[0].password 
+        });
         return rows[0];
     } catch (error) {
         logger.error('Error al buscar usuario por ID', { 
@@ -356,10 +361,21 @@ const getAllUsersWithRoles = async () => {
  */
 const updatePassword = async (userId, hashedPassword) => {
     try {
-        logger.debug('Iniciando actualización de contraseña', { userId });
+        if (!userId) {
+            throw new Error('Se requiere el ID de usuario');
+        }
+        
+        if (!hashedPassword) {
+            throw new Error('Se requiere la contraseña hasheada');
+        }
+
+        logger.debug('Iniciando actualización de contraseña', { 
+            userId,
+            hashLength: hashedPassword.length 
+        });
         
         // 1. Verificar que recibimos un hash válido
-        if (!hashedPassword || !hashedPassword.startsWith('$2b$')) {
+        if (!hashedPassword || !hashedPassword.startsWith('$2')) {
             logger.error('Formato de hash inválido', { userId });
             throw new Error('Invalid password hash format');
         }
@@ -371,7 +387,7 @@ const updatePassword = async (userId, hashedPassword) => {
                 password = $1,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = $2
-            RETURNING id, mail, password, updated_at
+            RETURNING id, mail, updated_at
         `;
 
         const result = await pool.query(query, [hashedPassword, userId]);
@@ -379,13 +395,6 @@ const updatePassword = async (userId, hashedPassword) => {
         if (result.rows.length === 0) {
             logger.error('Usuario no encontrado al actualizar contraseña', { userId });
             throw new Error('Usuario no encontrado');
-        }
-
-        // 3. Verificar que el hash se guardó correctamente
-        const updatedUser = result.rows[0];
-        if (updatedUser.password !== hashedPassword) {
-            logger.error('Verificación de hash fallida después de actualizar', { userId });
-            throw new Error('Hash verification failed after update');
         }
 
         logger.info('Contraseña actualizada exitosamente', {

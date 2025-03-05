@@ -30,7 +30,7 @@ const router = express.Router();
  * @route POST /orders
  * @group Orders - Operaciones relacionadas con órdenes
  * @param {CreateOrderRequest} request.body.required - Datos de la orden
- * @security BearerAuth
+ * @security bearerAuth
  * @returns {CreateOrderResponse} 201 - Orden creada exitosamente
  * @returns {object} 400 - Datos inválidos
  * @returns {object} 401 - No autorizado

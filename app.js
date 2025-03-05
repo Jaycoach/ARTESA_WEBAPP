@@ -23,6 +23,7 @@ const {
 
 // Inicializar la aplicación Express
 const app = express();
+app.set('trust proxy', 1); // trust first proxy
 
 // Importar rutas
 const userRoutes = require('./src/routes/userRoutes');

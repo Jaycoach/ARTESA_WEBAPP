@@ -94,7 +94,7 @@ const handleMulterErrors = (err, req, res, next) => {
  * @route POST /upload/images
  * @group Upload - Operaciones relacionadas con archivos
  * @param {file} image.formData.required - Imagen a subir (max 5MB, formatos: jpg, png, gif, webp)
- * @security BearerAuth
+ * @security bearerAuth
  * @consumes multipart/form-data
  * @returns {UploadImageResponse} 200 - Imagen subida correctamente
  * @returns {object} 400 - Formato o tamaño inválido
@@ -129,7 +129,7 @@ router.post(
  * @route DELETE /upload/images/{fileName}
  * @group Upload - Operaciones relacionadas con archivos
  * @param {string} fileName.path.required - Nombre del archivo a eliminar
- * @security BearerAuth
+ * @security bearerAuth
  * @returns {DeleteImageResponse} 200 - Imagen eliminada correctamente
  * @returns {object} 401 - No autorizado
  * @returns {object} 403 - No tiene permisos suficientes

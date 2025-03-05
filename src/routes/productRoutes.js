@@ -74,7 +74,7 @@ router.use(sanitizeBody, sanitizeParams);
  * Obtener todos los productos
  * @route GET /products
  * @group Products - Operaciones relacionadas con productos
- * @security BearerAuth
+ * @security bearerAuth
  * @returns {ProductsResponse} 200 - Lista de productos obtenida exitosamente
  * @returns {object} 401 - No autorizado
  * @returns {object} 500 - Error interno del servidor
@@ -90,7 +90,7 @@ router.get('/products',
  * @route GET /products/{productId}
  * @group Products - Operaciones relacionadas con productos
  * @param {number} productId.path.required - ID del producto
- * @security BearerAuth
+ * @security bearerAuth
  * @returns {ProductResponse} 200 - Producto obtenido exitosamente
  * @returns {object} 401 - No autorizado
  * @returns {object} 404 - Producto no encontrado
@@ -107,7 +107,7 @@ router.get('/products/:productId',
  * @route POST /products
  * @group Products - Operaciones relacionadas con productos
  * @param {CreateProductRequest} request.body.required - Datos del producto
- * @security BearerAuth
+ * @security bearerAuth
  * @returns {ProductResponse} 201 - Producto creado exitosamente
  * @returns {object} 400 - Datos inválidos
  * @returns {object} 401 - No autorizado
@@ -126,7 +126,7 @@ router.post('/products',
  * @group Products - Operaciones relacionadas con productos
  * @param {number} productId.path.required - ID del producto
  * @param {UpdateProductRequest} request.body.required - Datos a actualizar
- * @security BearerAuth
+ * @security bearerAuth
  * @returns {ProductResponse} 200 - Producto actualizado exitosamente
  * @returns {object} 400 - Datos inválidos
  * @returns {object} 401 - No autorizado
@@ -146,7 +146,7 @@ router.put('/products/:productId',
  * @group Products - Operaciones relacionadas con productos
  * @param {number} productId.path.required - ID del producto
  * @param {UpdateProductImageRequest} request.body.required - Nueva URL de imagen
- * @security BearerAuth
+ * @security bearerAuth
  * @returns {ProductResponse} 200 - Imagen actualizada exitosamente
  * @returns {object} 400 - Datos inválidos
  * @returns {object} 401 - No autorizado
@@ -165,7 +165,7 @@ router.put('/products/:productId/image',
  * @route DELETE /products/{productId}
  * @group Products - Operaciones relacionadas con productos
  * @param {number} productId.path.required - ID del producto
- * @security BearerAuth
+ * @security bearerAuth
  * @returns {ProductOperationResponse} 200 - Producto eliminado exitosamente
  * @returns {object} 401 - No autorizado
  * @returns {object} 403 - No tiene permisos suficientes

@@ -35,7 +35,7 @@ router.use(sanitizeBody, sanitizeParams, validateQueryParams);
  * Obtener todos los usuarios
  * @route GET /users
  * @group Users - Operaciones relacionadas con usuarios
- * @security BearerAuth
+ * @security bearerAuth
  * @returns {UsersResponse} 200 - Lista de usuarios obtenida exitosamente
  * @returns {object} 401 - No autorizado
  * @returns {object} 403 - No tiene permisos suficientes
@@ -48,7 +48,7 @@ router.get('/users', verifyToken, checkRole([1]), getUsers);
  * @route GET /users/{id}
  * @group Users - Operaciones relacionadas con usuarios
  * @param {number} id.path.required - ID del usuario
- * @security BearerAuth
+ * @security bearerAuth
  * @returns {UserResponse} 200 - Usuario obtenido exitosamente
  * @returns {object} 401 - No autorizado
  * @returns {object} 403 - No tiene permisos suficientes
@@ -69,7 +69,7 @@ router.get('/users/:id', verifyToken, getUserById);
  * @group Users - Operaciones relacionadas con usuarios
  * @param {number} id.path.required - ID del usuario
  * @param {UpdateUserRequest} request.body - Datos a actualizar
- * @security BearerAuth
+ * @security bearerAuth
  * @returns {UserResponse} 200 - Usuario actualizado exitosamente
  * @returns {object} 401 - No autorizado
  * @returns {object} 403 - No tiene permisos suficientes

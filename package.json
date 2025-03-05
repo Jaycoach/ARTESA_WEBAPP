@@ -5,7 +5,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start:dev": "NODE_ENV=development nodemon app.js",
-    "start:ngrok": "NODE_ENV=development NGROK_URL=https://01e5-149-88-111-234.ngrok-free.app nodemon app.js",
+    "start:ngrok": "NODE_ENV=development nodemon app.js",
     "start:prod": "NODE_ENV=production node app.js",
     "generate-swagger": "node scripts/generate-swagger.js",
     "start": "npm run generate-swagger && node app.js",

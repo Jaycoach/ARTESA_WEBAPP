@@ -182,81 +182,158 @@ class PasswordResetController {
    */
   async resetPassword(req, res) {
     try {
+      // Log completo de la solicitud para depuración
+      logger.debug('Solicitud de reset de contraseña recibida', {
+        body: Object.keys(req.body),
+        contentType: req.headers['content-type'],
+        ip: req.ip,
+        userAgent: req.headers['user-agent']
+      });
+  
       const { token, newPassword } = req.body;
-
-      // 1. Verificación del token
+  
+      // Validación inicial con códigos de error específicos
+      if (!token) {
+        logger.warn('Solicitud de reset sin token', { ip: req.ip });
+        return res.status(400).json({
+          success: false,
+          errorCode: 'MISSING_TOKEN',
+          message: 'El token de recuperación es requerido'
+        });
+      }
+  
+      if (!newPassword) {
+        logger.warn('Solicitud de reset sin nueva contraseña', { 
+          tokenFragment: token.substring(0, 10) + '...',
+          ip: req.ip 
+        });
+        return res.status(400).json({
+          success: false,
+          errorCode: 'MISSING_PASSWORD',
+          message: 'La nueva contraseña es requerida'
+        });
+      }
+  
+      // Verificación del token
       const resetRequest = await PasswordReset.findByToken(token);
       if (!resetRequest) {
-        logger.warn('Intento de uso de token inválido o expirado', { 
-          tokenFragment: token.substring(0, 10) 
-        });
-        return res.status(400).json({ 
-          error: 'Token inválido o expirado' 
-        });
-      }
-
-      // 2. Obtener usuario y verificar contraseña actual
-      const currentUser = await userModel.findById(resetRequest.user_id);
-      if (!currentUser) {
-        logger.error('Usuario no encontrado para el token de reset', {
-          userId: resetRequest.user_id
+        logger.warn('Token de reset inválido o expirado', { 
+          tokenFragment: token.substring(0, 10) + '...',
+          ip: req.ip
         });
         return res.status(400).json({
-          error: 'Error al procesar la solicitud'
+          success: false,
+          errorCode: 'INVALID_TOKEN',
+          message: 'El token es inválido o ha expirado'
         });
       }
-
-      // 3. Verificar que la nueva contraseña no sea igual a la actual
-      const isSamePassword = await bcrypt.compare(newPassword, currentUser.password);
-      if (isSamePassword) {
-        logger.warn('Intento de usar la misma contraseña', {
-          userId: resetRequest.user_id
-        });
-        return res.status(400).json({
-          error: 'La nueva contraseña no puede ser igual a la actual'
-        });
-      }
-
-      // 4. Generar nuevo hash
-      const hashedPassword = await bcrypt.hash(newPassword, 10);
-
-      // 5. Verificar que el hash es válido
-      const verificationTest = await bcrypt.compare(newPassword, hashedPassword);
-      if (!verificationTest) {
-        logger.error('Error en la generación del hash', {
-          userId: resetRequest.user_id
-        });
-        throw new Error('Error en la generación del hash de contraseña');
-      }
-
-      // 6. Actualizar la contraseña
-      await userModel.updatePassword(resetRequest.user_id, hashedPassword);
-
-      // 7. Marcar token como usado
-      await PasswordReset.markAsUsed(token);
-
-      // 8. Verificación final
-      const updatedUser = await userModel.findById(resetRequest.user_id);
-      const finalCheck = await bcrypt.compare(newPassword, updatedUser.password);
+  
+      // Obtener usuario
+      const userId = resetRequest.user_id;
+      const currentUser = await userModel.findById(userId);
       
-      logger.info('Reset de contraseña completado exitosamente', {
-        userId: resetRequest.user_id,
-        success: finalCheck
+      if (!currentUser) {
+        logger.error('Usuario no encontrado para token válido', {
+          userId,
+          tokenFragment: token.substring(0, 10) + '...'
+        });
+        return res.status(404).json({
+          success: false,
+          errorCode: 'USER_NOT_FOUND',
+          message: 'No se encontró el usuario asociado al token'
+        });
+      }
+  
+      logger.debug('Usuario encontrado para reset de contraseña', {
+        userId,
+        hasPassword: !!currentUser.password,
+        passwordLength: currentUser.password ? currentUser.password.length : 0
       });
-
-      return res.json({ 
-        success: true,
-        message: 'Contraseña actualizada exitosamente'
-      });
+  
+      // Verificar que la nueva contraseña no sea igual a la actual
+      if (currentUser.password) {
+        try {
+          const isSamePassword = await bcrypt.compare(newPassword, currentUser.password);
+          
+          if (isSamePassword) {
+            logger.warn('Intento de usar la misma contraseña', { userId });
+            return res.status(400).json({
+              success: false,
+              errorCode: 'SAME_PASSWORD',
+              message: 'La nueva contraseña no puede ser igual a la actual'
+            });
+          }
+        } catch (compareError) {
+          logger.error('Error al comparar contraseñas', {
+            userId,
+            error: compareError.message,
+            passwordLength: currentUser.password ? currentUser.password.length : 0,
+            newPasswordLength: newPassword.length
+          });
+          
+          // Si hay error, continuamos con el proceso pero lo registramos
+        }
+      }
+  
+      // Generar hash de la nueva contraseña
+      let hashedPassword;
+      try {
+        hashedPassword = await bcrypt.hash(newPassword, 10);
+        
+        logger.debug('Contraseña hasheada correctamente', {
+          userId,
+          hashLength: hashedPassword.length
+        });
+      } catch (hashError) {
+        logger.error('Error al hashear la contraseña', {
+          userId,
+          error: hashError.message,
+          newPasswordLength: newPassword.length
+        });
+        
+        return res.status(500).json({
+          success: false,
+          errorCode: 'PASSWORD_HASH_ERROR',
+          message: 'Error al procesar la nueva contraseña'
+        });
+      }
+  
+      // Actualizar la contraseña en la base de datos
+      try {
+        await userModel.updatePassword(userId, hashedPassword);
+        
+        logger.info('Contraseña actualizada exitosamente', { userId });
+        
+        // Marcar el token como usado
+        await PasswordReset.markAsUsed(token);
+        
+        return res.status(200).json({
+          success: true,
+          message: 'Contraseña actualizada exitosamente'
+        });
+      } catch (updateError) {
+        logger.error('Error al actualizar contraseña en base de datos', {
+          userId,
+          error: updateError.message,
+          stack: updateError.stack
+        });
+        
+        return res.status(500).json({
+          success: false,
+          errorCode: 'DATABASE_ERROR',
+          message: 'Error al guardar la nueva contraseña'
+        });
+      }
     } catch (error) {
-      logger.error('Error en el proceso de reset de contraseña', {
+      logger.error('Error no controlado en reset de contraseña', {
         error: error.message,
         stack: error.stack
       });
       
       return res.status(500).json({
         success: false,
-        message: 'Error al restablecer la contraseña'
+        errorCode: 'INTERNAL_ERROR',
+        message: 'Error interno al procesar la solicitud'
       });
     }
   }
