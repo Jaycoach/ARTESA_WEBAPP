@@ -218,7 +218,7 @@ class AuthController {
           });
           throw new Error('Error al generar token de autenticación');
         }
-      }      
+      }     
 
     /**
      * @swagger
@@ -569,32 +569,33 @@ class AuthController {
             throw new Error('Token inválido o expirado');
         }
     }
-//Añadir método para manejo de tokens al reiniciar el servidor
-// Esta función se llamaría en el arranque de la aplicación
-static async handleServerRestart() {
-    try {
-      logger.info('Verificando tokens en reinicio del servidor');
-      
-      // Invalidar todos los tokens anteriores al reinicio
-      const query = `
-        INSERT INTO revoked_tokens (token_hash, user_id, revoked_at, expires_at, revocation_reason)
-        VALUES ('server_restart', NULL, NOW(), NOW() + INTERVAL '30 days', 'server_restart')
-      `;
-      
-      await pool.query(query);
-      
-      logger.info('Todos los tokens anteriores al reinicio del servidor han sido invalidados');
-      
-      // Limpiar tokens revocados expirados
-      await TokenRevocation.cleanupExpiredTokens();
-      
-      return true;
-    } catch (error) {
-      logger.error('Error al manejar reinicio del servidor para tokens', {
-        error: error.message,
-        stack: error.stack
-      });
-      return false;
+    //Añadir método para manejo de tokens al reiniciar el servidor
+    // Esta función se llamaría en el arranque de la aplicación
+    static async handleServerRestart() {
+        try {
+        logger.info('Verificando tokens en reinicio del servidor');
+        
+        // Invalidar todos los tokens anteriores al reinicio
+        const query = `
+            INSERT INTO revoked_tokens (token_hash, user_id, revoked_at, expires_at, revocation_reason)
+            VALUES ('server_restart', NULL, NOW(), NOW() + INTERVAL '30 days', 'server_restart')
+        `;
+        
+        await pool.query(query);
+        
+        logger.info('Todos los tokens anteriores al reinicio del servidor han sido invalidados');
+        
+        // Limpiar tokens revocados expirados
+        await TokenRevocation.cleanupExpiredTokens();
+        
+        return true;
+        } catch (error) {
+        logger.error('Error al manejar reinicio del servidor para tokens', {
+            error: error.message,
+            stack: error.stack
+        });
+        return false;
+        }
     }
 }
 
@@ -602,5 +603,6 @@ module.exports = {
     login: AuthController.login.bind(AuthController),
     register: AuthController.register.bind(AuthController),
     verifyToken: AuthController.verifyToken.bind(AuthController),
+    handleServerRestart: AuthController.handleServerRestart.bind(AuthController),
     loginLimiter
 };
