@@ -17,7 +17,6 @@ if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
-// Función para guardar un archivo y devolver su ruta
 /**
  * Guarda un archivo en el sistema y devuelve el nombre único generado
  * @param {Object} file - Objeto de archivo de express-fileupload
@@ -27,8 +26,15 @@ const saveFile = async (file) => {
   if (!file) return null;
   
   try {
-    // Si se pasa un array de archivos, tomar el primero
+    // Estrategia mejorada para manejar posibles arrays
     const fileToSave = Array.isArray(file) ? file[0] : file;
+    
+    logger.debug('Procesando archivo para guardar', {
+      name: fileToSave.name,
+      size: fileToSave.size,
+      mimetype: fileToSave.mimetype,
+      tempFilePath: fileToSave.tempFilePath
+    });
     
     // Validar el archivo
     const allowedMimeTypes = [
@@ -51,17 +57,29 @@ const saveFile = async (file) => {
     }
     
     // Generar nombre único
-    const fileExtension = path.extname(fileToSave.name);
+    const fileExtension = path.extname(fileToSave.name) || '.bin';
     const uniqueFilename = `${uuidv4()}${fileExtension}`;
     const filePath = path.join(uploadDir, uniqueFilename);
     
-    // Mover el archivo a la ubicación final
-    await fileToSave.mv(filePath);
+    // Si estamos usando tempFiles, hay que mover el archivo
+    if (fileToSave.tempFilePath) {
+      // Asegurarse de que el directorio existe
+      const fileDir = path.dirname(filePath);
+      if (!fs.existsSync(fileDir)) {
+        fs.mkdirSync(fileDir, { recursive: true });
+      }
+      
+      fs.renameSync(fileToSave.tempFilePath, filePath);
+    } else {
+      // Mover el archivo a la ubicación final usando mv()
+      await fileToSave.mv(filePath);
+    }
     
     logger.info('Archivo guardado exitosamente', {
       originalName: fileToSave.name,
       newFileName: uniqueFilename,
-      fileSize: fileToSave.size
+      fileSize: fileToSave.size,
+      filePath
     });
     
     return uniqueFilename;
@@ -567,11 +585,22 @@ class ClientProfileController {
  */
   async createProfile(req, res) {
     try {
+      logger.debug('Headers de la solicitud:', {
+        contentType: req.headers['content-type'],
+        contentLength: req.headers['content-length']
+      });
       // Depuración inicial
       logger.debug('Recibiendo datos para perfil de cliente', { 
         bodyFields: Object.keys(req.body),
+        bodyContent: JSON.stringify(req.body).substring(0, 1000), // Muestra los primeros 1000 caracteres
         filesExist: !!req.files,
-        filesFields: req.files ? Object.keys(req.files) : []
+        filesKeys: req.files ? Object.keys(req.files) : [],
+        filesInfo: req.files ? Object.keys(req.files).map(key => ({
+          key,
+          name: req.files[key].name,
+          size: req.files[key].size,
+          mimetype: req.files[key].mimetype
+        })) : []
       });
       
       // Extraer datos de la solicitud - usar solo campos camelCase

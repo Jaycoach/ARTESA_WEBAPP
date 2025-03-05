@@ -6,14 +6,6 @@ const { verifyToken, checkRole } = require('../middleware/auth');
 const { sanitizeParams } = require('../middleware/security');
 const fileUpload = require('express-fileupload');
 
-// Configuración para la carga de archivos
-router.use(fileUpload({
-  limits: { fileSize: 10 * 1024 * 1024 }, // Límite de 10MB
-  useTempFiles: false,
-  abortOnLimit: true,
-  responseOnLimit: "Archivo demasiado grande. El límite es de 10MB."
-}));
-
 // Aplicar middleware de sanitización a todas las rutas
 router.use(sanitizeParams);
 

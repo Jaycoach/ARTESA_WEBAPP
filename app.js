@@ -1,19 +1,18 @@
 // Archivo principal de la aplicación
 require('dotenv').config();
+
+// Importaciones principales
 const express = require('express');
 const path = require('path');
 const cors = require('cors');
 const fs = require('fs');
 const helmet = require('helmet');
 const morgan = require('morgan');
-const { errorHandler } = require('./src/middleware/errorMiddleware');
-const security = require('./src/middleware/security');
 const fileUpload = require('express-fileupload');
 
-// Importaciones de Swagger 
-const swaggerUi = require('swagger-ui-express');
-const swaggerSpecs = require('./src/config/swagger');
-
+// Importaciones de middlewares
+const { errorHandler, notFound } = require('./src/middleware/errorMiddleware');
+const security = require('./src/middleware/security');
 const {
   sensitiveApiLimiter,
   standardApiLimiter,
@@ -21,88 +20,65 @@ const {
   suspiciousActivityTracker
 } = require('./src/middleware/enhancedSecurity');
 
+// Importaciones de Swagger 
+const swaggerUi = require('swagger-ui-express');
+const swaggerSpecs = require('./src/config/swagger');
+
 // Inicializar la aplicación Express
 const app = express();
 app.set('trust proxy', 1); // trust first proxy
 
-// Importar rutas
-const userRoutes = require('./src/routes/userRoutes');
-const authRoutes = require('./src/routes/authRoutes');
-const productRoutes = require('./src/routes/productRoutes');
-const secureProductRoutes = require('./src/routes/secureProductRoutes');
-const orderRoutes = require('./src/routes/orderRoutes');
-const passwordResetRoutes = require('./src/routes/passwordResetRoutes');
-const paymentRoutes = require('./src/routes/paymentRoutes');
-const uploadRoutes = require('./src/routes/uploadRoutes');
-const clientProfileRoutes = require('./src/routes/clientProfileRoutes'); // Importamos las nuevas rutas
-
-// Prefix para todas las rutas de la API
+// Constantes de configuración
 const API_PREFIX = '/api';
 const PORT = process.env.PORT || 3000;
 
-// Configurar opciones de Swagger UI
-const swaggerUiOptions = {
-  explorer: true,
-  swaggerOptions: {
-    persistAuthorization: true,
-    docExpansion: 'list',
-    defaultModelsExpandDepth: 1,
-    defaultModelExpandDepth: 1,
-    displayRequestDuration: true,
-    filter: true,
-    tryItOutEnabled: true, // Habilitar el botón Try It Out por defecto
-    supportedSubmitMethods: ['get', 'post', 'put', 'delete', 'patch', 'options', 'head'],
-  },
-  customCss: `
-    .swagger-ui .topbar { display: none }
-    /* Arreglar posicionamiento de botones */
-    .swagger-ui .opblock .opblock-summary-control {
-      display: flex;
-      align-items: center;
-    }
-    .swagger-ui .btn-group {
-      display: flex;
-      flex-direction: row;
-      align-items: center;
-    }
-    .swagger-ui .try-out {
-      margin-right: 8px;
-    }
-    .swagger-ui .btn {
-      margin: 0 5px;
-    }
-    .swagger-ui .opblock .try-out__btn {
-      margin-right: 10px;
-    }
-    /* Asegurar que los botones no se superpongan */
-    .swagger-ui .try-out {
-      position: relative;
-      z-index: 1;
-    }
-    .swagger-ui .try-out__btn {
-      z-index: 2;
-    }
-    .swagger-ui .btn-cancel {
-      z-index: 2;
-    }
-  `,
-  customSiteTitle: "API LAARTESA - Documentación",
+// =========================================================================
+// FUNCIÓN PARA ASEGURAR DIRECTORIOS
+// =========================================================================
+const ensureDirectoryExists = (dirPath) => {
+  if (!fs.existsSync(dirPath)) {
+    fs.mkdirSync(dirPath, { recursive: true });
+    console.log(`Directorio creado: ${dirPath}`);
+  }
 };
 
-// Configuración de middlewares
-app.use(helmet()); // Seguridad HTTP
-app.use(express.json()); // Parsear solicitudes JSON
-app.use(express.urlencoded({ extended: true })); // Parsear datos de formulario
-app.use(morgan('dev')); // Logging
+// Crear directorios necesarios
+ensureDirectoryExists(path.join(__dirname, 'tmp'));
+ensureDirectoryExists(path.join(__dirname, 'uploads'));
+ensureDirectoryExists(path.join(__dirname, 'uploads/client-profiles'));
+ensureDirectoryExists(path.join(__dirname, 'logs'));
 
-// Configuración de CORS mejorada
-// Configuración de CORS mejorada
+// =========================================================================
+// MIDDLEWARES BÁSICOS (NIVEL DE APLICACIÓN)
+// =========================================================================
+
+// Seguridad HTTP básica
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+      "img-src": ["'self'", "data:", "https:"],
+      "script-src": ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com"]
+    }
+  }
+}));
+
+// Parsers de cuerpo de solicitud - Debe ir ANTES de los sanitizadores
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Logger de solicitudes
+app.use(morgan('dev'));
+
+// =========================================================================
+// CONFIGURACIÓN DE CORS
+// =========================================================================
 app.use(cors({
   origin: function(origin, callback) {
     const allowedOrigins = [
       'http://localhost:3000',
       'http://localhost:5173',
-      'http://localhost:5174', // Añadido el puerto 5174
+      'http://localhost:5174',
       process.env.DEV_NGROK_URL,
       process.env.PROD_URL
     ].filter(Boolean);
@@ -132,6 +108,7 @@ app.use(cors({
 app.use((err, req, res, next) => {
   if (err.message === 'No permitido por CORS') {
     return res.status(403).json({
+      success: false,
       message: 'Acceso no permitido por CORS',
       origin: req.headers.origin
     });
@@ -139,6 +116,9 @@ app.use((err, req, res, next) => {
   next(err);
 });
 
+// =========================================================================
+// CARGA DE ARCHIVOS - Debe ir después de CORS, antes de sanitización
+// =========================================================================
 app.use(fileUpload({
   limits: { fileSize: 10 * 1024 * 1024 }, // Límite de 10MB
   useTempFiles: true,
@@ -146,18 +126,33 @@ app.use(fileUpload({
   parseNested: true,
   abortOnLimit: true,
   responseOnLimit: "Archivo demasiado grande. El límite es de 10MB.",
-  debug: true
+  debug: process.env.NODE_ENV === 'development',
+  createParentPath: true,
+  safeFileNames: true
 }));
 
-// Asegurar que exista la carpeta temporal
-if (!fs.existsSync('./tmp')) {
-  fs.mkdirSync('./tmp', { recursive: true });
-}
+// Middleware para manejar errores de express-fileupload
+app.use((err, req, res, next) => {
+  if (err && err.code === 'EBADCSRFTOKEN') {
+    return res.status(403).json({
+      success: false,
+      message: 'Error de CSRF token'
+    });
+  }
+  
+  if (err && err.message && err.message.includes('Unexpected end of form')) {
+    return res.status(400).json({
+      success: false,
+      message: 'Error en el formato del formulario. Asegúrate de que el formulario esté configurado correctamente con enctype="multipart/form-data"'
+    });
+  }
+  
+  next(err);
+});
 
-const clientProfilesDir = path.join(__dirname, 'uploads/client-profiles');
-if (!fs.existsSync(clientProfilesDir)) {
-  fs.mkdirSync(clientProfilesDir, { recursive: true });
-}
+// =========================================================================
+// MIDDLEWARES DE SEGURIDAD
+// =========================================================================
 
 // Aplicar middlewares de seguridad globalmente
 app.use(security.securityHeaders);
@@ -171,54 +166,129 @@ app.use(enhancedSecurityHeaders);
 // Aplicar tracker de actividad sospechosa
 app.use(suspiciousActivityTracker);
 
-// Aplicar rate limiting según el tipo de ruta
-app.use(`${API_PREFIX}/auth`, sensitiveApiLimiter);
-app.use(`${API_PREFIX}/secure`, sensitiveApiLimiter);
-app.use(API_PREFIX, standardApiLimiter);
-
-// Asegurar que el directorio de uploads exista
-const uploadsDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
-
-// Servir archivos estáticos desde la carpeta uploads
+// =========================================================================
+// ARCHIVOS ESTÁTICOS
+// =========================================================================
 app.use(`${API_PREFIX}/uploads`, express.static('uploads'));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Configurar Swagger UI - Colocamos esto después de la configuración CORS y de seguridad
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpecs, swaggerUiOptions));
+// =========================================================================
+// DOCUMENTACIÓN DE API (SWAGGER)
+// =========================================================================
+const swaggerUiOptions = {
+  explorer: true,
+  swaggerOptions: {
+    persistAuthorization: true,
+    docExpansion: 'list',
+    defaultModelsExpandDepth: 1,
+    defaultModelExpandDepth: 1,
+    displayRequestDuration: true,
+    filter: true,
+    tryItOutEnabled: true,
+    supportedSubmitMethods: ['get', 'post', 'put', 'delete', 'patch', 'options', 'head'],
+  },
+  customCss: `
+    .swagger-ui .topbar { display: none }
+    .swagger-ui .opblock .opblock-summary-control {
+      display: flex;
+      align-items: center;
+    }
+    .swagger-ui .btn-group {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+    }
+    .swagger-ui .try-out {
+      margin-right: 8px;
+    }
+    .swagger-ui .btn {
+      margin: 0 5px;
+    }
+    .swagger-ui .opblock .try-out__btn {
+      margin-right: 10px;
+    }
+    .swagger-ui .try-out {
+      position: relative;
+      z-index: 1;
+    }
+    .swagger-ui .try-out__btn {
+      z-index: 2;
+    }
+    .swagger-ui .btn-cancel {
+      z-index: 2;
+    }
+  `,
+  customSiteTitle: "API LAARTESA - Documentación",
+};
 
-// Exponer el JSON de Swagger para herramientas externas
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpecs, swaggerUiOptions));
 app.get('/swagger.json', (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   res.send(swaggerSpecs);
 });
 
-// Rutas de la API con prefijo
+// =========================================================================
+// RATE LIMITING - Antes de las rutas de API
+// =========================================================================
+app.use(`${API_PREFIX}/auth`, sensitiveApiLimiter);
+app.use(`${API_PREFIX}/secure`, sensitiveApiLimiter);
+app.use(API_PREFIX, standardApiLimiter);
+
+// =========================================================================
+// IMPORTACIÓN DE RUTAS
+// =========================================================================
+const userRoutes = require('./src/routes/userRoutes');
+const authRoutes = require('./src/routes/authRoutes');
+const productRoutes = require('./src/routes/productRoutes');
+const secureProductRoutes = require('./src/routes/secureProductRoutes');
+const orderRoutes = require('./src/routes/orderRoutes');
+const passwordResetRoutes = require('./src/routes/passwordResetRoutes');
+const paymentRoutes = require('./src/routes/paymentRoutes');
+const uploadRoutes = require('./src/routes/uploadRoutes');
+const clientProfileRoutes = require('./src/routes/clientProfileRoutes');
+
+// =========================================================================
+// RUTAS DE LA API
+// =========================================================================
 app.use(API_PREFIX, userRoutes);
 app.use(`${API_PREFIX}/auth`, authRoutes);
 app.use(API_PREFIX, productRoutes);
 app.use(API_PREFIX, secureProductRoutes);
 app.use(API_PREFIX, orderRoutes);
-app.use(API_PREFIX, uploadRoutes); // Rutas para la gestión de uploads
+app.use(API_PREFIX, uploadRoutes);
 app.use(`${API_PREFIX}/password`, passwordResetRoutes);
 app.use(`${API_PREFIX}/payments`, paymentRoutes);
-app.use(API_PREFIX, clientProfileRoutes); // Registramos las nuevas rutas de perfil de cliente
+app.use(API_PREFIX, clientProfileRoutes);
 
-// Ruta de prueba para verificar que el servidor está funcionando
+// Ruta de prueba/estado para verificar que el servidor está funcionando
 app.get('/', (req, res) => {
-  res.json({ message: 'API running successfully' });
+  res.json({ 
+    message: 'API LA ARTESA funcionando correctamente', 
+    version: '1.2.1',
+    timestamp: new Date().toISOString()
+  });
 });
 
-// Middleware para manejar errores
+// =========================================================================
+// MANEJO DE RUTAS NO ENCONTRADAS - Siempre después de todas las rutas
+// =========================================================================
+app.use(notFound);
+
+// =========================================================================
+// MIDDLEWARE DE ERRORES - Siempre al final
+// =========================================================================
 app.use(errorHandler);
 
-// Iniciar servidor
+// =========================================================================
+// INICIAR SERVIDOR
+// =========================================================================
 app.listen(PORT, () => {
-  console.log(`Servidor corriendo en http://localhost:${PORT}`);
-  console.log(`Documentación API disponible en http://localhost:${PORT}/api-docs`);
-  console.log(`Especificación Swagger disponible en http://localhost:${PORT}/swagger.json`);
+  console.log(`=======================================================`);
+  console.log(`Servidor LA ARTESA iniciado en http://localhost:${PORT}`);
+  console.log(`Documentación API: http://localhost:${PORT}/api-docs`);
+  console.log(`Swagger JSON: http://localhost:${PORT}/swagger.json`);
+  console.log(`Modo: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`=======================================================`);
 });
 
 module.exports = app;
