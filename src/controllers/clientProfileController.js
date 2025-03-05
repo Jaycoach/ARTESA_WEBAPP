@@ -20,11 +20,11 @@ if (!fs.existsSync(uploadDir)) {
 const saveFile = async (file) => {
   if (!file) return null;
   
-  const uniqueFilename = `${uuidv4()}_${file.name}`;
+  const uniqueFilename = `${uuidv4()}${path.extname(file.name)}`;
   const filePath = path.join(uploadDir, uniqueFilename);
   
-  // Asegurarse de que el buffer del archivo se guarda correctamente
-  await fs.promises.writeFile(filePath, file.data);
+  // Mover el archivo a la ubicación final
+  await file.mv(filePath);
   
   return uniqueFilename; // Devolver solo el nombre del archivo
 };
@@ -128,30 +128,23 @@ class ClientProfileController {
     try {
       logger.debug('Obteniendo todos los perfiles de clientes');
       
-      const query = `
-          SELECT cp.*, u.name as user_name, u.mail as user_email 
-          FROM client_profiles cp
-          LEFT JOIN users u ON cp.user_Id = u.id
-          ORDER BY cp.company_name;
-      `;
-      
-      const { rows } = await pool.query(query);
+      const profiles = await ClientProfile.getAll();
       
       // Agregar URLs para archivos
       const baseUrl = `${req.protocol}://${req.get('host')}`;
-      const profiles = rows.map(profile => {
+      const profilesWithUrls = profiles.map(profile => {
         const result = { ...profile };
         
-        if (result.fotocopia_cedula) {
-          result.fotocopia_cedula_url = `${baseUrl}/api/client-profiles/${profile.client_id}/file/cedula`;
+        if (result.fotocopiaCedula) {
+          result.fotocopiaCedulaUrl = `${baseUrl}/api/client-profiles/${profile.client_id}/file/cedula`;
         }
         
-        if (result.fotocopia_rut) {
-          result.fotocopia_rut_url = `${baseUrl}/api/client-profiles/${profile.client_id}/file/rut`;
+        if (result.fotocopiaRut) {
+          result.fotocopiaRutUrl = `${baseUrl}/api/client-profiles/${profile.client_id}/file/rut`;
         }
         
-        if (result.anexos_adicionales) {
-          result.anexos_adicionales_url = `${baseUrl}/api/client-profiles/${profile.client_id}/file/anexos`;
+        if (result.anexosAdicionales) {
+          result.anexosAdicionalesUrl = `${baseUrl}/api/client-profiles/${profile.client_id}/file/anexos`;
         }
         
         return result;
@@ -159,7 +152,7 @@ class ClientProfileController {
       
       res.status(200).json({
         success: true,
-        data: profiles
+        data: profilesWithUrls
       });
     } catch (error) {
       logger.error('Error al obtener perfiles de clientes', {
@@ -207,16 +200,9 @@ class ClientProfileController {
       
       logger.debug('Obteniendo perfil de cliente por ID', { profileId: id });
       
-      const query = `
-        SELECT cp.*, u.name as user_name, u.mail as user_email 
-        FROM client_profiles cp
-        LEFT JOIN users u ON cp.user_id = u.id
-        WHERE cp.client_id = $1;
-      `;
+      const profile = await ClientProfile.getById(id);
       
-      const { rows } = await pool.query(query, [id]);
-      
-      if (rows.length === 0) {
+      if (!profile) {
         logger.warn('Perfil de cliente no encontrado', { profileId: id });
         return res.status(404).json({
           success: false,
@@ -226,18 +212,17 @@ class ClientProfileController {
       
       // Agregar URLs para archivos
       const baseUrl = `${req.protocol}://${req.get('host')}`;
-      const profile = rows[0];
       
-      if (profile.fotocopia_cedula) {
-        profile.fotocopia_cedula_url = `${baseUrl}/api/client-profiles/${id}/file/cedula`;
+      if (profile.fotocopiaCedula) {
+        profile.fotocopiaCedulaUrl = `${baseUrl}/api/client-profiles/${id}/file/cedula`;
       }
       
-      if (profile.fotocopia_rut) {
-        profile.fotocopia_rut_url = `${baseUrl}/api/client-profiles/${id}/file/rut`;
+      if (profile.fotocopiaRut) {
+        profile.fotocopiaRutUrl = `${baseUrl}/api/client-profiles/${id}/file/rut`;
       }
       
-      if (profile.anexos_adicionales) {
-        profile.anexos_adicionales_url = `${baseUrl}/api/client-profiles/${id}/file/anexos`;
+      if (profile.anexosAdicionales) {
+        profile.anexosAdicionalesUrl = `${baseUrl}/api/client-profiles/${id}/file/anexos`;
       }
       
       res.status(200).json({
@@ -291,16 +276,9 @@ class ClientProfileController {
       
       logger.debug('Obteniendo perfil de cliente por ID de usuario', { userId });
       
-      const query = `
-        SELECT cp.*, u.name as user_name, u.mail as user_email 
-        FROM client_profiles cp
-        LEFT JOIN users u ON cp.user_id = u.id
-        WHERE cp.user_id = $1;
-      `;
+      const profile = await ClientProfile.getByUserId(userId);
       
-      const { rows } = await pool.query(query, [userId]);
-      
-      if (rows.length === 0) {
+      if (!profile) {
         logger.warn('Perfil de cliente no encontrado', { userId });
         return res.status(404).json({
           success: false,
@@ -310,18 +288,17 @@ class ClientProfileController {
       
       // Agregar URLs para archivos
       const baseUrl = `${req.protocol}://${req.get('host')}`;
-      const profile = rows[0];
       
-      if (profile.fotocopia_cedula) {
-        profile.fotocopia_cedula_url = `${baseUrl}/api/client-profiles/user/${userId}/file/cedula`;
+      if (profile.fotocopiaCedula) {
+        profile.fotocopiaCedulaUrl = `${baseUrl}/api/client-profiles/user/${userId}/file/cedula`;
       }
       
-      if (profile.fotocopia_rut) {
-        profile.fotocopia_rut_url = `${baseUrl}/api/client-profiles/user/${userId}/file/rut`;
+      if (profile.fotocopiaRut) {
+        profile.fotocopiaRutUrl = `${baseUrl}/api/client-profiles/user/${userId}/file/rut`;
       }
       
-      if (profile.anexos_adicionales) {
-        profile.anexos_adicionales_url = `${baseUrl}/api/client-profiles/user/${userId}/file/anexos`;
+      if (profile.anexosAdicionales) {
+        profile.anexosAdicionalesUrl = `${baseUrl}/api/client-profiles/user/${userId}/file/anexos`;
       }
       
       res.status(200).json({
@@ -421,39 +398,35 @@ class ClientProfileController {
    */
   async createProfile(req, res) {
     try {
-      const {
-        user_id,
-        company_name,
-        contact_name,
-        contact_phone,
-        contact_email,
-        address,
-        city,
-        country,
-        tax_id,
-        price_list,
-        notes
-      } = req.body;
+      // Extraer datos de la solicitud
+      const clientData = { ...req.body };
+      
+      // Asegurar que userId sea un entero
+      if (clientData.userId) {
+        clientData.userId = parseInt(clientData.userId);
+      } else if (req.user && req.user.id) {
+        // Si no se proporciona userId, usar el del usuario autenticado
+        clientData.userId = req.user.id;
+      }
       
       logger.debug('Creando nuevo perfil de cliente', { 
-        companyName: company_name,
-        userId: user_id
+        userId: clientData.userId,
+        razonSocial: clientData.razonSocial
       });
       
       // Validación básica
-      if (!company_name) {
+      if (!clientData.razonSocial) {
         return res.status(400).json({
           success: false,
-          message: 'El nombre de la empresa es requerido'
+          message: 'La razón social es requerida'
         });
       }
       
       // Verificar si ya existe un perfil para este usuario
-      if (user_id) {
-        const checkQuery = 'SELECT client_id FROM client_profiles WHERE user_id = $1';
-        const { rows } = await pool.query(checkQuery, [user_id]);
+      if (clientData.userId) {
+        const hasProfile = await ClientProfile.userHasProfile(clientData.userId);
         
-        if (rows.length > 0) {
+        if (hasProfile) {
           return res.status(400).json({
             success: false,
             message: 'Este usuario ya tiene un perfil, debe actualizarlo'
@@ -462,69 +435,41 @@ class ClientProfileController {
       }
       
       // Procesar archivos si existen
-      let fotocopiaCedulaPath = null;
-      let fotocopiaRutPath = null;
-      let anexosAdicionalesPath = null;
-      
       if (req.files) {
-        if (req.files.fotocopia_cedula) {
-          fotocopiaCedulaPath = await saveFile(req.files.fotocopia_cedula);
+        if (req.files.fotocopiaCedula) {
+          clientData.fotocopiaCedula = await saveFile(req.files.fotocopiaCedula);
         }
         
-        if (req.files.fotocopia_rut) {
-          fotocopiaRutPath = await saveFile(req.files.fotocopia_rut);
+        if (req.files.fotocopiaRut) {
+          clientData.fotocopiaRut = await saveFile(req.files.fotocopiaRut);
         }
         
-        if (req.files.anexos_adicionales) {
-          anexosAdicionalesPath = await saveFile(req.files.anexos_adicionales);
+        if (req.files.anexosAdicionales) {
+          clientData.anexosAdicionales = await saveFile(req.files.anexosAdicionales);
         }
       }
       
-      const query = `
-        INSERT INTO client_profiles
-        (user_id, company_name, contact_name, contact_phone, contact_email, address, city, country, tax_id, price_list, notes, fotocopia_cedula, fotocopia_rut, anexos_adicionales)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-        RETURNING *;
-      `;
-      
-      const values = [
-        user_id,
-        company_name,
-        contact_name,
-        contact_phone,
-        contact_email,
-        address,
-        city,
-        country,
-        tax_id,
-        price_list,
-        notes,
-        fotocopiaCedulaPath,
-        fotocopiaRutPath,
-        anexosAdicionalesPath
-      ];
-      
-      const { rows } = await pool.query(query, values);
+      // Crear el perfil
+      const profile = await ClientProfile.create(clientData);
       
       // Agregar URLs para archivos en la respuesta
       const baseUrl = `${req.protocol}://${req.get('host')}`;
-      const profile = rows[0];
       
-      if (profile.fotocopia_cedula) {
-        profile.fotocopia_cedula_url = `${baseUrl}/api/client-profiles/${profile.client_id}/file/cedula`;
+      if (profile.fotocopiaCedula) {
+        profile.fotocopiaCedulaUrl = `${baseUrl}/api/client-profiles/${profile.client_id}/file/cedula`;
       }
       
-      if (profile.fotocopia_rut) {
-        profile.fotocopia_rut_url = `${baseUrl}/api/client-profiles/${profile.client_id}/file/rut`;
+      if (profile.fotocopiaRut) {
+        profile.fotocopiaRutUrl = `${baseUrl}/api/client-profiles/${profile.client_id}/file/rut`;
       }
       
-      if (profile.anexos_adicionales) {
-        profile.anexos_adicionales_url = `${baseUrl}/api/client-profiles/${profile.client_id}/file/anexos`;
+      if (profile.anexosAdicionales) {
+        profile.anexosAdicionalesUrl = `${baseUrl}/api/client-profiles/${profile.client_id}/file/anexos`;
       }
       
       logger.info('Perfil de cliente creado exitosamente', {
         profileId: profile.client_id,
-        companyName: company_name
+        userId: clientData.userId
       });
       
       res.status(201).json({
@@ -536,7 +481,7 @@ class ClientProfileController {
       logger.error('Error al crear perfil de cliente', {
         error: error.message,
         stack: error.stack,
-        companyName: req.body?.company_name
+        userId: req.body?.userId
       });
       
       res.status(500).json({
@@ -630,18 +575,17 @@ class ClientProfileController {
   async updateProfile(req, res) {
     try {
       const { id } = req.params;
-      const updateData = req.body;
+      const updateData = { ...req.body };
       
       logger.debug('Actualizando perfil de cliente', { 
         profileId: id,
         fields: Object.keys(updateData)
       });
       
-      // Obtener el perfil actual para verificar si existe y recuperar información de archivos
-      const checkQuery = 'SELECT * FROM client_profiles WHERE client_id = $1';
-      const checkResult = await pool.query(checkQuery, [id]);
+      // Obtener el perfil actual para verificar si existe
+      const existingProfile = await ClientProfile.getById(id);
       
-      if (checkResult.rows.length === 0) {
+      if (!existingProfile) {
         logger.warn('Perfil de cliente no encontrado al actualizar', { profileId: id });
         return res.status(404).json({
           success: false,
@@ -649,121 +593,74 @@ class ClientProfileController {
         });
       }
       
-      const currentProfile = checkResult.rows[0];
-      
       // Procesar archivos si existen
-      let fotocopiaCedulaPath = currentProfile.fotocopia_cedula;
-      let fotocopiaRutPath = currentProfile.fotocopia_rut;
-      let anexosAdicionalesPath = currentProfile.anexos_adicionales;
-      
       if (req.files) {
         // Si hay nuevos archivos, eliminar los anteriores y guardar los nuevos
-        if (req.files.fotocopia_cedula) {
-          if (currentProfile.fotocopia_cedula) {
-            const oldPath = path.join(uploadDir, currentProfile.fotocopia_cedula);
+        if (req.files.fotocopiaCedula) {
+          if (existingProfile.fotocopiaCedula) {
+            const oldPath = path.join(uploadDir, existingProfile.fotocopiaCedula);
             if (fs.existsSync(oldPath)) {
               fs.unlinkSync(oldPath);
             }
           }
-          fotocopiaCedulaPath = await saveFile(req.files.fotocopia_cedula);
+          updateData.fotocopiaCedula = await saveFile(req.files.fotocopiaCedula);
         }
         
-        if (req.files.fotocopia_rut) {
-          if (currentProfile.fotocopia_rut) {
-            const oldPath = path.join(uploadDir, currentProfile.fotocopia_rut);
+        if (req.files.fotocopiaRut) {
+          if (existingProfile.fotocopiaRut) {
+            const oldPath = path.join(uploadDir, existingProfile.fotocopiaRut);
             if (fs.existsSync(oldPath)) {
               fs.unlinkSync(oldPath);
             }
           }
-          fotocopiaRutPath = await saveFile(req.files.fotocopia_rut);
+          updateData.fotocopiaRut = await saveFile(req.files.fotocopiaRut);
         }
         
-        if (req.files.anexos_adicionales) {
-          if (currentProfile.anexos_adicionales) {
-            const oldPath = path.join(uploadDir, currentProfile.anexos_adicionales);
+        if (req.files.anexosAdicionales) {
+          if (existingProfile.anexosAdicionales) {
+            const oldPath = path.join(uploadDir, existingProfile.anexosAdicionales);
             if (fs.existsSync(oldPath)) {
               fs.unlinkSync(oldPath);
             }
           }
-          anexosAdicionalesPath = await saveFile(req.files.anexos_adicionales);
+          updateData.anexosAdicionales = await saveFile(req.files.anexosAdicionales);
         }
       }
       
-      // Filtrar y validar campos permitidos
-      const allowedFields = [
-        'user_id', 'company_name', 'contact_name', 'contact_phone',
-        'contact_email', 'address', 'city', 'country', 'tax_id',
-        'price_list', 'notes'
-      ];
+      // Actualizar el perfil
+      const updatedProfile = await ClientProfile.update(id, updateData);
       
-      const updates = [];
-      const values = [];
-      let paramCount = 1;
-      
-      Object.entries(updateData).forEach(([key, value]) => {
-        if (allowedFields.includes(key) && value !== undefined) {
-          updates.push(`${key} = $${paramCount}`);
-          values.push(value);
-          paramCount++;
-        }
-      });
-      
-      // Agregar campos de archivos a las actualizaciones
-      updates.push(`fotocopia_cedula = $${paramCount}`);
-      values.push(fotocopiaCedulaPath);
-      paramCount++;
-      
-      updates.push(`fotocopia_rut = $${paramCount}`);
-      values.push(fotocopiaRutPath);
-      paramCount++;
-      
-      updates.push(`anexos_adicionales = $${paramCount}`);
-      values.push(anexosAdicionalesPath);
-      paramCount++;
-      
-      if (updates.length === 0) {
-        return res.status(400).json({
+      if (!updatedProfile) {
+        return res.status(404).json({
           success: false,
-          message: 'No se proporcionaron campos válidos para actualizar'
+          message: 'Error al actualizar perfil'
         });
       }
       
-      values.push(id);
-      
-      const query = `
-        UPDATE client_profiles
-        SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP
-        WHERE client_id = $${paramCount}
-        RETURNING *;
-      `;
-      
-      const { rows } = await pool.query(query, values);
-      
       // Agregar URLs para archivos en la respuesta
       const baseUrl = `${req.protocol}://${req.get('host')}`;
-      const profile = rows[0];
       
-      if (profile.fotocopia_cedula) {
-        profile.fotocopia_cedula_url = `${baseUrl}/api/client-profiles/${id}/file/cedula`;
+      if (updatedProfile.fotocopiaCedula) {
+        updatedProfile.fotocopiaCedulaUrl = `${baseUrl}/api/client-profiles/${id}/file/cedula`;
       }
       
-      if (profile.fotocopia_rut) {
-        profile.fotocopia_rut_url = `${baseUrl}/api/client-profiles/${id}/file/rut`;
+      if (updatedProfile.fotocopiaRut) {
+        updatedProfile.fotocopiaRutUrl = `${baseUrl}/api/client-profiles/${id}/file/rut`;
       }
       
-      if (profile.anexos_adicionales) {
-        profile.anexos_adicionales_url = `${baseUrl}/api/client-profiles/${id}/file/anexos`;
+      if (updatedProfile.anexosAdicionales) {
+        updatedProfile.anexosAdicionalesUrl = `${baseUrl}/api/client-profiles/${id}/file/anexos`;
       }
       
       logger.info('Perfil de cliente actualizado exitosamente', {
         profileId: id,
-        companyName: profile.company_name
+        razonSocial: updatedProfile.razonSocial
       });
       
       res.status(200).json({
         success: true,
         message: 'Perfil de cliente actualizado exitosamente',
-        data: profile
+        data: updatedProfile
       });
     } catch (error) {
       logger.error('Error al actualizar perfil de cliente', {
@@ -815,10 +712,9 @@ class ClientProfileController {
       logger.debug('Eliminando perfil de cliente', { profileId: id });
       
       // Primero obtenemos el perfil para obtener las rutas de archivos
-      const getQuery = 'SELECT * FROM client_profiles WHERE client_id = $1';
-      const getResult = await pool.query(getQuery, [id]);
+      const profile = await ClientProfile.getById(id);
       
-      if (getResult.rows.length === 0) {
+      if (!profile) {
         logger.warn('Perfil de cliente no encontrado al eliminar', { profileId: id });
         return res.status(404).json({
           success: false,
@@ -826,38 +722,34 @@ class ClientProfileController {
         });
       }
       
-      const profile = getResult.rows[0];
-      
       // Eliminar los archivos asociados al perfil
-      if (profile.fotocopia_cedula) {
-        const cedulaPath = path.join(uploadDir, profile.fotocopia_cedula);
+      if (profile.fotocopiaCedula) {
+        const cedulaPath = path.join(uploadDir, profile.fotocopiaCedula);
         if (fs.existsSync(cedulaPath)) {
           fs.unlinkSync(cedulaPath);
         }
       }
       
-      if (profile.fotocopia_rut) {
-        const rutPath = path.join(uploadDir, profile.fotocopia_rut);
+      if (profile.fotocopiaRut) {
+        const rutPath = path.join(uploadDir, profile.fotocopiaRut);
         if (fs.existsSync(rutPath)) {
           fs.unlinkSync(rutPath);
         }
       }
       
-      if (profile.anexos_adicionales) {
-        const anexosPath = path.join(uploadDir, profile.anexos_adicionales);
+      if (profile.anexosAdicionales) {
+        const anexosPath = path.join(uploadDir, profile.anexosAdicionales);
         if (fs.existsSync(anexosPath)) {
           fs.unlinkSync(anexosPath);
         }
       }
       
       // Luego eliminamos el perfil de la base de datos
-      const deleteQuery = 'DELETE FROM client_profiles WHERE client_id = $1 RETURNING *;';
-      
-      const { rows } = await pool.query(deleteQuery, [id]);
+      const deletedProfile = await ClientProfile.delete(id);
       
       logger.info('Perfil de cliente eliminado exitosamente', {
         profileId: id,
-        companyName: profile.company_name
+        razonSocial: profile.razonSocial
       });
       
       res.status(200).json({
@@ -928,10 +820,9 @@ class ClientProfileController {
       });
       
       // Obtener el perfil para verificar si existe y obtener la ruta del archivo
-      const query = 'SELECT * FROM client_profiles WHERE client_id = $1';
-      const { rows } = await pool.query(query, [id]);
+      const profile = await ClientProfile.getById(id);
       
-      if (rows.length === 0) {
+      if (!profile) {
         logger.warn('Perfil de cliente no encontrado', { profileId: id });
         return res.status(404).json({
           success: false,
@@ -939,16 +830,15 @@ class ClientProfileController {
         });
       }
       
-      const profile = rows[0];
       let fileName;
       
       // Determinar qué archivo se está solicitando
-      if (fileType === 'cedula' && profile.fotocopia_cedula) {
-        fileName = profile.fotocopia_cedula;
-      } else if (fileType === 'rut' && profile.fotocopia_rut) {
-        fileName = profile.fotocopia_rut;
-      } else if (fileType === 'anexos' && profile.anexos_adicionales) {
-        fileName = profile.anexos_adicionales;
+      if (fileType === 'cedula' && profile.fotocopiaCedula) {
+        fileName = profile.fotocopiaCedula;
+      } else if (fileType === 'rut' && profile.fotocopiaRut) {
+        fileName = profile.fotocopiaRut;
+      } else if (fileType === 'anexos' && profile.anexosAdicionales) {
+        fileName = profile.anexosAdicionales;
       } else {
         logger.warn('Archivo no encontrado en el perfil', { 
           profileId: id, 
@@ -1067,11 +957,10 @@ class ClientProfileController {
         fileType 
       });
       
-      // Obtener el perfil para verificar si existe y obtener la ruta del archivo
-      const query = 'SELECT * FROM client_profiles WHERE user_id = $1';
-      const { rows } = await pool.query(query, [userId]);
+      // Obtener el perfil por ID de usuario
+      const profile = await ClientProfile.getByUserId(userId);
       
-      if (rows.length === 0) {
+      if (!profile) {
         logger.warn('Perfil de cliente no encontrado por ID de usuario', { userId });
         return res.status(404).json({
           success: false,
@@ -1079,16 +968,15 @@ class ClientProfileController {
         });
       }
       
-      const profile = rows[0];
       let fileName;
       
       // Determinar qué archivo se está solicitando
-      if (fileType === 'cedula' && profile.fotocopia_cedula) {
-        fileName = profile.fotocopia_cedula;
-      } else if (fileType === 'rut' && profile.fotocopia_rut) {
-        fileName = profile.fotocopia_rut;
-      } else if (fileType === 'anexos' && profile.anexos_adicionales) {
-        fileName = profile.anexos_adicionales;
+      if (fileType === 'cedula' && profile.fotocopiaCedula) {
+        fileName = profile.fotocopiaCedula;
+      } else if (fileType === 'rut' && profile.fotocopiaRut) {
+        fileName = profile.fotocopiaRut;
+      } else if (fileType === 'anexos' && profile.anexosAdicionales) {
+        fileName = profile.anexosAdicionales;
       } else {
         logger.warn('Archivo no encontrado en el perfil', { 
           userId, 
@@ -1162,10 +1050,19 @@ class ClientProfileController {
 }
 
 // Crear una instancia del controlador
-const clientProfileController = new ClientProfileController();
+class ClientProfileController {
+  getAllProfiles = async (req, res) => { /* método descrito arriba */ }
+  getProfileById = async (req, res) => { /* método descrito arriba */ }
+  getProfileByUserId = async (req, res) => { /* método descrito arriba */ }
+  createProfile = async (req, res) => { /* método descrito arriba */ }
+  updateProfile = async (req, res) => { /* método descrito arriba */ }
+  deleteProfile = async (req, res) => { /* método descrito arriba */ }
+  getFile = async (req, res) => { /* método descrito arriba */ }
+  getFileByUserId = async (req, res) => { /* método descrito arriba */ }
+}
 
 // Exportar los métodos individualmente
-
+const clientProfileController = new ClientProfileController();
 module.exports = {
   getAllProfiles: clientProfileController.getAllProfiles,
   getProfileById: clientProfileController.getProfileById,
