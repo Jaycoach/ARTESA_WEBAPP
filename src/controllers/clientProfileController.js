@@ -1061,8 +1061,6 @@ class ClientProfileController {
   getFileByUserId = async (req, res) => { /* método descrito arriba */ }
 }
 
-// Exportar los métodos individualmente
-const clientProfileController = new ClientProfileController();
 module.exports = {
   getAllProfiles: clientProfileController.getAllProfiles,
   getProfileById: clientProfileController.getProfileById,
