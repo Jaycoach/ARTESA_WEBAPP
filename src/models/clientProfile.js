@@ -221,23 +221,23 @@ class ClientProfile {
       // Extraer los campos principales que se almacenan directamente
       const {
         userId,
-        nombre,
-        email,
-        telefono,
-        direccion,
-        ciudad,
-        pais = 'Colombia',
-        razonSocial,
-        nit,
-        tipoDocumento,
-        numeroDocumento,
+        nombre = null,
+        email = null,
+        telefono = null,
+        direccion = null,
+        ciudad = null,
+        pais = null,
+        razonSocial = null,
+        nit = null,
+        tipoDocumento = null,
+        numeroDocumento = null,
         // Otros campos
-        fotocopiaCedula,
-        fotocopiaRut,
-        anexosAdicionales
+        fotocopiaCedula = null,
+        fotocopiaRut = null,
+        anexosAdicionales = null
       } = clientData;
       
-      logger.debug('Creando nuevo perfil de cliente', { 
+      logger.debug('Creando nuevo perfil de cliente con campos opcionales', { 
         userId,
         nombre,
         email
@@ -263,22 +263,23 @@ class ClientProfile {
       `;
       
       // Crear JSON con campos adicionales
-      const notesJSON = JSON.stringify(additionalFields);
-      
+      const notesJSON = Object.keys(additionalFields).length > 0 ? 
+      JSON.stringify(additionalFields) : null;
+    
       const values = [
         userId,                  // user_id
-        razonSocial || '',       // company_name
-        nombre || '',            // contact_name
-        telefono || '',          // contact_phone
-        email || '',             // contact_email
-        direccion || '',         // address
-        ciudad || '',            // city
-        pais || 'Colombia',      // country
-        nit || '',               // tax_id
+        razonSocial,             // company_name
+        nombre,                  // contact_name
+        telefono,                // contact_phone
+        email,                   // contact_email
+        direccion,               // address
+        ciudad,                  // city
+        pais,                    // country
+        nit,                     // tax_id
         notesJSON,               // notes (campos adicionales en JSON)
-        fotocopiaCedula || null, // fotocopia_cedula
-        fotocopiaRut || null,    // fotocopia_rut
-        anexosAdicionales || null, // anexos_adicionales
+        fotocopiaCedula,         // fotocopia_cedula
+        fotocopiaRut,            // fotocopia_rut
+        anexosAdicionales,       // anexos_adicionales
         1                        // price_list (valor por defecto)
       ];
       

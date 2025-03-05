@@ -286,7 +286,7 @@ router.get('/client-profiles/user/:userId',
  * /api/client-profiles:
  *   post:
  *     summary: Crear un nuevo perfil de cliente
- *     description: Crea un nuevo perfil de cliente en el sistema con todos los campos del formulario
+ *     description: Crea un nuevo perfil de cliente en el sistema con todos los campos opcionales
  *     tags: [ClientProfiles]
  *     security:
  *       - bearerAuth: []
@@ -296,99 +296,97 @@ router.get('/client-profiles/user/:userId',
  *         multipart/form-data:
  *           schema:
  *             type: object
- *             required:
- *               - razonSocial
  *             properties:
  *               userId:
  *                 type: integer
- *                 description: ID del usuario asociado
+ *                 description: ID del usuario asociado (opcional)
  *               razonSocial:
  *                 type: string
- *                 description: Razón social de la empresa
+ *                 description: Razón social de la empresa (opcional)
  *               nombre:
  *                 type: string
- *                 description: Nombre completo
+ *                 description: Nombre completo (opcional)
  *               tipoDocumento:
  *                 type: string
  *                 enum: [CC, CE, PASAPORTE]
- *                 description: Tipo de documento de identidad
+ *                 description: Tipo de documento de identidad (opcional)
  *               numeroDocumento:
  *                 type: string
- *                 description: Número de documento
+ *                 description: Número de documento (opcional)
  *               direccion:
  *                 type: string
- *                 description: Dirección física
+ *                 description: Dirección física (opcional)
  *               ciudad:
  *                 type: string
- *                 description: Ciudad
+ *                 description: Ciudad (opcional)
  *               pais:
  *                 type: string
- *                 description: País
+ *                 description: País (opcional)
  *                 default: Colombia
  *               telefono:
  *                 type: string
- *                 description: Teléfono de contacto
+ *                 description: Teléfono de contacto (opcional)
  *               email:
  *                 type: string
  *                 format: email
- *                 description: Correo electrónico
+ *                 description: Correo electrónico (opcional)
  *               nit:
  *                 type: string
- *                 description: NIT de la empresa
+ *                 description: NIT de la empresa (opcional)
  *               representanteLegal:
  *                 type: string
- *                 description: Representante legal
+ *                 description: Representante legal (opcional)
  *               actividadComercial:
  *                 type: string
- *                 description: Actividad comercial
+ *                 description: Actividad comercial (opcional)
  *               sectorEconomico:
  *                 type: string
- *                 description: Sector económico
+ *                 description: Sector económico (opcional)
  *               tamanoEmpresa:
  *                 type: string
  *                 enum: [Microempresa, Pequeña, Mediana, Grande]
- *                 description: Tamaño de la empresa
+ *                 description: Tamaño de la empresa (opcional)
  *               ingresosMensuales:
  *                 type: string
- *                 description: Ingresos mensuales promedio
+ *                 description: Ingresos mensuales promedio (opcional)
  *               patrimonio:
  *                 type: string
- *                 description: Patrimonio
+ *                 description: Patrimonio (opcional)
  *               entidadBancaria:
  *                 type: string
- *                 description: Entidad bancaria
+ *                 description: Entidad bancaria (opcional)
  *               tipoCuenta:
  *                 type: string
  *                 enum: [Ahorros, Corriente]
- *                 description: Tipo de cuenta bancaria
+ *                 description: Tipo de cuenta bancaria (opcional)
  *               numeroCuenta:
  *                 type: string
- *                 description: Número de cuenta bancaria
+ *                 description: Número de cuenta bancaria (opcional)
  *               nombreContacto:
  *                 type: string
- *                 description: Nombre del contacto alternativo
+ *                 description: Nombre del contacto alternativo (opcional)
  *               cargoContacto:
  *                 type: string
- *                 description: Cargo del contacto alternativo
+ *                 description: Cargo del contacto alternativo (opcional)
  *               telefonoContacto:
  *                 type: string
- *                 description: Teléfono del contacto alternativo
+ *                 description: Teléfono del contacto alternativo (opcional)
  *               emailContacto:
  *                 type: string
  *                 format: email
- *                 description: Email del contacto alternativo
+ *                 description: Email del contacto alternativo (opcional)
  *               fotocopiaCedula:
  *                 type: string
  *                 format: binary
- *                 description: Fotocopia de la cédula
+ *                 description: Fotocopia de la cédula (opcional)
  *               fotocopiaRut:
  *                 type: string
  *                 format: binary
- *                 description: Fotocopia del RUT
+ *                 description: Fotocopia del RUT (opcional)
  *               anexosAdicionales:
  *                 type: string
  *                 format: binary
- *                 description: Anexos adicionales
+ *                 description: Anexos adicionales (opcional)
  *     responses:
  *       201:
  *         description: Perfil creado exitosamente

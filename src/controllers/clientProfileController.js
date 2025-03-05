@@ -21,13 +21,22 @@ if (!fs.existsSync(uploadDir)) {
 const saveFile = async (file) => {
   if (!file) return null;
   
-  const uniqueFilename = `${uuidv4()}${path.extname(file.name)}`;
-  const filePath = path.join(uploadDir, uniqueFilename);
-  
-  // Mover el archivo a la ubicación final
-  await file.mv(filePath);
-  
-  return uniqueFilename; // Devolver solo el nombre del archivo
+  try {
+    const uniqueFilename = `${uuidv4()}${path.extname(file.name)}`;
+    const filePath = path.join(uploadDir, uniqueFilename);
+    
+    // Mover el archivo a la ubicación final
+    await file.mv(filePath);
+    
+    return uniqueFilename; // Devolver solo el nombre del archivo
+  } catch (error) {
+    logger.error('Error al guardar archivo', {
+      error: error.message,
+      fileName: file.name,
+      fileSize: file.size
+    });
+    throw error;
+  }
 };
 
 /**
@@ -399,8 +408,15 @@ class ClientProfileController {
    */
   async createProfile(req, res) {
     try {
+      // Depuración inicial
       // Extraer datos de la solicitud
       const clientData = { ...req.body };
+
+      logger.debug('Recibiendo datos para perfil de cliente', { 
+        bodyFields: Object.keys(clientData),
+        filesExist: !!req.files,
+        filesFields: req.files ? Object.keys(req.files) : []
+      });
       
       // Asegurar que userId sea un entero
       if (clientData.userId) {
@@ -416,12 +432,12 @@ class ClientProfileController {
       });
       
       // Validación básica
-      if (!clientData.razonSocial) {
-        return res.status(400).json({
-          success: false,
-          message: 'La razón social es requerida'
-        });
-      }
+      //if (!clientData.razonSocial) {
+        //return res.status(400).json({
+          //success: false,
+          //message: 'La razón social es requerida'
+        //});
+      //}
       
       // Verificar si ya existe un perfil para este usuario
       if (clientData.userId) {
@@ -436,18 +452,26 @@ class ClientProfileController {
       }
       
       // Procesar archivos si existen
-      if (req.files) {
-        if (req.files.fotocopiaCedula) {
-          clientData.fotocopiaCedula = await saveFile(req.files.fotocopiaCedula);
+      try {
+        if (req.files) {
+          if (req.files.fotocopiaCedula) {
+            clientData.fotocopiaCedula = await saveFile(req.files.fotocopiaCedula);
+          }
+          
+          if (req.files.fotocopiaRut) {
+            clientData.fotocopiaRut = await saveFile(req.files.fotocopiaRut);
+          }
+          
+          if (req.files.anexosAdicionales) {
+            clientData.anexosAdicionales = await saveFile(req.files.anexosAdicionales);
+          }
         }
-        
-        if (req.files.fotocopiaRut) {
-          clientData.fotocopiaRut = await saveFile(req.files.fotocopiaRut);
-        }
-        
-        if (req.files.anexosAdicionales) {
-          clientData.anexosAdicionales = await saveFile(req.files.anexosAdicionales);
-        }
+      } catch (fileError) {
+        logger.error('Error procesando archivos', {
+          error: fileError.message,
+          stack: fileError.stack
+        });
+        // Continuamos sin archivos
       }
       
       // Crear el perfil

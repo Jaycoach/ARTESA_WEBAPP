@@ -141,10 +141,18 @@ app.use((err, req, res, next) => {
 
 app.use(fileUpload({
   limits: { fileSize: 10 * 1024 * 1024 }, // Límite de 10MB
-  useTempFiles: false,
+  useTempFiles: true,
+  tempFileDir: './tmp/',
+  parseNested: true,
   abortOnLimit: true,
-  responseOnLimit: "Archivo demasiado grande. El límite es de 10MB."
+  responseOnLimit: "Archivo demasiado grande. El límite es de 10MB.",
+  debug: true
 }));
+
+// Asegurar que exista la carpeta temporal
+if (!fs.existsSync('./tmp')) {
+  fs.mkdirSync('./tmp', { recursive: true });
+}
 
 const clientProfilesDir = path.join(__dirname, 'uploads/client-profiles');
 if (!fs.existsSync(clientProfilesDir)) {
