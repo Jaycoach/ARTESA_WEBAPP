@@ -9,28 +9,29 @@ Este proyecto es una API RESTful para la aplicación web **LA ARTESA**, que perm
 2. [Configuración del Proyecto](#configuración-del-proyecto)
    - [Instalación](#instalación)
    - [Variables de Entorno](#variables-de-entorno)
-3. [Estructura del Proyecto](#estructura-del-proyecto)
-4. [Base de Datos](#base-de-datos)
+3. [Arquitectura del Sistema](#arquitectura-del-sistema)
+4. [Estructura del Proyecto](#estructura-del-proyecto)
+5. [Base de Datos](#base-de-datos)
    - [Estructura de Tablas](#estructura-de-tablas)
    - [Tipos de Datos Personalizados](#tipos-de-datos-personalizados)
-5. [Autenticación y Seguridad](#autenticación-y-seguridad)
+6. [Autenticación y Seguridad](#autenticación-y-seguridad)
    - [JWT](#jwt)
    - [Sistema de Roles](#sistema-de-roles)
    - [Recuperación de Contraseña](#recuperación-de-contraseña)
    - [Rate Limiting y Protección](#rate-limiting-y-protección)
-6. [Endpoints](#endpoints)
+7. [Endpoints](#endpoints)
    - [Autenticación](#autenticación)
    - [Usuarios](#usuarios)
    - [Productos](#productos)
    - [Pedidos](#pedidos)
    - [Perfiles de Clientes](#perfiles-de-clientes)
    - [Pagos](#pagos)
-7. [Subida de Archivos](#subida-de-archivos)
-8. [Sistema de Auditoría](#sistema-de-auditoría)
-9. [Ejecución del Proyecto](#ejecución-del-proyecto)
-10. [Documentación de la API](#documentación-de-la-api)
-11. [Logs y Monitoreo](#logs-y-monitoreo)
-12. [Seguridad](#seguridad)
+8. [Subida de Archivos](#subida-de-archivos)
+9. [Sistema de Auditoría](#sistema-de-auditoría)
+10. [Ejecución del Proyecto](#ejecución-del-proyecto)
+11. [Documentación de la API](#documentación-de-la-api)
+12. [Logs y Monitoreo](#logs-y-monitoreo)
+13. [Seguridad](#seguridad)
 
 ---
 
@@ -100,12 +101,23 @@ PROD_URL=https://tu-dominio-de-produccion.com
 ```
 ---
 
-# LA ARTESA Web App
+## **Arquitectura del Sistema**
 
-## Arquitectura del Sistema
+LA ARTESA Web App utiliza una arquitectura en capas con separación clara de responsabilidades, siguiendo el patrón MVC adaptado para una API RESTful.
 
-![Arquitectura de LA ARTESA Web App](scripts\docs\images\backend-architecture-diagram.svg)
+![Arquitectura de LA ARTESA Web App](scripts/docs/images/backend-architecture-diagram.svg)
 
+### Componentes Principales
+
+- **Express App**: Punto de entrada principal que configura el servidor y registra las rutas
+- **Middleware**: Autenticación, seguridad, manejo de errores y validación
+- **Rutas**: Definen los endpoints de la API y dirigen las solicitudes
+- **Controladores**: Implementan la lógica de negocio para cada tipo de solicitud
+- **Servicios**: Proporcionan funcionalidades transversales como correo electrónico y auditoría
+- **Modelos**: Encapsulan la lógica de acceso a datos y reglas de negocio
+- **Base de Datos**: PostgreSQL para almacenamiento persistente
+
+Para una descripción detallada de la arquitectura, consulte la [documentación técnica](scripts/docs/ARCHITECTURE.md).
 ---
 
 ## **Estructura del Proyecto**
