@@ -347,7 +347,7 @@ static async create(clientData) {
    * @returns {Promise<Object|null>} - Perfil actualizado o null si no existe
    * @throws {Error} Si ocurre un error en la actualización
    */
-  static async update(userId, updateData) {
+  static async updateByUserId(userId, updateData) {
     try {
       logger.debug('Actualizando perfil de cliente', { 
         userId,
@@ -476,7 +476,7 @@ static async create(clientData) {
    * @returns {Promise<Object|null>} - Perfil eliminado o null si no existe
    * @throws {Error} Si ocurre un error en la eliminación
    */
-  static async delete(userId) {
+  static async deleteByUserId(userId) {
     try {
       logger.debug('Eliminando perfil de cliente', { userId });
       

@@ -271,15 +271,15 @@ class ClientProfileController {
         const result = { ...profile };
         
         if (result.fotocopiaCedula) {
-          result.fotocopiaCedulaUrl = `${baseUrl}/api/client-profiles/${profile.client_id}/file/cedula`;
+          result.fotocopiaCedulaUrl = `${baseUrl}/api/client-profiles/${profile.user_id}/file/cedula`;
         }
         
         if (result.fotocopiaRut) {
-          result.fotocopiaRutUrl = `${baseUrl}/api/client-profiles/${profile.client_id}/file/rut`;
+          result.fotocopiaRutUrl = `${baseUrl}/api/client-profiles/${profile.user_id}/file/rut`;
         }
         
         if (result.anexosAdicionales) {
-          result.anexosAdicionalesUrl = `${baseUrl}/api/client-profiles/${profile.client_id}/file/anexos`;
+          result.anexosAdicionalesUrl = `${baseUrl}/api/client-profiles/${profile.user_id}/file/anexos`;
         }
         
         return result;
@@ -305,7 +305,7 @@ class ClientProfileController {
 
   /**
    * @swagger
-   * /api/client-profiles/{id}:
+   * /api/client-profiles/{userId}:
    *   get:
    *     summary: Obtener perfil de cliente por ID
    *     description: Recupera los detalles de un perfil de cliente específico
@@ -329,87 +329,11 @@ class ClientProfileController {
    *       500:
    *         description: Error interno del servidor
    */
-  async getProfileById(req, res) {
-    try {
-      const { id } = req.params;
-      
-      logger.debug('Obteniendo perfil de cliente por ID', { profileId: id });
-      
-      const profile = await ClientProfile.getById(id);
-      
-      if (!profile) {
-        logger.warn('Perfil de cliente no encontrado', { profileId: id });
-        return res.status(404).json({
-          success: false,
-          message: 'Perfil de cliente no encontrado'
-        });
-      }
-      
-      // Agregar URLs para archivos
-      const baseUrl = `${req.protocol}://${req.get('host')}`;
-      
-      if (profile.fotocopiaCedula) {
-        profile.fotocopiaCedulaUrl = `${baseUrl}/api/client-profiles/${id}/file/cedula`;
-      }
-      
-      if (profile.fotocopiaRut) {
-        profile.fotocopiaRutUrl = `${baseUrl}/api/client-profiles/${id}/file/rut`;
-      }
-      
-      if (profile.anexosAdicionales) {
-        profile.anexosAdicionalesUrl = `${baseUrl}/api/client-profiles/${id}/file/anexos`;
-      }
-      
-      res.status(200).json({
-        success: true,
-        data: profile
-      });
-    } catch (error) {
-      logger.error('Error al obtener perfil de cliente', {
-        error: error.message,
-        stack: error.stack,
-        profileId: req.params.id
-      });
-      
-      res.status(500).json({
-        success: false,
-        message: 'Error al obtener perfil de cliente',
-        error: process.env.NODE_ENV === 'development' ? error.message : undefined
-      });
-    }
-  }
-
-  /**
-   * @swagger
-   * /api/client-profiles/user/{userId}:
-   *   get:
-   *     summary: Obtener perfil de cliente por ID de usuario
-   *     description: Recupera los detalles del perfil de un cliente por su ID de usuario
-   *     tags: [ClientProfiles]
-   *     security:
-   *       - bearerAuth: []
-   *     parameters:
-   *       - in: path
-   *         name: userId
-   *         required: true
-   *         schema:
-   *           type: integer
-   *         description: ID del usuario
-   *     responses:
-   *       200:
-   *         description: Perfil recuperado exitosamente
-   *       401:
-   *         description: No autorizado
-   *       404:
-   *         description: Perfil no encontrado
-   *       500:
-   *         description: Error interno del servidor
-   */
   async getProfileByUserId(req, res) {
     try {
       const { userId } = req.params;
       
-      logger.debug('Obteniendo perfil de cliente por ID de usuario', { userId });
+      logger.debug('Obteniendo perfil de cliente por ID', { userId });
       
       const profile = await ClientProfile.getByUserId(userId);
       
@@ -425,15 +349,15 @@ class ClientProfileController {
       const baseUrl = `${req.protocol}://${req.get('host')}`;
       
       if (profile.fotocopiaCedula) {
-        profile.fotocopiaCedulaUrl = `${baseUrl}/api/client-profiles/user/${userId}/file/cedula`;
+        profile.fotocopiaCedulaUrl = `${baseUrl}/api/client-profiles/${userId}/file/cedula`;
       }
       
       if (profile.fotocopiaRut) {
-        profile.fotocopiaRutUrl = `${baseUrl}/api/client-profiles/user/${userId}/file/rut`;
+        profile.fotocopiaRutUrl = `${baseUrl}/api/client-profiles/${userId}/file/rut`;
       }
       
       if (profile.anexosAdicionales) {
-        profile.anexosAdicionalesUrl = `${baseUrl}/api/client-profiles/user/${userId}/file/anexos`;
+        profile.anexosAdicionalesUrl = `${baseUrl}/api/client-profiles/${userId}/file/anexos`;
       }
       
       res.status(200).json({
@@ -441,10 +365,10 @@ class ClientProfileController {
         data: profile
       });
     } catch (error) {
-      logger.error('Error al obtener perfil de cliente por ID de usuario', {
+      logger.error('Error al obtener perfil de cliente', {
         error: error.message,
         stack: error.stack,
-        userId: req.params.userId
+        profileId: req.params.id
       });
       
       res.status(500).json({
@@ -722,19 +646,19 @@ class ClientProfileController {
       const baseUrl = `${req.protocol}://${req.get('host')}`;
       
       if (profile.fotocopiaCedula) {
-        profile.fotocopiaCedulaUrl = `${baseUrl}/api/client-profiles/${profile.client_id}/file/cedula`;
+        profile.fotocopiaCedulaUrl = `${baseUrl}/api/client-profiles/${profile.user_id}/file/cedula`;
       }
       
       if (profile.fotocopiaRut) {
-        profile.fotocopiaRutUrl = `${baseUrl}/api/client-profiles/${profile.client_id}/file/rut`;
+        profile.fotocopiaRutUrl = `${baseUrl}/api/client-profiles/${profile.user_id}/file/rut`;
       }
       
       if (profile.anexosAdicionales) {
-        profile.anexosAdicionalesUrl = `${baseUrl}/api/client-profiles/${profile.client_id}/file/anexos`;
+        profile.anexosAdicionalesUrl = `${baseUrl}/api/client-profiles/${profile.user_id}/file/anexos`;
       }
       
       logger.info('Perfil de cliente creado exitosamente', {
-        profileId: profile.client_id,
+        userId: profile.user_id,
         userId: clientData.userId
       });
       
@@ -760,7 +684,7 @@ class ClientProfileController {
 
   /**
    * @swagger
-   * /api/client-profiles/{id}:
+   * /api/client-profiles/{userId}:
    *   put:
    *     summary: Actualizar perfil de cliente
    *     description: Actualiza los datos de un perfil de cliente existente
@@ -838,13 +762,13 @@ class ClientProfileController {
    *       500:
    *         description: Error interno del servidor
    */
-  async updateProfile(req, res) {
+  async updateProfileByUserId(req, res) {
     try {
-      const { id } = req.params;
+      const { userId } = req.params;
       
       // Agregar logs para depuración
       logger.debug('Iniciando actualización de perfil de cliente', { 
-        profileId: id,
+        userId,
         method: req.method,
         path: req.path,
         bodyFields: Object.keys(req.body),
@@ -913,15 +837,15 @@ class ClientProfileController {
       });
       
       logger.debug('Datos para actualización de perfil de cliente', { 
-        profileId: id,
+        userId,
         fields: Object.keys(updateData)
       });
       
       // Obtener el perfil actual para verificar si existe
-      const existingProfile = await ClientProfile.getById(id);
+      const existingProfile = await ClientProfile.getByUserId(userId);
       
       if (!existingProfile) {
-        logger.warn('Perfil de cliente no encontrado al actualizar', { profileId: id });
+        logger.warn('Perfil de cliente no encontrado al actualizar', { userId });
         return res.status(404).json({
           success: false,
           message: 'Perfil de cliente no encontrado'
@@ -932,7 +856,7 @@ class ClientProfileController {
       if (req.user.rol_id !== 1 && existingProfile.user_id !== req.user.id) {
         logger.warn('Intento no autorizado de actualizar perfil', {
           userId: req.user.id,
-          profileId: id,
+          userId,
           profileOwnerId: existingProfile.user_id
         });
         
@@ -989,13 +913,13 @@ class ClientProfileController {
         logger.error('Error procesando archivos en actualización', {
           error: fileError.message,
           stack: fileError.stack,
-          profileId: id
+          userId
         });
         // Continuamos sin archivos
       }
       
       // Actualizar el perfil
-      const updatedProfile = await ClientProfile.update(id, updateData);
+      const updatedProfile = await ClientProfile.updateByUserId(userId, updateData);
       
       if (!updatedProfile) {
         return res.status(404).json({
@@ -1008,19 +932,19 @@ class ClientProfileController {
       const baseUrl = `${req.protocol}://${req.get('host')}`;
       
       if (updatedProfile.fotocopiaCedula) {
-        updatedProfile.fotocopiaCedulaUrl = `${baseUrl}/api/client-profiles/${id}/file/cedula`;
+        updatedProfile.fotocopiaCedulaUrl = `${baseUrl}/api/client-profiles/${userId}/file/cedula`;
       }
       
       if (updatedProfile.fotocopiaRut) {
-        updatedProfile.fotocopiaRutUrl = `${baseUrl}/api/client-profiles/${id}/file/rut`;
+        updatedProfile.fotocopiaRutUrl = `${baseUrl}/api/client-profiles/${userId}/file/rut`;
       }
       
       if (updatedProfile.anexosAdicionales) {
-        updatedProfile.anexosAdicionalesUrl = `${baseUrl}/api/client-profiles/${id}/file/anexos`;
+        updatedProfile.anexosAdicionalesUrl = `${baseUrl}/api/client-profiles/${userId}/file/anexos`;
       }
       
       logger.info('Perfil de cliente actualizado exitosamente', {
-        profileId: id,
+        userId,
         razonSocial: updatedProfile.razonSocial || existingProfile.razonSocial
       });
       
@@ -1046,7 +970,7 @@ class ClientProfileController {
 
   /**
    * @swagger
-   * /api/client-profiles/{id}:
+   * /api/client-profiles/{userId}:
    *   delete:
    *     summary: Eliminar perfil de cliente
    *     description: Elimina un perfil de cliente del sistema
@@ -1072,17 +996,17 @@ class ClientProfileController {
    *       500:
    *         description: Error interno del servidor
    */
-  async deleteProfile(req, res) {
+  async deleteProfileByUserId(req, res) {
     try {
-      const { id } = req.params;
+      const { userId } = req.params;
       
-      logger.debug('Eliminando perfil de cliente', { profileId: id });
+      logger.debug('Eliminando perfil de cliente', { userId });
       
       // Primero obtenemos el perfil para obtener las rutas de archivos
-      const profile = await ClientProfile.getById(id);
+      const profile = await ClientProfile.getByUserId(userId);
       
       if (!profile) {
-        logger.warn('Perfil de cliente no encontrado al eliminar', { profileId: id });
+        logger.warn('Perfil de cliente no encontrado al eliminar', { userId });
         return res.status(404).json({
           success: false,
           message: 'Perfil de cliente no encontrado'
@@ -1112,10 +1036,10 @@ class ClientProfileController {
       }
       
       // Luego eliminamos el perfil de la base de datos
-      const deletedProfile = await ClientProfile.delete(id);
+      const deletedProfile = await ClientProfile.deleteByUserId(userId);
       
       logger.info('Perfil de cliente eliminado exitosamente', {
-        profileId: id,
+        userId,
         razonSocial: profile.razonSocial
       });
       
@@ -1141,7 +1065,7 @@ class ClientProfileController {
   
   /**
    * @swagger
-   * /api/client-profiles/{id}/file/{fileType}:
+   * /api/client-profiles/{userId}/file/{fileType}:
    *   get:
    *     summary: Obtener archivo de perfil de cliente
    *     description: Recupera un archivo asociado al perfil de cliente (cédula, RUT o anexos)
@@ -1189,10 +1113,10 @@ async getFile(req, res) {
     });
     
     // Obtener el perfil para verificar si existe y obtener la ruta del archivo
-    const profile = await ClientProfile.getById(userId);
+    const profile = await ClientProfile.getByUserId(userId);
     
     if (!profile) {
-      logger.warn('Perfil de cliente no encontrado', { profileId: id });
+      logger.warn('Perfil de cliente no encontrado', { userId });
       return res.status(404).json({
         success: false,
         message: 'Perfil de cliente no encontrado'
@@ -1430,11 +1354,10 @@ const clientProfileController = new ClientProfileController();
 
 module.exports = {
   getAllProfiles: clientProfileController.getAllProfiles,
-  getProfileById: clientProfileController.getProfileById,
   getProfileByUserId: clientProfileController.getProfileByUserId,
   createProfile: clientProfileController.createProfile,
-  updateProfile: clientProfileController.updateProfile,
-  deleteProfile: clientProfileController.deleteProfile,
+  updateProfileByUserId: clientProfileController.updateProfileByUserId,
+  deleteProfileByUserId: clientProfileController.deleteProfileByUserId,
   getFile: clientProfileController.getFile,
   getFileByUserId: clientProfileController.getFileByUserId
 };

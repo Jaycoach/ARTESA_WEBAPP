@@ -188,47 +188,6 @@ router.get('/',
 
 /**
  * @swagger
- * /api/client-profiles/{id}:
- *   get:
- *     summary: Obtener perfil de cliente por ID
- *     description: Recupera los detalles de un perfil de cliente específico
- *     tags: [ClientProfiles]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *         description: ID del perfil de cliente
- *     responses:
- *       200:
- *         description: Perfil recuperado exitosamente
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 data:
- *                   $ref: '#/components/schemas/ClientProfile'
- *       401:
- *         description: No autorizado
- *       404:
- *         description: Perfil no encontrado
- *       500:
- *         description: Error interno del servidor
- */
-router.get('/user/:userId', 
-  verifyToken, 
-  clientProfileController.getProfileById
-);
-
-/**
- * @swagger
  * /api/client-profiles/user/{userId}:
  *   get:
  *     summary: Obtener perfil de cliente por ID de usuario
@@ -404,20 +363,20 @@ router.post('/',
 
 /**
  * @swagger
- * /api/client-profiles/{id}:
+ * /api/client-profiles/user/{userId}:
  *   put:
- *     summary: Actualizar perfil de cliente
- *     description: Actualiza los datos de un perfil de cliente existente
+ *     summary: Actualizar perfil de cliente por ID de usuario
+ *     description: Actualiza los datos de un perfil de cliente existente usando ID de usuario
  *     tags: [ClientProfiles]
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
- *         name: id
+ *         name: userId
  *         required: true
  *         schema:
  *           type: integer
- *         description: ID del perfil de cliente
+ *         description: ID del usuario
  *     requestBody:
  *       required: true
  *       content:
@@ -536,27 +495,27 @@ router.post('/',
  *       500:
  *         description: Error interno del servidor
  */
-router.put('/:id', 
+router.put('/user/:userId', 
   verifyToken,
-  clientProfileController.updateProfile
+  clientProfileController.updateProfileByUserId
 );
 
 /**
  * @swagger
- * /api/client-profiles/{id}:
+ * /api/client-profiles/user/{userId}:
  *   delete:
- *     summary: Eliminar perfil de cliente
- *     description: Elimina un perfil de cliente del sistema
+ *     summary: Eliminar perfil de cliente por ID de usuario
+ *     description: Elimina un perfil de cliente del sistema usando ID de usuario
  *     tags: [ClientProfiles]
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
- *         name: id
+ *         name: userId
  *         required: true
  *         schema:
  *           type: integer
- *         description: ID del perfil de cliente
+ *         description: ID del usuario
  *     responses:
  *       200:
  *         description: Perfil eliminado exitosamente
@@ -582,53 +541,10 @@ router.put('/:id',
  *       500:
  *         description: Error interno del servidor
  */
-router.delete('/:id', 
+router.delete('/user/:userId', 
   verifyToken,
   checkRole([1]), // Solo administradores pueden eliminar
-  clientProfileController.deleteProfile
-);
-
-/**
- * @swagger
- * /api/client-profiles/{id}/file/{fileType}:
- *   get:
- *     summary: Obtener archivo de perfil de cliente
- *     description: Recupera un archivo asociado al perfil de cliente (cédula, RUT o anexos)
- *     tags: [ClientProfiles]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *         description: ID del perfil de cliente
- *       - in: path
- *         name: fileType
- *         required: true
- *         schema:
- *           type: string
- *           enum: [cedula, rut, anexos]
- *         description: Tipo de archivo a obtener
- *     responses:
- *       200:
- *         description: Archivo recuperado exitosamente
- *         content:
- *           application/octet-stream:
- *             schema:
- *               type: string
- *               format: binary
- *       401:
- *         description: No autorizado
- *       404:
- *         description: Archivo no encontrado
- *       500:
- *         description: Error interno del servidor
- */
-router.get('/user/:userId/file/:fileType',
-  verifyToken,
-  clientProfileController.getFileByUserId
+  clientProfileController.deleteProfileByUserId
 );
 
 /**
