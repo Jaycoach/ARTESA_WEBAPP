@@ -305,7 +305,7 @@ class ClientProfileController {
 
   /**
    * @swagger
-   * /api/client-profiles/{userId}:
+   * /api/client-profiles/user/{userId}:
    *   get:
    *     summary: Obtener perfil de cliente por ID
    *     description: Recupera los detalles de un perfil de cliente específico
@@ -314,7 +314,7 @@ class ClientProfileController {
    *       - bearerAuth: []
    *     parameters:
    *       - in: path
-   *         name: id
+   *         name: userId
    *         required: true
    *         schema:
    *           type: integer
@@ -684,7 +684,7 @@ class ClientProfileController {
 
   /**
    * @swagger
-   * /api/client-profiles/{userId}:
+   * /api/client-profiles/user/{userId}:
    *   put:
    *     summary: Actualizar perfil de cliente
    *     description: Actualiza los datos de un perfil de cliente existente
@@ -693,7 +693,7 @@ class ClientProfileController {
    *       - bearerAuth: []
    *     parameters:
    *       - in: path
-   *         name: id
+   *         name: userId
    *         required: true
    *         schema:
    *           type: integer
@@ -970,7 +970,7 @@ class ClientProfileController {
 
   /**
    * @swagger
-   * /api/client-profiles/{userId}:
+   * /api/client-profiles/user/{userId}:
    *   delete:
    *     summary: Eliminar perfil de cliente
    *     description: Elimina un perfil de cliente del sistema
@@ -979,7 +979,7 @@ class ClientProfileController {
    *       - bearerAuth: []
    *     parameters:
    *       - in: path
-   *         name: id
+   *         name: userId
    *         required: true
    *         schema:
    *           type: integer
@@ -1065,7 +1065,7 @@ class ClientProfileController {
   
   /**
    * @swagger
-   * /api/client-profiles/{userId}/file/{fileType}:
+   * /api/client-profiles/user/{userId}/file/{fileType}:
    *   get:
    *     summary: Obtener archivo de perfil de cliente
    *     description: Recupera un archivo asociado al perfil de cliente (cédula, RUT o anexos)
@@ -1074,7 +1074,7 @@ class ClientProfileController {
    *       - bearerAuth: []
    *     parameters:
    *       - in: path
-   *         name: id
+   *         name: userId
    *         required: true
    *         schema:
    *           type: integer
