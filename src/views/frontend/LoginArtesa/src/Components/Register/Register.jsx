@@ -41,7 +41,7 @@ const Register = () => {
         setError('');
 
         try {
-            const response = await API.post('/auth/register', formData, {
+            const response = await API.post('/api/auth/register', formData, {
                 headers: {
                     'Content-Type': 'application/json'
                 }
@@ -91,7 +91,7 @@ const Register = () => {
                         <label htmlFor="name">Nombre</label>
                         <div className="input flex">
                             <FaUserShield className="icon"/>
-                            <input type="text" id="name" placeholder="Escriba su Nombre:" value={formData.nombre} onChange={handleChange} required/>
+                            <input type="text" id="name" placeholder="Escriba su Nombre:" value={formData.name} onChange={handleChange} required/>
                         </div>
                     </div>
 
@@ -99,14 +99,20 @@ const Register = () => {
                         <label htmlFor="mail">Email</label>
                         <div className="input flex">
                             <MdMarkEmailRead className="icon"/>
-                            <input type="email" id="mail" placeholder="Escriba su Email:"value={formData.email} onChange={handleChange} required />
+                            <input type="email" id="mail" placeholder="Escriba su Email:"value={formData.mail} onChange={handleChange} required />
                         </div>
                     </div>
                     <div className="inputDiv">
                         <label htmlFor="password">Contraseña</label>
                         <div className="input flex">
                             <BsFillShieldLockFill className="icon"/>
-                            <input type="password" id="password " placeholder="Escriba su contraseña:" value={formData.password} onChange={handleChange} required/>
+                            <input 
+                            type="password" 
+                            id="password" 
+                            placeholder="Escriba su contraseña:" 
+                            value={formData.password} 
+                            onChange={handleChange} 
+                            required/>
                         </div>
                     </div>
 

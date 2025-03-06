@@ -50,47 +50,60 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
   const [existingProfile, setExistingProfile] = useState(null);
   
   useEffect(() => {
-    // Verificar si el usuario ya tiene un perfil
+    console.log('useEffect en ClientProfile: user:', user);
+  
     const fetchProfile = async () => {
+      console.log('Iniciando fetchProfile...');
       try {
-        // Intentar obtener el perfil del usuario desde la API
-        const response = await API.get(`/client-profile/${user.id}`);
-        
-        // Si existe un perfil, actualizar el estado
-        if (response.data) {
-          setExistingProfile(response.data);
-          
-          // Precargar los datos existentes (excepto los archivos)
-          const profileData = { ...response.data };
-          delete profileData.fotocopiaCedula;
-          delete profileData.fotocopiaRut;
-          delete profileData.anexosAdicionales;
-          
+        // Intentar obtener el perfil del usuario => user.id
+        const response = await API.get(`/api/client-profiles/user/${user.id}`);
+  
+        // OJO: El controlador retorna { success: true, data: { ... } }
+        if (response.data && response.data.success) {
+          const profile = response.data.data;  // Aquí están los campos reales
+          setExistingProfile(profile);
+  
+          // Quitamos archivos para que no se interpreten como strings:
+          const { fotocopiaCedula, fotocopiaRut, anexosAdicionales, ...rest } = profile;
+  
+          // Rellenamos el formulario
           setFormData(prev => ({
             ...prev,
-            ...profileData,
+            ...rest
           }));
-          
-          console.log('Perfil cargado desde la API');
+  
+          console.log('Perfil cargado desde la API', profile);
+        } else {
+          // No hay perfil, ya sea success: false o sin data
+          console.log('Perfil no encontrado o success = false');
+          if (user) {
+            setFormData(prev => ({
+              ...prev,
+              email: user.mail || user.email || '',
+              nombre: user.nombre || user.name || ''
+            }));
+          }
         }
       } catch (error) {
-        console.log('No existe perfil previo o error al obtenerlo');
-        
-        // Si no existe perfil, inicializar con el email del usuario logueado
+        console.log('Error al obtener perfil', error);
+  
+        // Si da error 404 o similar, simplemente inicializamos con email
         if (user) {
           setFormData(prev => ({
             ...prev,
-            email: user.mail || user.email || '', // Consideramos ambos campos por compatibilidad
-            nombre: user.nombre || user.name || '' 
+            email: user.mail || user.email || '',
+            nombre: user.nombre || user.name || ''
           }));
         }
       }
     };
-    
+  
+    // Solo hacemos fetch si user.id existe
     if (user && user.id) {
+      console.log('user.id existe, llamamos fetchProfile');
       fetchProfile();
     } else if (user) {
-      // Si hay usuario pero no tiene ID, al menos usamos su email
+      console.log('user.id NO existe, no llamamos fetchProfile');
       setFormData(prev => ({
         ...prev,
         email: user.mail || user.email || '',
@@ -127,8 +140,8 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
       
       // Agregar todos los campos del formulario
       Object.keys(formData).forEach(key => {
-        if (key === 'fotocopiaCedula' || key === 'fotocopiaRut' || key === 'anexosAdicionales') {
-          if (formData[key]) {
+        if (['fotocopiaCedula','fotocopiaRut','anexosAdicionales'].includes(key)) {
+          if (formData[key] && formData[key] !== existingProfile?.[key]) {
             formDataToSend.append(key, formData[key]);
           }
         } else {
@@ -140,13 +153,15 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
       formDataToSend.append('userId', user.id);
       
       // Endpoint correcto dependiendo si es creación o actualización
-      const endpoint = existingProfile 
-        ? `/client-profile/${user.id}` 
-        : '/client-profile';
-      
-      const method = existingProfile ? 'put' : 'post';
-      
-      // Realizar la solicitud a la API
+      let endpoint = '/api/client-profiles';
+      let method = 'post';
+  
+      if (existingProfile) {
+        // OJO: aquí usamos client_id, NO user.id
+        endpoint = `/api/client-profiles/${existingProfile.client_id}`;
+        method = 'put';
+      }
+  
       const response = await API({
         method,
         url: endpoint,
@@ -155,23 +170,67 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
           'Content-Type': 'multipart/form-data'
         }
       });
-      
-      // Guardar perfil en localStorage para acceso rápido
-    localStorage.setItem('clientProfile', JSON.stringify({
-        nombre: formData.nombre,
-        email: formData.email
-      }));
-      
-      // Notificar al Dashboard sobre el cambio de nombre si existe la función
-      if (typeof onProfileUpdate === 'function') {
-        onProfileUpdate(formData.nombre);
+  
+      // En la respuesta, el controlador retorna { success: true, data: { ... } }
+      if (response.data && response.data.success) {
+        // Guardamos la info en existingProfile
+        const profileCreatedOrUpdated = response.data.data;
+        setExistingProfile(profileCreatedOrUpdated);
+  
+        // Guardar algo en localStorage si quieres
+        localStorage.setItem('clientProfile', JSON.stringify({
+          nombre: profileCreatedOrUpdated.nombre,
+          email: profileCreatedOrUpdated.email
+        }));
+  
+        // Si el padre quiere notificar cambio de nombre en dashboard
+        if (typeof onProfileUpdate === 'function') {
+          onProfileUpdate(profileCreatedOrUpdated.nombre);
+        }
+  
+        setSuccess('✅ Perfil guardado correctamente');
+      } else {
+        setError('❌ Ocurrió un problema al guardar el perfil.');
       }
-      
-      setSuccess('Perfil guardado correctamente');
-      setExistingProfile(response.data);
-    } catch (error) {
-      setError(error.response?.data?.message || 'Error al guardar el perfil');
-    } finally {
+    }  catch (error) {
+      console.error('Error en la API:', error);
+
+        // Verificamos la respuesta del servidor y mostramos los mensajes adecuados
+        if (error.response) {
+            const { data, status } = error.response;
+            
+            if (status === 400) {
+                // Capturar códigos de error específicos del backend
+                const errorMessage = data.message || "Datos inválidos";
+                const errorCode = data.errorCode || "";
+                
+                switch(errorCode) {
+                    case "MISSING_DATA":
+                        setError("❌ Faltan datos obligatorios.");
+                        break;
+                    case "INVALID_EMAIL":
+                        setError("❌ El email ingresado no es válido.");
+                        break;
+                    case "USER_NOT_FOUND":
+                        setError("❌ Usuario no encontrado.");
+                        break;
+                    case "PROFILE_EXISTS":
+                        setError("❌ Ya existe un perfil con esta información.");
+                        break;
+                    default:
+                        setError(`❌ ${errorMessage}`);
+                }
+            } else if (status === 500) {
+                setError("❌ Error en el servidor. Inténtalo más tarde.");
+            } else {
+                setError(`❌ Error (${status}): ${data.message || "Error desconocido"}`);
+            }
+        } else if (error.request) {
+            setError("❌ No se pudo conectar con el servidor. Verifique su conexión a internet.");
+        } else {
+            setError(`❌ Error: ${error.message}`);
+        }
+      } finally {
       setLoading(false);
     }
   };

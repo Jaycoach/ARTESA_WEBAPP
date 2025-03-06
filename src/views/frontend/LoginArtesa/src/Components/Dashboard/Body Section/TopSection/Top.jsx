@@ -1,33 +1,57 @@
-import React, { useState, useContext, useEffect, useCallback } from "react";
+import React, { useState, useContext, useEffect } from "react";
 import { useNavigate } from "react-router-dom"; // Para la redirección
 import { FaUserCircle } from "react-icons/fa"; // Ícono de usuario
 import AuthContext from "../../../../context/AuthContext";
+import API from "../../../../api/config";
 import "../../../../App.scss";
 import ClientProfile from "../../Pages/ClientProfile/ClientProfile";
 
+
 const Top = () => {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [userData, setUserData] = useState(null);
+  const [loading, setLoading] = useState(true); // Estado de carga
+  const [error, setError] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const { user, logout } = useContext(AuthContext);
+  console.log("User desde AuthContext:", user);
   const navigate = useNavigate();
 
   // Manejo de clics fuera del menú para cerrarlo
-  useEffect(() => {
-    const handleOutsideClick = (event) => {
-      if (!event.target.closest(".user-container")) {
-        setMenuOpen(false);
+  useEffect(() => {  
+    const fetchUserData = async () => {
+      try {
+        const response = await API.get("/api/client-profiles");
+        console.log("Respuesta de la API:", response.data);
+        if (response.data && response.data.success) {
+          setUserData(response.data.data[0]); // Asignar los datos del usuario
+        } else {
+          setError("No se pudo obtener la información del usuario.");
+        }
+      } catch (err) {
+        console.error("Error al obtener datos del usuario:", err);
+        setError("Error al conectar con el servidor.");
+      } finally {
+        setLoading(false);
       }
     };
 
-    document.addEventListener("click", handleOutsideClick);
-    return () => document.removeEventListener("click", handleOutsideClick);
-  }, []);
+    if (!user) {
+      fetchUserData();
+    } else {
+      setUserData(user);
+    }
+  
+    console.log("AuthContext user:", user);  
+    console.log("LocalStorage user:", localStorage.getItem("user"));
+  }, [user]);
 
   // Función de cierre de sesión optimizada
-  const handleLogout = useCallback(() => {
+  const handleLogout = () => {
     logout();
+    localStorage.removeItem("token");
     navigate("/");
-  }, [logout, navigate]);
+  };
 
   return (
     <div className="top-section">
@@ -37,10 +61,9 @@ const Top = () => {
         <button
           className="user-icon"
           onClick={() => setMenuOpen(!menuOpen)}
-          aria-label="Abrir menú de usuario"
         >
           <FaUserCircle size={30} />
-          {user && <span className="username">{user.name}</span>}
+          {userData ? <span>{userData.nombre || userData.name || "Usuario"}</span> : "Cargando..."}
         </button>
 
         {menuOpen && (
@@ -52,7 +75,12 @@ const Top = () => {
       </div>
 
       {/* Modal de Configuración */}
-      {modalOpen && <ClientProfile onClose={() => setModalOpen(false)} />}
+      {modalOpen && (
+  <>
+    {console.log("Renderizando ClientProfile con userData:", userData)}
+    <ClientProfile user={userData} onClose={() => setModalOpen(false)} />
+  </>
+)}
     </div>
   );
 };

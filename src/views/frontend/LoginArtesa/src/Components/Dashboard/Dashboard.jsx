@@ -6,7 +6,7 @@ import Top from "./Body Section/TopSection/Top";
 import Listing from "./Body Section/ListingSection/Listing";
 import Activity from "./Body Section/ActivitySection/Activity";
 //import ClientProfile from "./ClientProfile/ClientProfile";//
-import Banner_dash from  "../../DashboardAssets/Banner_dash2.jpg";
+import Banner_dash from  "../../DashboardAssets/Banner_dash2.png";
 import { FaUserCircle } from "react-icons/fa";
 
 const Dashboard = () => {
