@@ -9,6 +9,7 @@ const fs = require('fs');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const fileUpload = require('express-fileupload');
+const ensureJsonResponse = require('./src/middleware/ensureJsonResponse');
 
 // Importaciones de middlewares
 const { errorHandler, notFound } = require('./src/middleware/errorMiddleware');
@@ -68,6 +69,11 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Logger de solicitudes
+app.use(morgan('dev'));
+
+// Respuestas en JSON
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
 
 // =========================================================================
@@ -166,6 +172,9 @@ app.use(enhancedSecurityHeaders);
 
 // Aplicar tracker de actividad sospechosa
 app.use(suspiciousActivityTracker);
+
+// Middleware para asegurar respuestas JSON
+app.use(ensureJsonResponse);
 
 // =========================================================================
 // ARCHIVOS ESTÁTICOS
