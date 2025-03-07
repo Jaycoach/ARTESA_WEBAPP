@@ -53,7 +53,7 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
     // Verificar si el usuario ya tiene un perfil
     const fetchProfile = async () => {
       try {
-        // Intentar obtener el perfil del usuario desde la API
+        // Mantener el endpoint tal como está en la API
         const response = await API.get(`/client-profiles/user/${user.id}`);
         
         // Si existe un perfil, actualizar el estado
@@ -74,7 +74,7 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
           console.log('Perfil cargado desde la API');
         }
       } catch (error) {
-        console.log('No existe perfil previo o error al obtenerlo');
+        console.log('No existe perfil previo o error al obtenerlo', error);
         
         // Si no existe perfil, inicializar con el email del usuario logueado
         if (user) {
@@ -139,10 +139,10 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
       // Agregar ID del usuario
       formDataToSend.append('userId', user.id);
       
-      // Endpoint correcto dependiendo si es creación o actualización
+      // Mantener el endpoint tal como está en la API
       const endpoint = existingProfile 
-        ? `/client-profile/${user.id}` 
-        : '/client-profile';
+        ? `/client-profiles/user/${user.id}` 
+        : '/client-profiles';
       
       const method = existingProfile ? 'put' : 'post';
       
@@ -157,7 +157,7 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
       });
       
       // Guardar perfil en localStorage para acceso rápido
-    localStorage.setItem('clientProfile', JSON.stringify({
+      localStorage.setItem('clientProfile', JSON.stringify({
         nombre: formData.nombre,
         email: formData.email
       }));
@@ -171,6 +171,7 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
       setExistingProfile(response.data);
     } catch (error) {
       setError(error.response?.data?.message || 'Error al guardar el perfil');
+      console.error('Error al guardar perfil:', error);
     } finally {
       setLoading(false);
     }
@@ -450,59 +451,7 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
               </div>
             </div>
             
-            {/* Sección 5: Contacto Alternativo */}
-            <div className="form-section">
-              <h3 className="section-title">Contacto Alternativo</h3>
-              <div className="form-row">
-                <div className="form-group">
-                  <label htmlFor="nombreContacto">Nombre de Contacto</label>
-                  <input 
-                    type="text" 
-                    id="nombreContacto" 
-                    name="nombreContacto" 
-                    value={formData.nombreContacto} 
-                    onChange={handleChange} 
-                  />
-                </div>
-                
-                <div className="form-group">
-                  <label htmlFor="cargoContacto">Cargo</label>
-                  <input 
-                    type="text" 
-                    id="cargoContacto" 
-                    name="cargoContacto" 
-                    value={formData.cargoContacto} 
-                    onChange={handleChange} 
-                  />
-                </div>
-              </div>
-              
-              <div className="form-row">
-                <div className="form-group">
-                  <label htmlFor="telefonoContacto">Teléfono de Contacto</label>
-                  <input 
-                    type="tel" 
-                    id="telefonoContacto" 
-                    name="telefonoContacto" 
-                    value={formData.telefonoContacto} 
-                    onChange={handleChange} 
-                  />
-                </div>
-                
-                <div className="form-group">
-                  <label htmlFor="emailContacto">Email de Contacto</label>
-                  <input 
-                    type="email" 
-                    id="emailContacto" 
-                    name="emailContacto" 
-                    value={formData.emailContacto} 
-                    onChange={handleChange} 
-                  />
-                </div>
-              </div>
-            </div>
-            
-            {/* Sección 6: Documentos Requeridos */}
+            {/* Sección 5: Documentos Requeridos */}
             <div className="form-section">
               <h3 className="section-title">Documentos Requeridos</h3>
               <div className="form-row">
@@ -545,27 +494,6 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
                       required={!existingProfile?.fotocopiaRut}
                     />
                     <label htmlFor="fotocopiaRut" className="file-label">
-                      <FaUpload /> Seleccionar Archivo
-                    </label>
-                  </div>
-                </div>
-                
-                <div className="form-group file-upload">
-                  <label htmlFor="anexosAdicionales">
-                    Anexos Adicionales
-                    {formData.anexosAdicionales && (
-                      <span className="file-selected"> (Archivo seleccionado)</span>
-                    )}
-                  </label>
-                  <div className="file-input-container">
-                    <input 
-                      type="file" 
-                      id="anexosAdicionales" 
-                      name="anexosAdicionales" 
-                      onChange={handleFileChange} 
-                      className="file-input"
-                    />
-                    <label htmlFor="anexosAdicionales" className="file-label">
                       <FaUpload /> Seleccionar Archivo
                     </label>
                   </div>

@@ -1,12 +1,15 @@
 // src/api/config.js
 import axios from 'axios';
 
+// Configura la URL base según el entorno
+const baseURL = 'http://localhost:3000/api';
+// Para usar con ngrok, comenta la línea anterior y descomenta la siguiente:
+// const baseURL = 'https://tu-subdominio-ngrok.ngrok-free.app/api';
+
+console.log("API conectada a:", baseURL);
+
 const API = axios.create({
-<<<<<<< HEAD
-  baseURL: 'http://localhost:3000/api',
-=======
-  baseURL: 'https://f686-160-173-184-21.ngrok-free.app/api',
->>>>>>> feature/frontend
+  baseURL,
   headers: {
     'Content-Type': 'application/json'
   }

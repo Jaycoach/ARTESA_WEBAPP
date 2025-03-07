@@ -2,12 +2,16 @@ import React, { useState, useEffect } from 'react';
 import "../../App.css";
 import "./Dashboard.css";
 // Importing Components ==========>
-import Sidebar from "./Sidebar Section/Sidebar";
-import Top from "./Body Section/Top Section/Top";
-import Listing from "./Body Section/Listing Section/Listing";
-import Activity from "./Body Section/Activity Section/Activity";
+import Sidebar from "./SidebarSection/Sidebar";
+import Top from "./Body Section/TopSection/Top";
+import Listing from "./Body Section/ListingSection/Listing";
+import Activity from "./Body Section/ActivitySection/Activity";
 import ClientProfile from "./ClientProfile/ClientProfile";
 import { FaUserCircle } from "react-icons/fa";
+import Banner from "./Body Section/Banner/Banner"; // Importamos el componente Banner
+
+// Importar la imagen del banner
+import bannerImage from "../../DashboardAssets/Banner_dash2.png";
 
 const Dashboard = () => {
   const [user, setUser] = useState(null);
@@ -78,8 +82,16 @@ const Dashboard = () => {
             </div>
           )}
 
-          <h1>Bienvenido al Panel de Control</h1>
-          <p>Aquí puedes gestionar tus productos y ventas.</p>
+          {/* Banner en un contenedor separado para evitar superposición */}
+          <div className="banner-container">
+            <Banner imageUrl={bannerImage} altText="Banner Artesa" />
+          </div>
+
+          {/* Contenido de bienvenida en un contenedor separado */}
+          <div className="welcome-container">
+            <h1>Bienvenido al Dashboard de Artesa</h1>
+            <p>Panel de control para gestión de productos y ventas.</p>
+          </div>
 
           {/* Secciones del dashboard */}
           <Top />
