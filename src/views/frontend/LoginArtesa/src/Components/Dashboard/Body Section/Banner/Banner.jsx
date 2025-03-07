@@ -1,5 +1,5 @@
 import React from "react";
-import "./Banner.css";
+import "../../../../App.scss";
 
 const Banner = ({ imageUrl, altText }) => {
   return (

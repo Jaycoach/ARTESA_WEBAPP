@@ -1,6 +1,8 @@
-import React, { useState} from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import './Home.scss';
+import btn_home_1 from '../../HomeAssets/btn_home_1.png';
+import btn_home_2 from '../../HomeAssets/btn_home_2.png';
 import Login from '../Login/Login';
 
 const Home = () => {
@@ -13,7 +15,7 @@ const Home = () => {
     <div className="home-container">
       <header className="hero-section">
         <div className="hero-content">
-          <h1>Bienvenido a ARTERSA</h1>
+          <h1>Bienvenido a ARTESA</h1>
           <p></p>
         </div>
       </header>
@@ -23,6 +25,7 @@ const Home = () => {
           <div className="selection-card">
             <h2>¿Eres Cliente?</h2>
             <p>Ingresa a nuestra pagina web!</p>
+            <img src={btn_home_1} className="client-image" alt="Cliente Artesa" />
             <button 
               className="artesa-btn primary"
             >
@@ -32,7 +35,8 @@ const Home = () => {
 
           <div className="selection-card">
             <h2>¿Eres Empresa?</h2>
-            <p>Compras Empresariales, portal transaccional</p>
+            <p>Portal Pedidos Institucional</p>
+            <img src={btn_home_2} className="Institucion-image" alt="Institucion Artesa" />
             <button 
               className="artesa-btn primary"
               onClick={() => handleNavigation('/login')}

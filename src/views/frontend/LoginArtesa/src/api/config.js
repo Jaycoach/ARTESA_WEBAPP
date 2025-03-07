@@ -2,11 +2,7 @@
 import axios from 'axios';
 
 const API = axios.create({
-<<<<<<< HEAD
-  baseURL: 'http://localhost:3000/api',
-=======
-  baseURL: 'https://f686-160-173-184-21.ngrok-free.app/api',
->>>>>>> feature/frontend
+  baseURL: 'https://3660-149-88-111-131.ngrok-free.app',
   headers: {
     'Content-Type': 'application/json'
   }
@@ -14,7 +10,7 @@ const API = axios.create({
 
 // Interceptor para agregar el token a las peticiones
 API.interceptors.request.use(
-  (config) => {
+  config => {
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;

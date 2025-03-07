@@ -3,16 +3,30 @@ import { createContext, useState, useEffect } from "react";
 const AuthContext = createContext(); // Crear contexto
 
 export const AuthProvider = ({ children }) => { 
-  const defaultUser = { name: "LukoarD" };
-  const [user, setUser] = useState(null);
-
+  
+  const [user, setUser] = useState(() => {
+    if (typeof window !== "undefined") {
+      const storedUser = localStorage.getItem("user");
+      if (storedUser && storedUser !== "undefined") {
+        try {
+          return JSON.parse(storedUser);
+        } catch (error) {
+          console.error("Error al parsear 'user' inicial:", error);
+          return null;
+        }
+      }
+    }
+    return null;
+  });
   useEffect(() => {
     // Recuperar usuario de localStorage si existe
-    const storedUser = JSON.parse(localStorage.getItem("user"));
+    const storedUser = localStorage.getItem("user");
     if (storedUser) {
-      setUser(storedUser);
-    }else {
-      setUser(defaultUser);
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch (error) {
+        console.error("Error al parsear usuario del localStorage:", error);
+      }
     }
   }, []);
 

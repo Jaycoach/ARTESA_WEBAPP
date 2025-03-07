@@ -6,11 +6,12 @@ import Register from './Components/Register/Register';
 import NotFound from './Components/NotFound/NotFound';
 import ResetPassword from './Components/resetPassword/ResetPassword';
 
-// Páginas dentro del Dashboard
+
 import Products from "./Components/Dashboard/Pages/Products/Products";
 import Orders from "./Components/Dashboard/Pages/Orders/Orders";
 import Invoices from "./Components/Dashboard/Pages/Invoices/Invoices";
 import Settings from "./Components/Dashboard/Pages/Settings/Settings";
+import ClientProfile from './Components/Dashboard/Pages/ClientProfile/ClientProfile';
 
 // Import React Router
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
@@ -26,7 +27,7 @@ const router = createBrowserRouter([
     element: <Login />,
   },
   {
-    path: '/ResetPassword/:token',
+    path: '/reset-password/:token',
     element: <ResetPassword />,
   },
   {
@@ -34,13 +35,15 @@ const router = createBrowserRouter([
     element: <Register />,
   },
   {
-    path: "/dashboard",
+    path: "/dashboard/*",
     element: <DashboardLayout />, // 📌 Dashboard usa el layout general
     children: [
+      { index: true, element: <Dashboard />},
       { path: "products", element: <Products /> },
       { path: "orders", element: <Orders /> },
       { path: "invoices", element: <Invoices /> },
       { path: "settings", element: <Settings /> },
+      { path: "client-profile", element: <ClientProfile /> },
     ],
   },
   {
@@ -55,3 +58,5 @@ function App() {
 }
 
 export default App;
+
+// PRUEBA DE COMMIT SUBIDA DE TODOS LOS ARCHIVOS AL TIMESTAMP 03-06-2025 21:20

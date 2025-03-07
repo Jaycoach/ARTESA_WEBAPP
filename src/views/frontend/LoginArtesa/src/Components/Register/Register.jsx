@@ -1,14 +1,14 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import './Register.css'
-import '../../App.css'
+import '../../App.scss'
 import { Link, NavLink } from 'react-router-dom'
 
 // Importar configuración de la API
 import API from "../../api/config";
 
 //Import Assets
-import img from '../../LoginsAssets/principal_img.jpg'
+import img from "../../LoginsAssets/principal_img.gif";
 import logo from '../../LoginsAssets/logo_artesa_alt.png'
 
 //Import Icons
@@ -41,7 +41,7 @@ const Register = () => {
         setError('');
 
         try {
-            const response = await API.post('/auth/register', formData, {
+            const response = await API.post('/api/auth/register', formData, {
                 headers: {
                     'Content-Type': 'application/json'
                 }
@@ -67,12 +67,12 @@ const Register = () => {
 
                 <img src={img} alt="registerImg" />
                 <div className="textDiv">
-                    <h2 className="title">Creado para ARTESA</h2>
-                    <p>Register Page - Artesa</p>
+                    <h2 className="title"></h2>
+                    <p></p>
                 </div>
                 <div className="footerDiv flex">
                     <span className="text">Ya tiene una cuenta?</span>
-                    <Link to={'/'}>
+                    <Link to={'/login'}>
                     <button className="btn">Iniciar sesión</button>
                     </Link>
                     <span className="text">© 2025 Artesa</span>
@@ -91,7 +91,7 @@ const Register = () => {
                         <label htmlFor="name">Nombre</label>
                         <div className="input flex">
                             <FaUserShield className="icon"/>
-                            <input type="text" id="name" placeholder="Escriba su Nombre:" value={formData.nombre} onChange={handleChange} required/>
+                            <input type="text" id="name" placeholder="Escriba su Nombre:" value={formData.name} onChange={handleChange} required/>
                         </div>
                     </div>
 
@@ -99,14 +99,20 @@ const Register = () => {
                         <label htmlFor="mail">Email</label>
                         <div className="input flex">
                             <MdMarkEmailRead className="icon"/>
-                            <input type="email" id="mail" placeholder="Escriba su Email:"value={formData.email} onChange={handleChange} required />
+                            <input type="email" id="mail" placeholder="Escriba su Email:"value={formData.mail} onChange={handleChange} required />
                         </div>
                     </div>
                     <div className="inputDiv">
                         <label htmlFor="password">Contraseña</label>
                         <div className="input flex">
                             <BsFillShieldLockFill className="icon"/>
-                            <input type="password" id="password " placeholder="Escriba su contraseña:" value={formData.password} onChange={handleChange} required/>
+                            <input 
+                            type="password" 
+                            id="password" 
+                            placeholder="Escriba su contraseña:" 
+                            value={formData.password} 
+                            onChange={handleChange} 
+                            required/>
                         </div>
                     </div>
 

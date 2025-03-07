@@ -18,6 +18,11 @@
   --bgColor: #687e8d;
   --inputColor: #f6db8e;
   --buttonColor: #f6754e;
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
   --biggestFontSize: 2.5rem;
   --h1FontSize: 1.5rem;
   --h2FontSize: 1.25rem;
@@ -25,6 +30,70 @@
   --normalFontSize: 0.938rem;
   --smallFontSize: 0.813rem;
   --smallestFontSize: 0.75rem;
+}
+
+input, textarea, select {
+  width: 100%;
+  padding: var(--spacing-sm);
+  border: 1px solid var(--greyText);
+  border-radius: 4px;
+  font-size: var(--normalFontSize);
+}
+
+label {
+  font-weight: bold;
+  margin-bottom: var(--spacing-xs);
+}
+
+button {
+  padding: var(--spacing-md);
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: var(--normalFontSize);
+  transition: background 0.3s;
+}
+
+button.primary {
+  background-color: var(--buttonColor);
+  color: var(--whiteColor);
+}
+
+button.primary:hover {
+  background-color: var(--buttonColor);
+  filter: brightness(90%);
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: var(--spacing-md);
+}
+
+.user-profile-container {
+  width: 50%;
+  margin: var(--spacing-lg) auto;
+  padding: var(--spacing-lg);
+  background: var(--whiteColor);
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.submit-btn {
+  margin-top: var(--spacing-md);
+  padding: var(--spacing-md);
+  background-color: var(--buttonColor);
+  color: var(--whiteColor);
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: var(--normalFontSize);
+  transition: background 0.3s;
+}
+
+.submit-btn:hover {
+  background-color: var(--buttonColor);
+  filter: brightness(90%);
 }
 
 .flex {

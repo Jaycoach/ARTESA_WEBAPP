@@ -1,55 +1,56 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import "./Sidebar.scss";
+import "../../../App.scss";
 
 const Sidebar = ({ setActiveSection }) => {
   const [collapsed, setCollapsed] = useState(true);
   const navigate = useNavigate();
+
   const handleLogout = () => {
     navigate("/"); // Redirigir a la página de login
   };
 
   return (
-    <div
-    className={`sidebar ${collapsed ? "collapsed" : ""}`}
-    onMouseEnter={() => setCollapsed(false)}  
-    onMouseLeave={() => setCollapsed(true)}
-    >
-    <button className="toggle-btn" onClick={() => setCollapsed(!collapsed)}>
-      {collapsed ? "▶" : "◀"}
-    </button>
+    <aside className={`sidebar ${collapsed ? "collapsed" : ""}`}>
+      <nav className="sidebar_menu">
+        <ul className="sidebar_list">
+          <li>
+            <button onClick={() => navigate("/dashboard")}>
+              <i className="fas fa-home"></i> <span>Inicio</span>
+            </button>
+          </li>
+          <li>
+            <button onClick={() => navigate("/dashboard/orders")}>
+              <i className="fas fa-box"></i> <span>Pedidos</span>
+            </button>
+          </li>
+          <li>
+        <button onClick={() => navigate("/dashboard/invoices")}>
+          <i className="fas fa-file-invoice"></i> <span>Facturas</span>
+        </button>
+      </li>
+      <li>
+        <button onClick={() => navigate("/dashboard/products")}>
+          <i className="fas fa-box-open"></i> <span>Productos</span>
+        </button>
+      </li>
 
-    <div className="sidebar-menu">
-      {!collapsed && <h3>Menú</h3>}
-      <ul>
-        <li>
-          <button onClick={() => navigate("/dashboard")}>Inicio</button>
-        </li>
-        <li>
-          <button onClick={() => navigate("/dashboard/orders")}>Pedidos</button>
-        </li>
-        <li>
-          <button onClick={() => navigate("/dashboard/invoices")}>Facturas</button>
-        </li>
-        <li>
-          <button onClick={() => navigate("/dashboard/products")}>Productos</button>
-        </li>
-        {!collapsed && (
-          <li className="separator">
-          <hr />
-        </li>
-        )
-        }
-        <li>
-          <button onClick={() => navigate('/dashboard/settings')}>Configuracion</button>
-        </li>
-        <li>
-          <button onClick={handleLogout}>Cerrar Sesion</button>
-        </li>
-      </ul>
-    </div>
+      <li className="sidebar_separator"><hr /></li>
+
+      <li>
+        <button onClick={() => navigate('/dashboard/settings')}>
+          <i className="fas fa-cog"></i> <span>Configuración</span>
+        </button>
+      </li>
+    </ul>
+  </nav>
+  <div className="sidebar_footer">
+    <button onClick={handleLogout} className="sidebar_logout">
+      <i className="fas fa-sign-out-alt"></i> <span>Cerrar Sesión</span>
+    </button>
   </div>
-);
+</aside>
+  );
 };
 
 export default Sidebar;

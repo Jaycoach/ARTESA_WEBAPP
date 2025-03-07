@@ -1,5 +1,6 @@
 import React from "react";
 import "./Activity.scss";
+import "../../../../App.scss";
 
 const Activity = () => {
   return (

@@ -1,5 +1,5 @@
 import React from "react";
-import "./OrderList.css";
+import "../../../../App.scss";
 
 const OrderList = () => {
   const orders = [
