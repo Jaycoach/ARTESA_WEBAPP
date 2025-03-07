@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect } from 'react';
-import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom';
 
 // Importar componentes de manera normal para páginas principales
 import Home from './Components/Home/Home';
@@ -75,6 +75,16 @@ const router = createBrowserRouter([
       </Suspense>
     ),
   },
+  // Ruta corregida para recuperación de contraseña (kebab-case)
+  {
+    path: '/reset-password/:token',
+    element: (
+      <Suspense fallback={<LoadingScreen />}>
+        <ResetPassword />
+      </Suspense>
+    ),
+  },
+  // Mantener también la ruta anterior por compatibilidad temporal
   {
     path: '/ResetPassword/:token',
     element: (
