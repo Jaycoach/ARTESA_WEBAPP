@@ -1,8 +1,12 @@
-// src/api/config.js
 import axios from 'axios';
 
+// Usar la variable de entorno si existe, o la URL de ngrok como fallback
+const baseURL = import.meta.env.VITE_API_URL 
+  ? import.meta.env.VITE_API_URL 
+  : 'https://f3e6-105-74-67-156.ngrok-free.app';
+
 const API = axios.create({
-  baseURL: 'https://f3e6-105-74-67-156.ngrok-free.app',
+  baseURL,
   headers: {
     'Content-Type': 'application/json'
   }
@@ -21,5 +25,8 @@ API.interceptors.request.use(
     return Promise.reject(error);
   }
 );
+
+// Solo para depuración
+console.log('API configurada con baseURL:', baseURL);
 
 export default API;

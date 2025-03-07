@@ -5,8 +5,18 @@ const AuthContext = createContext(); // Crear contexto
 export const AuthProvider = ({ children }) => { 
   
   const [user, setUser] = useState(() => {
-    const storedUser = localStorage.getItem("user");
-    return storedUser ? JSON.parse(storedUser) : null;
+    if (typeof window !== "undefined") {
+      const storedUser = localStorage.getItem("user");
+      if (storedUser && storedUser !== "undefined") {
+        try {
+          return JSON.parse(storedUser);
+        } catch (error) {
+          console.error("Error al parsear 'user' inicial:", error);
+          return null;
+        }
+      }
+    }
+    return null;
   });
   useEffect(() => {
     // Recuperar usuario de localStorage si existe
@@ -37,4 +47,4 @@ export const AuthProvider = ({ children }) => {
   );
 };
 
-export default AuthContext; // Exportar el contexto por defecto
+export default AuthContext;
