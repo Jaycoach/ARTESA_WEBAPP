@@ -142,34 +142,26 @@ class AuthController {
         }
     }
 
-    // Método para incrementar y verificar intentos de login
-    static incrementLoginAttempts(mail) {
-        const currentAttempts = this.loginAttempts.get(mail) || { 
-            count: 0, 
-            timestamp: Date.now() 
-        };
+    // Método mejorado para incrementar intentos de login
+static incrementLoginAttempts(mail) {
+    const currentAttempts = this.loginAttempts.get(mail) || { 
+        count: 0, 
+        timestamp: Date.now() 
+    };
 
-        if (currentAttempts.count >= this.MAX_LOGIN_ATTEMPTS) {
-            const timeElapsed = Date.now() - currentAttempts.timestamp;
-            if (timeElapsed < this.LOCKOUT_TIME) {
-                const remainingTime = Math.ceil((this.LOCKOUT_TIME - timeElapsed) / 1000);
-                throw new Error(`Cuenta bloqueada. Intente nuevamente en ${remainingTime} segundos`);
-            }
-            currentAttempts.count = 0;
-        }
+    // Incrementar el contador
+    currentAttempts.count++;
+    currentAttempts.timestamp = Date.now();
+    this.loginAttempts.set(mail, currentAttempts);
 
-        currentAttempts.count++;
-        currentAttempts.timestamp = Date.now();
-        this.loginAttempts.set(mail, currentAttempts);
+    logger.warn('Incremento de intentos de login', { 
+        mail,
+        attemptCount: currentAttempts.count,
+        timestamp: new Date(currentAttempts.timestamp)
+    });
 
-        logger.warn('Incremento de intentos de login', { 
-            mail,
-            attemptCount: currentAttempts.count,
-            timestamp: new Date(currentAttempts.timestamp)
-        });
-
-        return currentAttempts;
-    }
+    return currentAttempts;
+}
 
     // Método para generar token JWT
     static async generateToken(user) {
@@ -253,7 +245,7 @@ class AuthController {
         try {
             const { mail, password } = req.body;
             logger.debug('Iniciando proceso de login', { mail });
-
+    
             // 1. Verificación inicial de credenciales
             if (!mail || !password) {
                 logger.warn('Intento de login sin credenciales completas', {
@@ -265,29 +257,44 @@ class AuthController {
                     message: 'Credenciales incompletas'
                 });
             }
-
-            // 2. Verificar intentos de login
+    
+            // 2. Verificar intentos de login ANTES de incrementar el contador
             try {
-                const attempts = this.incrementLoginAttempts(mail);
-                if (attempts.count >= this.MAX_LOGIN_ATTEMPTS) {
-                    const error = new Error('Demasiados intentos fallidos');
-                    error.remainingTime = Math.ceil(
-                        (this.LOCKOUT_TIME - (Date.now() - attempts.timestamp)) / 1000
-                    );
-                    throw error;
+                // Obtener los intentos actuales sin incrementar
+                const currentAttempts = this.loginAttempts.get(mail) || { 
+                    count: 0, 
+                    timestamp: Date.now() 
+                };
+    
+                // Verificar si ya está bloqueado
+                if (currentAttempts.count >= this.MAX_LOGIN_ATTEMPTS) {
+                    const timeElapsed = Date.now() - currentAttempts.timestamp;
+                    if (timeElapsed < this.LOCKOUT_TIME) {
+                        const remainingTime = Math.ceil(
+                            (this.LOCKOUT_TIME - timeElapsed) / 1000
+                        );
+                        logger.warn('Cuenta bloqueada por múltiples intentos', {
+                            mail,
+                            remainingTime
+                        });
+                        return res.status(429).json({
+                            success: false,
+                            message: `Demasiados intentos fallidos. Por favor, intente nuevamente en ${remainingTime} segundos.`,
+                            remainingTime
+                        });
+                    }
+                    // Si ha pasado el tiempo de bloqueo, resetear el contador
+                    currentAttempts.count = 0;
+                    this.loginAttempts.set(mail, currentAttempts);
                 }
             } catch (error) {
-                logger.warn('Cuenta bloqueada por múltiples intentos', {
-                    mail,
-                    remainingTime: error.remainingTime
+                logger.error('Error al verificar intentos de login', {
+                    error: error.message,
+                    mail
                 });
-                return res.status(429).json({
-                    success: false,
-                    message: error.message,
-                    remainingTime: error.remainingTime
-                });
+                // Continuamos con el proceso de login en caso de error
             }
-
+    
             // 3. Buscar usuario y verificar estado
             const query = `
                 SELECT 
@@ -304,8 +311,11 @@ class AuthController {
             `;
             
             const result = await pool.query(query, [mail]);
-
+    
             if (result.rows.length === 0) {
+                // IMPORTANTE: incrementar intentos solo en caso de fallo
+                this.incrementLoginAttempts(mail);
+                
                 await this.logLoginAttempt(
                     null, 
                     req.ip, 
@@ -318,9 +328,9 @@ class AuthController {
                     message: 'Credenciales inválidas'
                 });
             }
-
+    
             const user = result.rows[0];
-
+    
             // 4. Verificación de contraseña
             try {
                 if (!user.password) {
@@ -333,14 +343,17 @@ class AuthController {
                         message: 'Error en la verificación de credenciales'
                     });
                 }
-
+    
                 const isValidPassword = await bcrypt.compare(password, user.password);
                 logger.debug('Resultado de verificación de contraseña', {
                     userId: user.id,
                     isValid: isValidPassword
                 });
-
+    
                 if (!isValidPassword) {
+                    // IMPORTANTE: incrementar intentos solo en caso de fallo
+                    this.incrementLoginAttempts(mail);
+                    
                     await this.logLoginAttempt(
                         user.id, 
                         req.ip, 
@@ -353,11 +366,14 @@ class AuthController {
                         message: 'Credenciales inválidas'
                     });
                 }
-
-                // 5. Autenticación exitosa
+    
+                // 5. Autenticación exitosa - RESETEAR el contador de intentos
+                // Eliminar los intentos fallidos para este correo
+                this.loginAttempts.delete(mail);
+                logger.debug('Intentos de login reseteados tras autenticación exitosa', { mail });
+                
                 const token = await this.generateToken(user);
-                this.loginAttempts.delete(mail); // Resetear intentos
-
+    
                 await this.logLoginAttempt(
                     user.id,
                     req.ip,
@@ -365,19 +381,18 @@ class AuthController {
                     null,
                     req
                 );
-
+    
                 // Revocar tokens anteriores del usuario
-
                 await TokenRevocation.revokeAllUserTokens(user.id, 'new_login');
-
+    
                 logger.info('Login exitoso', {
                     userId: user.id,
                     mail: user.mail,
                     role: user.role_name
                 });
-
+    
                 const expiresInSeconds = 24 * 60 * 60; // 24 horas en segundos
-
+    
                 return res.status(200).json({
                     success: true,
                     message: 'Login exitoso',
@@ -395,7 +410,7 @@ class AuthController {
                       }
                     }
                   });
-
+    
             } catch (compareError) {
                 logger.error('Error en la comparación de contraseñas', {
                     error: compareError.message,
@@ -408,7 +423,7 @@ class AuthController {
                     message: 'Error en la verificación de credenciales'
                 });
             }
-
+    
         } catch (error) {
             logger.error('Error en el proceso de login', {
                 error: error.message,

@@ -55,28 +55,73 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
     // Verificar si el usuario ya tiene un perfil
     const fetchProfile = async () => {
       try {
+        if (!user || !user.id) {
+          console.log("No hay ID de usuario para buscar perfil");
+          return;
+        }
+        
+        console.log("Intentando obtener perfil para usuario ID:", user.id);
+        
         // Mantener el endpoint tal como está en la API
         const response = await API.get(`/client-profiles/user/${user.id}`);
         
-        // Si existe un perfil, actualizar el estado
-        if (response.data) {
-          setExistingProfile(response.data);
+        console.log("Respuesta de API:", response.data);
+        
+        // Extraer los datos - pueden estar en response.data.data o directamente en response.data
+        const profileData = response.data?.data || response.data;
+        
+        if (profileData) {
+          console.log("Perfil encontrado:", profileData);
+          setExistingProfile(profileData);
           
-          // Precargar los datos existentes (excepto los archivos)
-          const profileData = { ...response.data };
-          delete profileData.fotocopiaCedula;
-          delete profileData.fotocopiaRut;
-          delete profileData.anexosAdicionales;
+          // Preparar datos para el formulario
+          const formDataUpdate = {
+            nombre: profileData.nombre || '',
+            direccion: profileData.direccion || '',
+            ciudad: profileData.ciudad || '',
+            pais: profileData.pais || 'Colombia',
+            telefono: profileData.telefono || '',
+            email: profileData.email || user?.email || user?.mail || '',
+            razonSocial: profileData.razonSocial || '',
+            nit: profileData.nit || '',
+          };
           
+          // Si hay un campo notes, puede contener datos adicionales en formato JSON
+          if (profileData.notes) {
+            try {
+              const additionalData = JSON.parse(profileData.notes);
+              console.log("Datos adicionales encontrados en notes:", additionalData);
+              
+              // Combinar con formDataUpdate
+              Object.assign(formDataUpdate, additionalData);
+            } catch (e) {
+              console.error("Error al parsear notes:", e);
+            }
+          }
+          
+          // Procesar campos específicos si están disponibles directamente
+          [
+            'tipoDocumento', 'numeroDocumento', 'representanteLegal',
+            'actividadComercial', 'sectorEconomico', 'tamanoEmpresa',
+            'ingresosMensuales', 'patrimonio', 'entidadBancaria',
+            'tipoCuenta', 'numeroCuenta', 'nombreContacto',
+            'cargoContacto', 'telefonoContacto', 'emailContacto'
+          ].forEach(field => {
+            if (profileData[field]) {
+              formDataUpdate[field] = profileData[field];
+            }
+          });
+          
+          console.log("Actualizando formulario con datos:", formDataUpdate);
           setFormData(prev => ({
             ...prev,
-            ...profileData,
+            ...formDataUpdate,
           }));
           
           console.log('Perfil cargado desde la API');
         }
       } catch (error) {
-        console.log('No existe perfil previo o error al obtenerlo', error);
+        console.error('Error al obtener perfil:', error);
         
         // Si no existe perfil, inicializar con el email del usuario logueado
         if (user) {
@@ -89,16 +134,7 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
       }
     };
     
-    if (user && user.id) {
-      fetchProfile();
-    } else if (user) {
-      // Si hay usuario pero no tiene ID, al menos usamos su email
-      setFormData(prev => ({
-        ...prev,
-        email: user.mail || user.email || '',
-        nombre: user.nombre || user.name || ''
-      }));
-    }
+    fetchProfile();
   }, [user]);
   
   const handleChange = (e) => {
@@ -139,7 +175,9 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
       });
       
       // Agregar ID del usuario
-      formDataToSend.append('userId', user.id);
+      if (user && user.id) {
+        formDataToSend.append('userId', user.id);
+      }
       
       // Mantener el endpoint tal como está en la API
       const endpoint = existingProfile 
@@ -147,6 +185,8 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
         : '/client-profiles';
       
       const method = existingProfile ? 'put' : 'post';
+      
+      console.log(`Enviando datos al endpoint: ${endpoint} con método: ${method}`);
       
       // Realizar la solicitud a la API
       const response = await API({
@@ -157,6 +197,11 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
           'Content-Type': 'multipart/form-data'
         }
       });
+
+      console.log("Respuesta de guardado:", response.data);
+      
+      // Extraer los datos guardados
+      const savedData = response.data?.data || response.data;
 
       // Crear objeto con la información relevante actualizada
       const updatedUserData = {
@@ -182,10 +227,10 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
       }
       
       setSuccess('Perfil guardado correctamente');
-      setExistingProfile(response.data);
+      setExistingProfile(savedData);
     } catch (error) {
-      setError(error.response?.data?.message || 'Error al guardar el perfil');
       console.error('Error al guardar perfil:', error);
+      setError(error.response?.data?.message || 'Error al guardar el perfil');
     } finally {
       setLoading(false);
     }
@@ -475,6 +520,9 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
                     {formData.fotocopiaCedula && (
                       <span className="file-selected"> (Archivo seleccionado)</span>
                     )}
+                    {existingProfile?.fotocopiaCedula && !formData.fotocopiaCedula && (
+                      <span className="file-selected"> (Archivo ya cargado)</span>
+                    )}
                   </label>
                   <div className="file-input-container">
                     <input 
@@ -496,6 +544,9 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
                     Fotocopia RUT*
                     {formData.fotocopiaRut && (
                       <span className="file-selected"> (Archivo seleccionado)</span>
+                    )}
+                    {existingProfile?.fotocopiaRut && !formData.fotocopiaRut && (
+                      <span className="file-selected"> (Archivo ya cargado)</span>
                     )}
                   </label>
                   <div className="file-input-container">

@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./Login.css";
 import "../../App.css";
-import API from "../../api/config";
+import { useAuth } from "../../hooks/useAuth"; // Importar el hook de autenticación
 
 // Import Assets
 import img from "../../LoginsAssets/principal_img.jpg";
@@ -16,6 +16,7 @@ import { MdEmail } from "react-icons/md";
 
 const Login = () => {
     const navigate = useNavigate();
+    const { login, updateUserInfo } = useAuth(); // Usar el contexto de autenticación
     const [forgotPassword, setForgotPassword] = useState(false);
     const [formData, setFormData] = useState({
         mail: '', 
@@ -44,16 +45,12 @@ const Login = () => {
 
         try {
             console.log("Enviando datos de login:", formData);
-            const response = await API.post('/auth/login', {
+            
+            // Usar la función login del contexto
+            await login({
                 mail: formData.mail,
                 password: formData.password
             });
-            
-            console.log("Respuesta del servidor:", response.data);
-            
-            // Guardar el token y la información del usuario
-            localStorage.setItem('token', response.data.data.token);
-            localStorage.setItem('user', JSON.stringify(response.data.data.user));
             
             // Redireccionar al dashboard
             navigate('/dashboard');
@@ -77,8 +74,9 @@ const Login = () => {
         setLoading(true);
 
         try {
-            const response = await API.post("/password/request-reset", { mail: resetEmail });
-            setResetMessage(response.data.message || "Revisa tu correo para continuar con la recuperación.");
+            const { requestPasswordReset } = useAuth();
+            const response = await requestPasswordReset(resetEmail);
+            setResetMessage(response.message || "Revisa tu correo para continuar con la recuperación.");
         } catch (error) {
             setError(error.response?.data?.message || "No se pudo procesar la solicitud.");
         } finally {

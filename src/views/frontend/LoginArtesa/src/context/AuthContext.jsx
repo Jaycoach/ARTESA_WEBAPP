@@ -1,3 +1,4 @@
+// src/context/AuthContext.jsx
 import React, { createContext, useState, useEffect } from "react";
 import API from "../api/config";
 
@@ -62,7 +63,10 @@ export const AuthProvider = ({ children }) => {
     
     // Si hay información de perfil, actualizar clientProfile
     if (updatedUserData.nombre) {
-      const profileData = { nombre: updatedUserData.nombre, email: user.email || user.mail };
+      const profileData = { 
+        nombre: updatedUserData.nombre, 
+        email: updatedUserData.email || user.email || user.mail 
+      };
       localStorage.setItem("clientProfile", JSON.stringify(profileData));
     }
   };
@@ -74,7 +78,10 @@ export const AuthProvider = ({ children }) => {
     
     try {
       const response = await API.post("/auth/login", credentials);
-      const userData = response.data.data || response.data;
+      // Asegurarnos de acceder a la estructura correcta
+      const responseData = response.data;
+      // Extraer userData que puede estar en data.data o en data directo
+      const userData = responseData.data || responseData;
       
       // Verificar si hay un perfil guardado previamente
       const storedProfile = localStorage.getItem("clientProfile");
@@ -96,8 +103,11 @@ export const AuthProvider = ({ children }) => {
       setUser(userWithProfile);
       setIsAuthenticated(true);
       
+      console.log("Login exitoso, datos de usuario:", userWithProfile);
+      
       return userData;
     } catch (error) {
+      console.error("Error en login:", error);
       setError(error.response?.data?.message || "Error al iniciar sesión");
       throw error;
     } finally {
@@ -174,7 +184,7 @@ export const AuthProvider = ({ children }) => {
     register,
     requestPasswordReset,
     resetPassword,
-    updateUserInfo // Nueva función para actualizar información del usuario
+    updateUserInfo
   };
 
   return (
