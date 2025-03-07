@@ -4,9 +4,9 @@ import "./Login.css";
 import "../../App.css"; // Ruta correcta a App.css
 import API from "../../api/config";
 
-// Import Assets
-import img from "../../LoginsAssets/principal_img.jpg";
-import logo from "../../LoginsAssets/logo_artesa_alt.png";
+// Import Assets - Verificar rutas originales
+import img from "../../LoginsAssets/principal_img.jpg"; // Mantener ruta original
+import logo from "../../LoginsAssets/logo_artesa_alt.png"; // Mantener ruta original
 
 // Import Icons
 import { FaUserShield } from "react-icons/fa";
