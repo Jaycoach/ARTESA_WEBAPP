@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import './ClientProfile.scss';
 import API from '../../../api/config';
 import { FaTimes, FaUpload } from 'react-icons/fa';
+import { useAuth } from '../../../hooks/useAuth'; // Importar el hook de auth
 
 const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
+  const { updateUserInfo } = useAuth(); // Obtener la función de actualización del contexto
   const [formData, setFormData] = useState({
     // Datos básicos
     nombre: '',
@@ -155,12 +157,24 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
           'Content-Type': 'multipart/form-data'
         }
       });
+
+      // Crear objeto con la información relevante actualizada
+      const updatedUserData = {
+        nombre: formData.nombre,
+        email: formData.email,
+        telefono: formData.telefono,
+        direccion: formData.direccion,
+        ciudad: formData.ciudad
+      };
       
       // Guardar perfil en localStorage para acceso rápido
       localStorage.setItem('clientProfile', JSON.stringify({
         nombre: formData.nombre,
         email: formData.email
       }));
+
+      // Actualizar la información en el contexto de autenticación
+      updateUserInfo(updatedUserData);
       
       // Notificar al Dashboard sobre el cambio de nombre si existe la función
       if (typeof onProfileUpdate === 'function') {

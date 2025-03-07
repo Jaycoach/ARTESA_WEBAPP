@@ -15,20 +15,28 @@ export const AuthProvider = ({ children }) => {
     const checkAuthState = async () => {
       const token = localStorage.getItem("token");
       const storedUser = localStorage.getItem("user");
+      const storedProfile = localStorage.getItem("clientProfile");
 
       if (token && storedUser) {
         try {
-          // Opcionalmente, verificar el token con el backend
-          // const response = await API.get("/auth/verify-token");
+          // Parsear el usuario almacenado
+          let userData = JSON.parse(storedUser);
           
-          // Si todo está bien, establecer el usuario
-          setUser(JSON.parse(storedUser));
+          // Si existe un perfil guardado, combinar su información con userData
+          if (storedProfile) {
+            const profileData = JSON.parse(storedProfile);
+            userData = { ...userData, ...profileData };
+          }
+          
+          // Establecer el usuario combinado
+          setUser(userData);
           setIsAuthenticated(true);
         } catch (error) {
           console.error("Error verificando sesión:", error);
           // Si hay un error, limpiar el localStorage
           localStorage.removeItem("token");
           localStorage.removeItem("user");
+          localStorage.removeItem("clientProfile");
           setError("Sesión inválida o expirada");
         }
       }
@@ -39,6 +47,26 @@ export const AuthProvider = ({ children }) => {
     checkAuthState();
   }, []);
 
+  // Función para actualizar la información del usuario
+  const updateUserInfo = (updatedUserData) => {
+    if (!user) return;
+    
+    // Combinar datos existentes con los actualizados
+    const newUserData = { ...user, ...updatedUserData };
+    
+    // Actualizar el estado
+    setUser(newUserData);
+    
+    // También actualizar en localStorage
+    localStorage.setItem("user", JSON.stringify(newUserData));
+    
+    // Si hay información de perfil, actualizar clientProfile
+    if (updatedUserData.nombre) {
+      const profileData = { nombre: updatedUserData.nombre, email: user.email || user.mail };
+      localStorage.setItem("clientProfile", JSON.stringify(profileData));
+    }
+  };
+
   // Función para iniciar sesión
   const login = async (credentials) => {
     setLoading(true);
@@ -48,12 +76,24 @@ export const AuthProvider = ({ children }) => {
       const response = await API.post("/auth/login", credentials);
       const userData = response.data.data || response.data;
       
+      // Verificar si hay un perfil guardado previamente
+      const storedProfile = localStorage.getItem("clientProfile");
+      let userWithProfile = userData.user;
+      
+      if (storedProfile) {
+        // Combinar información del perfil con la del usuario
+        const profileData = JSON.parse(storedProfile);
+        if (profileData.nombre && profileData.email === (userData.user.email || userData.user.mail)) {
+          userWithProfile = { ...userData.user, ...profileData };
+        }
+      }
+      
       // Guardar en localStorage
       localStorage.setItem("token", userData.token);
-      localStorage.setItem("user", JSON.stringify(userData.user));
+      localStorage.setItem("user", JSON.stringify(userWithProfile));
       
       // Actualizar estado
-      setUser(userData.user);
+      setUser(userWithProfile);
       setIsAuthenticated(true);
       
       return userData;
@@ -70,7 +110,7 @@ export const AuthProvider = ({ children }) => {
     // Limpiar localStorage
     localStorage.removeItem("token");
     localStorage.removeItem("user");
-    localStorage.removeItem("clientProfile");
+    // No eliminamos clientProfile para mantener preferencias entre sesiones
     
     // Actualizar estado
     setUser(null);
@@ -134,6 +174,7 @@ export const AuthProvider = ({ children }) => {
     register,
     requestPasswordReset,
     resetPassword,
+    updateUserInfo // Nueva función para actualizar información del usuario
   };
 
   return (

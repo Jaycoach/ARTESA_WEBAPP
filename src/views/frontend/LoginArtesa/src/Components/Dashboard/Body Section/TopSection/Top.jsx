@@ -1,19 +1,29 @@
-import React, { useState, useContext } from "react";
-import { useNavigate } from "react-router-dom"; // Para la redirección
-import { FaUserCircle } from "react-icons/fa"; // Ícono de usuario
-import AuthContext from "../../../../context/AuthContext";
-import ClientProfile from "../../ClientProfile/ClientProfile"; // Importamos el componente de perfil
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { FaUserCircle } from "react-icons/fa";
+import { useAuth } from "../../../../hooks/useAuth"; // Usar el hook personalizado
+import ClientProfile from "../../ClientProfile/ClientProfile";
 import "./Top.scss";
 
 const Top = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
-  const { user, logout } = useContext(AuthContext);
+  const { user, logout, updateUserInfo } = useAuth(); // Obtenemos funciones y estado del contexto
+  const [displayName, setDisplayName] = useState("");
   const navigate = useNavigate();
+
+  // Efecto para actualizar el nombre de visualización cuando cambia el usuario
+  useEffect(() => {
+    if (user) {
+      // Priorizar nombres en este orden
+      const name = user.nombre || user.name || user.email || user.mail || "Usuario";
+      setDisplayName(name);
+    }
+  }, [user]); // Se ejecuta cuando cambia el usuario en el contexto
 
   const handleLogout = () => {
     logout();
-    navigate("/"); // Redirigir a la página de login
+    navigate("/"); // Redirigir a la página de inicio
   };
 
   const handleOpenProfile = () => {
@@ -25,10 +35,14 @@ const Top = () => {
     setShowProfileModal(false); // Cerrar el modal de perfil
   };
 
-  const handleProfileUpdate = (name) => {
-    // Esta función se pasará al componente ClientProfile
-    // para actualizar el nombre de usuario si es necesario
-    console.log("Perfil actualizado:", name);
+  const handleProfileUpdate = (updatedUser) => {
+    // Actualizar el contexto con la nueva información
+    updateUserInfo(updatedUser);
+    
+    // También actualizar el nombre de visualización directamente
+    if (updatedUser.nombre) {
+      setDisplayName(updatedUser.nombre);
+    }
   };
 
   return (
@@ -39,7 +53,7 @@ const Top = () => {
         <div className="user-container">
           <button className="user-icon" onClick={() => setMenuOpen(!menuOpen)}>
             <FaUserCircle size={30} />
-            {user && <span className="username">{user.name}</span>}
+            {displayName && <span className="username">{displayName}</span>}
           </button>
 
           {menuOpen && (
