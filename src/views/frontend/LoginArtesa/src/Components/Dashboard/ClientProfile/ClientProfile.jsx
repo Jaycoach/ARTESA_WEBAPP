@@ -54,21 +54,53 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
     const fetchProfile = async () => {
       try {
         // Intentar obtener el perfil del usuario desde la API
-        const response = await API.get(`/client-profile/${user.id}`);
+        const response = await API.get(`/client-profiles/user/${user.id}`);
         
         // Si existe un perfil, actualizar el estado
-        if (response.data) {
-          setExistingProfile(response.data);
+        if (response.data && response.data.data) {
+          const profileData = response.data.data;
+          setExistingProfile(profileData);
           
           // Precargar los datos existentes (excepto los archivos)
-          const profileData = { ...response.data };
           delete profileData.fotocopiaCedula;
           delete profileData.fotocopiaRut;
           delete profileData.anexosAdicionales;
           
           setFormData(prev => ({
             ...prev,
-            ...profileData,
+            nombre: profileData.nombre || '',
+            tipoDocumento: profileData.tipoDocumento || 'CC',
+            numeroDocumento: profileData.numeroDocumento || '',
+            direccion: profileData.direccion || '',
+            ciudad: profileData.ciudad || '',
+            pais: profileData.pais || 'Colombia',
+            telefono: profileData.telefono || '',
+            email: profileData.email || user?.email || user?.mail || '',
+            
+            // Información empresarial
+            razonSocial: profileData.razonSocial || '',
+            nit: profileData.nit || '',
+            representanteLegal: profileData.representanteLegal || '',
+            actividadComercial: profileData.actividadComercial || '',
+            sectorEconomico: profileData.sectorEconomico || '',
+            tamanoEmpresa: profileData.tamanoEmpresa || 'Microempresa',
+            
+            // Información financiera
+            ingresosMensuales: profileData.ingresosMensuales || '',
+            patrimonio: profileData.patrimonio || '',
+            
+            // Información bancaria
+            entidadBancaria: profileData.entidadBancaria || '',
+            tipoCuenta: profileData.tipoCuenta || 'Ahorros',
+            numeroCuenta: profileData.numeroCuenta || '',
+            
+            // Información de contacto alternativo
+            nombreContacto: profileData.nombreContacto || '',
+            cargoContacto: profileData.cargoContacto || '',
+            telefonoContacto: profileData.telefonoContacto || '',
+            emailContacto: profileData.emailContacto || '',
+            
+            // No sobrescribimos los archivos que son de tipo File
           }));
           
           console.log('Perfil cargado desde la API');
@@ -141,8 +173,8 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
       
       // Endpoint correcto dependiendo si es creación o actualización
       const endpoint = existingProfile 
-        ? `/client-profile/${user.id}` 
-        : '/client-profile';
+        ? `/client-profiles/user/${user.id}` 
+        : '/client-profiles';
       
       const method = existingProfile ? 'put' : 'post';
       
@@ -512,6 +544,9 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
                     {formData.fotocopiaCedula && (
                       <span className="file-selected"> (Archivo seleccionado)</span>
                     )}
+                    {existingProfile?.fotocopiaCedulaUrl && (
+                    <a href={existingProfile.fotocopiaCedulaUrl} target="_blank" rel="noopener noreferrer"> (Ver archivo actual)</a>
+                    )}
                   </label>
                   <div className="file-input-container">
                     <input 
@@ -534,6 +569,9 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
                     {formData.fotocopiaRut && (
                       <span className="file-selected"> (Archivo seleccionado)</span>
                     )}
+                    {existingProfile?.fotocopiaRutUrl && (
+                    <a href={existingProfile.fotocopiaRutUrl} target="_blank" rel="noopener noreferrer"> (Ver archivo actual)</a>
+                    )}
                   </label>
                   <div className="file-input-container">
                     <input 
@@ -555,6 +593,9 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
                     Anexos Adicionales
                     {formData.anexosAdicionales && (
                       <span className="file-selected"> (Archivo seleccionado)</span>
+                    )}
+                    {existingProfile?.anexosAdicionalesUrl && (
+                    <a href={existingProfile.anexosAdicionalesUrl} target="_blank" rel="noopener noreferrer"> (Ver archivo actual)</a>
                     )}
                   </label>
                   <div className="file-input-container">
