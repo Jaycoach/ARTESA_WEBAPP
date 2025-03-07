@@ -1,0 +1,94 @@
+:root {
+  --primary-color: #687e8d;
+  --secondary-color: #f6db8e;
+  --hover-color: #f6db8e;
+  --accent-color: #f6754e;
+  --whiteColor: #ffffff;
+  --blackColor: #000000;
+  --greyText: #808080;
+  --bgColor: #2c3e50;
+  --inputColor: #f6db8e;
+  --buttonColor: #f6754e;
+  --hoverButton: #e5c374;
+  /* Font Sizes */
+  --biggestFontSize: 2.5rem;
+  --h1FontSize: 1.5rem;
+  --h2FontSize: 1.25rem;
+  --h3FontSize: 1rem;
+  --normalFontSize: 0.938rem;
+  --smallFontSize: 0.813rem;
+  --smallestFontSize: 0.75rem;
+}
+
+.sidebar {
+  width: 200px;
+  min-height: calc(100vh - 60px);
+  background-color: var(--bgColor);
+  color: var(--whiteColor);
+  transition: width 0.3s ease-in-out;
+  position: fixed;
+  left: 0;
+  top: 60px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 2px 0px 10px rgba(0, 0, 0, 0.2);
+}
+.sidebar.collapsed {
+  width: 60px;
+}
+.sidebar.collapsed .sidebar-menu h3 {
+  display: none;
+}
+.sidebar.collapsed .sidebar-menu ul li button {
+  justify-content: center;
+  font-size: 0;
+}
+.sidebar.collapsed .toggle-btn {
+  left: 15px;
+}
+.sidebar .toggle-btn {
+  position: absolute;
+  top: 10px;
+  right: -15px;
+  background-color: #34495e;
+  border: none;
+  color: var(--whiteColor);
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  transition: background 0.3s ease-in-out;
+}
+.sidebar .toggle-btn:hover {
+  background: var(--hoverButton);
+}
+.sidebar .sidebar-menu {
+  padding: 20px;
+}
+.sidebar .sidebar-menu h3 {
+  font-size: var(--h3FontSize);
+  margin-bottom: 20px;
+}
+.sidebar .sidebar-menu ul {
+  list-style: none;
+  padding: 0;
+}
+.sidebar .sidebar-menu ul li {
+  margin-bottom: 10px;
+}
+.sidebar .sidebar-menu ul li button {
+  background: none;
+  border: none;
+  color: var(--whiteColor);
+  font-size: var(--normalFontSize);
+  width: 100%;
+  text-align: left;
+  padding: 12px 15px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.3s ease-in-out;
+}
+.sidebar .sidebar-menu ul li button:hover {
+  background: var(--hoverButton);
+  color: var(--blackColor);
+}
