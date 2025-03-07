@@ -54,7 +54,7 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
     const fetchProfile = async () => {
       try {
         // Intentar obtener el perfil del usuario desde la API
-        const response = await API.get(`/client-profile/${user.id}`);
+        const response = await API.get(`/client-profiles/user/${user.id}`);
         
         // Si existe un perfil, actualizar el estado
         if (response.data) {
