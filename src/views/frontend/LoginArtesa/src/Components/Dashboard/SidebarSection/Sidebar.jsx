@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./sidebar.scss"; // Importamos el archivo SCSS correspondiente
-import logo from '../../LoginsAssets/logo_artesa.png'; // Ruta relativa al logo
+import logo from '/src/LoginsAssets/logo_artesa.png'; // Ruta relativa al logo
 
 // Iconos
 import { IoMdSpeedometer } from "react-icons/io";

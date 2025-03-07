@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import "../../App.css";
 import "./Dashboard.css";
 // Importando componentes necesarios
-import Sidebar from "./Sidebar Section/Sidebar";
+import Sidebar from "./SidebarSection/Sidebar";
 import Top from "./Body Section/TopSection/Top";
 import Listing from "./Body Section/ListingSection/Listing";
 import Activity from "./Body Section/ActivitySection/Activity";
