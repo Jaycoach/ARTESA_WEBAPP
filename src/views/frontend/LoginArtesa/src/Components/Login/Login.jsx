@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./Login.css";
-import "../../App.css";
+import "../../App.css"; // Ruta correcta a App.css
 import API from "../../api/config";
 
 // Import Assets
@@ -17,20 +17,14 @@ import { MdEmail } from "react-icons/md";
 const Login = () => {
     const navigate = useNavigate();
     const [forgotPassword, setForgotPassword] = useState(false);
-    const [formData, setFormData] = useState({
-        mail: '',
-        password: ''
-    });
+    const [formData, setFormData] = useState({mail: '', password: ''});
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const [resetEmail, setResetEmail] = useState("");
     const [resetMessage, setResetMessage] = useState("");
 
     const handleChange = (e) => {
-        setFormData({
-            ...formData,
-            [e.target.id]: e.target.value
-        });
+        setFormData({ ...formData, [e.target.id]: e.target.value });
     };
 
     const handleResetChange = (e) => {
@@ -43,21 +37,21 @@ const Login = () => {
         setError('');
 
         try {
-            const response = await API.post('/auth/login', {
-                mail: formData.mail,
-                password: formData.password
-            });
+          const response = await API.post('/auth/login', {
+            mail: formData.mail,
+            password: formData.password
+          });
             
-            // Guardar el token en localStorage
-            localStorage.setItem('token', response.data.data.token);
-            localStorage.setItem('user', JSON.stringify(response.data.data.user));
+          // Guardar el token en localStorage
+          localStorage.setItem('token', response.data.data.token);
+          localStorage.setItem('user', JSON.stringify(response.data.data.user));
 
-            // Redireccionar al dashboard
-            navigate('/dashboard');
+          // Redireccionar al dashboard
+          navigate('/dashboard');
         } catch (error) {
-            setError(error.response?.data?.message || 'Error en el inicio de sesión');
+          setError(error.response?.data?.message || 'Error en el inicio de sesión');
         } finally {
-            setLoading(false);
+          setLoading(false);
         }
     };
 
@@ -75,122 +69,122 @@ const Login = () => {
       }
     };
 
-    return (
-        <div className="LoginPage flex">
-            <div className="container flex">
-                {/* Imagen Lateral */}
-                <div className="imgDiv">
-                    <img src={img} alt="LoginImg" />
-                    <div className="textDiv">
-                        <h2 className="title"> </h2>
-                        <p>Login Page - Artesa</p>
-                    </div>
-                    <div className="footerDiv flex">
-                        <span className="text">¿No tiene una cuenta?</span>
-                        <button className="btn" onClick={() => navigate("/register")}>
-                            Registrarse
-                        </button>
-                        <span className="text">© 2025 Artesa</span>
-                    </div>
-                </div>
-
-                {/* Formulario */}
-                <div className="formDiv flex">
-                    <div className="headerDiv">
-                        <img src={logo} alt="Logo Artesa" />
-                        <h3>{forgotPassword ? "Recuperar Contraseña" : "Bienvenido de vuelta!"}</h3>
-                    </div>
-
-                    {forgotPassword ? (
-                        // Formulario de Forgot Password
-                        <form onSubmit={handleResetPassword} className="form grid">
-                            {resetMessage && <p className="success-message">{resetMessage}</p>}
-                            {error && <p className="error-message">{error}</p>}
-
-                            {/* Input de correo para recuperación */}
-                            <div className="inputDiv">
-                                <label htmlFor="resetEmail">Correo Electrónico</label>
-                                <div className="input flex">
-                                    <MdEmail className="icon" />
-                                    <input
-                                        type="email"
-                                        id="resetEmail"
-                                        placeholder="Ingrese su correo registrado"
-                                        value={resetEmail}
-                                        onChange={handleResetChange}
-                                        required
-                                    />
-                                </div>
-                            </div>
-                            
-                            {/* Botón de Enviar */}
-                            <button type="submit" className="btn flex">
-                                <span>Enviar enlace</span>
-                                <TiArrowRightOutline className="icon" />
-                            </button>
-                            
-                            {/* Enlace para volver al login */}
-                            <span className="forgotPassword">
-                                ¿Recordaste tu contraseña?{" "}
-                                <a href="#" onClick={() => setForgotPassword(false)}>
-                                    Inicia sesión aquí
-                                </a>
-                            </span>
-                        </form>
-                    ) : (
-                        // Formulario de Login
-                        <form onSubmit={handleSubmit} className="form grid">
-                            {error && <p className="error-message">{error}</p>}
-                            
-                            {/* Input Usuario */}
-                            <div className="inputDiv">
-                                <label htmlFor="mail">Correo Electrónico</label>
-                                <div className="input flex">
-                                    <MdEmail className="icon" />
-                                    <input
-                                        type="email"
-                                        id="mail"
-                                        placeholder="Escriba su correo electrónico:"
-                                        value={formData.mail}
-                                        onChange={handleChange}
-                                        required
-                                    />
-                                </div>
-                            </div>
-                            
-                            {/* Input Contraseña */}
-                            <div className="inputDiv">
-                                <label htmlFor="password">Contraseña</label>
-                                <div className="input flex">
-                                    <BsFillShieldLockFill className="icon" />
-                                    <input
-                                        type="password"
-                                        id="password"
-                                        placeholder="Escriba su contraseña:"
-                                        value={formData.password}
-                                        onChange={handleChange}
-                                        required
-                                    />
-                                </div>
-                            </div>
-                            
-                            {/* Botón de Login */}
-                            <button type="submit" className="btn flex" disabled={loading}>
-                                <span>{loading ? "Iniciando sesión..." : "Iniciar sesión"}</span>
-                                <TiArrowRightOutline className="icon" />
-                            </button>
-                            
-                            {/* Enlace a "Olvidaste tu contraseña?" */}
-                            <span className="forgotPassword">
-                                ¿Olvidaste tu contraseña?{" "}
-                                <a href="#" onClick={() => setForgotPassword(true)}>Haz Clic Aquí</a>
-                            </span>
-                        </form>
-                    )}
-                </div>
-            </div>
+  return (
+    <div className="LoginPage flex">
+      <div className="container flex">
+        {/* Imagen Lateral */}
+        <div className="imgDiv">
+          <img src={img} alt="LoginImg" />
+          <div className="textDiv">
+            <h2 className="title">Bienvenido</h2>
+            <p>Login Page - Artesa</p>
+          </div>
+          <div className="footerDiv flex">
+            <span className="text">¿No tiene una cuenta?</span>
+            <button className="btn" onClick={() => navigate("/register")}>
+              Registrarse
+            </button>
+            <span className="text">© 2025 Artesa</span>
+          </div>
         </div>
-    );
+
+        {/* Formulario */}
+        <div className="formDiv flex">
+          <div className="headerDiv">
+            <img src={logo} alt="Logo Artesa" />
+            <h3>{forgotPassword ? "Recuperar Contraseña" : "Bienvenido"}</h3>
+          </div>
+
+          {forgotPassword ? (
+          // Formulario de Forgot Password
+          <form onSubmit={handleResetPassword} className="form grid">
+            {resetMessage && <p className="success-message">{resetMessage}</p>}
+            {error && <p className="error-message">{error}</p>}
+
+            {/* Input de correo para recuperación */}
+            <div className="inputDiv">
+              <label htmlFor="resetEmail">Correo Electrónico</label>
+              <div className="input flex">
+                <MdEmail className="icon" />
+                <input
+                  type="email"
+                  id="resetEmail"
+                  placeholder="Ingrese su correo registrado"
+                  value={resetEmail}
+                  onChange={handleResetChange}
+                  required
+                />
+              </div>
+            </div>
+                   
+            {/* Botón de Enviar */}
+            <button type="submit" className="btn flex">
+              <span>Enviar enlace</span>
+              <TiArrowRightOutline className="icon" />
+            </button>
+                    
+            {/* Enlace para volver al login */}
+            <span className="forgotPassword">
+              ¿Recordaste tu contraseña?{" "}
+              <a href="#" onClick={() => setForgotPassword(false)}>
+                Inicia sesión aquí
+              </a>
+            </span>
+          </form>
+          ) : (
+          // Formulario de Login
+          <form onSubmit={handleSubmit} className="form grid">
+            {error && <p className="error-message">{error}</p>}
+            
+            {/* Input Email */}
+            <div className="inputDiv">
+              <label htmlFor="mail">Correo Electrónico</label>
+              <div className="input flex">
+                <MdEmail className="icon" />
+                <input
+                  type="email"
+                  id="mail"
+                  placeholder="Escriba su correo electrónico"
+                  value={formData.mail}
+                  onChange={handleChange}
+                  required
+                />
+              </div>
+            </div>
+                                
+            {/* Input Contraseña */}
+            <div className="inputDiv">
+              <label htmlFor="password">Contraseña</label>
+              <div className="input flex">
+                <BsFillShieldLockFill className="icon" />
+                <input
+                  type="password"
+                  id="password"
+                  placeholder="Escriba su contraseña"
+                  value={formData.password}
+                  onChange={handleChange}
+                  required
+                />
+              </div>
+            </div>
+                                    
+            {/* Botón de Login */}
+            <button type="submit" className="btn flex" disabled={loading}>
+              <span>{loading ? "Iniciando sesión..." : "Iniciar sesión"}</span>
+              <TiArrowRightOutline className="icon" />
+            </button>
+                                      
+            {/* Enlace a "Olvidaste tu contraseña?" */}
+            <span className="forgotPassword">
+              ¿Olvidaste tu contraseña?{" "}
+              <a href="#" onClick={() => setForgotPassword(true)}>Haz Clic Aquí</a>
+            </span>
+          </form>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 };
 
 export default Login;

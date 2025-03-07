@@ -1,10 +1,47 @@
 <!doctype html>
-<html lang="en">
+<html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ARTESA WEBAPP</title>
+    <link rel="icon" type="image/svg+xml" href="/src/LoginsAssets/logo_artesa.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="description" content="Artesa - Portal de gestión y compras" />
+    <title>Artesa - Portal Empresarial</title>
+    <style>
+      /* Estilos críticos iniciales para prevenir FOUC (Flash of Unstyled Content) */
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 16px;
+        overflow-x: hidden;
+      }
+      #root {
+        display: flex;
+        flex-direction: column;
+        min-height: 100vh;
+      }
+      
+      /* Reducir tamaños de fuente para mejorar visualización */
+      html {
+        font-size: 85%;
+      }
+      
+      /* Correcciones para Login y Register */
+      .LoginPage .container, .RegisterPage .container {
+        height: 70vh;
+        width: 80%;
+        max-width: 1000px;
+        overflow: auto;
+      }
+      
+      .LoginPage .container .imgDiv, .RegisterPage .container .imgDiv {
+        width: 50%;
+      }
+    </style>
+    <!-- Precarga de fuentes -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
   </head>
   <body>
     <div id="root"></div>
