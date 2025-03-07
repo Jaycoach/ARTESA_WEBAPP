@@ -3,6 +3,8 @@ import './ClientProfile.scss';
 import API from '../../../api/config';
 import { FaTimes, FaUpload } from 'react-icons/fa';
 import { useAuth } from '../../../hooks/useAuth'; // Importar el hook de auth
+import './ConfirmationModal.scss';
+import ConfirmationModal from './ConfirmationModal';
 
 const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
   const { updateUserInfo } = useAuth(); // Obtener la función de actualización del contexto
@@ -50,6 +52,9 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [existingProfile, setExistingProfile] = useState(null);
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [confirmationIsSuccess, setConfirmationIsSuccess] = useState(false);
+  const [confirmationMessage, setConfirmationMessage] = useState('');
   
   useEffect(() => {
     // Verificar si el usuario ya tiene un perfil
@@ -152,6 +157,16 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
       [name]: files[0]
     }));
   };
+
+  const handleConfirmationClose = () => {
+    setShowConfirmation(false);
+    
+    // Si la operación fue exitosa, cerrar el formulario y regresar al dashboard
+    if (confirmationIsSuccess) {
+      onClose(); // Cerrar el modal de perfil
+    }
+    // Si hubo un error, seguimos mostrando el formulario para corregir
+  };
   
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -226,11 +241,23 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
         onProfileUpdate(formData.nombre);
       }
       
+      // En lugar de solo mostrar mensaje en el formulario, mostramos el modal de confirmación
       setSuccess('Perfil guardado correctamente');
-      setExistingProfile(savedData);
+      setExistingProfile(response.data);
+
+      // Configurar y mostrar el modal de confirmación exitosa
+      setConfirmationIsSuccess(true);
+      setConfirmationMessage('Datos Almacenados Correctamente');
+      setShowConfirmation(true);
+      
     } catch (error) {
-      console.error('Error al guardar perfil:', error);
       setError(error.response?.data?.message || 'Error al guardar el perfil');
+      console.error('Error al guardar perfil:', error);
+      
+      // Configurar y mostrar el modal de confirmación de error
+      setConfirmationIsSuccess(false);
+      setConfirmationMessage('Datos Incorrectos. Por favor verifique la información proporcionada.');
+      setShowConfirmation(true);
     } finally {
       setLoading(false);
     }
@@ -581,6 +608,16 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
           </form>
         </div>
       </div>
+      
+      {/* Modal de Confirmación */}
+      {showConfirmation && (
+        <ConfirmationModal
+          isSuccess={confirmationIsSuccess}
+          message={confirmationMessage}
+          onClose={handleConfirmationClose}
+        />
+      )}
+      
     </div>
   );
 };
