@@ -4,8 +4,10 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "dev": "npm run sass:build && vite",
+    "build": "npm run sass:build && vite build",
+    "sass:build": "node --no-warnings scripts/generate-css.js",
+    "sass:watch": "sass --watch src:src",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -18,16 +20,15 @@
     "react-router-dom": "^7.1.5"
   },
   "devDependencies": {
-    "@eslint/js": "^9.19.0",
-    "@types/react": "^19.0.8",
-    "@types/react-dom": "^19.0.3",
+    "@types/react": "^18.2.37",
+    "@types/react-dom": "^18.2.15",
     "@vitejs/plugin-react": "^4.3.4",
-    "eslint": "^9.19.0",
-    "eslint-plugin-react": "^7.37.4",
-    "eslint-plugin-react-hooks": "^5.0.0",
-    "eslint-plugin-react-refresh": "^0.4.18",
-    "globals": "^15.14.0",
-    "sass-embedded": "^1.83.4",
-    "vite": "^6.1.0"
+    "eslint": "^8.53.0",
+    "eslint-plugin-react": "^7.33.2",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-react-refresh": "^0.4.4",
+    "glob": "^10.3.10",
+    "sass": "^1.85.1",
+    "vite": "^6.1.1"
   }
 }
