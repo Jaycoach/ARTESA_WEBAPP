@@ -1,53 +1,51 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import "../../App.css";
+import React, { useState, useEffect } from "react";
 import "./Dashboard.css";
-// Importando componentes necesarios
-import Sidebar from "./SidebarSection/Sidebar";
-import Top from "./Body Section/TopSection/Top";
+// Importando Componentes
 import Listing from "./Body Section/ListingSection/Listing";
 import Activity from "./Body Section/ActivitySection/Activity";
 import ClientProfile from "./ClientProfile/ClientProfile";
 import { FaUserCircle } from "react-icons/fa";
-import { useAuth } from '../../hooks/useAuth';
+
+// Importar la imagen de fondo del banner
+import bannerImage from "../../DashboardAssets/Banner_dash2.png";
 
 const Dashboard = () => {
-  const { user } = useAuth();
+  const [user, setUser] = useState(null);
   const [showProfile, setShowProfile] = useState(false);
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
-  const navigate = useNavigate();
 
   useEffect(() => {
-    // Obtener información del usuario y perfil
-    if (user) {
-      // Establecer nombre de usuario
-      if (user.nombre) {
-        setUserName(user.nombre);
-      } else if (user.name) {
-        setUserName(user.name);
-      }
-      
-      // Establecer el email del usuario
-      setUserEmail(user.email || user.mail || '');
-      
-      // Verificar si hay un perfil guardado en localStorage
-      const clientProfile = localStorage.getItem('clientProfile');
-      if (clientProfile) {
-        try {
+    // Obtener información del usuario del localStorage
+    const userInfo = localStorage.getItem('user');
+    if (userInfo) {
+      try {
+        const userData = JSON.parse(userInfo);
+        setUser(userData);
+        
+        // Extraer nombre y email del usuario
+        if (userData.nombre) {
+          setUserName(userData.nombre);
+        } else if (userData.name) {
+          setUserName(userData.name);
+        }
+        
+        // Establecer el email del usuario
+        setUserEmail(userData.email || userData.mail || '');
+        
+        // Verificar si hay un perfil guardado en localStorage
+        const clientProfile = localStorage.getItem('clientProfile');
+        if (clientProfile) {
           const profileData = JSON.parse(clientProfile);
           if (profileData.nombre) {
             setUserName(profileData.nombre);
           }
-        } catch (error) {
-          console.error("Error al parsear perfil:", error);
         }
+      } catch (error) {
+        console.error("Error al parsear datos del usuario:", error);
       }
-    } else {
-      // Si no hay usuario, redirigir al login
-      navigate('/login');
     }
-  }, [user, navigate]);
+  }, []);
 
   const toggleProfile = () => {
     setShowProfile(!showProfile);
@@ -59,27 +57,47 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="dashboard">
-      {/* Contenido del dashboard */}
-      <div className="dashboard-content">
-        {/* Información del usuario en la parte superior */}
+    <div className="dashboard-main">
+      {/* Banner con imagen de fondo */}
+      <div className="dashboard-banner" style={{ 
+        backgroundImage: `url(${bannerImage})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        height: '200px',
+        borderRadius: '10px',
+        marginBottom: '20px'
+      }}>
+        <div style={{ 
+          padding: '30px',
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          color: 'white',
+          maxWidth: '60%',
+          borderRadius: '0 10px 10px 0'
+        }}>
+          <h1>Bienvenido al Dashboard de Artesa</h1>
+          <p>Panel de control para gestión de productos y ventas</p>
+        </div>
+      </div>
+
+      {/* Información del usuario en la parte superior */}
+      {user && (
         <div className="user-profile-section">
           <div className="user-profile-info" onClick={toggleProfile}>
             <FaUserCircle className="user-icon" />
             <div className="user-details">
-              <span className="user-name">{userName || userEmail || 'Usuario'}</span>
+              <span className="user-name">{userName || userEmail}</span>
               <span className="profile-label">Ver perfil</span>
             </div>
           </div>
         </div>
+      )}
 
-        <h1>Bienvenido al Panel de Control</h1>
-        <p>Aquí puedes gestionar tus productos y ventas.</p>
+      <h1>Bienvenido al Panel de Control</h1>
+      <p>Aquí puedes gestionar tus productos y ventas.</p>
 
-        {/* Secciones del dashboard */}
-        <Listing />
-        <Activity />
-      </div>
+      {/* Secciones del dashboard */}
+      <Listing />
+      <Activity />
       
       {/* Modal del formulario de perfil */}
       {showProfile && user && (

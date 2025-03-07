@@ -1,10 +1,15 @@
 // src/api/config.js
 import axios from 'axios';
 
-// En Vite, las variables de entorno deben usar el prefijo VITE_
-// y se acceden mediante import.meta.env en lugar de process.env
+// Configura la URL base según el entorno
+const baseURL = 'http://localhost:3000/api';
+// Para usar con ngrok, comenta la línea anterior y descomenta la siguiente:
+// const baseURL = 'https://tu-subdominio-ngrok.ngrok-free.app/api';
+
+console.log("API conectada a:", baseURL);
+
 const API = axios.create({
-  baseURL: import.meta.env.VITE_API_URL,
+  baseURL,
   headers: {
     'Content-Type': 'application/json'
   }
