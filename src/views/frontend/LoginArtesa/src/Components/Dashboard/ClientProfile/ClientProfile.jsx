@@ -53,19 +53,25 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
     // Verificar si el usuario ya tiene un perfil
     const fetchProfile = async () => {
       try {
+        console.log(`Intentando obtener perfil para el usuario con ID: ${user.id}`);
+        
+        // Mostrar la URL completa para depuración
+        const url = `/client-profiles/user/${user.id}`;
+        console.log(`URL de solicitud: ${API.defaults.baseURL}${url}`);
+        
         // Intentar obtener el perfil del usuario desde la API
-        const response = await API.get(`/client-profiles/user/${user.id}`);
+        const response = await API.get(url);
+        
+        console.log('Respuesta completa:', response);
         
         // Si existe un perfil, actualizar el estado
-        if (response.data && response.data.data) {
+        if (response.data && response.data.success && response.data.data) {
           const profileData = response.data.data;
+          console.log('Datos del perfil recibidos:', profileData);
+          
           setExistingProfile(profileData);
           
           // Precargar los datos existentes (excepto los archivos)
-          delete profileData.fotocopiaCedula;
-          delete profileData.fotocopiaRut;
-          delete profileData.anexosAdicionales;
-          
           setFormData(prev => ({
             ...prev,
             nombre: profileData.nombre || '',
@@ -99,14 +105,23 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
             cargoContacto: profileData.cargoContacto || '',
             telefonoContacto: profileData.telefonoContacto || '',
             emailContacto: profileData.emailContacto || '',
-            
-            // No sobrescribimos los archivos que son de tipo File
           }));
           
-          console.log('Perfil cargado desde la API');
+          console.log('Perfil cargado exitosamente desde la API');
+        } else {
+          console.log('Perfil no encontrado o success = false', response.data);
         }
       } catch (error) {
-        console.log('No existe perfil previo o error al obtenerlo');
+        console.error('Error al obtener el perfil:', error);
+        
+        if (error.response) {
+          console.log('Respuesta del servidor:', error.response.data);
+          console.log('Estado:', error.response.status);
+        } else if (error.request) {
+          console.log('No se recibió respuesta del servidor');
+        } else {
+          console.log('Error al configurar la solicitud:', error.message);
+        }
         
         // Si no existe perfil, inicializar con el email del usuario logueado
         if (user) {
@@ -178,6 +193,9 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
       
       const method = existingProfile ? 'put' : 'post';
       
+      console.log(`Enviando formulario mediante método ${method} a ${endpoint}`);
+      console.log('Usuario ID:', user.id);
+      
       // Realizar la solicitud a la API
       const response = await API({
         method,
@@ -188,8 +206,10 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
         }
       });
       
+      console.log('Respuesta completa de guardado:', response);
+      
       // Guardar perfil en localStorage para acceso rápido
-    localStorage.setItem('clientProfile', JSON.stringify({
+      localStorage.setItem('clientProfile', JSON.stringify({
         nombre: formData.nombre,
         email: formData.email
       }));
@@ -200,8 +220,15 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
       }
       
       setSuccess('Perfil guardado correctamente');
-      setExistingProfile(response.data);
+      setExistingProfile(response.data.data || response.data);
     } catch (error) {
+      console.error('Error al guardar el perfil:', error);
+      
+      if (error.response) {
+        console.log('Respuesta de error:', error.response.data);
+        console.log('Estado:', error.response.status);
+      }
+      
       setError(error.response?.data?.message || 'Error al guardar el perfil');
     } finally {
       setLoading(false);
