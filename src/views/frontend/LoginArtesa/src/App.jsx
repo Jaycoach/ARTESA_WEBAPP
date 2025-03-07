@@ -1,23 +1,37 @@
-import React, { Suspense, useEffect } from 'react';
-import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom';
+import { lazy, Suspense, useEffect } from 'react';
+import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 
 // Importar componentes de manera normal para páginas principales
 import Home from './Components/Home/Home';
-import Login from './Components/Login/Login';
-import Register from './Components/Register/Register';
-import NotFound from './Components/NotFound/NotFound';
-import ResetPassword from './Components/resetPassword/ResetPassword';
-import DashboardLayout from './Components/Dashboard/DashboardLayout';
 
 // Importar el contexto de autenticación
 import { useAuth } from './hooks/useAuth';
 
 // Componentes de Dashboard cargados de manera diferida
+const Login = lazy(() => import('./Components/Login/Login'));
+const Register = lazy(() => import('./Components/Register/Register'));
+const ResetPassword = lazy(() => import('./Components/resetPassword/ResetPassword'));
+const NotFound = lazy(() => import('./Components/NotFound/NotFound'));
+const DashboardLayout = lazy(() => import('./Components/Dashboard/DashboardLayout'));
 const Dashboard = React.lazy(() => import('./Components/Dashboard/Dashboard'));
 const Products = React.lazy(() => import('./Components/Dashboard/Pages/Products/Products'));
 const Orders = React.lazy(() => import('./Components/Dashboard/Pages/Orders/Orders'));
 const Invoices = React.lazy(() => import('./Components/Dashboard/Pages/Invoices/Invoices'));
 const Settings = React.lazy(() => import('./Components/Dashboard/Pages/Settings/Settings'));
+
+// Componente de carga
+const LoadingScreen = () => (
+  <div style={{ 
+    display: 'flex', 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    height: '100vh',
+    background: '#687e8d',
+    color: 'white'
+  }}>
+    <p>Cargando...</p>
+  </div>
+);
 
 // Componente para proteger rutas
 const ProtectedRoute = ({ children }) => {
@@ -67,60 +81,64 @@ const router = createBrowserRouter([
   },
   {
     path: '/login',
-    element: <Login />,
+    element: (
+      <Suspense fallback={<LoadingScreen />}>
+        <Login />
+      </Suspense>
+    ),
+  },
+  {
+    path: '/ResetPassword/:token',
+    element: (
+      <Suspense fallback={<LoadingScreen />}>
+        <ResetPassword />
+      </Suspense>
+    ),
   },
   {
     path: '/register',
-    element: <Register />,
-  },
-  {
-    path: '/reset-password/:token',
-    element: <ResetPassword />,
-  },
-  {
-    path: '/dashboard',
     element: (
-      <ProtectedRoute>
+      <Suspense fallback={<LoadingScreen />}>
+        <Register />
+      </Suspense>
+    ),
+  },
+  {
+    path: "/dashboard",
+    element: (
+      <Suspense fallback={<LoadingScreen />}>
         <DashboardLayout />
-      </ProtectedRoute>
+      </Suspense>
     ),
     children: [
       {
-        index: true,
+        path: "products",
         element: (
-          <Suspense fallback={<Loading />}>
-            <Dashboard />
-          </Suspense>
-        ),
-      },
-      {
-        path: 'products',
-        element: (
-          <Suspense fallback={<Loading />}>
+          <Suspense fallback={<LoadingScreen />}>
             <Products />
           </Suspense>
         ),
       },
       {
-        path: 'orders',
+        path: "orders",
         element: (
-          <Suspense fallback={<Loading />}>
+          <Suspense fallback={<LoadingScreen />}>
             <Orders />
           </Suspense>
         ),
       },
       {
-        path: 'invoices',
+        path: "invoices",
         element: (
-          <Suspense fallback={<Loading />}>
+          <Suspense fallback={<LoadingScreen />}>
             <Invoices />
           </Suspense>
         ),
       },
       {
-        path: 'settings',
+        path: "settings",
         element: (
-          <Suspense fallback={<Loading />}>
+          <Suspense fallback={<LoadingScreen />}>
             <Settings />
           </Suspense>
         ),
@@ -129,7 +147,11 @@ const router = createBrowserRouter([
   },
   {
     path: '*',
-    element: <NotFound />,
+    element: (
+      <Suspense fallback={<LoadingScreen />}>
+        <NotFound />
+      </Suspense>
+    ),
   },
 ]);
 
