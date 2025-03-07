@@ -77,7 +77,7 @@ const Login = () => {
         setLoading(true);
 
         try {
-            const response = await API.post("/password/request-reset", { email: resetEmail });
+            const response = await API.post("/password/request-reset", { mail: resetEmail });
             setResetMessage(response.data.message || "Revisa tu correo para continuar con la recuperación.");
         } catch (error) {
             setError(error.response?.data?.message || "No se pudo procesar la solicitud.");

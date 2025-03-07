@@ -41,7 +41,7 @@ const Register = () => {
         setError('');
 
         try {
-            const response = await API.post('/api/auth/register', formData, {
+            const response = await API.post('/auth/register', formData, {
                 headers: {
                     'Content-Type': 'application/json'
                 }
