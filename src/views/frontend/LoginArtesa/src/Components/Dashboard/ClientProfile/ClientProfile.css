@@ -1,94 +1,14 @@
 @charset "UTF-8";
-.dashboard {
-  display: flex;
-  height: 100vh;
-  background-color: #f8f9fa;
-}
-
-/* Ajusta el contenedor del dashboard */
-.dashboard-layout {
-  display: flex;
-  width: 100%;
-  height: 100%;
-}
-
-/* Contenido principal del dashboard */
-.dashboard-content {
-  flex: 1;
-  margin-left: 200px; /* Ancho del Sidebar */
-  padding: 2rem;
-  background-color: white;
-  border-radius: 10px;
-  margin: 20px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-  overflow-x: auto;
-}
-
-/* Estilos para la sección de perfil de usuario */
-.user-profile-section {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 20px;
-  padding-bottom: 15px;
-  border-bottom: 1px solid #eee;
-}
-
-.user-profile-info {
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-  padding: 10px;
-  border-radius: 8px;
-  transition: background-color 0.3s;
-}
-
-.user-profile-info:hover {
-  background-color: var(--inputColor);
-}
-
-.user-icon {
-  font-size: 2rem;
-  color: var(--greyText);
-  margin-right: 10px;
-}
-
-.user-details {
-  display: flex;
-  flex-direction: column;
-}
-
-.user-name {
-  font-weight: 600;
-  color: var(--blackColor);
-  font-size: var(--normalFontSize);
-  transition: color 0.2s;
-}
-
-.user-profile-info:hover .user-name {
-  color: var(--palegreen-color);
-  text-decoration: underline;
-}
-
-.user-email {
-  font-weight: 500;
-  color: var(--blackColor);
-}
-
-.profile-label {
-  font-size: var(--smallFontSize);
-  color: var(--greyText);
-}
-
-/* Variables from the app */
 :root {
-  --primary-color: #f9f9f9;
-  --hover-color: #f1f1f1;
-  --palegreen-color: #f4ff5b;
+  --primary-color: #687e8d;
+  --secondary-color: #f6db8e;
+  --hover-color: #f6db8e;
+  --accent-color: #f6754e;
   --whiteColor: #fff;
   --blackColor: #000;
   --greyText: #808080;
-  --bgColor: hsl(113, 11%, 85%);
-  --inputColor: hsl(300, 12%, 97%);
+  --bgColor: #687e8d;
+  --inputColor: #f6db8e;
 }
 
 /* Overlay para el modal */
@@ -101,7 +21,7 @@
   background-color: rgba(0, 0, 0, 0.7);
   display: flex;
   justify-content: center;
-  align-items: center;
+  align-items: flex-start; /* Cambiado a flex-start para mejor scroll */
   z-index: 2000;
   overflow-y: auto;
   padding: 20px;
@@ -113,10 +33,11 @@
   border-radius: 10px;
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
   width: 90%;
-  max-width: 1000px;
-  max-height: 90vh;
+  max-width: 900px; /* Reducido para mejor visualización */
+  max-height: 85vh; /* Reducido para permitir scroll */
   overflow-y: auto;
   position: relative;
+  margin: 30px 0; /* Añadir margen para mejor visualización */
 }
 
 /* Cabecera del formulario */
@@ -124,7 +45,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px;
+  padding: 15px 20px;
   border-bottom: 1px solid #eee;
   position: sticky;
   top: 0;
@@ -133,7 +54,7 @@
 }
 .client-profile-header h2 {
   margin: 0;
-  font-size: var(--h2FontSize);
+  font-size: 1.5rem;
   color: var(--blackColor);
 }
 .client-profile-header .close-button {
@@ -177,20 +98,20 @@
 .client-profile-form {
   display: flex;
   flex-direction: column;
-  gap: 25px;
+  gap: 20px;
 }
 
 /* Secciones del formulario */
 .form-section {
-  background-color: var(--primary-color);
+  background-color: #f9f9f9;
   border-radius: 8px;
-  padding: 20px;
+  padding: 15px;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
 }
 .form-section .section-title {
   margin-top: 0;
   margin-bottom: 15px;
-  font-size: var(--h3FontSize);
+  font-size: 1.2rem;
   font-weight: 600;
   color: var(--blackColor);
   border-bottom: 1px solid #eee;
@@ -201,7 +122,7 @@
 .form-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 20px;
+  gap: 15px;
   margin-bottom: 15px;
 }
 .form-row:last-child {
@@ -215,22 +136,24 @@
 }
 .form-group label {
   display: block;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   font-weight: 500;
-  font-size: var(--smallFontSize);
+  font-size: 0.9rem;
+  color: #555;
 }
 .form-group input, .form-group select {
   width: 100%;
-  padding: 10px 12px;
+  padding: 8px 12px;
   border: 1px solid #ddd;
   border-radius: 6px;
   background-color: var(--whiteColor);
-  font-size: var(--normalFontSize);
+  font-size: 0.95rem;
   transition: border-color 0.3s;
 }
 .form-group input:focus, .form-group select:focus {
   outline: none;
-  border-color: var(--palegreen-color);
+  border-color: var(--accent-color);
+  box-shadow: 0 0 3px rgba(246, 117, 78, 0.3);
 }
 
 /* Estilos para los campos de carga de archivos */
@@ -240,6 +163,7 @@
 .file-upload .file-selected {
   color: #2e7d32;
   font-size: 0.8rem;
+  margin-left: 5px;
 }
 .file-upload .file-input-container {
   position: relative;
@@ -259,16 +183,16 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 15px;
-  background-color: var(--inputColor);
+  padding: 8px 12px;
+  background-color: #f0f0f0;
   border-radius: 6px;
-  font-size: var(--smallFontSize);
+  font-size: 0.9rem;
   cursor: pointer;
   transition: background-color 0.3s;
   width: 100%;
 }
 .file-upload .file-input-container .file-label:hover {
-  background-color: var(--hover-color);
+  background-color: #e0e0e0;
 }
 
 /* Botones de acción del formulario */
@@ -279,7 +203,7 @@
   margin-top: 20px;
 }
 .form-actions button {
-  padding: 12px 24px;
+  padding: 10px 20px;
   border-radius: 6px;
   font-weight: 500;
   cursor: pointer;
@@ -287,18 +211,18 @@
   border: none;
 }
 .form-actions .cancel-btn {
-  background-color: var(--greyText);
-  color: var(--whiteColor);
+  background-color: #e0e0e0;
+  color: #333;
 }
 .form-actions .cancel-btn:hover {
-  background-color: #666666;
+  background-color: #d0d0d0;
 }
 .form-actions .submit-btn {
-  background-color: var(--palegreen-color);
-  color: var(--blackColor);
+  background-color: var(--accent-color);
+  color: var(--whiteColor);
 }
 .form-actions .submit-btn:hover {
-  background-color: #daeb35;
+  background-color: rgb(243.5322580645, 79.1612903226, 29.4677419355);
 }
 .form-actions .submit-btn:disabled {
   opacity: 0.7;
@@ -309,12 +233,20 @@
 @media (max-width: 768px) {
   .client-profile-container {
     width: 95%;
+    margin: 10px 0;
+    max-height: 90vh;
   }
   .form-row {
     flex-direction: column;
-    gap: 15px;
+    gap: 10px;
   }
   .form-group {
+    width: 100%;
+  }
+  .form-actions {
+    flex-direction: column;
+  }
+  .form-actions button {
     width: 100%;
   }
 }

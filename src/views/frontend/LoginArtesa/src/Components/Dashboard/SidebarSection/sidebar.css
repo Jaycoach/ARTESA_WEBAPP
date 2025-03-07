@@ -33,62 +33,78 @@
   flex-direction: column;
   justify-content: space-between;
   box-shadow: 2px 0px 10px rgba(0, 0, 0, 0.2);
+  padding: 1rem 0;
+  z-index: 1000;
 }
 .sidebar.collapsed {
   width: 60px;
 }
-.sidebar.collapsed .sidebar-menu h3 {
+.sidebar.collapsed .menuTitle, .sidebar.collapsed .settingsTitle, .sidebar.collapsed .smallText {
   display: none;
 }
-.sidebar.collapsed .sidebar-menu ul li button {
+.sidebar.collapsed .logoDiv img {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+}
+.sidebar.collapsed .menuLink {
   justify-content: center;
-  font-size: 0;
 }
-.sidebar.collapsed .toggle-btn {
-  left: 15px;
+.sidebar .logoDiv {
+  padding: 0 1rem;
+  margin-bottom: 1rem;
+  justify-content: center;
 }
-.sidebar .toggle-btn {
-  position: absolute;
-  top: 10px;
-  right: -15px;
-  background-color: #34495e;
-  border: none;
-  color: var(--whiteColor);
-  cursor: pointer;
-  padding: 8px;
-  border-radius: 50%;
-  transition: background 0.3s ease-in-out;
+.sidebar .logoDiv img {
+  width: 120px;
+  height: 60px;
+  object-fit: contain;
+  transition: all 0.3s ease;
 }
-.sidebar .toggle-btn:hover {
-  background: var(--hoverButton);
+.sidebar .menuDiv, .sidebar .settingsDiv {
+  padding: 0 1rem;
 }
-.sidebar .sidebar-menu {
-  padding: 20px;
-}
-.sidebar .sidebar-menu h3 {
+.sidebar .menuDiv .menuTitle, .sidebar .menuDiv .settingsTitle, .sidebar .settingsDiv .menuTitle, .sidebar .settingsDiv .settingsTitle {
   font-size: var(--h3FontSize);
-  margin-bottom: 20px;
+  font-weight: 500;
+  margin-bottom: 1rem;
+  color: var(--secondary-color);
 }
-.sidebar .sidebar-menu ul {
-  list-style: none;
-  padding: 0;
+.sidebar .menuDiv .menuList, .sidebar .settingsDiv .menuList {
+  display: grid;
+  row-gap: 0.5rem;
 }
-.sidebar .sidebar-menu ul li {
-  margin-bottom: 10px;
-}
-.sidebar .sidebar-menu ul li button {
-  background: none;
+.sidebar .menuDiv .menuList .listItem .menuLink, .sidebar .settingsDiv .menuList .listItem .menuLink {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.8rem 1rem;
+  border-radius: 0.5rem;
+  background: transparent;
+  transition: all 0.3s ease;
+  cursor: pointer;
   border: none;
   color: var(--whiteColor);
-  font-size: var(--normalFontSize);
   width: 100%;
   text-align: left;
-  padding: 12px 15px;
-  border-radius: 5px;
-  cursor: pointer;
-  transition: background 0.3s ease-in-out;
 }
-.sidebar .sidebar-menu ul li button:hover {
-  background: var(--hoverButton);
+.sidebar .menuDiv .menuList .listItem .menuLink:hover, .sidebar .settingsDiv .menuList .listItem .menuLink:hover {
+  background-color: var(--hoverButton);
   color: var(--blackColor);
+}
+.sidebar .menuDiv .menuList .listItem .menuLink:hover .icon, .sidebar .settingsDiv .menuList .listItem .menuLink:hover .icon {
+  color: var(--blackColor);
+}
+.sidebar .menuDiv .menuList .listItem .menuLink .icon, .sidebar .settingsDiv .menuList .listItem .menuLink .icon {
+  color: var(--whiteColor);
+  font-size: 1.2rem;
+  transition: all 0.3s ease;
+}
+.sidebar .menuDiv .menuList .listItem .menuLink .smallText, .sidebar .settingsDiv .menuList .listItem .menuLink .smallText {
+  font-size: var(--smallFontSize);
+  display: block;
+  font-weight: 500;
+}
+.sidebar .settingsDiv {
+  margin-top: 1rem;
 }

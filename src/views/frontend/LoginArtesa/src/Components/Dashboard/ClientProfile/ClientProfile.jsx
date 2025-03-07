@@ -53,75 +53,28 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
     // Verificar si el usuario ya tiene un perfil
     const fetchProfile = async () => {
       try {
-        console.log(`Intentando obtener perfil para el usuario con ID: ${user.id}`);
-        
-        // Mostrar la URL completa para depuración
-        const url = `/client-profiles/user/${user.id}`;
-        console.log(`URL de solicitud: ${API.defaults.baseURL}${url}`);
-        
-        // Intentar obtener el perfil del usuario desde la API
-        const response = await API.get(url);
-        
-        console.log('Respuesta completa:', response);
+        // Mantener el endpoint tal como está en la API
+        const response = await API.get(`/client-profiles/user/${user.id}`);
         
         // Si existe un perfil, actualizar el estado
-        if (response.data && response.data.success && response.data.data) {
-          const profileData = response.data.data;
-          console.log('Datos del perfil recibidos:', profileData);
-          
-          setExistingProfile(profileData);
+        if (response.data) {
+          setExistingProfile(response.data);
           
           // Precargar los datos existentes (excepto los archivos)
+          const profileData = { ...response.data };
+          delete profileData.fotocopiaCedula;
+          delete profileData.fotocopiaRut;
+          delete profileData.anexosAdicionales;
+          
           setFormData(prev => ({
             ...prev,
-            nombre: profileData.nombre || '',
-            tipoDocumento: profileData.tipoDocumento || 'CC',
-            numeroDocumento: profileData.numeroDocumento || '',
-            direccion: profileData.direccion || '',
-            ciudad: profileData.ciudad || '',
-            pais: profileData.pais || 'Colombia',
-            telefono: profileData.telefono || '',
-            email: profileData.email || user?.email || user?.mail || '',
-            
-            // Información empresarial
-            razonSocial: profileData.razonSocial || '',
-            nit: profileData.nit || '',
-            representanteLegal: profileData.representanteLegal || '',
-            actividadComercial: profileData.actividadComercial || '',
-            sectorEconomico: profileData.sectorEconomico || '',
-            tamanoEmpresa: profileData.tamanoEmpresa || 'Microempresa',
-            
-            // Información financiera
-            ingresosMensuales: profileData.ingresosMensuales || '',
-            patrimonio: profileData.patrimonio || '',
-            
-            // Información bancaria
-            entidadBancaria: profileData.entidadBancaria || '',
-            tipoCuenta: profileData.tipoCuenta || 'Ahorros',
-            numeroCuenta: profileData.numeroCuenta || '',
-            
-            // Información de contacto alternativo
-            nombreContacto: profileData.nombreContacto || '',
-            cargoContacto: profileData.cargoContacto || '',
-            telefonoContacto: profileData.telefonoContacto || '',
-            emailContacto: profileData.emailContacto || '',
+            ...profileData,
           }));
           
-          console.log('Perfil cargado exitosamente desde la API');
-        } else {
-          console.log('Perfil no encontrado o success = false', response.data);
+          console.log('Perfil cargado desde la API');
         }
       } catch (error) {
-        console.error('Error al obtener el perfil:', error);
-        
-        if (error.response) {
-          console.log('Respuesta del servidor:', error.response.data);
-          console.log('Estado:', error.response.status);
-        } else if (error.request) {
-          console.log('No se recibió respuesta del servidor');
-        } else {
-          console.log('Error al configurar la solicitud:', error.message);
-        }
+        console.log('No existe perfil previo o error al obtenerlo', error);
         
         // Si no existe perfil, inicializar con el email del usuario logueado
         if (user) {
@@ -186,15 +139,12 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
       // Agregar ID del usuario
       formDataToSend.append('userId', user.id);
       
-      // Endpoint correcto dependiendo si es creación o actualización
+      // Mantener el endpoint tal como está en la API
       const endpoint = existingProfile 
         ? `/client-profiles/user/${user.id}` 
         : '/client-profiles';
       
       const method = existingProfile ? 'put' : 'post';
-      
-      console.log(`Enviando formulario mediante método ${method} a ${endpoint}`);
-      console.log('Usuario ID:', user.id);
       
       // Realizar la solicitud a la API
       const response = await API({
@@ -205,8 +155,6 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
           'Content-Type': 'multipart/form-data'
         }
       });
-      
-      console.log('Respuesta completa de guardado:', response);
       
       // Guardar perfil en localStorage para acceso rápido
       localStorage.setItem('clientProfile', JSON.stringify({
@@ -220,16 +168,10 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
       }
       
       setSuccess('Perfil guardado correctamente');
-      setExistingProfile(response.data.data || response.data);
+      setExistingProfile(response.data);
     } catch (error) {
-      console.error('Error al guardar el perfil:', error);
-      
-      if (error.response) {
-        console.log('Respuesta de error:', error.response.data);
-        console.log('Estado:', error.response.status);
-      }
-      
       setError(error.response?.data?.message || 'Error al guardar el perfil');
+      console.error('Error al guardar perfil:', error);
     } finally {
       setLoading(false);
     }
@@ -509,59 +451,7 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
               </div>
             </div>
             
-            {/* Sección 5: Contacto Alternativo */}
-            <div className="form-section">
-              <h3 className="section-title">Contacto Alternativo</h3>
-              <div className="form-row">
-                <div className="form-group">
-                  <label htmlFor="nombreContacto">Nombre de Contacto</label>
-                  <input 
-                    type="text" 
-                    id="nombreContacto" 
-                    name="nombreContacto" 
-                    value={formData.nombreContacto} 
-                    onChange={handleChange} 
-                  />
-                </div>
-                
-                <div className="form-group">
-                  <label htmlFor="cargoContacto">Cargo</label>
-                  <input 
-                    type="text" 
-                    id="cargoContacto" 
-                    name="cargoContacto" 
-                    value={formData.cargoContacto} 
-                    onChange={handleChange} 
-                  />
-                </div>
-              </div>
-              
-              <div className="form-row">
-                <div className="form-group">
-                  <label htmlFor="telefonoContacto">Teléfono de Contacto</label>
-                  <input 
-                    type="tel" 
-                    id="telefonoContacto" 
-                    name="telefonoContacto" 
-                    value={formData.telefonoContacto} 
-                    onChange={handleChange} 
-                  />
-                </div>
-                
-                <div className="form-group">
-                  <label htmlFor="emailContacto">Email de Contacto</label>
-                  <input 
-                    type="email" 
-                    id="emailContacto" 
-                    name="emailContacto" 
-                    value={formData.emailContacto} 
-                    onChange={handleChange} 
-                  />
-                </div>
-              </div>
-            </div>
-            
-            {/* Sección 6: Documentos Requeridos */}
+            {/* Sección 5: Documentos Requeridos */}
             <div className="form-section">
               <h3 className="section-title">Documentos Requeridos</h3>
               <div className="form-row">
@@ -570,9 +460,6 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
                     Fotocopia Cédula*
                     {formData.fotocopiaCedula && (
                       <span className="file-selected"> (Archivo seleccionado)</span>
-                    )}
-                    {existingProfile?.fotocopiaCedulaUrl && (
-                    <a href={existingProfile.fotocopiaCedulaUrl} target="_blank" rel="noopener noreferrer"> (Ver archivo actual)</a>
                     )}
                   </label>
                   <div className="file-input-container">
@@ -596,9 +483,6 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
                     {formData.fotocopiaRut && (
                       <span className="file-selected"> (Archivo seleccionado)</span>
                     )}
-                    {existingProfile?.fotocopiaRutUrl && (
-                    <a href={existingProfile.fotocopiaRutUrl} target="_blank" rel="noopener noreferrer"> (Ver archivo actual)</a>
-                    )}
                   </label>
                   <div className="file-input-container">
                     <input 
@@ -610,30 +494,6 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
                       required={!existingProfile?.fotocopiaRut}
                     />
                     <label htmlFor="fotocopiaRut" className="file-label">
-                      <FaUpload /> Seleccionar Archivo
-                    </label>
-                  </div>
-                </div>
-                
-                <div className="form-group file-upload">
-                  <label htmlFor="anexosAdicionales">
-                    Anexos Adicionales
-                    {formData.anexosAdicionales && (
-                      <span className="file-selected"> (Archivo seleccionado)</span>
-                    )}
-                    {existingProfile?.anexosAdicionalesUrl && (
-                    <a href={existingProfile.anexosAdicionalesUrl} target="_blank" rel="noopener noreferrer"> (Ver archivo actual)</a>
-                    )}
-                  </label>
-                  <div className="file-input-container">
-                    <input 
-                      type="file" 
-                      id="anexosAdicionales" 
-                      name="anexosAdicionales" 
-                      onChange={handleFileChange} 
-                      className="file-input"
-                    />
-                    <label htmlFor="anexosAdicionales" className="file-label">
                       <FaUpload /> Seleccionar Archivo
                     </label>
                   </div>
