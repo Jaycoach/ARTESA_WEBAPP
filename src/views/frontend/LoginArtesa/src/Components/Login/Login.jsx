@@ -39,23 +39,28 @@ const Login = () => {
         setError('');
 
         try {
-          const response = await API.post('/api/auth/login', {
+          // Nota: Removido el /api del comienzo ya que está incluido en el baseURL
+          const response = await API.post('/auth/login', {
             mail: formData.mail,
             password: formData.password
-        });
+          });
             
-            // Guardar el token en localStorage
-            localStorage.setItem('token', response.data.data.token);
-            localStorage.setItem('user', JSON.stringify(response.data.data.user));
+          console.log("Respuesta exitosa:", response.data);
+            
+          // Guardar el token en localStorage
+          localStorage.setItem('token', response.data.data.token);
+          localStorage.setItem('user', JSON.stringify(response.data.data.user));
 
-            // Redireccionar al dashboard
-            navigate('/dashboard');
+          // Redireccionar al dashboard
+          navigate('/dashboard');
         } catch (error) {
-            setError(error.response?.data?.message || 'Error en el inicio de sesión');
+          console.error("Error completo:", error);
+          setError(error.response?.data?.message || 'Error en el inicio de sesión');
         } finally {
-            setLoading(false);
+          setLoading(false);
         }
     };
+    
     // Manejar solicitud de recuperación de contraseña
     const handleResetPassword = async (e) => {
       e.preventDefault();
@@ -63,12 +68,14 @@ const Login = () => {
       setError("");
 
       try {
-        const response = await API.post("/api/password/request-reset", { mail: resetEmail });
+        // Nota: Removido el /api del comienzo
+        const response = await API.post("/password/request-reset", { mail: resetEmail });
         setResetMessage(response.data.message || "Revisa tu correo para continuar con la recuperación.");
       } catch (error) {
         setError(error.response?.data?.message || "No se pudo procesar la solicitud.");
       }
     };
+  
   return (
     <div className="LoginPage flex">
       <div className="container flex">

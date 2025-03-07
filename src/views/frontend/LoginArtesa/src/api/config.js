@@ -1,33 +1,20 @@
+// src/api/config.js
 import axios from 'axios';
 
-// Determinar la URL base según el entorno
-const getBaseUrl = () => {
-  // Para desarrollo local (si estás trabajando localmente, usa esta URL)
-  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-    return 'http://localhost:3000/api'; // Ajusta al puerto correcto de tu servidor
-  }
-  
-  // Para entorno ngrok o producción
-  if (process.env.REACT_APP_API_URL) {
-    return process.env.REACT_APP_API_URL;
-  }
-  
-  // URL de ngrok (si estás usando ngrok para el desarrollo)
-  // Asegúrate de actualizar esto con tu URL específica de ngrok
-  const ngrokUrl = 'https://3660-149-88-111-131.ngrok-free.app/api';
-  
-  return ngrokUrl;
-};
+// Obtener la URL base de la API desde las variables de entorno
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000';
 
+// Crear una instancia de Axios con la configuración base
 const API = axios.create({
-  baseURL: getBaseUrl(),
+  baseURL: API_URL,
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
+    'Accept': 'application/json'
   }
 });
 
-// Interceptor para agregar el token de autenticación
+// Interceptor para incluir el token JWT en las solicitudes
 API.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
@@ -36,22 +23,33 @@ API.interceptors.request.use(
     }
     return config;
   },
-  (error) => Promise.reject(error)
+  (error) => {
+    return Promise.reject(error);
+  }
 );
 
-// Interceptor para manejar respuestas
+// Interceptor para manejar errores de respuesta
 API.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    return response;
+  },
   (error) => {
-    // Log del error para depuración
-    console.error('Error en la respuesta:', error);
+    console.error("Error en la respuesta:", error);
     
-    // Si el error tiene respuesta, mostrar detalles
+    // Si hay una respuesta del servidor, log para debugging
     if (error.response) {
-      console.log('Respuesta del servidor:', error.response.data);
-      console.log('Estado HTTP:', error.response.status);
-    } else if (error.request) {
-      console.log('No se recibió respuesta del servidor');
+      console.log("Respuesta del servidor:", error.response.data);
+      console.log("Estado HTTP:", error.response.status);
+      
+      // Manejo de token expirado o inválido (401)
+      if (error.response.status === 401) {
+        // Opcional: redirigir al login o mostrar mensaje
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        
+        // Redirigir a login (requiere acceso al router)
+        // window.location.href = '/login';
+      }
     }
     
     return Promise.reject(error);
