@@ -13,13 +13,13 @@ const Register = lazy(() => import('./Components/Register/Register'));
 const ResetPassword = lazy(() => import('./Components/resetPassword/ResetPassword'));
 const NotFound = lazy(() => import('./Components/NotFound/NotFound'));
 const DashboardLayout = lazy(() => import('./Components/Dashboard/DashboardLayout'));
-const Dashboard = React.lazy(() => import('./Components/Dashboard/Dashboard'));
-const Products = React.lazy(() => import('./Components/Dashboard/Pages/Products/Products'));
-const Orders = React.lazy(() => import('./Components/Dashboard/Pages/Orders/Orders'));
-const Invoices = React.lazy(() => import('./Components/Dashboard/Pages/Invoices/Invoices'));
-const Settings = React.lazy(() => import('./Components/Dashboard/Pages/Settings/Settings'));
+const Dashboard = lazy(() => import('./Components/Dashboard/Dashboard'));
+const Products = lazy(() => import('./Components/Dashboard/Pages/Products/Products'));
+const Orders = lazy(() => import('./Components/Dashboard/Pages/Orders/Orders'));
+const Invoices = lazy(() => import('./Components/Dashboard/Pages/Invoices/Invoices'));
+const Settings = lazy(() => import('./Components/Dashboard/Pages/Settings/Settings'));
 
-// Componente de carga
+// Componente de carga para Suspense
 const LoadingScreen = () => (
   <div style={{ 
     display: 'flex', 
@@ -27,9 +27,25 @@ const LoadingScreen = () => (
     alignItems: 'center', 
     height: '100vh',
     background: '#687e8d',
-    color: 'white'
+    color: 'white',
+    flexDirection: 'column',
+    gap: '10px'
   }}>
-    <p>Cargando...</p>
+    <div style={{ fontSize: '20px', fontWeight: 'bold' }}>Cargando...</div>
+    <div style={{ 
+      width: '50px', 
+      height: '50px', 
+      border: '5px solid #f3f3f3',
+      borderTop: '5px solid #f6754e',
+      borderRadius: '50%',
+      animation: 'spin 1s linear infinite'
+    }}></div>
+    <style>{`
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+    `}</style>
   </div>
 );
 
@@ -44,34 +60,6 @@ const ProtectedRoute = ({ children }) => {
   
   return children;
 };
-
-// Componente de carga para Suspense
-const Loading = () => (
-  <div style={{ 
-    display: 'flex', 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    height: '100vh',
-    flexDirection: 'column',
-    gap: '10px'
-  }}>
-    <div style={{ fontSize: '20px', fontWeight: 'bold' }}>Cargando...</div>
-    <div style={{ 
-      width: '50px', 
-      height: '50px', 
-      border: '5px solid #f3f3f3',
-      borderTop: '5px solid #3498db',
-      borderRadius: '50%',
-      animation: 'spin 1s linear infinite'
-    }}></div>
-    <style>{`
-      @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
-      }
-    `}</style>
-  </div>
-);
 
 // Configuración del router
 const router = createBrowserRouter([
@@ -107,10 +95,20 @@ const router = createBrowserRouter([
     path: "/dashboard",
     element: (
       <Suspense fallback={<LoadingScreen />}>
-        <DashboardLayout />
+        <ProtectedRoute>
+          <DashboardLayout />
+        </ProtectedRoute>
       </Suspense>
     ),
     children: [
+      {
+        index: true,
+        element: (
+          <Suspense fallback={<LoadingScreen />}>
+            <Dashboard />
+          </Suspense>
+        ),
+      },
       {
         path: "products",
         element: (
