@@ -1,7 +1,7 @@
 # Documentación de la Base de Datos
 
-Base de datos: ARTESA_WEBAPP
-Fecha de generación: 28/2/2025, 4:26:48 a. m.
+Base de datos: undefined
+Fecha de generación: 8/3/2025, 5:55:58 a. m.
 
 ## Tipos Personalizados
 
@@ -63,7 +63,9 @@ Fecha de generación: 28/2/2025, 4:26:48 a. m.
 
 ## Índice de Tablas
 
+- [Tabla: active_tokens](#tabla-active-tokens)
 - [Tabla: audit_anomalies](#tabla-audit-anomalies)
+- [Tabla: client_contacts](#tabla-client-contacts)
 - [Tabla: client_profiles](#tabla-client-profiles)
 - [Tabla: login_history](#tabla-login-history)
 - [Tabla: order_details](#tabla-order-details)
@@ -71,11 +73,46 @@ Fecha de generación: 28/2/2025, 4:26:48 a. m.
 - [Tabla: orders_audit](#tabla-orders-audit)
 - [Tabla: password_resets](#tabla-password-resets)
 - [Tabla: products](#tabla-products)
+- [Tabla: revoked_tokens](#tabla-revoked-tokens)
 - [Tabla: roles](#tabla-roles)
 - [Tabla: tokens](#tabla-tokens)
 - [Tabla: transaction_audit_log](#tabla-transaction-audit-log)
 - [Tabla: transactions](#tabla-transactions)
 - [Tabla: users](#tabla-users)
+
+---
+
+## Tabla: active_tokens
+
+### Columnas
+
+| Columna | Tipo | Nullable | Default | Descripción |
+|---------|------|----------|----------|-------------|
+| id | integer | NO | nextval('active_tokens_id_seq'::regclass) | - |
+| token_hash | character varying | NO | - | - |
+| user_id | integer | NO | - | - |
+| issued_at | timestamp without time zone | NO | CURRENT_TIMESTAMP | - |
+| expires_at | timestamp without time zone | NO | - | - |
+| device_info | text | YES | - | - |
+| ip_address | inet | YES | - | - |
+
+### Constraints
+
+| Nombre | Tipo | Columnas | Referencia |
+|--------|------|----------|------------|
+| active_tokens_pkey | PRIMARY KEY | id | - |
+| active_tokens_token_hash_key | UNIQUE | token_hash | - |
+| active_tokens_user_id_fkey | FOREIGN KEY | user_id | users(id) |
+
+### Índices
+
+| Nombre | Definición |
+|--------|------------|
+| active_tokens_pkey | CREATE UNIQUE INDEX active_tokens_pkey ON public.active_tokens USING btree (id) |
+| active_tokens_token_hash_key | CREATE UNIQUE INDEX active_tokens_token_hash_key ON public.active_tokens USING btree (token_hash) |
+| idx_active_tokens_expires_at | CREATE INDEX idx_active_tokens_expires_at ON public.active_tokens USING btree (expires_at) |
+| idx_active_tokens_hash | CREATE INDEX idx_active_tokens_hash ON public.active_tokens USING btree (token_hash) |
+| idx_active_tokens_user_id | CREATE INDEX idx_active_tokens_user_id ON public.active_tokens USING btree (user_id) |
 
 ---
 
@@ -113,6 +150,39 @@ Fecha de generación: 28/2/2025, 4:26:48 a. m.
 
 ---
 
+## Tabla: client_contacts
+
+### Columnas
+
+| Columna | Tipo | Nullable | Default | Descripción |
+|---------|------|----------|----------|-------------|
+| contact_id | integer | NO | nextval('client_contacts_contact_id_seq'::regclass) | - |
+| client_id | integer | NO | - | - |
+| name | character varying | YES | - | - |
+| position | character varying | YES | - | - |
+| phone | character varying | YES | - | - |
+| email | character varying | YES | - | - |
+| is_primary | boolean | YES | false | - |
+| created_at | timestamp without time zone | YES | CURRENT_TIMESTAMP | - |
+| updated_at | timestamp without time zone | YES | CURRENT_TIMESTAMP | - |
+
+### Constraints
+
+| Nombre | Tipo | Columnas | Referencia |
+|--------|------|----------|------------|
+| client_contacts_client_id_fkey | FOREIGN KEY | client_id | client_profiles(client_id) |
+| client_contacts_pkey | PRIMARY KEY | contact_id | - |
+
+### Índices
+
+| Nombre | Definición |
+|--------|------------|
+| client_contacts_pkey | CREATE UNIQUE INDEX client_contacts_pkey ON public.client_contacts USING btree (contact_id) |
+| idx_client_contacts_client_id | CREATE INDEX idx_client_contacts_client_id ON public.client_contacts USING btree (client_id) |
+| idx_client_contacts_is_primary | CREATE INDEX idx_client_contacts_is_primary ON public.client_contacts USING btree (is_primary) |
+
+---
+
 ## Tabla: client_profiles
 
 ### Columnas
@@ -121,7 +191,7 @@ Fecha de generación: 28/2/2025, 4:26:48 a. m.
 |---------|------|----------|----------|-------------|
 | client_id | integer | NO | nextval('client_profiles_client_id_seq'::regclass) | - |
 | user_id | integer | YES | - | - |
-| company_name | character varying | NO | - | - |
+| company_name | character varying | YES | - | - |
 | contact_name | character varying | YES | - | - |
 | contact_phone | character varying | YES | - | - |
 | contact_email | character varying | YES | - | - |
@@ -323,6 +393,11 @@ Fecha de generación: 28/2/2025, 4:26:48 a. m.
 | image_url | text | YES | - | - |
 | created_at | timestamp without time zone | YES | CURRENT_TIMESTAMP | - |
 | updated_at | timestamp without time zone | YES | CURRENT_TIMESTAMP | - |
+| sap_code | character varying | YES | - | Código del producto en SAP B1 (ItemCode) |
+| sap_group | integer | YES | - | Código del grupo del producto en SAP B1 (ItemsGroupCode) |
+| sap_last_sync | timestamp without time zone | YES | - | Fecha y hora de la última sincronización con SAP B1 |
+| sap_sync_pending | boolean | YES | false | Indica si hay cambios pendientes de sincronizar con SAP B1 |
+| is_active | boolean | YES | true | Indica si el producto está activo |
 
 ### Constraints
 
@@ -335,8 +410,45 @@ Fecha de generación: 28/2/2025, 4:26:48 a. m.
 
 | Nombre | Definición |
 |--------|------------|
+| idx_products_is_active | CREATE INDEX idx_products_is_active ON public.products USING btree (is_active) |
+| idx_products_sap_code | CREATE INDEX idx_products_sap_code ON public.products USING btree (sap_code) |
+| idx_products_sap_sync_pending | CREATE INDEX idx_products_sap_sync_pending ON public.products USING btree (sap_sync_pending) WHERE (sap_sync_pending = true) |
 | products_barcode_key | CREATE UNIQUE INDEX products_barcode_key ON public.products USING btree (barcode) |
 | products_pkey | CREATE UNIQUE INDEX products_pkey ON public.products USING btree (product_id) |
+
+---
+
+## Tabla: revoked_tokens
+
+### Columnas
+
+| Columna | Tipo | Nullable | Default | Descripción |
+|---------|------|----------|----------|-------------|
+| id | integer | NO | nextval('revoked_tokens_id_seq'::regclass) | - |
+| token_hash | character varying | NO | - | - |
+| user_id | integer | YES | - | - |
+| revoked_at | timestamp without time zone | NO | CURRENT_TIMESTAMP | - |
+| expires_at | timestamp without time zone | NO | - | - |
+| revocation_reason | character varying | NO | 'user_logout'::character varying | - |
+| revoke_all_before | timestamp without time zone | YES | - | - |
+
+### Constraints
+
+| Nombre | Tipo | Columnas | Referencia |
+|--------|------|----------|------------|
+| revoked_tokens_pkey | PRIMARY KEY | id | - |
+| revoked_tokens_token_hash_key | UNIQUE | token_hash | - |
+| revoked_tokens_user_id_fkey | FOREIGN KEY | user_id | users(id) |
+
+### Índices
+
+| Nombre | Definición |
+|--------|------------|
+| idx_revoked_tokens_expires_at | CREATE INDEX idx_revoked_tokens_expires_at ON public.revoked_tokens USING btree (expires_at) |
+| idx_revoked_tokens_hash | CREATE INDEX idx_revoked_tokens_hash ON public.revoked_tokens USING btree (token_hash) |
+| idx_revoked_tokens_user_id | CREATE INDEX idx_revoked_tokens_user_id ON public.revoked_tokens USING btree (user_id) |
+| revoked_tokens_pkey | CREATE UNIQUE INDEX revoked_tokens_pkey ON public.revoked_tokens USING btree (id) |
+| revoked_tokens_token_hash_key | CREATE UNIQUE INDEX revoked_tokens_token_hash_key ON public.revoked_tokens USING btree (token_hash) |
 
 ---
 

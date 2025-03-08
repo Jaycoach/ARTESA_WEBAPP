@@ -9,6 +9,7 @@ scripts/docs/database-structure.md
 # Scripts sensibles
 scripts/hashPasswords.js
 scripts/generateDbDocs.js
+scripts/dbdocs.config.js
 
 # Implementaciones de seguridad
 src/security/
