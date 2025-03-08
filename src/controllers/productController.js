@@ -31,16 +31,6 @@ const requiresSapSync = (product, updateData) => {
   return false;
 };
 
-module.exports = {
-  createProduct,
-  getProducts,
-  getProduct,
-  updateProduct,
-  updateProductImage,
-  deleteProduct,
-  getPendingSyncProducts
-};
-
 /**
  * Obtiene los productos pendientes de sincronización con SAP
  * @swagger
@@ -836,4 +826,14 @@ class ProductController {
   };
 }
 
-module.exports = new ProductController();
+module.exports = {
+  requiresSapSync,
+  getPendingSyncProducts,
+  createProduct,
+  getProducts,
+  getProduct,
+  updateProduct,
+  updateProductImage,
+  deleteProduct,
+  getPendingSyncProducts
+};
