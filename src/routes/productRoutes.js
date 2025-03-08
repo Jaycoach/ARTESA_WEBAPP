@@ -1,9 +1,24 @@
-// src/routes/productRoutes.js
 const express = require('express');
 const router = express.Router();
 const productController = require('../controllers/productController');
 const { verifyToken, checkRole } = require('../middleware/auth');
 const { sanitizeBody, sanitizeParams } = require('../middleware/security');
+
+/**
+ * Obtener productos pendientes de sincronización con SAP
+ * @route GET /products/sap/pending
+ * @group Products - Operaciones relacionadas con productos
+ * @security bearerAuth
+ * @returns {ProductsResponse} 200 - Lista de productos pendientes de sincronización
+ * @returns {object} 401 - No autorizado
+ * @returns {object} 403 - No tiene permisos suficientes
+ * @returns {object} 500 - Error interno del servidor
+ */
+router.get('/products/sap/pending', 
+  verifyToken, 
+  checkRole([1]), // Solo administradores
+  productController.getPendingSyncProducts
+);
 
 /**
  * @typedef {object} Product

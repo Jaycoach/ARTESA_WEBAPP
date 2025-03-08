@@ -1,8 +1,259 @@
 const Product = require('../models/Product');
 const { createContextLogger } = require('../config/logger');
+const sapIntegrationService = require('../services/SapIntegrationService');
 
 // Crear una instancia del logger con contexto
 const logger = createContextLogger('ProductController');
+
+/**
+ * Función de ayuda para determinar si es necesario sincronizar con SAP
+ * @param {Object} product - Producto existente
+ * @param {Object} updateData - Datos de actualización
+ * @returns {boolean} - Si se requiere sincronización con SAP
+ */
+const requiresSapSync = (product, updateData) => {
+  // Campos que requieren sincronización con SAP cuando son modificados
+  const sapSyncFields = ['description'];
+  
+  // Si el producto no tiene código SAP, no se requiere sincronización
+  if (!product.sap_code) {
+    return false;
+  }
+  
+  // Verificar si algún campo que requiere sincronización ha sido modificado
+  for (const field of sapSyncFields) {
+    if (updateData[field] !== undefined && 
+        updateData[field] !== product[field]) {
+      return true;
+    }
+  }
+  
+  return false;
+};
+
+module.exports = {
+  createProduct,
+  getProducts,
+  getProduct,
+  updateProduct,
+  updateProductImage,
+  deleteProduct,
+  getPendingSyncProducts
+};
+
+/**
+ * Obtiene los productos pendientes de sincronización con SAP
+ * @swagger
+ * /api/products/sap/pending:
+ *   get:
+ *     summary: Obtener productos pendientes de sincronización con SAP
+ *     description: Recupera la lista de productos que tienen cambios pendientes de sincronizar con SAP
+ *     tags: [Products, SAP]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Lista de productos pendientes de sincronización
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Product'
+ *       401:
+ *         description: No autorizado
+ *       403:
+ *         description: Prohibido - Sin permisos suficientes
+ *       500:
+ *         description: Error interno del servidor
+ */
+const getPendingSyncProducts = async (req, res) => {
+  try {
+    logger.debug('Obteniendo productos pendientes de sincronización con SAP');
+    
+    const products = await Product.getPendingSyncProducts();
+    
+    res.status(200).json({
+      success: true,
+      count: products.length,
+      data: products
+    });
+  } catch (error) {
+    logger.error('Error al obtener productos pendientes de sincronización', {
+      error: error.message,
+      stack: error.stack
+    });
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error al obtener productos pendientes de sincronización',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Extiende el método updateProduct para manejar sincronización SAP
+ * @swagger
+ * /api/products/{productId}:
+ *   put:
+ *     summary: Actualizar un producto
+ *     description: Actualiza la información de un producto existente. Si el producto proviene de SAP, algunos campos serán sincronizados automáticamente.
+ *     tags: [Products]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: productId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID del producto a actualizar
+ *       - in: query
+ *         name: skipSapSync
+ *         schema:
+ *           type: boolean
+ *         required: false
+ *         description: Omitir sincronización con SAP (sólo para administradores)
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/UpdateProductRequest'
+ *     responses:
+ *       200:
+ *         description: Producto actualizado exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ProductResponse'
+ *       400:
+ *         description: Datos inválidos o ID de producto inválido
+ *       401:
+ *         description: No autorizado - Token no proporcionado o inválido
+ *       403:
+ *         description: Prohibido - Sin permisos para actualizar productos
+ *       404:
+ *         description: Producto no encontrado
+ *       500:
+ *         description: Error interno del servidor
+ */
+const updateProduct = async (req, res) => {
+  try {
+    const { productId } = req.params;
+    // Parámetro para omitir sincronización (sólo para administradores)
+    const skipSapSync = req.query.skipSapSync === 'true' && req.user.rol_id === 1;
+    
+    if (!productId) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID de producto requerido'
+      });
+    }
+
+    // Obtener producto actual para verificar si requiere sincronización
+    const existingProduct = await Product.findById(productId);
+    
+    if (!existingProduct) {
+      return res.status(404).json({
+        success: false,
+        message: 'Producto no encontrado'
+      });
+    }
+
+    // Mapear datos del cuerpo de la solicitud al formato esperado
+    const updateData = {
+      name: req.body.name,
+      description: req.body.description,
+      priceList1: req.body.priceList1,
+      priceList2: req.body.priceList2,
+      priceList3: req.body.priceList3,
+      stock: req.body.stock,
+      barcode: req.body.barcode,
+      imageUrl: req.body.imageUrl
+    };
+
+    // Verificar si requiere sincronización con SAP
+    const needsSapSync = requiresSapSync(existingProduct, updateData);
+    
+    // Actualizar en base de datos con flag de sincronización automática
+    const updatedProduct = await Product.update(
+      productId, 
+      updateData, 
+      null, // Sin cliente de transacción
+      !skipSapSync // Sincronización automática, a menos que se indique skipSapSync
+    );
+    
+    if (!updatedProduct) {
+      return res.status(404).json({
+        success: false,
+        message: 'Producto no encontrado durante actualización'
+      });
+    }
+    
+    // Información adicional para la respuesta
+    let sapSyncInfo = null;
+    
+    // Si el producto proviene de SAP, agregar info de sincronización
+    if (existingProduct.sap_code) {
+      if (needsSapSync) {
+        if (skipSapSync) {
+          sapSyncInfo = {
+            required: true,
+            status: 'skipped',
+            message: 'Sincronización con SAP omitida por solicitud'
+          };
+        } else {
+          sapSyncInfo = {
+            required: true,
+            status: 'pending',
+            message: 'Cambios programados para sincronización con SAP'
+          };
+        }
+      } else {
+        sapSyncInfo = {
+          required: false,
+          status: 'none',
+          message: 'No se requieren cambios en SAP'
+        };
+      }
+    }
+    
+    logger.info('Producto actualizado exitosamente', {
+      productId,
+      name: updatedProduct.name,
+      needsSapSync,
+      skipSapSync
+    });
+    
+    res.status(200).json({
+      success: true,
+      message: 'Producto actualizado exitosamente',
+      data: updatedProduct,
+      sap: sapSyncInfo
+    });
+  } catch (error) {
+    logger.error('Error al actualizar producto', {
+      error: error.message,
+      stack: error.stack,
+      productId: req.params.productId
+    });
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error al actualizar el producto',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
 
 /**
  * @swagger

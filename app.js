@@ -10,6 +10,8 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const fileUpload = require('express-fileupload');
 const ensureJsonResponse = require('./src/middleware/ensureJsonResponse');
+const sapIntegrationService = require('./src/services/SapIntegrationService');
+const sapSyncRoutes = require('./src/routes/sapSyncRoutes');
 
 // Importaciones de middlewares
 const { errorHandler, notFound } = require('./src/middleware/errorMiddleware');
@@ -265,6 +267,8 @@ app.use(`${API_PREFIX}/auth`, authRoutes);
 app.use(API_PREFIX, productRoutes);
 app.use(API_PREFIX, secureProductRoutes);
 app.use(API_PREFIX, orderRoutes);
+// Nueva ruta para SAP
+app.use(`${API_PREFIX}/sap`, sapSyncRoutes);
 
 // Aplicamos fileUpload sólo a las rutas específicas que lo necesitan
 app.use(`${API_PREFIX}/upload`, fileUpload(fileUploadOptions), uploadRoutes);
@@ -292,6 +296,27 @@ app.use(notFound);
 // MIDDLEWARE DE ERRORES - Siempre al final
 // =========================================================================
 app.use(errorHandler);
+
+// =========================================================================
+// INICIALIZACIÓN DE SERVICIOS
+// =========================================================================
+// Inicializar servicio de integración con SAP B1 (si está configurado)
+if (process.env.SAP_SERVICE_LAYER_URL) {
+  logger.info('Iniciando servicio de integración con SAP B1');
+  
+  sapIntegrationService.initialize()
+    .then(() => {
+      logger.info('Servicio de integración con SAP B1 iniciado exitosamente');
+    })
+    .catch(error => {
+      logger.error('Error al iniciar servicio de integración con SAP B1', {
+        error: error.message,
+        stack: error.stack
+      });
+    });
+} else {
+  logger.info('Integración con SAP B1 no configurada');
+}
 
 // =========================================================================
 // INICIAR SERVIDOR
