@@ -21,6 +21,8 @@ class SapIntegrationService {
     this.syncSchedule = process.env.SAP_SYNC_SCHEDULE || '0 0 * * *'; // Por defecto: cada día a medianoche
     this.initialized = false;
     this.lastSyncTime = null;
+    this.lastGroupSyncTime = {}; // Almacena la última sincronización por grupo
+    this.groupSyncTasks = {}; // Almacena las tareas cron por grupo
   }
 
   /**
@@ -37,8 +39,19 @@ class SapIntegrationService {
         throw new Error('Configuración incompleta para la integración con SAP B1');
       }
 
-      // Iniciar sincronización programada
+      // Iniciar sincronización programada general
       this.scheduleSyncTask();
+      
+      // Iniciar sincronización programada para el grupo 127
+      const groupCode = process.env.SAP_GROUP_CODE || 127; // Por defecto grupo 127
+      const groupSyncSchedule = process.env.SAP_GROUP_SYNC_SCHEDULE || '0 */6 * * *'; // Por defecto cada 6 horas
+      
+      logger.info('Configurando sincronización de grupo específico', {
+        groupCode,
+        schedule: groupSyncSchedule
+      });
+      
+      this.scheduleGroupSyncTask(groupCode, groupSyncSchedule);
       
       // Marcar como inicializado
       this.initialized = true;
@@ -79,6 +92,56 @@ class SapIntegrationService {
         logger.info('Sincronización programada completada exitosamente');
       } catch (error) {
         logger.error('Error en sincronización programada', {
+          error: error.message,
+          stack: error.stack
+        });
+      }
+    });
+  }
+
+  /**
+   * Programa tarea para sincronización periódica por grupo de artículos
+   * @param {number} groupCode - Código del grupo de artículos a sincronizar (ej: 127)
+   * @param {string} schedule - Formato cron para la programación (ej: "0 * /6 * * *" para cada 6 horas)
+   */
+  scheduleGroupSyncTask(groupCode, schedule) {
+    // Validar formato de programación cron
+    if (!cron.validate(schedule)) {
+      logger.error('Formato de programación inválido para sincronización de grupo', {
+        groupCode,
+        schedule
+      });
+      throw new Error(`Formato de programación cron inválido: ${schedule}`);
+    }
+
+    logger.info('Programando sincronización periódica de productos por grupo', {
+      groupCode,
+      schedule
+    });
+
+    // Almacenar la tarea en una propiedad del objeto para poder cancelarla si es necesario
+    if (!this.groupSyncTasks) {
+      this.groupSyncTasks = {};
+    }
+
+    // Cancelar tarea anterior si existe
+    if (this.groupSyncTasks[groupCode]) {
+      this.groupSyncTasks[groupCode].stop();
+    }
+
+    // Programar nueva tarea cron
+    this.groupSyncTasks[groupCode] = cron.schedule(schedule, async () => {
+      try {
+        logger.info('Iniciando sincronización programada de productos del grupo', {
+          groupCode
+        });
+        await this.syncProductsByGroupCode(groupCode);
+        logger.info('Sincronización programada del grupo completada exitosamente', {
+          groupCode
+        });
+      } catch (error) {
+        logger.error('Error en sincronización programada del grupo', {
+          groupCode,
           error: error.message,
           stack: error.stack
         });
@@ -453,6 +516,127 @@ class SapIntegrationService {
       logger.error('Error en sincronización con SAP B1', {
         error: error.message,
         stack: error.stack
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Sincroniza productos desde SAP B1 filtrados por grupo de artículos
+   * @param {number} groupCode - Código del grupo de artículos a sincronizar (ej: 127)
+   * @returns {Promise<Object>} Estadísticas de sincronización
+   */
+  async syncProductsByGroupCode(groupCode) {
+    const stats = {
+      total: 0,
+      created: 0,
+      updated: 0,
+      errors: 0,
+      skipped: 0
+    };
+
+    try {
+      logger.info('Iniciando sincronización de productos por grupo', {
+        groupCode
+      });
+
+      // Registrar inicio de sincronización
+      const syncStartTime = new Date();
+      
+      let hasMore = true;
+      let skip = 0;
+      const limit = 100; // Procesar en lotes para no sobrecargar la memoria
+      
+      // Filtro para obtener solo productos del grupo especificado que están publicados
+      const filter = `ItemsGroupCode eq ${groupCode} and U_Web_Published eq 'Y'`;
+      
+      // Comenzar transacción para toda la sincronización
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        
+        while (hasMore) {
+          // Obtener lote de productos de SAP
+          const { items, hasMore: moreItems } = await this.getProductsFromSAP({
+            limit,
+            skip,
+            filter
+          });
+          
+          hasMore = moreItems;
+          skip += limit;
+          stats.total += items.length;
+          
+          // Procesar cada producto del lote
+          for (const sapProduct of items) {
+            try {
+              // Buscar si el producto ya existe en la WebApp
+              const existingProduct = await Product.findByBarcode(sapProduct.ItemCode, client);
+              
+              // Mapear producto de SAP al formato de la WebApp
+              const webAppProduct = this.mapSapProductToWebApp(sapProduct);
+              
+              if (existingProduct) {
+                // Si existe, actualizar
+                await Product.update(existingProduct.product_id, webAppProduct, client);
+                stats.updated++;
+                logger.debug('Producto actualizado', {
+                  barcode: sapProduct.ItemCode,
+                  name: sapProduct.ItemName,
+                  groupCode
+                });
+              } else {
+                // Si no existe, crear
+                await Product.create(webAppProduct, client);
+                stats.created++;
+                logger.debug('Producto creado', {
+                  barcode: sapProduct.ItemCode,
+                  name: sapProduct.ItemName,
+                  groupCode
+                });
+              }
+            } catch (productError) {
+              stats.errors++;
+              logger.error('Error al procesar producto individual', {
+                itemCode: sapProduct.ItemCode,
+                error: productError.message,
+                groupCode
+              });
+              // Continuar con el siguiente producto
+            }
+          }
+        }
+        
+        // Commit de la transacción
+        await client.query('COMMIT');
+        
+        // Actualizar timestamp de última sincronización exitosa
+        this.lastSyncTime = syncStartTime;
+        this.lastGroupSyncTime = {
+          ...(this.lastGroupSyncTime || {}),
+          [groupCode]: syncStartTime
+        };
+        
+        logger.info('Sincronización por grupo completada exitosamente', {
+          stats,
+          groupCode,
+          syncTime: new Date().toISOString()
+        });
+        
+        return stats;
+      } catch (error) {
+        // Rollback en caso de error
+        await client.query('ROLLBACK');
+        throw error;
+      } finally {
+        // Liberar el cliente
+        client.release();
+      }
+    } catch (error) {
+      logger.error('Error en sincronización de productos por grupo', {
+        error: error.message,
+        stack: error.stack,
+        groupCode
       });
       throw error;
     }
