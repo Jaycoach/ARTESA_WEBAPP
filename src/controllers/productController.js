@@ -1,3 +1,4 @@
+// src/controllers/productController.js
 const Product = require('../models/Product');
 const { createContextLogger } = require('../config/logger');
 const sapIntegrationService = require('../services/SapIntegrationService');
@@ -366,6 +367,9 @@ const updateProduct = async (req, res) => {
  *           example: https://example.com/images/product-updated.jpg
  */
 
+// Crear una instancia de la clase ProductController
+const productController = new ProductController();
+
 class ProductController {
   /**
    * @swagger
@@ -398,7 +402,7 @@ class ProductController {
    *       500:
    *         description: Error interno del servidor
    */
-  createProduct = async (req, res) => {
+  async createProduct(req, res) {
     try {
       const productData = {
         name: req.body.name,
@@ -440,7 +444,7 @@ class ProductController {
         error: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
-  };
+  }
 
   /**
    * @swagger
@@ -471,7 +475,7 @@ class ProductController {
    *       500:
    *         description: Error interno del servidor
    */
-  getProducts = async (req, res) => {
+  async getProducts(req, res) {
     try {
       const products = await Product.getAll();
       
@@ -491,7 +495,7 @@ class ProductController {
         error: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
-  };
+  }
 
   /**
    * @swagger
@@ -525,7 +529,7 @@ class ProductController {
    *       500:
    *         description: Error interno del servidor
    */
-  getProduct = async (req, res) => {
+  async getProduct(req, res) {
     try {
       const { productId } = req.params;
       
@@ -562,88 +566,7 @@ class ProductController {
         error: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
-  };
-
-  /**
-   * @swagger
-   * /api/products/{productId}:
-   *   put:
-   *     summary: Actualizar un producto
-   *     description: Actualiza la información de un producto existente
-   *     tags: [Products]
-   *     security:
-   *       - bearerAuth: []
-   *     parameters:
-   *       - in: path
-   *         name: productId
-   *         required: true
-   *         schema:
-   *           type: integer
-   *         description: ID del producto a actualizar
-   *     requestBody:
-   *       required: true
-   *       content:
-   *         application/json:
-   *           schema:
-   *             $ref: '#/components/schemas/CreateProductRequest'
-   *     responses:
-   *       200:
-   *         description: Producto actualizado exitosamente
-   *         content:
-   *           application/json:
-   *             schema:
-   *               $ref: '#/components/schemas/ProductResponse'
-   *       400:
-   *         description: Datos inválidos o ID de producto inválido
-   *       401:
-   *         description: No autorizado - Token no proporcionado o inválido
-   *       403:
-   *         description: Prohibido - Sin permisos para actualizar productos
-   *       404:
-   *         description: Producto no encontrado
-   *       500:
-   *         description: Error interno del servidor
-   */
-  updateProduct = async (req, res) => {
-    try {
-      const { productId } = req.params;
-      
-      if (!productId) {
-        return res.status(400).json({
-          success: false,
-          message: 'ID de producto requerido'
-        });
-      }
-
-      const updateData = req.body;
-      const updatedProduct = await Product.update(productId, updateData);
-      
-      if (!updatedProduct) {
-        return res.status(404).json({
-          success: false,
-          message: 'Producto no encontrado'
-        });
-      }
-      
-      res.status(200).json({
-        success: true,
-        message: 'Producto actualizado exitosamente',
-        data: updatedProduct
-      });
-    } catch (error) {
-      logger.error('Error al actualizar producto', {
-        error: error.message,
-        stack: error.stack,
-        productId: req.params.productId
-      });
-      
-      res.status(500).json({
-        success: false,
-        message: 'Error al actualizar el producto',
-        error: process.env.NODE_ENV === 'development' ? error.message : undefined
-      });
-    }
-  };
+  }
 
   /**
    * @swagger
@@ -685,7 +608,7 @@ class ProductController {
    *       500:
    *         description: Error interno del servidor
    */
-  updateProductImage = async (req, res) => {
+  async updateProductImage(req, res) {
     try {
       const { productId } = req.params;
       const { imageUrl } = req.body;
@@ -740,7 +663,7 @@ class ProductController {
         error: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
-  };
+  }
 
   /**
    * @swagger
@@ -785,7 +708,7 @@ class ProductController {
    *       500:
    *         description: Error interno del servidor
    */
-  deleteProduct = async (req, res) => {
+  async deleteProduct(req, res) {
     try {
       const { productId } = req.params;
       
@@ -823,17 +746,17 @@ class ProductController {
         error: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
-  };
+  }
 }
 
+// Exportar correctamente las funciones y métodos
 module.exports = {
   requiresSapSync,
   getPendingSyncProducts,
-  createProduct,
-  getProducts,
-  getProduct,
   updateProduct,
-  updateProductImage,
-  deleteProduct,
-  getPendingSyncProducts
+  createProduct: productController.createProduct.bind(productController),
+  getProducts: productController.getProducts.bind(productController),
+  getProduct: productController.getProduct.bind(productController),
+  updateProductImage: productController.updateProductImage.bind(productController),
+  deleteProduct: productController.deleteProduct.bind(productController)
 };
