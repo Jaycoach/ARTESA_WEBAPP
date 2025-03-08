@@ -5,7 +5,7 @@ import "../../App.css";
 import { useAuth } from "../../hooks/useAuth"; // Importar el hook de autenticación
 
 // Import Assets
-import img from "../../LoginsAssets/principal_img.jpg";
+import img from "../../LoginsAssets/principal_img.gif";
 import logo from "../../LoginsAssets/logo_artesa_alt.png";
 
 // Import Icons
@@ -91,8 +91,8 @@ const Login = () => {
                 <div className="imgDiv">
                     <img src={img} alt="LoginImg" />
                     <div className="textDiv">
-                        <h2 className="title">Creado para ARTESA</h2>
-                        <p>Login Page - Artesa</p>
+                        <h2 className="title"></h2>
+                        <p></p>
                     </div>
                     <div className="footerDiv flex">
                         <span className="text">¿No tiene una cuenta?</span>

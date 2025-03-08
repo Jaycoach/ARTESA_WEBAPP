@@ -1,4 +1,5 @@
 @charset "UTF-8";
+@import "tailwindcss";
 /*@import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap');*/
 * {
   padding: 0;
@@ -15,7 +16,7 @@
   --whiteColor: #ffffff;
   --blackColor: #000000;
   --greyText: #808080;
-  --bgColor: #687e8d;
+  --bgColor: #2c3e50;
   --inputColor: #f6db8e;
   --buttonColor: #f6754e;
   --biggestFontSize: 2rem;

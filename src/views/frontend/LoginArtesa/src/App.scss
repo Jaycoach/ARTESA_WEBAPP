@@ -17,7 +17,7 @@
     --whiteColor: #ffffff;
     --blackColor: #000000;
     --greyText: #808080;
-    --bgColor: #687e8d;
+    --bgColor: #2c3e50;
     --inputColor: #f6db8e;
     --buttonColor: #f6754e;
   
@@ -347,9 +347,14 @@ img, video{
     justify-content: space-between;
     box-shadow: 2px 0px 10px rgba(0, 0, 0, 0.2);
     overflow: hidden;
+    z-index: 1000;
   
     &:hover {
       width: 200px;  // Se expande al hacer hover
+    }
+
+    .menuTitle, .settingsTitle, .smallText {
+      display: none;
     }
   
     .toggle-btn {
@@ -370,7 +375,7 @@ img, video{
       justify-content: center;
   
       &:hover {
-        background: var(--hoverButton);
+        background-color: var(--hoverButton);
         color: var(--blackColor);
       }
 
@@ -380,7 +385,8 @@ img, video{
     }
   
     .sidebar-menu {
-      padding: 20px;
+      list-style: none;
+      padding: 0;
   
       h3 {
         font-size: 1rem;
@@ -457,6 +463,7 @@ img, video{
     }
   
     .dashboard-content {
+      color: black !important;
       flex-grow: 1;
       margin-left: 60px; // Para cuando el sidebar está colapsado
       background: white;
