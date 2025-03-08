@@ -12,6 +12,7 @@ const fileUpload = require('express-fileupload');
 const ensureJsonResponse = require('./src/middleware/ensureJsonResponse');
 const sapIntegrationService = require('./src/services/SapIntegrationService');
 const sapSyncRoutes = require('./src/routes/sapSyncRoutes');
+const { logger, createContextLogger } = require('./src/config/logger');
 
 // Importaciones de middlewares
 const { errorHandler, notFound } = require('./src/middleware/errorMiddleware');
@@ -34,6 +35,9 @@ app.set('trust proxy', 1); // trust first proxy
 // Constantes de configuración
 const API_PREFIX = '/api';
 const PORT = process.env.PORT || 3000;
+
+// Crear una instancia del logger para app.js
+const appLogger = createContextLogger('App');
 
 // =========================================================================
 // FUNCIÓN PARA ASEGURAR DIRECTORIOS
@@ -302,11 +306,11 @@ app.use(errorHandler);
 // =========================================================================
 // Inicializar servicio de integración con SAP B1 (si está configurado)
 if (process.env.SAP_SERVICE_LAYER_URL) {
-  logger.info('Iniciando servicio de integración con SAP B1');
+  appLogger.info('Iniciando servicio de integración con SAP B1');
   
   sapIntegrationService.initialize()
     .then(() => {
-      logger.info('Servicio de integración con SAP B1 iniciado exitosamente');
+      appLogger.info('Servicio de integración con SAP B1 iniciado exitosamente');
     })
     .catch(error => {
       logger.error('Error al iniciar servicio de integración con SAP B1', {
@@ -315,7 +319,7 @@ if (process.env.SAP_SERVICE_LAYER_URL) {
       });
     });
 } else {
-  logger.info('Integración con SAP B1 no configurada');
+  appLogger.info('Integración con SAP B1 no configurada');
 }
 
 // =========================================================================
