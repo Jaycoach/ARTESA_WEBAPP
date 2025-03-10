@@ -249,6 +249,13 @@ class SapIntegrationService {
 
       // Realizar petición
       const response = await axiosInstance(config);
+      logger.debug('Respuesta recibida del servicio de SAP', {
+        url: config.url,
+        method: config.method,
+        statusCode: response.status,
+        hasData: !!response.data,
+        dataSize: JSON.stringify(response.data).length
+      });
       return response.data;
     } catch (error) {
 
@@ -332,15 +339,20 @@ class SapIntegrationService {
         is_active: item.is_active
       }));
       
+      const hasMoreData = !!data['@odata.nextLink'] && data.value.length > 0 && data.value.length >= limit;
+
       logger.info('Productos obtenidos de SAP B1', {
         count: mappedItems.length,
-        hasMore: data['@odata.nextLink'] ? true : false
+        hasMore: hasMoreData,
+        nextLinkExists: !!data['@odata.nextLink'],
+        skip: skip,
+        limit: limit
       });
       
       return {
         items: mappedItems,
-        hasMore: !!data['@odata.nextLink'],
-        nextLink: data['@odata.nextLink']
+        hasMore: hasMoreData,
+        nextLink: data['@odata.nextLink'] || null
       };
     } catch (error) {
       logger.error('Error al obtener productos de SAP B1', {
@@ -485,8 +497,13 @@ class SapIntegrationService {
           logger.info('Eliminando productos existentes para sincronización completa');
           await client.query('DELETE FROM products');
         }*/
-        
-          while (hasMore) {
+          const MAX_ITERATIONS = 10; // Suficiente para 39 productos con páginas de 20
+          let iterations = 0;
+          let prevTotalItems = 0; // Para detectar si estamos recibiendo nuevos datos
+
+
+          while (hasMore && iterations < MAX_ITERATIONS) {
+            iterations++;
             try {
               // Obtener lote de productos de SAP
               const { items, hasMore: moreItems } = await this.getProductsFromSAP({
@@ -497,7 +514,29 @@ class SapIntegrationService {
               hasMore = moreItems;
               skip += limit;
               stats.total += items.length;
+
+              // Verificar si recibimos nuevos items
+              if (items.length === 0) {
+                logger.warn('No se obtuvieron productos en esta iteración, finalizando sincronización', {
+                  iteration: iterations,
+                  skip: skip
+                });
+                hasMore = false;
+                continue;
+              }
               
+              // Verificar si el total está avanzando
+              if (stats.total <= prevTotalItems) {
+                logger.warn('No se están agregando nuevos productos, posible bucle, finalizando sincronización', {
+                  iteration: iterations,
+                  prevTotal: prevTotalItems,
+                  currentTotal: stats.total
+                });
+                hasMore = false;
+                continue;
+              }
+              prevTotalItems = stats.total;
+
               logger.info(`Procesando lote de ${items.length} productos (total procesado: ${stats.total})`);
               
               // Procesar cada producto del lote individualmente, sin transacciones grandes
@@ -556,6 +595,13 @@ class SapIntegrationService {
               // Continuamos con el siguiente lote si hay error
               stats.errors++;
             }
+          }
+
+          if (iterations >= MAX_ITERATIONS && hasMore) {
+            logger.warn('Se alcanzó el límite máximo de iteraciones en la sincronización', {
+              maxIterations: MAX_ITERATIONS,
+              totalProcessed: stats.total
+            });
           }
         
         // Commit de la transacción
