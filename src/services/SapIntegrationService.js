@@ -167,12 +167,15 @@ class SapIntegrationService {
         })
       });
 
-      const response = await axios.post(`${this.baseUrl}/Login`, {
+      // Crear una instancia local de axios con el agente HTTPS
+      const axiosInstance = require('axios').create({
+        httpsAgent: this.httpsAgent
+      });
+
+      const response = await axiosInstance.post(`${this.baseUrl}/Login`, {
         CompanyDB: this.companyDB,
         UserName: this.username,
         Password: this.password
-      }, {
-        httpsAgent
       });
 
       if (response.status === 200) {
@@ -219,10 +222,9 @@ class SapIntegrationService {
       }
 
       // Configuración para ignorar errores de certificado *** OJO Esto es inseguro, solo desarrollo
-      const axios = require('axios').create({
-        httpsAgent: new (require('https').Agent)({
-          rejectUnauthorized: false
-        })
+      // Crear una instancia local de axios con el agente HTTPS
+      const axiosInstance = require('axios').create({
+        httpsAgent: this.httpsAgent
       });
 
       // Preparar config para Axios
@@ -232,8 +234,7 @@ class SapIntegrationService {
         headers: {
           'Content-Type': 'application/json',
           'Cookie': `B1SESSION=${this.sessionId}`
-        },
-        httpsAgent // Añadir el agente HTTPS aquí
+        }
       };
 
       if (data && ['post', 'put', 'patch'].includes(method.toLowerCase())) {
@@ -247,7 +248,7 @@ class SapIntegrationService {
       });
 
       // Realizar petición
-      const response = await axios(config);
+      const response = await axiosInstance(config);
       return response.data;
     } catch (error) {
 
