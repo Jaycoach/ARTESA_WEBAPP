@@ -471,7 +471,6 @@ class SapIntegrationService {
       if (value === null || value === undefined) return defaultValue;
       if (typeof value === 'number') return value;
       if (typeof value === 'string') {
-        // Remover cualquier carácter que no sea dígito, punto o signo negativo
         const cleanValue = value.replace(/[^\d.-]/g, '');
         const parsed = parseFloat(cleanValue);
         return isNaN(parsed) ? defaultValue : parsed;
@@ -482,16 +481,17 @@ class SapIntegrationService {
     return {
       name: sapProduct.ItemName || 'Sin nombre',
       description: sapProduct.ItemName || 'Sin descripción',
-      price_list1: parseNumberSafely(sapProduct.price_list1),
-      price_list2: parseNumberSafely(sapProduct.price_list2),
-      price_list3: parseNumberSafely(sapProduct.price_list3),
+      priceList1: parseNumberSafely(sapProduct.price_list1),
+      priceList2: parseNumberSafely(sapProduct.price_list2),
+      priceList3: parseNumberSafely(sapProduct.price_list3),
       stock: parseInt(parseNumberSafely(sapProduct.Stock), 10),
       barcode: sapProduct.CodeBars || null,
-      sap_code: sapProduct.Sap_Code,
-      sap_group: parseInt(parseNumberSafely(sapProduct.Sap_Group), 10),
-      is_active: sapProduct.is_active === "true" || sapProduct.is_active === true || true,
-      sap_last_sync: new Date().toISOString(),
-      sap_sync_pending: false
+      imageUrl: null,
+      sapCode: sapProduct.Sap_Code,
+      sapGroup: parseInt(parseNumberSafely(sapProduct.Sap_Group), 10),
+      isActive: sapProduct.is_active === "true" || sapProduct.is_active === true || true,
+      sapLastSync: new Date().toISOString(),
+      sapSyncPending: false
     };
   }
   /**
