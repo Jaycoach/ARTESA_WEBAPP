@@ -257,15 +257,10 @@ class SapIntegrationService {
    */
   async getProductsFromSAP(options = {}) {
     try {
-      const { limit = 1000, skip = 0, filter = '' } = options;
+      const { limit = 100, skip = 0 } = options;
       
-      let endpoint = `Items?$select=ItemCode,ItemName,ItemsGroupCode,QuantityOnStock,U_Web_Published,U_Web_Description,PictureName&$filter=U_Web_Published eq 'Y'`;
-      
-      if (filter) {
-        endpoint += ` and ${filter}`;
-      }
-      
-      endpoint += `&$skip=${skip}&$top=${limit}`;
+      // Cambiamos el endpoint para usar la vista personalizada que has creado
+      let endpoint = `view.svc/B1_ProductsB1SLQuery?$skip=${skip}&$top=${limit}`;
       
       logger.debug('Obteniendo productos de SAP B1', { endpoint });
       
@@ -277,13 +272,13 @@ class SapIntegrationService {
       
       logger.info('Productos obtenidos de SAP B1', {
         count: data.value.length,
-        hasMore: data['odata.nextLink'] ? true : false
+        hasMore: data['@odata.nextLink'] ? true : false
       });
       
       return {
         items: data.value,
-        hasMore: !!data['odata.nextLink'],
-        nextLink: data['odata.nextLink']
+        hasMore: !!data['@odata.nextLink'],
+        nextLink: data['@odata.nextLink']
       };
     } catch (error) {
       logger.error('Error al obtener productos de SAP B1', {
@@ -378,16 +373,18 @@ class SapIntegrationService {
    */
   mapSapProductToWebApp(sapProduct) {
     return {
-      barcode: sapProduct.ItemCode,
+      // Usamos los campos que vienen en tu respuesta JSON
       name: sapProduct.ItemName,
-      description: sapProduct.U_Web_Description || sapProduct.ItemName,
-      price_list1: 0, // Estos precios se obtendrían de otra consulta en SAP
-      price_list2: 0,
-      price_list3: 0,
-      stock: sapProduct.QuantityOnStock || 0,
-      image_url: sapProduct.PictureName ? `${process.env.SAP_IMAGES_BASE_URL}/${sapProduct.PictureName}` : null,
-      sap_code: sapProduct.ItemCode,
-      sap_group: sapProduct.ItemsGroupCode,
+      description: sapProduct.ItemName, // Si no hay descripción, usamos el nombre
+      price_list1: sapProduct.price_list1 || 0,
+      price_list2: sapProduct.price_list2 || 0,
+      price_list3: sapProduct.price_list3 || 0,
+      stock: sapProduct.Stock || 0,
+      barcode: sapProduct.CodeBars,
+      // La imagen la obtendremos de otra tabla
+      sap_code: sapProduct.Sap_Code,
+      sap_group: sapProduct.Sap_Group,
+      is_active: sapProduct.is_active === 'true',
       sap_last_sync: new Date().toISOString()
     };
   }
@@ -401,42 +398,37 @@ class SapIntegrationService {
     const stats = {
       total: 0,
       created: 0,
-      updated: 0,
-      errors: 0,
-      skipped: 0
+      errors: 0
     };
-
+  
     try {
       logger.info('Iniciando sincronización de productos desde SAP B1', {
         mode: fullSync ? 'completa' : 'incremental'
       });
-
-      // Registrar inicio de sincronización para uso en sincronización incremental
+  
+      // Registrar inicio de sincronización
       const syncStartTime = new Date();
       
       let hasMore = true;
       let skip = 0;
-      const limit = 100; // Procesar en lotes para no sobrecargar la memoria
-      
-      // Filtro adicional para sincronización incremental
-      let filter = '';
-      if (!fullSync && this.lastSyncTime) {
-        const lastSyncIso = this.lastSyncTime.toISOString();
-        filter = `UpdateDate ge '${lastSyncIso}'`;
-        logger.debug('Aplicando filtro para sincronización incremental', { filter });
-      }
+      const limit = parseInt(process.env.SAP_SYNC_BATCH_SIZE) || 100;
       
       // Comenzar transacción para toda la sincronización
       const client = await pool.connect();
       try {
         await client.query('BEGIN');
         
+        // Si es sincronización completa, eliminamos todos los productos existentes
+        if (fullSync) {
+          logger.info('Eliminando productos existentes para sincronización completa');
+          await client.query('DELETE FROM products');
+        }
+        
         while (hasMore) {
           // Obtener lote de productos de SAP
           const { items, hasMore: moreItems } = await this.getProductsFromSAP({
             limit,
-            skip,
-            filter
+            skip
           });
           
           hasMore = moreItems;
@@ -446,50 +438,29 @@ class SapIntegrationService {
           // Procesar cada producto del lote
           for (const sapProduct of items) {
             try {
-              // Buscar si el producto ya existe en la WebApp
-              const existingProduct = await Product.findByBarcode(sapProduct.ItemCode, client);
-              
               // Mapear producto de SAP al formato de la WebApp
               const webAppProduct = this.mapSapProductToWebApp(sapProduct);
               
-              if (existingProduct) {
-                // Si existe, actualizar
-                await Product.update(existingProduct.product_id, webAppProduct, client);
-                stats.updated++;
-                logger.debug('Producto actualizado', {
-                  barcode: sapProduct.ItemCode,
-                  name: sapProduct.ItemName
-                });
-              } else {
-                // Si no existe, crear
-                await Product.create(webAppProduct, client);
-                stats.created++;
-                logger.debug('Producto creado', {
-                  barcode: sapProduct.ItemCode,
-                  name: sapProduct.ItemName
-                });
-              }
+              // Crear el producto (Como estamos eliminando todos al inicio, siempre creamos)
+              await Product.create(webAppProduct, client);
+              stats.created++;
+              
+              logger.debug('Producto creado', {
+                sapCode: sapProduct.Sap_Code,
+                name: sapProduct.ItemName
+              });
+              
+              // Buscar/actualizar la imagen en la tabla auxiliar
+              await this.syncProductImage(sapProduct.Sap_Code, client);
             } catch (productError) {
               stats.errors++;
               logger.error('Error al procesar producto individual', {
-                itemCode: sapProduct.ItemCode,
+                sapCode: sapProduct.Sap_Code,
                 error: productError.message
               });
               // Continuar con el siguiente producto
             }
           }
-        }
-        
-        // Actualizar productos que ya no están publicados en SAP
-        if (fullSync) {
-          const result = await client.query(
-            'UPDATE products SET is_active = false WHERE sap_last_sync < $1 AND sap_code IS NOT NULL',
-            [syncStartTime]
-          );
-          
-          logger.info('Productos marcados como inactivos', {
-            count: result.rowCount
-          });
         }
         
         // Commit de la transacción
@@ -518,6 +489,38 @@ class SapIntegrationService {
         stack: error.stack
       });
       throw error;
+    }
+  }
+
+  async syncProductImage(sapCode, client) {
+    try {
+      // Verificar si ya existe una entrada para este sapCode
+      const query = 'SELECT * FROM product_images WHERE sap_code = $1';
+      const result = await client.query(query, [sapCode]);
+      
+      if (result.rows.length === 0) {
+        // No existe, intentamos obtener la imagen desde SAP
+        // Aquí tendrías que implementar la lógica para obtener la URL de la imagen desde SAP
+        // Por ahora, solo insertamos un registro con URL vacía
+        await client.query(
+          'INSERT INTO product_images (sap_code, image_url, last_updated) VALUES ($1, $2, $3)',
+          [sapCode, '', new Date()]
+        );
+        
+        logger.debug('Registro de imagen creado para producto', { sapCode });
+      } else {
+        // Actualizar el registro existente si es necesario
+        // Si tienes lógica para refrescar las imágenes, iría aquí
+        logger.debug('Registro de imagen ya existe para producto', { sapCode });
+      }
+      
+      return true;
+    } catch (error) {
+      logger.error('Error al sincronizar imagen de producto', {
+        sapCode,
+        error: error.message
+      });
+      return false;
     }
   }
 

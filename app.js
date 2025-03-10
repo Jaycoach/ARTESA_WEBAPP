@@ -109,7 +109,7 @@ app.use(cors({
     }
   },
   methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Content-Type', 'Bypass-Tunnel-Reminder', 'ngrok-skip-browser-warning'],
   exposedHeaders: ['Access-Control-Allow-Origin', 'Access-Control-Allow-Credentials'],
   credentials: true,
   preflightContinue: false,
