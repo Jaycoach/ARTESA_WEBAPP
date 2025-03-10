@@ -324,17 +324,42 @@ class SapIntegrationService {
       }
   
       // Mapear los datos correctamente asegurando valores numéricos válidos
-      const mappedItems = data.value.map(item => ({
-        ItemName: item.ItemName,
-        price_list1: parseFloat(item.price_list1) || 0,
-        price_list2: parseFloat(item.price_list2) || 0,
-        price_list3: parseFloat(item.price_list3) || 0,
-        Stock: parseFloat(item.Stock) || 0,
-        CodeBars: item.CodeBars,
-        Sap_Code: item.Sap_Code,
-        Sap_Group: parseInt(item.Sap_Group) || 0,
-        is_active: item.is_active === "true" || true
-      }));
+      const mappedItems = data.value.map(item => {
+        // Función auxiliar para parseo seguro
+        const safeParseFloat = (val) => {
+          if (val === null || val === undefined) return 0;
+          if (typeof val === 'number') return val;
+          if (typeof val === 'string') {
+            const cleaned = val.replace(/[^\d.-]/g, '');
+            const result = parseFloat(cleaned);
+            return isNaN(result) ? 0 : result;
+          }
+          return 0;
+        };
+
+        const safeParseInt = (val) => {
+          if (val === null || val === undefined) return 0;
+          if (typeof val === 'number') return Math.round(val);
+          if (typeof val === 'string') {
+            const cleaned = val.replace(/[^\d.-]/g, '');
+            const result = parseInt(cleaned, 10);
+            return isNaN(result) ? 0 : result;
+          }
+          return 0;
+        };
+      
+        return {
+          ItemName: item.ItemName,
+          price_list1: safeParseFloat(item.price_list1),
+          price_list2: safeParseFloat(item.price_list2),
+          price_list3: safeParseFloat(item.price_list3),
+          Stock: safeParseInt(item.Stock),
+          CodeBars: item.CodeBars,
+          Sap_Code: item.Sap_Code,
+          Sap_Group: safeParseInt(item.Sap_Group),
+          is_active: item.is_active === "true" || item.is_active === true || true
+        };
+      });
       
       // Determinar si hay más datos basado en la presencia de @odata.nextLink
       const hasMoreData = !!data['@odata.nextLink'];
@@ -442,18 +467,29 @@ class SapIntegrationService {
    * @returns {Object} Producto en formato WebApp
    */
   mapSapProductToWebApp(sapProduct) {
+    const parseNumberSafely = (value, defaultValue = 0) => {
+      if (value === null || value === undefined) return defaultValue;
+      if (typeof value === 'number') return value;
+      if (typeof value === 'string') {
+        // Remover cualquier carácter que no sea dígito, punto o signo negativo
+        const cleanValue = value.replace(/[^\d.-]/g, '');
+        const parsed = parseFloat(cleanValue);
+        return isNaN(parsed) ? defaultValue : parsed;
+      }
+      return defaultValue;
+    };
+  
     return {
       name: sapProduct.ItemName || 'Sin nombre',
       description: sapProduct.ItemName || 'Sin descripción',
-      // Conversión explícita de valores numéricos
-      price_list1: parseFloat(sapProduct.price_list1) || 0,
-      price_list2: parseFloat(sapProduct.price_list2) || 0,
-      price_list3: parseFloat(sapProduct.price_list3) || 0,
-      stock: parseInt(sapProduct.Stock) || 0,
+      price_list1: parseNumberSafely(sapProduct.price_list1),
+      price_list2: parseNumberSafely(sapProduct.price_list2),
+      price_list3: parseNumberSafely(sapProduct.price_list3),
+      stock: parseInt(parseNumberSafely(sapProduct.Stock), 10),
       barcode: sapProduct.CodeBars || null,
       sap_code: sapProduct.Sap_Code,
-      sap_group: parseInt(sapProduct.Sap_Group) || 0,
-      is_active: sapProduct.is_active === "true" || true,
+      sap_group: parseInt(parseNumberSafely(sapProduct.Sap_Group), 10),
+      is_active: sapProduct.is_active === "true" || sapProduct.is_active === true || true,
       sap_last_sync: new Date().toISOString(),
       sap_sync_pending: false
     };
@@ -563,14 +599,6 @@ class SapIntegrationService {
               
               // Mapear producto de SAP al formato de la WebApp
               const webAppProduct = this.mapSapProductToWebApp(sapProduct);
-              
-              // Asegurar valores numéricos válidos explícitamente
-              webAppProduct.price_list1 = parseFloat(sapProduct.price_list1) || 0;
-              webAppProduct.price_list2 = parseFloat(sapProduct.price_list2) || 0;
-              webAppProduct.price_list3 = parseFloat(sapProduct.price_list3) || 0;
-              webAppProduct.stock = parseInt(sapProduct.Stock) || 0;
-              webAppProduct.sap_code = sapProduct.Sap_Code;
-              webAppProduct.sap_group = parseInt(sapProduct.Sap_Group) || 0;
               
               // Buscar si el producto ya existe por su código SAP
               const existingProduct = await Product.findBySapCode(sapProduct.Sap_Code, client);

@@ -72,7 +72,14 @@ class Product {
       sapSyncPending = false, 
       isActive = true
     } = product;
-
+  
+    // Asegurar que todos los valores numéricos son números válidos
+    const sanitizedPriceList1 = parseFloat(priceList1) || 0;
+    const sanitizedPriceList2 = parseFloat(priceList2) || 0;
+    const sanitizedPriceList3 = parseFloat(priceList3) || 0;
+    const sanitizedStock = parseInt(stock, 10) || 0;
+    const sanitizedSapGroup = sapGroup ? parseInt(sapGroup, 10) : null;
+  
     const query = `
       INSERT INTO products (
         name, description, price_list1, price_list2, price_list3,
@@ -83,26 +90,30 @@ class Product {
       RETURNING *;
     `;
     
-    const values = [
-      name, 
-      description, 
-      // Asegúrate de que estos valores nunca sean nulos
-      priceList1 || 0,
-      priceList2 || 0,
-      priceList3 || 0,
-      stock || 0,
-      barcode, 
-      imageUrl, 
-      sapCode, 
-      sapGroup, 
-      sapLastSync,
-      sapSyncPending, 
-      isActive
-    ];
-    
     try {
       // Determinar si usamos el cliente proporcionado o pool
       const dbClient = client || pool;
+      
+      const values = [
+        name, 
+        description, 
+        sanitizedPriceList1,
+        sanitizedPriceList2,
+        sanitizedPriceList3,
+        sanitizedStock,
+        barcode, 
+        imageUrl, 
+        sapCode, 
+        sanitizedSapGroup, 
+        sapLastSync,
+        sapSyncPending, 
+        isActive
+      ];
+      
+      // Ahora el log puede acceder a 'values' porque ya está definido
+      logger.debug('Valores para inserción de producto', { 
+        values: values.map(v => typeof v === 'object' ? JSON.stringify(v) : v)
+      });
       
       const { rows } = await dbClient.query(query, values);
       
@@ -420,6 +431,17 @@ class Product {
    * @throws {Error} Si ocurre un error en la actualización
    */
   static async update(productId, updateData, client, autoSync = true) {
+
+    const validateNumber = (value, defaultValue = 0) => {
+      if (value === undefined || value === null) return defaultValue;
+      if (typeof value === 'number') return value;
+      if (typeof value === 'string') {
+        const parsed = parseFloat(value.replace(/[^\d.-]/g, ''));
+        return isNaN(parsed) ? defaultValue : parsed;
+      }
+      return defaultValue;
+    };
+
     // Filtrar solo los campos permitidos y mapear nombres camelCase a snake_case
     const fieldMappings = {
       'name': 'name',
@@ -436,7 +458,7 @@ class Product {
       'sapSyncPending': 'sap_sync_pending',
       'isActive': 'is_active'
     };
-    
+
     const updates = [];
     const values = [];
     let paramCount = 1;
@@ -476,7 +498,15 @@ class Product {
         const dbField = fieldMappings[key];
         if (dbField && updateData[key] !== undefined) {
           updates.push(`${dbField} = $${paramCount}`);
-          values.push(updateData[key]);
+          
+          // Luego aplicar esta función a los campos numéricos en los updates
+          if (dbField === 'price_list1' || dbField === 'price_list2' || dbField === 'price_list3') {
+            values.push(validateNumber(updateData[key], 0));
+          } else if (dbField === 'stock' || dbField === 'sap_group') {
+            values.push(parseInt(validateNumber(updateData[key], 0)));
+          } else {
+            values.push(updateData[key]);
+          }
           paramCount++;
           
           // Verificar si este campo requiere sincronización con SAP
