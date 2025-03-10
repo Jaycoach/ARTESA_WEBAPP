@@ -63,4 +63,10 @@ router.get('/status',
   sapSyncController.getSyncStatus
 );
 
+router.get('/test', 
+  verifyToken, 
+  checkRole([1]), // Solo administradores
+  sapSyncController.testSapConnection
+);
+
 module.exports = router;

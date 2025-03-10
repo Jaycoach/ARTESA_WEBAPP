@@ -180,6 +180,41 @@ class SapSyncController {
       });
     }
   }
+
+  async testSapConnection(req, res) {
+    try {
+      logger.info('Probando conexión con SAP B1');
+      
+      // Iniciar sesión y verificar
+      await sapIntegrationService.login();
+      
+      // Intentar obtener datos de la vista personalizada en lugar de Items
+      const endpoint = 'view.svc/B1_ProductsB1SLQuery?$top=1';
+      const result = await sapIntegrationService.request('GET', endpoint);
+        
+      res.status(200).json({
+        success: true,
+        message: 'Conexión exitosa con SAP B1',
+        sessionId: sapIntegrationService.sessionId ? 'Válido' : 'No disponible',
+        endpoint: endpoint,
+        data: result
+      });
+    } catch (error) {
+      logger.error('Error al probar conexión con SAP B1', {
+        error: error.message,
+        stack: error.stack
+      });
+      
+      res.status(500).json({
+        success: false,
+        message: 'Error al probar conexión con SAP B1',
+        error: error.message,
+        endpoint: 'view.svc/B1_ProductsB1SLQuery',
+        details: error.response?.data
+      });
+    }
+  }
+
 }
 
 // Crear instancia del controlador
@@ -188,7 +223,7 @@ const sapSyncController = new SapSyncController();
 // Exportar métodos del controlador
 module.exports = {
   startSync: sapSyncController.startSync,
-  syncProductToSAP: sapSyncController.syncProductToSAP,
+  //syncProductToSAP: sapSyncController.syncProductToSAP,
   getSyncStatus: sapSyncController.getSyncStatus,
   syncProductsByGroup: sapSyncController.syncProductsByGroup,
   getGroupSyncStatus: sapSyncController.getGroupSyncStatus,

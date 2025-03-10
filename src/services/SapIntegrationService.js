@@ -486,48 +486,63 @@ class SapIntegrationService {
           await client.query('DELETE FROM products');
         }*/
         
-        while (hasMore) {
-          // Obtener lote de productos de SAP
-          const { items, hasMore: moreItems } = await this.getProductsFromSAP({
-            limit,
-            skip
-          });
-          
-          hasMore = moreItems;
-          skip += limit;
-          stats.total += items.length;
-          
-          // Procesar cada producto del lote
-          // En lugar de eliminar, haremos upsert de cada producto
-          for (const sapProduct of items) {
+          while (hasMore) {
             try {
-              // Buscar si el producto ya existe por su código SAP
-              const existingProduct = await Product.findBySapCode(sapProduct.Sap_Code, client);
-              
-              // Mapear producto de SAP al formato de la WebApp
-              const webAppProduct = this.mapSapProductToWebApp(sapProduct);
-              
-              if (existingProduct) {
-                // Si existe, actualizar
-                await Product.update(existingProduct.product_id, webAppProduct, client, false);
-                stats.updated++;
-              } else {
-                // Si no existe, crear
-                await Product.create(webAppProduct, client);
-                stats.created++;
-              }
-              
-              // Sincronizar la imagen
-              await this.syncProductImage(sapProduct.Sap_Code, client);
-            } catch (productError) {
-              stats.errors++;
-              logger.error('Error al procesar producto individual', {
-                sapCode: sapProduct.Sap_Code,
-                error: productError.message
+              // Obtener lote de productos de SAP
+              const { items, hasMore: moreItems } = await this.getProductsFromSAP({
+                limit,
+                skip
               });
+              
+              hasMore = moreItems;
+              skip += limit;
+              stats.total += items.length;
+              
+              logger.info(`Procesando lote de ${items.length} productos (total procesado: ${stats.total})`);
+              
+              // Procesar cada producto del lote individualmente, sin transacciones grandes
+              for (const sapProduct of items) {
+                const client = await pool.connect();
+                try {
+                  await client.query('BEGIN');
+                  
+                  // Buscar si el producto ya existe por su código SAP
+                  const existingProduct = await Product.findBySapCode(sapProduct.Sap_Code, client);
+                  
+                  // Mapear producto de SAP al formato de la WebApp
+                  const webAppProduct = this.mapSapProductToWebApp(sapProduct);
+                  
+                  if (existingProduct) {
+                    // Si existe, actualizar
+                    await Product.update(existingProduct.product_id, webAppProduct, client, false);
+                    stats.updated++;
+                  } else {
+                    // Si no existe, crear
+                    await Product.create(webAppProduct, client);
+                    stats.created++;
+                  }
+                  
+                  await client.query('COMMIT');
+                } catch (productError) {
+                  await client.query('ROLLBACK');
+                  stats.errors++;
+                  logger.error('Error al procesar producto individual', {
+                    sapCode: sapProduct.Sap_Code,
+                    error: productError.message
+                  });
+                } finally {
+                  client.release();
+                }
+              }
+            } catch (batchError) {
+              logger.error('Error al procesar lote de productos', {
+                error: batchError.message,
+                stack: batchError.stack
+              });
+              // Continuamos con el siguiente lote si hay error
+              stats.errors++;
             }
           }
-        }
         
         // Commit de la transacción
         await client.query('COMMIT');

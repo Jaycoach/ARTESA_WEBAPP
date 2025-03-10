@@ -519,7 +519,7 @@ class Product {
       
       // Si necesita sincronización con SAP y estamos en modo autoSync, intentar sincronizar ahora
       // Solo si no estamos dentro de una transacción (client es null)
-      if (needsSapSync && autoSync && isSapProduct && !client) {
+      /*if (needsSapSync && autoSync && isSapProduct && !client) {
         try {
           // Lanzar sincronización asíncrona para no bloquear
           Promise.resolve().then(async () => {
@@ -544,7 +544,7 @@ class Product {
           });
           // No fallamos la actualización por errores en la sincronización
         }
-      }
+      }*/
       
       return updatedProduct;
     } catch (error) {
