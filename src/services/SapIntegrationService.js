@@ -233,7 +233,8 @@ class SapIntegrationService {
         url: `${this.baseUrl}/${endpoint}`,
         headers: {
           'Content-Type': 'application/json',
-          'Cookie': `B1SESSION=${this.sessionId}`
+          'Cookie': `B1SESSION=${this.sessionId}`,
+          'Prefer': 'odata.maxpagesize=0'
         }
       };
 
@@ -300,53 +301,48 @@ class SapIntegrationService {
    */
   async getProductsFromSAP(options = {}) {
     try {
-      const batchSize = parseInt(process.env.SAP_SYNC_BATCH_SIZE) || 100;
-      const { limit = batchSize, skip = 0 } = options;
+      const { skip = 0 } = options;
       
-      // Cambiamos el endpoint para usar la vista personalizada que has creado
+      // Usar el endpoint correcto sin modificarlo con $skip en la URL
       let endpoint = `view.svc/B1_ProductsB1SLQuery`;
-
-      // Configurar parámetros de consulta como objeto
-      const queryParams = {
-        $skip: skip,
-        $top: limit,
-      };
       
-      logger.debug('URL completa:', { url: `${this.baseUrl}/${endpoint}` });
+      // Si hay skip, añadirlo como parámetro de consulta
+      if (skip > 0) {
+        endpoint = `view.svc/B1_ProductsB1SLQuery?$skip=${skip}`;
+      }
+      
       logger.debug('Obteniendo productos de SAP B1', { 
         endpoint,
-        queryParams,
-        batchSize
+        skip
       });
       
-      // Pasar los parámetros como una opción separada
+      // Ya tienes el header 'Prefer': 'odata.maxpagesize=0' en el método request
       const data = await this.request('GET', endpoint);
       
       if (!data || !data.value) {
         throw new Error('Formato de respuesta inválido');
       }
-
-      // Mapear los datos a la estructura esperada por tu aplicación
+  
+      // Mapear los datos correctamente asegurando valores numéricos válidos
       const mappedItems = data.value.map(item => ({
         ItemName: item.ItemName,
-        price_list1: parseFloat(item.price_list1) || 0, // Usar el campo como está en la vista
+        price_list1: parseFloat(item.price_list1) || 0,
         price_list2: parseFloat(item.price_list2) || 0,
         price_list3: parseFloat(item.price_list3) || 0,
         Stock: parseFloat(item.Stock) || 0,
         CodeBars: item.CodeBars,
         Sap_Code: item.Sap_Code,
         Sap_Group: parseInt(item.Sap_Group) || 0,
-        is_active: item.is_active
+        is_active: item.is_active === "true" || true
       }));
       
-      const hasMoreData = !!data['@odata.nextLink'] && data.value.length > 0 && data.value.length >= limit;
-
+      // Determinar si hay más datos basado en la presencia de @odata.nextLink
+      const hasMoreData = !!data['@odata.nextLink'];
+      
       logger.info('Productos obtenidos de SAP B1', {
         count: mappedItems.length,
         hasMore: hasMoreData,
-        nextLinkExists: !!data['@odata.nextLink'],
-        skip: skip,
-        limit: limit
+        nextLink: data['@odata.nextLink'] || 'ninguno'
       });
       
       return {
@@ -462,7 +458,6 @@ class SapIntegrationService {
       sap_sync_pending: false
     };
   }
-
   /**
    * Sincroniza todos los productos desde SAP B1 a la WebApp
    * @param {boolean} fullSync - Indica si es una sincronización completa o incremental
@@ -472,6 +467,7 @@ class SapIntegrationService {
     const stats = {
       total: 0,
       created: 0,
+      updated: 0,
       errors: 0
     };
   
@@ -483,147 +479,165 @@ class SapIntegrationService {
       // Registrar inicio de sincronización
       const syncStartTime = new Date();
       
+      // Si es sincronización completa, reiniciar secuencia desde el ID adecuado
+      if (fullSync) {
+        try {
+          const maxIdResult = await pool.query('SELECT COALESCE(MAX(product_id), 0) as max_id FROM products');
+          const startId = Math.max(4, parseInt(maxIdResult.rows[0].max_id) + 1);
+          
+          // Reiniciar la secuencia a partir del ID correcto
+          await pool.query(`ALTER SEQUENCE products_product_id_seq RESTART WITH ${startId}`);
+          
+          logger.info('Secuencia de productos reiniciada', { startId });
+        } catch (seqError) {
+          logger.error('Error al reiniciar secuencia de productos', {
+            error: seqError.message
+          });
+          // Continuar con la sincronización a pesar del error
+        }
+      }
+      
       let hasMore = true;
       let skip = 0;
-      const limit = parseInt(process.env.SAP_SYNC_BATCH_SIZE) || 100;
+      const MAX_ITERATIONS = 20; // Aumentar para manejar más productos
+      let iterations = 0;
+      let prevTotalItems = 0;
       
-      // Comenzar transacción para toda la sincronización
-      const client = await pool.connect();
-      try {
-        await client.query('BEGIN');
+      while (hasMore && iterations < MAX_ITERATIONS) {
+        iterations++;
         
-        // Si es sincronización completa, eliminamos todos los productos existentes
-        /*if (fullSync) {
-          logger.info('Eliminando productos existentes para sincronización completa');
-          await client.query('DELETE FROM products');
-        }*/
-          const MAX_ITERATIONS = 10; // Suficiente para 39 productos con páginas de 20
-          let iterations = 0;
-          let prevTotalItems = 0; // Para detectar si estamos recibiendo nuevos datos
-
-
-          while (hasMore && iterations < MAX_ITERATIONS) {
-            iterations++;
+        try {
+          // Obtener lote de productos de SAP
+          const { items, hasMore: moreItems, nextLink } = await this.getProductsFromSAP({
+            skip
+          });
+          
+          // Actualizar la bandera hasMore y calcular el siguiente skip
+          hasMore = moreItems;
+          
+          // Extraer el valor de skip del nextLink o incrementar basado en el número de items
+          if (nextLink) {
+            // Extraer el valor de skip del nextLink si existe
+            const skipMatch = nextLink.match(/\$skip=(\d+)/);
+            if (skipMatch && skipMatch[1]) {
+              skip = parseInt(skipMatch[1]);
+            } else {
+              skip += items.length;
+            }
+          } else {
+            skip += items.length;
+          }
+          
+          stats.total += items.length;
+  
+          // Verificar si recibimos nuevos items
+          if (items.length === 0) {
+            logger.warn('No se obtuvieron productos en esta iteración, finalizando sincronización', {
+              iteration: iterations,
+              skip: skip
+            });
+            hasMore = false;
+            continue;
+          }
+          
+          // Verificar si el total está avanzando para evitar bucles infinitos
+          if (stats.total <= prevTotalItems) {
+            logger.warn('No se están agregando nuevos productos, posible bucle, finalizando sincronización', {
+              iteration: iterations,
+              prevTotal: prevTotalItems,
+              currentTotal: stats.total
+            });
+            hasMore = false;
+            continue;
+          }
+          
+          prevTotalItems = stats.total;
+  
+          logger.info(`Procesando lote de ${items.length} productos (total procesado: ${stats.total})`);
+          
+          // Procesar cada producto del lote individualmente
+          for (const sapProduct of items) {
+            const client = await pool.connect();
             try {
-              // Obtener lote de productos de SAP
-              const { items, hasMore: moreItems } = await this.getProductsFromSAP({
-                limit,
-                skip
-              });
+              await client.query('BEGIN');
               
-              hasMore = moreItems;
-              skip += limit;
-              stats.total += items.length;
-
-              // Verificar si recibimos nuevos items
-              if (items.length === 0) {
-                logger.warn('No se obtuvieron productos en esta iteración, finalizando sincronización', {
-                  iteration: iterations,
-                  skip: skip
+              // Mapear producto de SAP al formato de la WebApp
+              const webAppProduct = this.mapSapProductToWebApp(sapProduct);
+              
+              // Asegurar valores numéricos válidos explícitamente
+              webAppProduct.price_list1 = parseFloat(sapProduct.price_list1) || 0;
+              webAppProduct.price_list2 = parseFloat(sapProduct.price_list2) || 0;
+              webAppProduct.price_list3 = parseFloat(sapProduct.price_list3) || 0;
+              webAppProduct.stock = parseInt(sapProduct.Stock) || 0;
+              webAppProduct.sap_code = sapProduct.Sap_Code;
+              webAppProduct.sap_group = parseInt(sapProduct.Sap_Group) || 0;
+              
+              // Buscar si el producto ya existe por su código SAP
+              const existingProduct = await Product.findBySapCode(sapProduct.Sap_Code, client);
+              
+              if (existingProduct) {
+                // Si existe, actualizar
+                await Product.update(existingProduct.product_id, webAppProduct, client, false);
+                stats.updated++;
+                logger.debug('Producto actualizado', {
+                  sapCode: sapProduct.Sap_Code,
+                  name: sapProduct.ItemName,
+                  price_list1: webAppProduct.price_list1
                 });
-                hasMore = false;
-                continue;
-              }
-              
-              // Verificar si el total está avanzando
-              if (stats.total <= prevTotalItems) {
-                logger.warn('No se están agregando nuevos productos, posible bucle, finalizando sincronización', {
-                  iteration: iterations,
-                  prevTotal: prevTotalItems,
-                  currentTotal: stats.total
+              } else {
+                // Si no existe, crear
+                await Product.create(webAppProduct, client);
+                stats.created++;
+                logger.debug('Producto creado', {
+                  sapCode: sapProduct.Sap_Code,
+                  name: sapProduct.ItemName,
+                  price_list1: webAppProduct.price_list1
                 });
-                hasMore = false;
-                continue;
               }
-              prevTotalItems = stats.total;
-
-              logger.info(`Procesando lote de ${items.length} productos (total procesado: ${stats.total})`);
               
-              // Procesar cada producto del lote individualmente, sin transacciones grandes
-              for (const sapProduct of items) {
-                const client = await pool.connect();
-                try {
-                  await client.query('BEGIN');
-                  
-                  // Buscar si el producto ya existe por su código SAP
-                  const existingProduct = await Product.findBySapCode(sapProduct.Sap_Code, client);
-                  
-                  // Mapear producto de SAP al formato de la WebApp
-                  const webAppProduct = this.mapSapProductToWebApp(sapProduct);
-
-                  // Asegurar valores predeterminados:
-                  if (webAppProduct.price_list1 === null || webAppProduct.price_list1 === undefined) {
-                    webAppProduct.price_list1 = 0;
-                  }
-                  if (webAppProduct.price_list2 === null || webAppProduct.price_list2 === undefined) {
-                      webAppProduct.price_list2 = 0;
-                  }
-                  if (webAppProduct.price_list3 === null || webAppProduct.price_list3 === undefined) {
-                      webAppProduct.price_list3 = 0;
-                  }
-                  if (webAppProduct.stock === null || webAppProduct.stock === undefined) {
-                      webAppProduct.stock = 0;
-                  }
-                  
-                  if (existingProduct) {
-                    // Si existe, actualizar
-                    await Product.update(existingProduct.product_id, webAppProduct, client, false);
-                    stats.updated++;
-                  } else {
-                    // Si no existe, crear
-                    await Product.create(webAppProduct, client);
-                    stats.created++;
-                  }
-                  
-                  await client.query('COMMIT');
-                } catch (productError) {
-                  await client.query('ROLLBACK');
-                  stats.errors++;
-                  logger.error('Error al procesar producto individual', {
-                    sapCode: sapProduct.Sap_Code,
-                    error: productError.message
-                  });
-                } finally {
-                  client.release();
-                }
-              }
-            } catch (batchError) {
-              logger.error('Error al procesar lote de productos', {
-                error: batchError.message,
-                stack: batchError.stack
-              });
-              // Continuamos con el siguiente lote si hay error
+              await client.query('COMMIT');
+            } catch (productError) {
+              await client.query('ROLLBACK');
               stats.errors++;
+              logger.error('Error al procesar producto individual', {
+                sapCode: sapProduct.Sap_Code,
+                name: sapProduct.ItemName,
+                price_list1: sapProduct.price_list1,
+                error: productError.message,
+                stack: productError.stack?.split('\n').slice(0, 3).join('\n')
+              });
+            } finally {
+              client.release();
             }
           }
-
-          if (iterations >= MAX_ITERATIONS && hasMore) {
-            logger.warn('Se alcanzó el límite máximo de iteraciones en la sincronización', {
-              maxIterations: MAX_ITERATIONS,
-              totalProcessed: stats.total
-            });
-          }
-        
-        // Commit de la transacción
-        await client.query('COMMIT');
-        
-        // Actualizar timestamp de última sincronización exitosa
-        this.lastSyncTime = syncStartTime;
-        
-        logger.info('Sincronización completada exitosamente', {
-          stats,
-          syncTime: new Date().toISOString()
-        });
-        
-        return stats;
-      } catch (error) {
-        // Rollback en caso de error
-        await client.query('ROLLBACK');
-        throw error;
-      } finally {
-        // Liberar el cliente
-        client.release();
+        } catch (batchError) {
+          logger.error('Error al procesar lote de productos', {
+            error: batchError.message,
+            stack: batchError.stack,
+            skip
+          });
+          // Incrementar skip para intentar continuar con el siguiente lote
+          skip += 20; // Asumir que hubo 20 productos que causaron el error
+          stats.errors++;
+        }
       }
+  
+      if (iterations >= MAX_ITERATIONS && hasMore) {
+        logger.warn('Se alcanzó el límite máximo de iteraciones en la sincronización', {
+          maxIterations: MAX_ITERATIONS,
+          totalProcessed: stats.total
+        });
+      }
+      
+      // Actualizar timestamp de última sincronización exitosa
+      this.lastSyncTime = syncStartTime;
+      
+      logger.info('Sincronización completada exitosamente', {
+        stats,
+        syncTime: new Date().toISOString()
+      });
+      
+      return stats;
     } catch (error) {
       logger.error('Error en sincronización con SAP B1', {
         error: error.message,
@@ -678,104 +692,128 @@ class SapIntegrationService {
       errors: 0,
       skipped: 0
     };
-
+  
     try {
       logger.info('Iniciando sincronización de productos por grupo', {
         groupCode
       });
-
+  
       // Registrar inicio de sincronización
       const syncStartTime = new Date();
       
       let hasMore = true;
       let skip = 0;
-      const limit = 100; // Procesar en lotes para no sobrecargar la memoria
+      const MAX_ITERATIONS = 20;
+      let iterations = 0;
       
-      // Filtro para obtener solo productos del grupo especificado que están publicados
-      const filter = `ItemsGroupCode eq ${groupCode} and U_Web_Published eq 'Y'`;
-      
-      // Comenzar transacción para toda la sincronización
-      const client = await pool.connect();
-      try {
-        await client.query('BEGIN');
+      while (hasMore && iterations < MAX_ITERATIONS) {
+        iterations++;
         
-        while (hasMore) {
-          // Obtener lote de productos de SAP
-          const { items, hasMore: moreItems } = await this.getProductsFromSAP({
-            limit,
-            skip,
-            filter
+        try {
+          // Obtener lote de productos de SAP con el filtro adecuado
+          // Nota: Modificar la llamada para incluir el filtro por grupo
+          const { items, hasMore: moreItems, nextLink } = await this.getProductsFromSAP({
+            skip
           });
           
-          hasMore = moreItems;
-          skip += limit;
-          stats.total += items.length;
+          // Filtrar manualmente los productos por grupo
+          const filteredItems = items.filter(item => 
+            parseInt(item.Sap_Group) === parseInt(groupCode)
+          );
           
-          // Procesar cada producto del lote
-          for (const sapProduct of items) {
+          hasMore = moreItems;
+          
+          // Actualizar skip basado en nextLink o incrementando por la cantidad de items
+          if (nextLink) {
+            const skipMatch = nextLink.match(/\$skip=(\d+)/);
+            if (skipMatch && skipMatch[1]) {
+              skip = parseInt(skipMatch[1]);
+            } else {
+              skip += items.length;
+            }
+          } else {
+            skip += items.length;
+          }
+          
+          stats.total += filteredItems.length;
+          
+          if (filteredItems.length === 0 && items.length === 0) {
+            logger.warn('No se obtuvieron productos, finalizando sincronización', {
+              iteration: iterations,
+              groupCode,
+              skip
+            });
+            hasMore = false;
+            continue;
+          }
+  
+          // Procesar solo los productos del grupo especificado
+          for (const sapProduct of filteredItems) {
+            const client = await pool.connect();
             try {
-              // Buscar si el producto ya existe en la WebApp
-              const existingProduct = await Product.findByBarcode(sapProduct.ItemCode, client);
+              await client.query('BEGIN');
               
               // Mapear producto de SAP al formato de la WebApp
               const webAppProduct = this.mapSapProductToWebApp(sapProduct);
               
+              // Asegurar valores numéricos válidos
+              webAppProduct.price_list1 = parseFloat(sapProduct.price_list1) || 0;
+              webAppProduct.price_list2 = parseFloat(sapProduct.price_list2) || 0;
+              webAppProduct.price_list3 = parseFloat(sapProduct.price_list3) || 0;
+              webAppProduct.stock = parseInt(sapProduct.Stock) || 0;
+              
+              // Buscar si el producto ya existe por su código SAP
+              const existingProduct = await Product.findBySapCode(sapProduct.Sap_Code, client);
+              
               if (existingProduct) {
                 // Si existe, actualizar
-                await Product.update(existingProduct.product_id, webAppProduct, client);
+                await Product.update(existingProduct.product_id, webAppProduct, client, false);
                 stats.updated++;
-                logger.debug('Producto actualizado', {
-                  barcode: sapProduct.ItemCode,
-                  name: sapProduct.ItemName,
-                  groupCode
-                });
               } else {
                 // Si no existe, crear
                 await Product.create(webAppProduct, client);
                 stats.created++;
-                logger.debug('Producto creado', {
-                  barcode: sapProduct.ItemCode,
-                  name: sapProduct.ItemName,
-                  groupCode
-                });
               }
+              
+              await client.query('COMMIT');
             } catch (productError) {
+              await client.query('ROLLBACK');
               stats.errors++;
-              logger.error('Error al procesar producto individual', {
-                itemCode: sapProduct.ItemCode,
-                error: productError.message,
-                groupCode
+              logger.error('Error al procesar producto individual del grupo', {
+                sapCode: sapProduct.Sap_Code,
+                groupCode,
+                error: productError.message
               });
-              // Continuar con el siguiente producto
+            } finally {
+              client.release();
             }
           }
+        } catch (batchError) {
+          logger.error('Error al procesar lote de productos por grupo', {
+            error: batchError.message,
+            stack: batchError.stack,
+            groupCode,
+            skip
+          });
+          skip += 20; // Incrementar para intentar continuar con el siguiente lote
+          stats.errors++;
         }
-        
-        // Commit de la transacción
-        await client.query('COMMIT');
-        
-        // Actualizar timestamp de última sincronización exitosa
-        this.lastSyncTime = syncStartTime;
-        this.lastGroupSyncTime = {
-          ...(this.lastGroupSyncTime || {}),
-          [groupCode]: syncStartTime
-        };
-        
-        logger.info('Sincronización por grupo completada exitosamente', {
-          stats,
-          groupCode,
-          syncTime: new Date().toISOString()
-        });
-        
-        return stats;
-      } catch (error) {
-        // Rollback en caso de error
-        await client.query('ROLLBACK');
-        throw error;
-      } finally {
-        // Liberar el cliente
-        client.release();
       }
+      
+      // Actualizar timestamp de última sincronización
+      this.lastSyncTime = syncStartTime;
+      this.lastGroupSyncTime = {
+        ...(this.lastGroupSyncTime || {}),
+        [groupCode]: syncStartTime
+      };
+      
+      logger.info('Sincronización por grupo completada exitosamente', {
+        stats,
+        groupCode,
+        syncTime: new Date().toISOString()
+      });
+      
+      return stats;
     } catch (error) {
       logger.error('Error en sincronización de productos por grupo', {
         error: error.message,
