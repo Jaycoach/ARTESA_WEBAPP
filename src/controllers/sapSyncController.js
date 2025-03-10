@@ -207,7 +207,7 @@ class SapSyncController {
       await sapIntegrationService.login();
       
       // Intentar obtener datos de la vista personalizada en lugar de Items
-      const endpoint = 'view.svc/B1_ProductsB1SLQuery?$top=1';
+      const endpoint = 'view.svc/B1_ProductsB1SLQuery?$top=2';
       const result = await sapIntegrationService.request('GET', endpoint);
         
       res.status(200).json({
@@ -215,7 +215,12 @@ class SapSyncController {
         message: 'Conexión exitosa con SAP B1',
         sessionId: sapIntegrationService.sessionId ? 'Válido' : 'No disponible',
         endpoint: endpoint,
-        data: result
+        data: {
+          value: result.value,
+          count: result.value?.length || 0,
+          // También mostrar metadatos para análisis
+          metadata: result['@odata.metadata'] || null
+        }
       });
     } catch (error) {
       logger.error('Error al probar conexión con SAP B1', {
@@ -227,7 +232,6 @@ class SapSyncController {
         success: false,
         message: 'Error al probar conexión con SAP B1',
         error: error.message,
-        endpoint: 'view.svc/B1_ProductsB1SLQuery',
         details: error.response?.data
       });
     }
@@ -428,6 +432,51 @@ class SapSyncController {
       });
     }
   }
+
+  async analyzeView(req, res) {
+    try {
+      logger.info('Analizando estructura de vista SAP');
+      
+      await sapIntegrationService.login();
+      
+      // Obtener metadatos de la vista
+      const metadataEndpoint = 'view.svc/$metadata';
+      const metadataResult = await sapIntegrationService.request('GET', metadataEndpoint);
+      
+      // Obtener una muestra de datos
+      const sampleEndpoint = 'view.svc/B1_ProductsB1SLQuery?$top=1';
+      const sampleResult = await sapIntegrationService.request('GET', sampleEndpoint);
+      
+      // Analizar las propiedades disponibles
+      let propertyNames = [];
+      if (sampleResult.value && sampleResult.value.length > 0) {
+        propertyNames = Object.keys(sampleResult.value[0]);
+      }
+      
+      res.status(200).json({
+        success: true,
+        message: 'Análisis de vista SAP completado',
+        view: {
+          name: 'B1_ProductsB1SLQuery',
+          propertyNames: propertyNames,
+          sampleData: sampleResult.value || [],
+          metadata: metadataResult
+        }
+      });
+    } catch (error) {
+      logger.error('Error al analizar vista SAP', {
+        error: error.message,
+        stack: error.stack
+      });
+      
+      res.status(500).json({
+        success: false,
+        message: 'Error al analizar vista SAP',
+        error: error.message
+      });
+    }
+  }
+
 }
 
 // Crear instancia del controlador
@@ -438,6 +487,7 @@ module.exports = {
   startSync: sapSyncController.startSync,
   getSyncStatus: sapSyncController.getSyncStatus,
   testSapConnection: sapSyncController.testSapConnection,
+  analyzeView: sapSyncController.analyzeView,
   syncProductsByGroup: sapSyncController.syncProductsByGroup,
   getGroupSyncStatus: sapSyncController.getGroupSyncStatus,
   configureGroupSync: sapSyncController.configureGroupSync

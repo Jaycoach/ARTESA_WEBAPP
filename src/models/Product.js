@@ -58,9 +58,19 @@ class Product {
    */
   static async create(product, client) {
     const {
-      name, description, priceList1, priceList2, priceList3,
-      stock, barcode, imageUrl, sapCode, sapGroup, sapLastSync,
-      sapSyncPending = false, isActive = true
+      name, 
+      description, 
+      priceList1 = 0, 
+      priceList2 = 0, 
+      priceList3 = 0,
+      stock = 0,
+      barcode, 
+      imageUrl, 
+      sapCode, 
+      sapGroup, 
+      sapLastSync,
+      sapSyncPending = false, 
+      isActive = true
     } = product;
 
     const query = `
@@ -74,9 +84,20 @@ class Product {
     `;
     
     const values = [
-      name, description, priceList1, priceList2, priceList3,
-      stock, barcode, imageUrl, sapCode, sapGroup, sapLastSync,
-      sapSyncPending, isActive
+      name, 
+      description, 
+      // Asegúrate de que estos valores nunca sean nulos
+      priceList1 || 0,
+      priceList2 || 0,
+      priceList3 || 0,
+      stock || 0,
+      barcode, 
+      imageUrl, 
+      sapCode, 
+      sapGroup, 
+      sapLastSync,
+      sapSyncPending, 
+      isActive
     ];
     
     try {

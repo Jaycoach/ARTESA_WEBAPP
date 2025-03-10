@@ -87,4 +87,26 @@ router.get('/test',
   sapSyncController.testSapConnection
 );
 
+/**
+ * @swagger
+ * /api/sap/analyze-view:
+ *   get:
+ *     summary: Analizar estructura de vista SAP
+ *     description: Obtiene metadatos y muestra de datos para analizar la estructura de la vista
+ *     tags: [SAP]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Análisis completado
+ *       401:
+ *         description: No autorizado
+ *       500:
+ *         description: Error al analizar vista
+ */
+router.get('/analyze-view', 
+  checkRole([1]), // Solo administradores
+  sapSyncController.analyzeView
+);
+
 module.exports = router;

@@ -303,7 +303,6 @@ class SapIntegrationService {
       const queryParams = {
         $skip: skip,
         $top: limit,
-        $select: 'ItemCode,ItemName,QuantityOnStock,ItemsGroupCode'
       };
       
       logger.debug('URL completa:', { url: `${this.baseUrl}/${endpoint}` });
@@ -314,7 +313,7 @@ class SapIntegrationService {
       });
       
       // Pasar los parámetros como una opción separada
-      const data = await this.request('GET', endpoint, null, queryParams);
+      const data = await this.request('GET', endpoint);
       
       if (!data || !data.value) {
         throw new Error('Formato de respuesta inválido');
@@ -322,16 +321,16 @@ class SapIntegrationService {
 
       // Mapear los datos a la estructura esperada por tu aplicación
       const mappedItems = data.value.map(item => ({
-        ItemName: item.ItemName || 'Producto sin nombre',
-        price_list1: 0, // Garantizar valor predeterminado
-        price_list2: 0,
-        price_list3: 0,
-        Stock: item.QuantityOnStock || 0,
-        CodeBars: null,
-        Sap_Code: item.ItemCode,
-        Sap_Group: item.ItemsGroupCode || 0,
-        is_active: "true"
-    }));
+        ItemName: item.ItemName,
+        price_list1: parseFloat(item.price_list1) || 0, // Usar el campo como está en la vista
+        price_list2: parseFloat(item.price_list2) || 0,
+        price_list3: parseFloat(item.price_list3) || 0,
+        Stock: parseFloat(item.Stock) || 0,
+        CodeBars: item.CodeBars,
+        Sap_Code: item.Sap_Code,
+        Sap_Group: parseInt(item.Sap_Group) || 0,
+        is_active: item.is_active
+      }));
       
       logger.info('Productos obtenidos de SAP B1', {
         count: mappedItems.length,
@@ -436,16 +435,17 @@ class SapIntegrationService {
    */
   mapSapProductToWebApp(sapProduct) {
     return {
-      name: sapProduct.ItemName,
-      description: sapProduct.ItemName, // Usar ItemName como descripción si no hay otra
-      price_list1: sapProduct.price_list1 ? parseFloat(sapProduct.price_list1) : 0,
-      price_list2: sapProduct.price_list2 ? parseFloat(sapProduct.price_list2) : 0,
-      price_list3: sapProduct.price_list3 ? parseFloat(sapProduct.price_list3) : 0,
-      stock: parseInt(sapProduct.Stock || 0),
+      name: sapProduct.ItemName || 'Sin nombre',
+      description: sapProduct.ItemName || 'Sin descripción',
+      // Asegurar valores numéricos válidos para todos los campos de precio
+      price_list1: parseFloat(sapProduct.price_list1) || 0,
+      price_list2: parseFloat(sapProduct.price_list2) || 0,
+      price_list3: parseFloat(sapProduct.price_list3) || 0,
+      stock: parseInt(sapProduct.Stock) || 0,
       barcode: sapProduct.CodeBars || null,
       sap_code: sapProduct.Sap_Code,
-      sap_group: parseInt(sapProduct.Sap_Group || 0),
-      is_active: sapProduct.is_active === "true",
+      sap_group: parseInt(sapProduct.Sap_Group) || 0,
+      is_active: sapProduct.is_active === "true" || true,
       sap_last_sync: new Date().toISOString(),
       sap_sync_pending: false
     };
@@ -511,6 +511,20 @@ class SapIntegrationService {
                   
                   // Mapear producto de SAP al formato de la WebApp
                   const webAppProduct = this.mapSapProductToWebApp(sapProduct);
+
+                  // Asegurar valores predeterminados:
+                  if (webAppProduct.price_list1 === null || webAppProduct.price_list1 === undefined) {
+                    webAppProduct.price_list1 = 0;
+                  }
+                  if (webAppProduct.price_list2 === null || webAppProduct.price_list2 === undefined) {
+                      webAppProduct.price_list2 = 0;
+                  }
+                  if (webAppProduct.price_list3 === null || webAppProduct.price_list3 === undefined) {
+                      webAppProduct.price_list3 = 0;
+                  }
+                  if (webAppProduct.stock === null || webAppProduct.stock === undefined) {
+                      webAppProduct.stock = 0;
+                  }
                   
                   if (existingProduct) {
                     // Si existe, actualizar
