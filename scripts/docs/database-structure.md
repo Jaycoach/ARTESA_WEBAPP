@@ -1,7 +1,7 @@
 # Documentación de la Base de Datos
 
 Base de datos: undefined
-Fecha de generación: 8/3/2025, 5:55:58 a. m.
+Fecha de generación: 10/3/2025, 7:13:48 p. m.
 
 ## Tipos Personalizados
 
@@ -72,6 +72,7 @@ Fecha de generación: 8/3/2025, 5:55:58 a. m.
 - [Tabla: orders](#tabla-orders)
 - [Tabla: orders_audit](#tabla-orders-audit)
 - [Tabla: password_resets](#tabla-password-resets)
+- [Tabla: product_images](#tabla-product-images)
 - [Tabla: products](#tabla-products)
 - [Tabla: revoked_tokens](#tabla-revoked-tokens)
 - [Tabla: roles](#tabla-roles)
@@ -373,6 +374,34 @@ Fecha de generación: 8/3/2025, 5:55:58 a. m.
 | idx_password_resets_user_id | CREATE INDEX idx_password_resets_user_id ON public.password_resets USING btree (user_id) |
 | password_resets_pkey | CREATE UNIQUE INDEX password_resets_pkey ON public.password_resets USING btree (id) |
 | unique_active_token | CREATE UNIQUE INDEX unique_active_token ON public.password_resets USING btree (user_id) WHERE (used = false) |
+
+---
+
+## Tabla: product_images
+
+### Columnas
+
+| Columna | Tipo | Nullable | Default | Descripción |
+|---------|------|----------|----------|-------------|
+| id | integer | NO | nextval('product_images_id_seq'::regclass) | - |
+| sap_code | character varying | NO | - | - |
+| image_url | text | YES | - | - |
+| last_updated | timestamp without time zone | YES | CURRENT_TIMESTAMP | - |
+
+### Constraints
+
+| Nombre | Tipo | Columnas | Referencia |
+|--------|------|----------|------------|
+| product_images_pkey | PRIMARY KEY | id | - |
+| product_images_sap_code_key | UNIQUE | sap_code | - |
+
+### Índices
+
+| Nombre | Definición |
+|--------|------------|
+| idx_product_images_sap_code | CREATE INDEX idx_product_images_sap_code ON public.product_images USING btree (sap_code) |
+| product_images_pkey | CREATE UNIQUE INDEX product_images_pkey ON public.product_images USING btree (id) |
+| product_images_sap_code_key | CREATE UNIQUE INDEX product_images_sap_code_key ON public.product_images USING btree (sap_code) |
 
 ---
 
