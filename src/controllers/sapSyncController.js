@@ -2,7 +2,6 @@ const { createContextLogger } = require('../config/logger');
 const sapIntegrationService = require('../services/SapIntegrationService');
 const Product = require('../models/Product');
 const cron = require('node-cron');
-const axios = require('axios');
 const pool = require('../config/db');
 
 // Crear una instancia del logger con contexto
@@ -181,6 +180,25 @@ class SapSyncController {
     }
   }
 
+  /**
+   * @swagger
+   * /api/sap/test:
+   *   get:
+   *     summary: Probar conexión con SAP B1
+   *     description: Realiza una prueba de conexión con SAP B1 Service Layer
+   *     tags: [SAP]
+   *     security:
+   *       - bearerAuth: []
+   *     responses:
+   *       200:
+   *         description: Conexión exitosa
+   *       401:
+   *         description: No autorizado
+   *       403:
+   *         description: No tiene permisos suficientes
+   *       500:
+   *         description: Error de conexión con SAP B1
+   */
   async testSapConnection(req, res) {
     try {
       logger.info('Probando conexión con SAP B1');
@@ -215,6 +233,201 @@ class SapSyncController {
     }
   }
 
+  /**
+   * Sincroniza productos de un grupo específico
+   * @async
+   * @param {object} req - Objeto de solicitud Express
+   * @param {object} res - Objeto de respuesta Express
+   */
+  async syncProductsByGroup(req, res) {
+    try {
+      const { groupCode } = req.params;
+      
+      if (!groupCode || isNaN(parseInt(groupCode))) {
+        return res.status(400).json({
+          success: false,
+          message: 'Código de grupo inválido'
+        });
+      }
+      
+      const groupCodeInt = parseInt(groupCode);
+      
+      logger.info('Iniciando sincronización manual por grupo', { 
+        userId: req.user?.id,
+        groupCode: groupCodeInt
+      });
+
+      // Iniciar sincronización en segundo plano
+      Promise.resolve().then(async () => {
+        try {
+          await sapIntegrationService.syncProductsByGroupCode(groupCodeInt);
+          logger.info('Sincronización por grupo completada', { groupCode: groupCodeInt });
+        } catch (error) {
+          logger.error('Error en sincronización por grupo', {
+            error: error.message,
+            stack: error.stack,
+            groupCode: groupCodeInt
+          });
+        }
+      });
+
+      res.status(200).json({
+        success: true,
+        message: `Sincronización de productos del grupo ${groupCodeInt} iniciada exitosamente`
+      });
+    } catch (error) {
+      logger.error('Error al iniciar sincronización por grupo', {
+        error: error.message,
+        stack: error.stack,
+        userId: req.user?.id,
+        groupCode: req.params.groupCode
+      });
+      
+      res.status(500).json({
+        success: false,
+        message: 'Error al iniciar sincronización por grupo',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
+
+  /**
+   * Obtiene el estado de sincronización por grupo
+   * @async
+   * @param {object} req - Objeto de solicitud Express
+   * @param {object} res - Objeto de respuesta Express
+   */
+  async getGroupSyncStatus(req, res) {
+    try {
+      const { groupCode } = req.params;
+      
+      if (!groupCode || isNaN(parseInt(groupCode))) {
+        return res.status(400).json({
+          success: false,
+          message: 'Código de grupo inválido'
+        });
+      }
+      
+      const groupCodeInt = parseInt(groupCode);
+      
+      logger.debug('Obteniendo estado de sincronización por grupo', { 
+        userId: req.user?.id,
+        groupCode: groupCodeInt
+      });
+
+      res.status(200).json({
+        success: true,
+        data: {
+          groupCode: groupCodeInt,
+          lastSyncTime: sapIntegrationService.lastGroupSyncTime?.[groupCodeInt] || null,
+          schedule: sapIntegrationService.groupSyncTasks?.[groupCodeInt] ? 
+            'Activa' : 'No configurada'
+        }
+      });
+    } catch (error) {
+      logger.error('Error al obtener estado de sincronización por grupo', {
+        error: error.message,
+        stack: error.stack,
+        userId: req.user?.id,
+        groupCode: req.params.groupCode
+      });
+      
+      res.status(500).json({
+        success: false,
+        message: 'Error al obtener estado de sincronización por grupo',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
+
+  /**
+   * Configura la sincronización periódica por grupo
+   * @async
+   * @param {object} req - Objeto de solicitud Express
+   * @param {object} res - Objeto de respuesta Express
+   */
+  async configureGroupSync(req, res) {
+    try {
+      const { groupCode } = req.params;
+      const { schedule, enabled } = req.body;
+      
+      if (!groupCode || isNaN(parseInt(groupCode))) {
+        return res.status(400).json({
+          success: false,
+          message: 'Código de grupo inválido'
+        });
+      }
+      
+      const groupCodeInt = parseInt(groupCode);
+      
+      logger.info('Configurando sincronización periódica por grupo', { 
+        userId: req.user?.id,
+        groupCode: groupCodeInt,
+        schedule,
+        enabled
+      });
+
+      // Si está habilitado, configurar la tarea
+      if (enabled) {
+        if (!schedule || !cron.validate(schedule)) {
+          return res.status(400).json({
+            success: false,
+            message: 'Formato de programación cron inválido'
+          });
+        }
+        
+        // Configurar tarea de sincronización
+        sapIntegrationService.scheduleGroupSyncTask(groupCodeInt, schedule);
+        
+        res.status(200).json({
+          success: true,
+          message: `Sincronización periódica configurada para grupo ${groupCodeInt}`,
+          data: {
+            groupCode: groupCodeInt,
+            schedule,
+            enabled: true
+          }
+        });
+      } else {
+        // Desactivar tarea si existe
+        if (sapIntegrationService.groupSyncTasks?.[groupCodeInt]) {
+          sapIntegrationService.groupSyncTasks[groupCodeInt].stop();
+          delete sapIntegrationService.groupSyncTasks[groupCodeInt];
+          
+          res.status(200).json({
+            success: true,
+            message: `Sincronización periódica desactivada para grupo ${groupCodeInt}`,
+            data: {
+              groupCode: groupCodeInt,
+              enabled: false
+            }
+          });
+        } else {
+          res.status(200).json({
+            success: true,
+            message: `No había sincronización configurada para grupo ${groupCodeInt}`,
+            data: {
+              groupCode: groupCodeInt,
+              enabled: false
+            }
+          });
+        }
+      }
+    } catch (error) {
+      logger.error('Error al configurar sincronización por grupo', {
+        error: error.message,
+        stack: error.stack,
+        userId: req.user?.id,
+        groupCode: req.params.groupCode
+      });
+      
+      res.status(500).json({
+        success: false,
+        message: 'Error al configurar sincronización por grupo',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
 }
 
 // Crear instancia del controlador
@@ -223,8 +436,8 @@ const sapSyncController = new SapSyncController();
 // Exportar métodos del controlador
 module.exports = {
   startSync: sapSyncController.startSync,
-  //syncProductToSAP: sapSyncController.syncProductToSAP,
   getSyncStatus: sapSyncController.getSyncStatus,
+  testSapConnection: sapSyncController.testSapConnection,
   syncProductsByGroup: sapSyncController.syncProductsByGroup,
   getGroupSyncStatus: sapSyncController.getGroupSyncStatus,
   configureGroupSync: sapSyncController.configureGroupSync

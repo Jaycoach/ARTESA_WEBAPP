@@ -63,8 +63,26 @@ router.get('/status',
   sapSyncController.getSyncStatus
 );
 
+/**
+ * @swagger
+ * /api/sap/test:
+ *   get:
+ *     summary: Probar conexión con SAP B1
+ *     description: Realiza una prueba de conexión con SAP B1 Service Layer
+ *     tags: [SAP]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Conexión exitosa
+ *       401:
+ *         description: No autorizado
+ *       403:
+ *         description: No tiene permisos suficientes
+ *       500:
+ *         description: Error de conexión con SAP B1
+ */
 router.get('/test', 
-  verifyToken, 
   checkRole([1]), // Solo administradores
   sapSyncController.testSapConnection
 );
