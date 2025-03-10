@@ -157,6 +157,11 @@ class SapIntegrationService {
     try {
       logger.debug('Iniciando autenticación con SAP B1 Service Layer');
       
+      // Agregar configuración para ignorar errores de certificado *** OJO Esto es inseguro, solo desarrollo
+      const httpsAgent = new (require('https').Agent)({
+        rejectUnauthorized: false // Esto desactiva la verificación de certificados
+      });
+
       const response = await axios.post(`${this.baseUrl}/Login`, {
         CompanyDB: this.companyDB,
         UserName: this.username,
@@ -205,6 +210,11 @@ class SapIntegrationService {
       if (!this.sessionId) {
         await this.login();
       }
+
+      // Configuración para ignorar errores de certificado *** OJO Esto es inseguro, solo desarrollo
+      const httpsAgent = new (require('https').Agent)({
+        rejectUnauthorized: false
+      });
 
       // Preparar config para Axios
       const config = {
