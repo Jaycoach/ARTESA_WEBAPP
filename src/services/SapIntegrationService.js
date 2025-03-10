@@ -166,6 +166,8 @@ class SapIntegrationService {
         CompanyDB: this.companyDB,
         UserName: this.username,
         Password: this.password
+      }, {
+        httpsAgent // Añadir el agente HTTPS aquí
       });
 
       if (response.status === 200) {
@@ -223,7 +225,8 @@ class SapIntegrationService {
         headers: {
           'Content-Type': 'application/json',
           'Cookie': `B1SESSION=${this.sessionId}`
-        }
+        },
+        httpsAgent // Añadir el agente HTTPS aquí
       };
 
       if (data && ['post', 'put', 'patch'].includes(method.toLowerCase())) {
