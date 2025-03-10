@@ -445,7 +445,7 @@ class SapIntegrationService {
     return {
       name: sapProduct.ItemName || 'Sin nombre',
       description: sapProduct.ItemName || 'Sin descripción',
-      // Asegurar valores numéricos válidos para todos los campos de precio
+      // Conversión explícita de valores numéricos
       price_list1: parseFloat(sapProduct.price_list1) || 0,
       price_list2: parseFloat(sapProduct.price_list2) || 0,
       price_list3: parseFloat(sapProduct.price_list3) || 0,
