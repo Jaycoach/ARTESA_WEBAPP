@@ -237,10 +237,25 @@ class SapIntegrationService {
         config.data = data;
       }
 
+      logger.debug('Enviando solicitud a SAP', { 
+        url: config.url,
+        method: config.method,
+        hasData: !!config.data
+      });
+
       // Realizar petición
       const response = await axios(config);
       return response.data;
     } catch (error) {
+
+      logger.error('Error detallado en solicitud a SAP', {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        message: error.message,
+        stack: error.stack?.split('\n').slice(0, 3).join('\n')
+      });
+
       // Si el error es por sesión expirada (401), intentar reautenticar una vez
       if (error.response && error.response.status === 401) {
         logger.warn('Sesión expirada, intentando reautenticación', {
@@ -279,6 +294,7 @@ class SapIntegrationService {
       // Cambiamos el endpoint para usar la vista personalizada que has creado
       let endpoint = `view.svc/B1_ProductsB1SLQuery?$skip=${skip}&$top=${limit}`;
       
+      logger.debug('URL completa:', { url: `${this.baseUrl}/${endpoint}` });
       logger.debug('Obteniendo productos de SAP B1', { endpoint });
       
       const data = await this.request('GET', endpoint);
@@ -390,19 +406,18 @@ class SapIntegrationService {
    */
   mapSapProductToWebApp(sapProduct) {
     return {
-      // Usamos los campos que vienen en tu respuesta JSON
       name: sapProduct.ItemName,
-      description: sapProduct.ItemName, // Si no hay descripción, usamos el nombre
-      price_list1: sapProduct.price_list1 || 0,
-      price_list2: sapProduct.price_list2 || 0,
-      price_list3: sapProduct.price_list3 || 0,
-      stock: sapProduct.Stock || 0,
-      barcode: sapProduct.CodeBars,
-      // La imagen la obtendremos de otra tabla
+      description: sapProduct.ItemName, // Usar ItemName como descripción si no hay otra
+      price_list1: parseFloat(sapProduct.price_list1) || 0,
+      price_list2: parseFloat(sapProduct.price_list2) || 0,
+      price_list3: parseFloat(sapProduct.price_list3) || 0,
+      stock: parseInt(sapProduct.Stock || 0),
+      barcode: sapProduct.CodeBars || null,
       sap_code: sapProduct.Sap_Code,
-      sap_group: sapProduct.Sap_Group,
-      is_active: sapProduct.is_active === 'true',
-      sap_last_sync: new Date().toISOString()
+      sap_group: parseInt(sapProduct.Sap_Group || 0),
+      is_active: sapProduct.is_active === "true",
+      sap_last_sync: new Date().toISOString(),
+      sap_sync_pending: false
     };
   }
 
@@ -436,10 +451,10 @@ class SapIntegrationService {
         await client.query('BEGIN');
         
         // Si es sincronización completa, eliminamos todos los productos existentes
-        if (fullSync) {
+        /*if (fullSync) {
           logger.info('Eliminando productos existentes para sincronización completa');
           await client.query('DELETE FROM products');
-        }
+        }*/
         
         while (hasMore) {
           // Obtener lote de productos de SAP
@@ -453,21 +468,26 @@ class SapIntegrationService {
           stats.total += items.length;
           
           // Procesar cada producto del lote
+          // En lugar de eliminar, haremos upsert de cada producto
           for (const sapProduct of items) {
             try {
+              // Buscar si el producto ya existe por su código SAP
+              const existingProduct = await Product.findBySapCode(sapProduct.Sap_Code, client);
+              
               // Mapear producto de SAP al formato de la WebApp
               const webAppProduct = this.mapSapProductToWebApp(sapProduct);
               
-              // Crear el producto (Como estamos eliminando todos al inicio, siempre creamos)
-              await Product.create(webAppProduct, client);
-              stats.created++;
+              if (existingProduct) {
+                // Si existe, actualizar
+                await Product.update(existingProduct.product_id, webAppProduct, client, false);
+                stats.updated++;
+              } else {
+                // Si no existe, crear
+                await Product.create(webAppProduct, client);
+                stats.created++;
+              }
               
-              logger.debug('Producto creado', {
-                sapCode: sapProduct.Sap_Code,
-                name: sapProduct.ItemName
-              });
-              
-              // Buscar/actualizar la imagen en la tabla auxiliar
+              // Sincronizar la imagen
               await this.syncProductImage(sapProduct.Sap_Code, client);
             } catch (productError) {
               stats.errors++;
@@ -475,7 +495,6 @@ class SapIntegrationService {
                 sapCode: sapProduct.Sap_Code,
                 error: productError.message
               });
-              // Continuar con el siguiente producto
             }
           }
         }

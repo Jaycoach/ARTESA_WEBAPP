@@ -434,6 +434,20 @@ class Product {
       
       // Flag para verificar si este producto viene de SAP
       const isSapProduct = !!currentProduct.sap_code;
+
+      if (isSapProduct) {
+        // Evitar sobrescribir ciertas propiedades que solo se deben actualizar desde SAP
+        if (currentProduct.sap_code) {
+          delete updateData.sap_code; // No permitir cambiar el código SAP
+        }
+        
+        // Si actualizamos por sincronización SAP, marcar que ya no está pendiente
+        if (updateData.sap_last_sync) {
+          updates.push(`sap_sync_pending = $${paramCount}`);
+          values.push(false);
+          paramCount++;
+        }
+      }
       
       // Procesar cada campo de la actualización
       Object.keys(updateData).forEach(key => {
