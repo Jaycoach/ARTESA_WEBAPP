@@ -293,27 +293,53 @@ class SapIntegrationService {
    */
   async getProductsFromSAP(options = {}) {
     try {
-      const { limit = 100, skip = 0 } = options;
+      const batchSize = parseInt(process.env.SAP_SYNC_BATCH_SIZE) || 100;
+      const { limit = batchSize, skip = 0 } = options;
       
       // Cambiamos el endpoint para usar la vista personalizada que has creado
-      let endpoint = `view.svc/B1_ProductsB1SLQuery?$skip=${skip}&$top=${limit}`;
+      let endpoint = `view.svc/B1_ProductsB1SLQuery`;
+
+      // Configurar parámetros de consulta como objeto
+      const queryParams = {
+        $skip: skip,
+        $top: limit,
+        $select: 'ItemCode,ItemName,QuantityOnStock,ItemsGroupCode'
+      };
       
       logger.debug('URL completa:', { url: `${this.baseUrl}/${endpoint}` });
-      logger.debug('Obteniendo productos de SAP B1', { endpoint });
+      logger.debug('Obteniendo productos de SAP B1', { 
+        endpoint,
+        queryParams,
+        batchSize
+      });
       
-      const data = await this.request('GET', endpoint);
+      // Pasar los parámetros como una opción separada
+      const data = await this.request('GET', endpoint, null, queryParams);
       
       if (!data || !data.value) {
         throw new Error('Formato de respuesta inválido');
       }
+
+      // Mapear los datos a la estructura esperada por tu aplicación
+      const mappedItems = data.value.map(item => ({
+        ItemName: item.ItemName,
+        price_list1: 0, // Valores por defecto que puedes ajustar
+        price_list2: 0,
+        price_list3: 0,
+        Stock: item.QuantityOnStock || 0,
+        CodeBars: null,
+        Sap_Code: item.ItemCode,
+        Sap_Group: item.ItemsGroupCode || 0,
+        is_active: "true"
+      }));
       
       logger.info('Productos obtenidos de SAP B1', {
-        count: data.value.length,
+        count: mappedItems.length,
         hasMore: data['@odata.nextLink'] ? true : false
       });
       
       return {
-        items: data.value,
+        items: mappedItems,
         hasMore: !!data['@odata.nextLink'],
         nextLink: data['@odata.nextLink']
       };
