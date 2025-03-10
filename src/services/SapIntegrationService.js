@@ -322,8 +322,8 @@ class SapIntegrationService {
 
       // Mapear los datos a la estructura esperada por tu aplicación
       const mappedItems = data.value.map(item => ({
-        ItemName: item.ItemName,
-        price_list1: 0, // Valores por defecto que puedes ajustar
+        ItemName: item.ItemName || 'Producto sin nombre',
+        price_list1: 0, // Garantizar valor predeterminado
         price_list2: 0,
         price_list3: 0,
         Stock: item.QuantityOnStock || 0,
@@ -331,7 +331,7 @@ class SapIntegrationService {
         Sap_Code: item.ItemCode,
         Sap_Group: item.ItemsGroupCode || 0,
         is_active: "true"
-      }));
+    }));
       
       logger.info('Productos obtenidos de SAP B1', {
         count: mappedItems.length,
@@ -438,9 +438,9 @@ class SapIntegrationService {
     return {
       name: sapProduct.ItemName,
       description: sapProduct.ItemName, // Usar ItemName como descripción si no hay otra
-      price_list1: parseFloat(sapProduct.price_list1) || 0,
-      price_list2: parseFloat(sapProduct.price_list2) || 0,
-      price_list3: parseFloat(sapProduct.price_list3) || 0,
+      price_list1: sapProduct.price_list1 ? parseFloat(sapProduct.price_list1) : 0,
+      price_list2: sapProduct.price_list2 ? parseFloat(sapProduct.price_list2) : 0,
+      price_list3: sapProduct.price_list3 ? parseFloat(sapProduct.price_list3) : 0,
       stock: parseInt(sapProduct.Stock || 0),
       barcode: sapProduct.CodeBars || null,
       sap_code: sapProduct.Sap_Code,
