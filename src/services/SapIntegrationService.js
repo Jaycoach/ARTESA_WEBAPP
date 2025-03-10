@@ -23,6 +23,9 @@ class SapIntegrationService {
     this.lastSyncTime = null;
     this.lastGroupSyncTime = {}; // Almacena la última sincronización por grupo
     this.groupSyncTasks = {}; // Almacena las tareas cron por grupo
+    this.httpsAgent = new (require('https').Agent)({
+      rejectUnauthorized: false
+    });
   }
 
   /**
@@ -169,7 +172,7 @@ class SapIntegrationService {
         UserName: this.username,
         Password: this.password
       }, {
-        httpsAgent // Añadir el agente HTTPS aquí
+        httpsAgent
       });
 
       if (response.status === 200) {
