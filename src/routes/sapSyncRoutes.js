@@ -110,7 +110,7 @@ router.get('/analyze-view',
  * /api/sap/update-description:
  *   post:
  *     summary: Actualizar descripción de producto y sincronizar con SAP
- *     description: Actualiza el campo description en la BD local y FrgnName en SAP B1
+ *     description: Actualiza el campo description en la BD local y Nombre Comercial en SAP B1
  *     tags: [SAP]
  *     security:
  *       - bearerAuth: []
