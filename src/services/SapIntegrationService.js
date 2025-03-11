@@ -928,7 +928,7 @@ class SapIntegrationService {
       
       // Crear objeto de actualización con el campo FrgnName
       const updateData = {
-        FrgnName: description
+        ForeignName: description
       };
       
       // Hacer la petición a SAP B1
