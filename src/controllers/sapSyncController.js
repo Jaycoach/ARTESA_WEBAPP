@@ -1,8 +1,9 @@
-const { createContextLogger } = require('../config/logger');
-const sapIntegrationService = require('../services/SapIntegrationService');
-const Product = require('../models/Product');
-const cron = require('node-cron');
 const pool = require('../config/db');
+const Product = require('../models/Product');
+const AuditService = require('../services/AuditService');
+const sapIntegrationService = require('../services/SapIntegrationService');
+const { createContextLogger } = require('../config/logger');
+const cron = require('node-cron');
 
 // Crear una instancia del logger con contexto
 const logger = createContextLogger('SapSyncController');
@@ -477,6 +478,259 @@ class SapSyncController {
     }
   }
 
+  /**
+   * Actualiza la descripción de un producto y la sincroniza con SAP B1
+   * @async
+   * @param {object} req - Objeto de solicitud Express
+   * @param {object} res - Objeto de respuesta Express
+   */
+  async updateProductDescription(req, res) {
+    // Obtener una conexión para la transacción
+    const client = await pool.connect();
+    let auditLog = null;
+  
+    try {
+      const { productId, description } = req.body;
+  
+      // Registro de inicio de operación en auditoría
+      auditLog = await AuditService.logAuditEvent(
+        AuditService.AUDIT_EVENTS.DATA_ACCESSED,
+        {
+          details: {
+            action: 'UPDATE_PRODUCT_DESCRIPTION',
+            productId,
+            newDescriptionLength: description?.length
+          },
+          ipAddress: req.ip
+        },
+        req.user.id,
+        AuditService.SEVERITY_LEVELS.INFO
+      );
+      
+      if (!productId || !description) {
+        return res.status(400).json({
+          success: false,
+          message: 'El ID del producto y la descripción son requeridos'
+        });
+      }
+      
+      // Validación de longitud para FrgnName (SAP B1)
+      const MAX_FRGNNAME_LENGTH = 200;
+      if (description.length > MAX_FRGNNAME_LENGTH) {
+        return res.status(400).json({
+          success: false,
+          message: `La descripción excede el límite de ${MAX_FRGNNAME_LENGTH} caracteres permitido por SAP B1`,
+          currentLength: description.length,
+          maxLength: MAX_FRGNNAME_LENGTH
+        });
+      }
+  
+      logger.info('Iniciando actualización de descripción y sincronización con SAP', { 
+        userId: req.user?.id,
+        productId,
+        descriptionLength: description.length
+      });
+  
+      // Iniciar transacción
+      await client.query('BEGIN');
+  
+      // 1. Obtener el producto dentro de la transacción
+      const productResult = await client.query(
+        'SELECT * FROM products WHERE product_id = $1', 
+        [productId]
+      );
+      
+      // Verificar si el producto existe
+      if (productResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        
+        // Registrar en auditoría: producto no encontrado
+        await AuditService.logAuditEvent(
+          AuditService.AUDIT_EVENTS.DATA_ACCESSED,
+          {
+            details: {
+              action: 'UPDATE_PRODUCT_DESCRIPTION_FAILED',
+              productId,
+              reason: 'PRODUCT_NOT_FOUND'
+            },
+            ipAddress: req.ip,
+            auditId: auditLog
+          },
+          req.user.id,
+          AuditService.SEVERITY_LEVELS.WARNING
+        );
+  
+        return res.status(404).json({
+          success: false,
+          message: 'Producto no encontrado'
+        });
+      }
+      
+      const product = productResult.rows[0];
+      
+      // Verificar si tiene código SAP (en un bloque separado después de definir product)
+      if (!product.sap_code) {
+        await client.query('ROLLBACK');
+        
+        // Registrar en auditoría: producto sin código SAP
+        await AuditService.logAuditEvent(
+          AuditService.AUDIT_EVENTS.DATA_ACCESSED,
+          {
+            details: {
+              action: 'UPDATE_PRODUCT_DESCRIPTION_FAILED',
+              productId,
+              reason: 'NO_SAP_CODE'
+            },
+            ipAddress: req.ip,
+            auditId: auditLog
+          },
+          req.user.id,
+          AuditService.SEVERITY_LEVELS.WARNING
+        );
+  
+        return res.status(404).json({
+          success: false,
+          message: 'Este producto no tiene código SAP asociado'
+        });
+      }
+  
+      const oldDescription = product.description;
+  
+      // 2. Actualizar la descripción localmente dentro de la transacción
+      await client.query(
+        'UPDATE products SET description = $1, sap_sync_pending = true, updated_at = CURRENT_TIMESTAMP WHERE product_id = $2',
+        [description, productId]
+      );
+      
+      try {
+        // 3. Intentar actualizar en SAP (FrgnName en tabla OITM)
+        await sapIntegrationService.updateProductDescriptionInSAP(product.sap_code, description);
+  
+        // Marcar como sincronizado si todo es exitoso (eliminamos la operación redundante)
+        await client.query(
+          'UPDATE products SET sap_last_sync = $1, sap_sync_pending = false WHERE product_id = $2',
+          [new Date().toISOString(), productId]
+        );
+  
+        // Confirmar transacción
+        await client.query('COMMIT');
+  
+        // Registrar en auditoría: actualización exitosa
+        await AuditService.logAuditEvent(
+          AuditService.AUDIT_EVENTS.DATA_ACCESSED,
+          {
+            details: {
+              action: 'UPDATE_PRODUCT_DESCRIPTION_SUCCESS',
+              productId,
+              sapCode: product.sap_code,
+              oldDescription,
+              newDescription: description,
+              syncStatus: 'completed'
+            },
+            ipAddress: req.ip,
+            auditId: auditLog,
+            oldStatus: 'unchanged',
+            newStatus: 'updated_and_synced'
+          },
+          req.user.id,
+          AuditService.SEVERITY_LEVELS.INFO
+        );
+        
+        res.status(200).json({
+          success: true,
+          message: 'Descripción actualizada y sincronizada exitosamente',
+          data: {
+            productId,
+            sapCode: product.sap_code,
+            oldDescription,
+            newDescription: description,
+            syncStatus: 'completed'
+          }
+        });
+      } catch (sapError) {
+        // Error al sincronizar con SAP
+        logger.error('Error al sincronizar con SAP B1', {
+          productId,
+          sapCode: product.sap_code,
+          error: sapError.message
+        });
+        
+        // Confirmar transacción local (quedará pendiente de sincronizar)
+        await client.query('COMMIT');
+        
+        // Registrar en auditoría: actualización local exitosa pero sincronización pendiente
+        await AuditService.logAuditEvent(
+          AuditService.AUDIT_EVENTS.DATA_ACCESSED,
+          {
+            details: {
+              action: 'UPDATE_PRODUCT_DESCRIPTION_PARTIAL',
+              productId,
+              sapCode: product.sap_code,
+              oldDescription,
+              newDescription: description,
+              syncStatus: 'pending',
+              syncError: sapError.message
+            },
+            ipAddress: req.ip,
+            auditId: auditLog,
+            oldStatus: 'unchanged',
+            newStatus: 'updated_sync_pending'
+          },
+          req.user.id,
+          AuditService.SEVERITY_LEVELS.WARNING
+        );
+      
+        res.status(202).json({
+          success: true,
+          message: 'Descripción actualizada localmente, pero la sincronización con SAP queda pendiente',
+          data: {
+            productId,
+            sapCode: product.sap_code,
+            oldDescription,
+            newDescription: description,
+            syncStatus: 'pending',
+            syncError: sapError.message
+          }
+        });
+      } // Aquí faltaba esta llave de cierre para el catch interno
+    } catch (error) {
+      // Revertir en caso de error
+      await client.query('ROLLBACK');
+      
+      logger.error('Error general en actualización de descripción', {
+        error: error.message,
+        stack: error.stack,
+        productId: req.body?.productId
+      });
+      
+      // Registrar en auditoría: fallo general
+      if (auditLog) {
+        await AuditService.logAuditEvent(
+          AuditService.AUDIT_EVENTS.DATA_ACCESSED,
+          {
+            details: {
+              action: 'UPDATE_PRODUCT_DESCRIPTION_FAILED',
+              productId: req.body?.productId,
+              error: error.message
+            },
+            ipAddress: req.ip,
+            auditId: auditLog
+          },
+          req.user?.id || null,
+          AuditService.SEVERITY_LEVELS.ERROR
+        );
+      }
+      
+      res.status(500).json({
+        success: false,
+        message: 'Error al actualizar descripción y sincronizar con SAP',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    } finally {
+      // Liberar la conexión al pool en cualquier caso
+      client.release();
+    }
+  }
 }
 
 // Crear instancia del controlador
@@ -490,5 +744,6 @@ module.exports = {
   analyzeView: sapSyncController.analyzeView,
   syncProductsByGroup: sapSyncController.syncProductsByGroup,
   getGroupSyncStatus: sapSyncController.getGroupSyncStatus,
-  configureGroupSync: sapSyncController.configureGroupSync
+  configureGroupSync: sapSyncController.configureGroupSync,
+  updateProductDescription: sapSyncController.updateProductDescription
 };

@@ -909,6 +909,49 @@ class SapIntegrationService {
   }
 
   /**
+   * Actualiza la descripción de un producto en SAP B1 (campo FrgnName)
+   * @param {string} itemCode - Código del producto en SAP (sap_code)
+   * @param {string} description - Nueva descripción
+   * @returns {Promise<Object>} Resultado de la actualización
+   */
+  async updateProductDescriptionInSAP(itemCode, description) {
+    try {
+      // Validar parámetros
+      if (!itemCode || !description) {
+        throw new Error('Código SAP y descripción son requeridos');
+      }
+      
+      logger.debug('Actualizando descripción de producto en SAP B1', {
+        itemCode,
+        descriptionLength: description.length
+      });
+      
+      // Crear objeto de actualización con el campo FrgnName
+      const updateData = {
+        FrgnName: description
+      };
+      
+      // Hacer la petición a SAP B1
+      const endpoint = `Items('${itemCode}')`;
+      const result = await this.request('PATCH', endpoint, updateData);
+      
+      logger.info('Descripción de producto actualizada exitosamente en SAP B1', {
+        itemCode,
+        success: true
+      });
+      
+      return result;
+    } catch (error) {
+      logger.error('Error al actualizar descripción en SAP B1', {
+        itemCode,
+        error: error.message,
+        stack: error.stack
+      });
+      throw error;
+    }
+  }
+
+  /**
    * Cierra la sesión con SAP B1
    */
   async logout() {

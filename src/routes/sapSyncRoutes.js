@@ -14,7 +14,29 @@ const { sanitizeParams } = require('../middleware/security');
 // Aplicar middleware de autenticación y seguridad a todas las rutas
 router.use(verifyToken);
 router.use(sanitizeParams);
-
+/**
+ * @swagger
+ * /api/sap/test:
+ *   get:
+ *     summary: Probar conexión con SAP B1
+ *     description: Realiza una prueba de conexión con SAP B1 Service Layer
+ *     tags: [SAP]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Conexión exitosa
+ *       401:
+ *         description: No autorizado
+ *       403:
+ *         description: No tiene permisos suficientes
+ *       500:
+ *         description: Error de conexión con SAP B1
+ */
+router.get('/test', 
+  checkRole([1]), // Solo administradores
+  sapSyncController.testSapConnection
+);
 /**
  * @swagger
  * /api/sap/sync:
@@ -62,31 +84,6 @@ router.get('/status',
   checkRole([1]), // Solo administradores
   sapSyncController.getSyncStatus
 );
-
-/**
- * @swagger
- * /api/sap/test:
- *   get:
- *     summary: Probar conexión con SAP B1
- *     description: Realiza una prueba de conexión con SAP B1 Service Layer
- *     tags: [SAP]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Conexión exitosa
- *       401:
- *         description: No autorizado
- *       403:
- *         description: No tiene permisos suficientes
- *       500:
- *         description: Error de conexión con SAP B1
- */
-router.get('/test', 
-  checkRole([1]), // Solo administradores
-  sapSyncController.testSapConnection
-);
-
 /**
  * @swagger
  * /api/sap/analyze-view:
@@ -107,6 +104,47 @@ router.get('/test',
 router.get('/analyze-view', 
   checkRole([1]), // Solo administradores
   sapSyncController.analyzeView
+);
+/**
+ * @swagger
+ * /api/sap/update-description:
+ *   post:
+ *     summary: Actualizar descripción de producto y sincronizar con SAP
+ *     description: Actualiza el campo description en la BD local y FrgnName en SAP B1
+ *     tags: [SAP]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - productId
+ *               - description
+ *             properties:
+ *               productId:
+ *                 type: integer
+ *                 description: ID del producto en la base de datos local
+ *               description:
+ *                 type: string
+ *                 description: Nueva descripción para el producto
+ *     responses:
+ *       200:
+ *         description: Descripción actualizada y sincronizada exitosamente
+ *       401:
+ *         description: No autorizado
+ *       403:
+ *         description: No tiene permisos suficientes
+ *       404:
+ *         description: Producto no encontrado
+ *       500:
+ *         description: Error interno del servidor
+ */
+router.post('/update-description', 
+  checkRole([1]), // Solo administradores
+  sapSyncController.updateProductDescription
 );
 
 module.exports = router;
