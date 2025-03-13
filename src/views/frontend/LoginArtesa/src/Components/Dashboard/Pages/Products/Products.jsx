@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { FiSearch, FiEye, FiClipboard, FiPlus, FiMinus, FiList, FiGrid, FiCheck } from 'react-icons/fi';
 import API from '../../../../api/config';
 
@@ -11,10 +11,8 @@ import Button from '../../../../Components/ui/Button';
 const Products = () => {
   // Estado principal
   const [products, setProducts] = useState([]);
-  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [quantity, setQuantity] = useState(1);
@@ -31,19 +29,18 @@ const Products = () => {
   const [submittingOrder, setSubmittingOrder] = useState(false);
 
   // Función para mostrar notificaciones
-  const showNotification = (message, type = 'success') => {
+  const showNotification = useCallback((message, type = 'success') => {
     setNotification({ message, type });
     setTimeout(() => setNotification(null), 3000);
-  };
+  }, []);
 
   // Funciones para interactuar con la API
-  const fetchProducts = async () => {
+  const fetchProducts = useCallback(async () => {
     setLoading(true);
     try {
       let url = '/products';
       const params = new URLSearchParams();
       if (search) params.append('search', search);
-      if (selectedCategory) params.append('category', selectedCategory);
       
       if (params.toString()) url += `?${params.toString()}`;
       
@@ -59,44 +56,33 @@ const Products = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const fetchCategories = async () => {
-    try {
-      const response = await API.get('/categories');
-      if (response.data.success) {
-        setCategories(response.data.data || []);
-      }
-    } catch (error) {
-      console.error('Error fetching categories:', error);
-    }
-  };
+  }, [search, showNotification]);
 
   // Funcionalidades de producto
-  const openProductDetails = (product) => {
+  const openProductDetails = useCallback((product) => {
     setSelectedProduct(product);
     setQuantity(1);
     setModalVisible(true);
-  };
+  }, []);
 
-  const closeModal = () => {
+  const closeModal = useCallback(() => {
     setModalVisible(false);
-  };
+  }, []);
 
-  const incrementQuantity = () => {
+  const incrementQuantity = useCallback(() => {
     if (selectedProduct && quantity < selectedProduct.stock) {
       setQuantity(quantity + 1);
     }
-  };
+  }, [selectedProduct, quantity]);
 
-  const decrementQuantity = () => {
+  const decrementQuantity = useCallback(() => {
     if (quantity > 1) {
       setQuantity(quantity - 1);
     }
-  };
+  }, [quantity]);
 
   // Función para agregar a pedido
-  const addToOrder = (product, qty = 1) => {
+  const addToOrder = useCallback((product, qty = 1) => {
     try {
       const existingItemIndex = orderItems.findIndex(item => item.product_id === product.product_id);
       
@@ -121,10 +107,10 @@ const Products = () => {
       console.error('Error adding to order:', error);
       showNotification('Error al agregar al pedido', 'error');
     }
-  };
+  }, [orderItems, modalVisible, closeModal, showNotification]);
 
   // Función para enviar el pedido completo a la API
-  const submitOrder = async () => {
+  const submitOrder = useCallback(async () => {
     if (orderItems.length === 0) {
       showNotification('No hay productos en el pedido', 'error');
       return;
@@ -134,7 +120,7 @@ const Products = () => {
     try {
       // Preparar datos para la API según la estructura de orderController
       const orderData = {
-        user_id: getCurrentUserId(), // Función que debe obtener el ID del usuario actual
+        user_id: getCurrentUserId(),
         total_amount: orderTotal,
         details: orderItems.map(item => ({
           product_id: item.product_id,
@@ -142,7 +128,7 @@ const Products = () => {
           unit_price: item.unit_price
         }))
       };
-
+      
       const response = await API.post('/api/orders', orderData);
       
       if (response.data.success) {
@@ -158,46 +144,44 @@ const Products = () => {
     } finally {
       setSubmittingOrder(false);
     }
-  };
+  }, [orderItems, orderTotal, showNotification]);
 
   // Función auxiliar para obtener el ID del usuario actual
-  const getCurrentUserId = () => {
-    // Implementar lógica para obtener el ID del usuario desde el estado de autenticación
+  const getCurrentUserId = useCallback(() => {
     return localStorage.getItem('userId') || 1; // Valor predeterminado para pruebas
-  };
+  }, []);
 
   // Formatear precio
-  const formatCurrency = (value) => {
+  const formatCurrency = useCallback((value) => {
     return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(value);
-  };
+  }, []);
 
   // Calcular el total del pedido
-  const calculateOrderTotal = () => {
+  const calculateOrderTotal = useCallback(() => {
     const total = orderItems.reduce((sum, item) => sum + (item.unit_price * item.quantity), 0);
     setOrderTotal(total);
-  };
+  }, [orderItems]);
 
   // Paginación
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentItems = products.slice(indexOfFirstItem, indexOfLastItem);
-  const paginate = (pageNumber) => setCurrentPage(pageNumber);
+  const paginate = useCallback((pageNumber) => setCurrentPage(pageNumber), []);
 
   // Cargar datos iniciales
   useEffect(() => {
     fetchProducts();
-    fetchCategories();
-  }, []);
+  }, [fetchProducts]);
 
-  // Actualizar productos cuando cambian los filtros
+  // Actualizar productos cuando cambia la búsqueda
   useEffect(() => {
     fetchProducts();
-  }, [search, selectedCategory]);
+  }, [search, fetchProducts]);
 
   // Actualizar total cuando cambian los items
   useEffect(() => {
     calculateOrderTotal();
-  }, [orderItems]);
+  }, [orderItems, calculateOrderTotal]);
 
   return (
     <div className="bg-gray-100 h-full w-full overflow-hidden">
@@ -243,7 +227,7 @@ const Products = () => {
         {/* Filtros y controles */}
         <Card className="mb-6 p-4">
           <div className="flex flex-col md:flex-row gap-4">
-            <div className="md:w-1/3">
+            <div className="md:w-2/3">
               <label className="block text-sm font-medium text-gray-700 mb-1">Buscar</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -257,22 +241,6 @@ const Products = () => {
                   className="pl-10 w-full"
                 />
               </div>
-            </div>
-            
-            <div className="md:w-1/3">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Categoría</label>
-              <select
-                value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
-                className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="">Todas las categorías</option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
             </div>
             
             <div className="md:w-1/3 flex items-end">
@@ -322,12 +290,6 @@ const Products = () => {
                         Precio Normal
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Stock
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Código de Barras
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Acciones
                       </th>
                     </tr>
@@ -348,20 +310,6 @@ const Products = () => {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="text-sm font-bold text-blue-600">{formatCurrency(product.price_list1)}</div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                              product.stock > 10
-                                ? 'bg-green-100 text-green-800'
-                                : product.stock > 0
-                                ? 'bg-yellow-100 text-yellow-800'
-                                : 'bg-red-100 text-red-800'
-                            }`}>
-                              {product.stock}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {product.barcode || '-'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <div className="flex space-x-2">
@@ -386,7 +334,7 @@ const Products = () => {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan="6" className="px-6 py-4 text-center text-sm text-gray-500">
+                        <td colSpan="4" className="px-6 py-4 text-center text-sm text-gray-500">
                           No se encontraron productos.
                         </td>
                       </tr>
@@ -414,20 +362,7 @@ const Products = () => {
                       <h3 className="font-medium text-gray-900 text-sm md:text-base mb-2 line-clamp-2 h-10">{product.name}</h3>
                       <p className="text-lg font-bold text-blue-600 mb-2">{formatCurrency(product.price_list1)}</p>
                       
-                      <div className="flex items-center justify-between mb-2 mt-auto">
-                        <span className="text-sm text-gray-600">Stock:</span>
-                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                          product.stock > 10
-                            ? 'bg-green-100 text-green-800'
-                            : product.stock > 0
-                            ? 'bg-yellow-100 text-yellow-800'
-                            : 'bg-red-100 text-red-800'
-                        }`}>
-                          {product.stock}
-                        </span>
-                      </div>
-                      
-                      <div className="flex gap-2 mt-2">
+                      <div className="flex gap-2 mt-auto">
                         <Button
                           variant="outline"
                           className="flex-1 flex items-center justify-center gap-1 text-xs"
@@ -538,20 +473,6 @@ const Products = () => {
                         <span className="font-bold text-blue-600">{formatCurrency(selectedProduct.price_list3)}</span>
                       </div>
                     )}
-                  </div>
-                </div>
-                
-                <div className="space-y-2 mb-6">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Código de barras:</span>
-                    <span className="font-medium">{selectedProduct.barcode || 'N/A'}</span>
-                  </div>
-                  
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Stock:</span>
-                    <span className={`font-medium ${selectedProduct.stock > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {selectedProduct.stock}
-                    </span>
                   </div>
                 </div>
                 

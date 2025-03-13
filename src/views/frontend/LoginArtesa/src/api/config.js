@@ -4,7 +4,7 @@ import axios from 'axios';
 // Configura la URL base según el entorno
 // const baseURL = import.meta.env.VITE_REACT_APP_API_URL || 'http://localhost:3000/api';
 // Para usar con ngrok, comenta la línea anterior y descomenta la siguiente:
-const baseURL = 'https://5f97-105-74-67-156.ngrok-free.app/api';
+const baseURL = 'https://7878-105-74-0-29.ngrok-free.app/api';
 
 console.log("API conectada a:", baseURL);
 
