@@ -20,7 +20,7 @@ class ClientProfile {
    * @returns {Promise<Object|null>} - Perfil de cliente encontrado o null si no existe
    * @throws {Error} Si ocurre un error en la consulta
    */
-  static async getById(userId) {
+  static async getByUserId(userId) {
     try {
       logger.debug('Buscando perfil de cliente por ID', { userId });
       
@@ -88,9 +88,9 @@ class ClientProfile {
    * @returns {Promise<Object|null>} - Perfil de cliente encontrado o null si no existe
    * @throws {Error} Si ocurre un error en la consulta
    */
-  static async getByUserId(userId) {
+  static async getById(userId) {
     try {
-      logger.debug('Buscando perfil de cliente por ID de usuario', { userId });
+      logger.debug('Buscando perfil de cliente por ID', { userId });
       
       const query = `
         SELECT 
@@ -115,20 +115,11 @@ class ClientProfile {
         FROM client_profiles cp
         WHERE user_id = $1;
       `;
-
-      if (profile) {
-        // Refrescar URLs de documentos que podrían haber expirado
-        profile = await S3UrlManager.refreshAllUrls(profile, [
-          'fotocopiaCedula', 
-          'fotocopiaRut', 
-          'anexosAdicionales'
-        ]);
-      }
       
       const { rows } = await pool.query(query, [userId]);
       
       if (rows.length === 0) {
-        logger.debug('Perfil de cliente no encontrado por ID de usuario', { userId });
+        logger.debug('Perfil de cliente no encontrado', { userId });
         return null;
       }
       
@@ -147,10 +138,10 @@ class ClientProfile {
         });
       }
       
-      logger.debug('Perfil de cliente encontrado por ID de usuario', { userId });
+      logger.debug('Perfil de cliente encontrado', { userId });
       return profile;
     } catch (error) {
-      logger.error('Error al buscar perfil de cliente por ID de usuario', { 
+      logger.error('Error al buscar perfil de cliente por ID', { 
         error: error.message,
         userId
       });
