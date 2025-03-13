@@ -1,6 +1,6 @@
 const express = require('express');
 const { verifyToken } = require('../middleware/auth');
-const { createOrder } = require('../controllers/orderController');
+const { createOrder, getOrderById, getUserOrders } = require('../controllers/orderController');
 
 const router = express.Router();
 
@@ -36,6 +36,14 @@ const router = express.Router();
  * @returns {object} 401 - No autorizado
  * @returns {object} 500 - Error interno del servidor
  */
+// Ruta para crear una orden
 router.post('/orders', verifyToken, createOrder);
+
+// Añadir estas dos rutas que faltan:
+// Ruta para obtener órdenes de un usuario
+router.get('/orders/user/:userId', verifyToken, getUserOrders);
+
+// Ruta para obtener una orden específica
+router.get('/orders/:orderId', verifyToken, getOrderById);
 
 module.exports = router;
