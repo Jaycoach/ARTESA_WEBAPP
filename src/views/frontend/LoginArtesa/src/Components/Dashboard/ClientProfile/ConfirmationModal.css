@@ -95,14 +95,14 @@
   color: white;
 }
 .confirmation-modal-footer .confirmation-btn.success-btn:hover {
-  background-color: rgb(243.5322580645, 79.1612903226, 29.4677419355);
+  color: rgb(243.5322580645, 79.1612903226, 29.4677419355);
 }
 .confirmation-modal-footer .confirmation-btn.error-btn {
   background-color: #d32f2f;
   color: white;
 }
 .confirmation-modal-footer .confirmation-btn.error-btn:hover {
-  background-color: rgb(170.8571428571, 36.1428571429, 36.1428571429);
+  color: rgb(243.5322580645, 79.1612903226, 29.4677419355);
 }
 
 /* Responsive */

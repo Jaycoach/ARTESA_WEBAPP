@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import "./Sidebar.css";
+import "../../../App.scss";
 import { 
   FaHome, 
   FaListAlt, 

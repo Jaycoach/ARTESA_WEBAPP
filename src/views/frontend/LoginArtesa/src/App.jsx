@@ -16,6 +16,7 @@ const DashboardLayout = lazy(() => import('./Components/Dashboard/DashboardLayou
 const Dashboard = lazy(() => import('./Components/Dashboard/Dashboard'));
 const Products = lazy(() => import('./Components/Dashboard/Pages/Products/Products'));
 const Orders = lazy(() => import('./Components/Dashboard/Pages/Orders/Orders'));
+const OrderDetails = lazy(() => import('./Components/Dashboard/Pages/Orders/OrderDetails'));
 const Invoices = lazy(() => import('./Components/Dashboard/Pages/Invoices/Invoices'));
 const Settings = lazy(() => import('./Components/Dashboard/Pages/Settings/Settings'));
 
@@ -132,6 +133,14 @@ const router = createBrowserRouter([
         element: (
           <Suspense fallback={<LoadingScreen />}>
             <Orders />
+          </Suspense>
+        ),
+      },
+      {
+        path: "orders/:orderId",
+        element: (
+          <Suspense fallback={<LoadingScreen />}>
+            <OrderDetails />
           </Suspense>
         ),
       },

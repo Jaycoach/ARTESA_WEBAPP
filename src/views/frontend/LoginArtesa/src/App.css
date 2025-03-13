@@ -1,30 +1,59 @@
 @charset "UTF-8";
-/*@import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap');*/
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 * {
   padding: 0;
   margin: 0;
   box-sizing: border-box;
-  font-family: "Montserrat", serif;
+  font-family: "Montserrat", sans-serif;
 }
 
 :root {
   --primary-color: #687e8d;
   --secondary-color: #f6db8e;
-  --hover-color: #f6db8e;
   --accent-color: #f6754e;
-  --whiteColor: #ffffff;
-  --blackColor: #000000;
-  --greyText: #808080;
-  --bgColor: #687e8d;
-  --inputColor: #f6db8e;
-  --buttonColor: #f6754e;
-  --biggestFontSize: 2rem;
-  --h1FontSize: 1.3rem;
-  --h2FontSize: 1.1rem;
-  --h3FontSize: 1rem;
-  --normalFontSize: 0.938rem;
-  --smallFontSize: 0.813rem;
-  --smallestFontSize: 0.75rem;
+  --white: #ffffff;
+  --black: #000000;
+  --gray: #808080;
+  --bg-color: #2c3e50;
+  --input-color: #f6db8e;
+  --button-color: #f6754e;
+  --hover-color: #f6db8e;
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.813rem;
+  --font-size-base: 0.938rem;
+  --font-size-md: 1rem;
+  --font-size-lg: 1.1rem;
+  --font-size-xl: 1.3rem;
+  --font-size-xxl: 2rem;
+  --spacing-xs: 0.5rem;
+  --spacing-sm: 0.8rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2rem;
+  --border-radius-sm: 5px;
+  --border-radius-md: 8px;
+  --border-radius-lg: 10px;
+  --border-radius-xl: 20px;
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 7px 14px rgba(0, 0, 0, 0.1);
+  --transition-default: 0.3s ease-in-out;
+}
+
+html {
+  font-size: 85%;
+}
+@media (min-width: 768px) {
+  html {
+    font-size: 90%;
+  }
+}
+@media (min-width: 992px) {
+  html {
+    font-size: 100%;
+  }
 }
 
 .flex {
@@ -35,16 +64,12 @@
 .grid {
   display: grid;
   align-items: center;
-  gap: 1.5rem;
-}
-
-html {
-  font-size: 85%;
+  gap: var(--spacing-lg);
 }
 
 a {
   text-decoration: none;
-  color: var(--blackColor);
+  color: var(--black);
 }
 
 li {
@@ -52,13 +77,32 @@ li {
 }
 
 .icon {
-  font-size: var(--h2FontSize);
+  font-size: var(--font-size-lg);
   cursor: pointer;
 }
 
 img, video {
-  width: 100%;
+  max-width: 100%;
   height: auto;
+}
+
+.btn {
+  background: var(--button-color);
+  border: none;
+  outline: none;
+  cursor: pointer;
+  border-radius: var(--border-radius-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-weight: 600;
+  color: var(--white);
+  transition: var(--transition-default);
+}
+.btn .icon {
+  margin-right: var(--spacing-xs);
+}
+.btn:hover {
+  background: var(--hover-color);
+  color: var(--black);
 }
 
 .message {
@@ -68,12 +112,31 @@ img, video {
 .showMessage {
   width: 100%;
   text-align: center;
-  margin-bottom: 1rem;
-  padding: 10px;
-  border-radius: 5px;
+  margin-bottom: var(--spacing-md);
+  padding: var(--spacing-sm);
+  border-radius: var(--border-radius-sm);
+  animation: fadeIn var(--transition-default);
   background-color: #f44336;
-  color: white;
-  animation: fadeIn 0.3s ease-in-out;
+  color: var(--white);
+}
+
+.error-message {
+  background-color: rgba(255, 0, 0, 0.1);
+  color: red;
+  padding: var(--spacing-xs);
+  border-radius: var(--border-radius-sm);
+  font-size: var(--font-size-sm);
+  font-weight: bold;
+}
+
+.success-message {
+  color: var(--white);
+  background-color: var(--accent-color);
+  padding: 6px;
+  border-radius: 2px;
+  font-weight: bold;
+  text-align: center;
+  border: 2px solid var(--primary-color);
 }
 
 @keyframes fadeIn {
@@ -86,85 +149,55 @@ img, video {
     transform: translateY(0);
   }
 }
-.btn {
-  background: var(--buttonColor);
-  border: none;
-  outline: none;
-  cursor: pointer;
-  border-radius: 8px;
-  transition: 0.3s ease;
-  padding: 0.8rem 1rem;
-  font-weight: 600;
-  color: var(--whiteColor);
-}
-
-.btn .icon {
-  margin-right: 0.5rem;
-}
-
-.btn:hover {
-  color: var(--hover-color);
-  background: var(--whiteColor);
-}
-
-.error-message {
-  background-color: rgba(255, 0, 0, 0.1);
-  color: red;
-  padding: 5px;
-  border-radius: 5px;
-  font-size: 14px;
-  font-weight: bold;
-}
-
-.success-message {
-  color: #ffffff;
-  background-color: #f6754e;
-  padding: 6px;
-  border-radius: 2px;
-  font-weight: bold;
-  text-align: center;
-  border: 2px solid #687e8d;
-}
-
-.LoginPage, .RegisterPage, .ResetPasswordPage {
-  background: var(--bgColor);
-  color: var(--whiteColor);
+.auth-page, .LoginPage, .RegisterPage, .ResetPasswordPage {
+  background: var(--bg-color);
+  color: var(--white);
   height: 100vh;
   width: 100%;
   margin: auto;
-  border-radius: 10px;
+  border-radius: var(--border-radius-lg);
   overflow: hidden;
-  box-shadow: 0 7px 50px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-lg);
 }
-.LoginPage .container, .RegisterPage .container, .ResetPasswordPage .container {
-  height: 70vh;
-  width: 80%;
-  max-width: 1000px;
+.auth-page__container, .LoginPage .container, .RegisterPage .container, .ResetPasswordPage .container {
+  height: 100%;
+  width: 100%;
   margin: auto;
-  justify-content: space-between;
-  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--border-radius-lg);
   background: hsl(0, 0%, 91%);
   overflow: auto;
 }
-.LoginPage .container .imgDiv, .RegisterPage .container .imgDiv, .ResetPasswordPage .container .imgDiv {
+@media (min-width: 768px) {
+  .auth-page__container, .LoginPage .container, .RegisterPage .container, .ResetPasswordPage .container {
+    height: 70vh;
+    width: 80%;
+    max-width: 1000px;
+    flex-direction: row;
+  }
+}
+.auth-page__image, .LoginPage .container .imgDiv, .RegisterPage .container .imgDiv, .ResetPasswordPage .container .imgDiv {
   position: relative;
-  height: 100%;
-  width: 50%;
+  height: 200px;
+  width: 100%;
   background: hsl(0, 0%, 91%);
   display: flex;
-  flex-basis: 50%;
   justify-content: center;
-  padding: 0 1.5rem;
+  padding: 0 var(--spacing-lg);
   text-align: center;
   flex-direction: column;
-  margin: auto;
-  border-radius: 10px;
+  border-radius: var(--border-radius-lg);
   overflow: hidden;
 }
-.LoginPage .container .imgDiv img, .LoginPage .container .imgDiv .footerDiv, .RegisterPage .container .imgDiv img, .RegisterPage .container .imgDiv .footerDiv, .ResetPasswordPage .container .imgDiv img, .ResetPasswordPage .container .imgDiv .footerDiv {
-  position: absolute;
+@media (min-width: 768px) {
+  .auth-page__image, .LoginPage .container .imgDiv, .RegisterPage .container .imgDiv, .ResetPasswordPage .container .imgDiv {
+    height: 100%;
+    width: 50%;
+  }
 }
-.LoginPage .container .imgDiv img, .RegisterPage .container .imgDiv img, .ResetPasswordPage .container .imgDiv img {
+.auth-page__image img, .LoginPage .container .imgDiv img, .RegisterPage .container .imgDiv img, .ResetPasswordPage .container .imgDiv img {
+  position: absolute;
   height: 100%;
   width: 100%;
   object-fit: cover;
@@ -173,149 +206,126 @@ img, video {
   right: 0;
   left: 0;
 }
-.LoginPage .container .imgDiv .textDiv, .RegisterPage .container .imgDiv .textDiv, .ResetPasswordPage .container .imgDiv .textDiv {
+.auth-page__text, .LoginPage .container .imgDiv .textDiv, .RegisterPage .container .imgDiv .textDiv, .ResetPasswordPage .container .imgDiv .textDiv {
   position: relative;
+  z-index: 1;
 }
-.LoginPage .container .imgDiv .textDiv .title, .RegisterPage .container .imgDiv .textDiv .title, .ResetPasswordPage .container .imgDiv .textDiv .title {
+.auth-page__text-title, .LoginPage .container .imgDiv .textDiv .title, .RegisterPage .container .imgDiv .textDiv .title, .ResetPasswordPage .container .imgDiv .textDiv .title {
   color: var(--accent-color);
   font-size: 28px;
   font-weight: 800;
-  align-items: flex-end;
 }
-.LoginPage .container .imgDiv .textDiv p, .RegisterPage .container .imgDiv .textDiv p, .ResetPasswordPage .container .imgDiv .textDiv p {
-  color: var(--whiteColor);
-  padding: 1rem;
+.auth-page__text p, .LoginPage .container .imgDiv .textDiv p, .RegisterPage .container .imgDiv .textDiv p, .ResetPasswordPage .container .imgDiv .textDiv p {
+  color: var(--white);
+  padding: var(--spacing-md);
   font-weight: 400;
 }
-.LoginPage .container .imgDiv .footerDiv, .RegisterPage .container .imgDiv .footerDiv, .ResetPasswordPage .container .imgDiv .footerDiv {
+.auth-page__footer, .LoginPage .container .imgDiv .footerDiv, .RegisterPage .container .imgDiv .footerDiv, .ResetPasswordPage .container .imgDiv .footerDiv {
+  position: absolute;
   bottom: 10px;
-  padding: 0 1rem;
+  padding: 0 var(--spacing-md);
   height: 60px;
-  background: rgba(44, 62, 80, 0.5490196078);
+  background: rgba(44, 62, 80, 0.55);
   left: 0;
   right: 0;
+  display: flex;
   justify-content: space-between;
+  align-items: center;
   backdrop-filter: blur(1px);
 }
-.LoginPage .container .imgDiv .text, .RegisterPage .container .imgDiv .text, .ResetPasswordPage .container .imgDiv .text {
-  color: var(--whiteColor);
-}
-.LoginPage .container .imgDiv .btn, .RegisterPage .container .imgDiv .btn, .ResetPasswordPage .container .imgDiv .btn {
-  background: var(--buttonColor);
-  border: none;
-  outline: none;
-  cursor: pointer;
-  border-radius: 8px;
-  transition: 0.3s ease;
-  padding: 0.8rem 1rem;
-  font-weight: 600;
-  color: var(--whiteColor);
-}
-.LoginPage .container .imgDiv .btn:hover, .RegisterPage .container .imgDiv .btn:hover, .ResetPasswordPage .container .imgDiv .btn:hover {
-  background: var(--hover-color);
-  color: var(--blackColor);
-}
-.LoginPage .container .formDiv, .RegisterPage .container .formDiv, .ResetPasswordPage .container .formDiv {
-  flex-basis: 50%;
-  margin: auto;
+.auth-page__form, .LoginPage .container .formDiv, .RegisterPage .container .formDiv, .ResetPasswordPage .container .formDiv {
+  padding: var(--spacing-lg);
+  display: flex;
   flex-direction: column;
-  gap: 1.5rem;
-  transform: translateY(1rem);
+  gap: var(--spacing-lg);
 }
-.LoginPage .container .formDiv .headerDiv, .RegisterPage .container .formDiv .headerDiv, .ResetPasswordPage .container .formDiv .headerDiv {
-  width: 60%;
-  padding-bottom: 0.5rem;
+@media (min-width: 768px) {
+  .auth-page__form, .LoginPage .container .formDiv, .RegisterPage .container .formDiv, .ResetPasswordPage .container .formDiv {
+    flex: 1;
+  }
 }
-.LoginPage .container .formDiv .headerDiv img, .RegisterPage .container .formDiv .headerDiv img, .ResetPasswordPage .container .formDiv .headerDiv img {
+.auth-page__form-header, .LoginPage .container .formDiv .headerDiv, .RegisterPage .container .formDiv .headerDiv, .ResetPasswordPage .container .formDiv .headerDiv {
+  display: flex;
+  flex-direction: column;
+  align-items: center; /* Centra horizontalmente el contenido */
+  text-align: center; /* Asegura que el texto también esté centrado */
+  margin-bottom: var(--spacing-md);
+}
+.auth-page__form-header img, .LoginPage .container .formDiv .headerDiv img, .RegisterPage .container .formDiv .headerDiv img, .ResetPasswordPage .container .formDiv .headerDiv img {
   width: 100px;
-  padding-bottom: 0.5rem;
+  margin-bottom: var(--spacing-sm);
 }
-.LoginPage .container .formDiv .headerDiv h3, .RegisterPage .container .formDiv .headerDiv h3, .ResetPasswordPage .container .formDiv .headerDiv h3 {
+.auth-page__form-header h3, .LoginPage .container .formDiv .headerDiv h3, .RegisterPage .container .formDiv .headerDiv h3, .ResetPasswordPage .container .formDiv .headerDiv h3 {
   font-size: 20px;
-  color: var(--blackColor);
+  color: var(--black);
   font-weight: 600;
 }
-.LoginPage .container .form, .RegisterPage .container .form, .ResetPasswordPage .container .form {
-  gap: 1rem;
+.auth-page__form .form, .LoginPage .container .formDiv .form, .RegisterPage .container .formDiv .form, .ResetPasswordPage .container .formDiv .form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
 }
-.LoginPage .container .form .inputDiv .icon, .RegisterPage .container .form .inputDiv .icon, .ResetPasswordPage .container .form .inputDiv .icon {
-  color: black;
+.auth-page__form .form .inputDiv .icon, .LoginPage .container .formDiv .form .inputDiv .icon, .RegisterPage .container .formDiv .form .inputDiv .icon, .ResetPasswordPage .container .formDiv .form .inputDiv .icon {
+  color: var(--black);
 }
-.LoginPage .container .form .inputDiv input, .RegisterPage .container .form .inputDiv input, .ResetPasswordPage .container .form .inputDiv input {
-  background: var(--inputColor);
-  color: var(--blackColor);
+.auth-page__form .form .inputDiv input, .LoginPage .container .formDiv .form .inputDiv input, .RegisterPage .container .formDiv .form .inputDiv input, .ResetPasswordPage .container .formDiv .form .inputDiv input {
+  background: var(--input-color);
+  color: var(--black);
   outline: none;
   border: none;
-  width: 250px;
+  width: 100%;
 }
-.LoginPage .container .form .inputDiv label, .RegisterPage .container .form .inputDiv label, .ResetPasswordPage .container .form .inputDiv label {
-  color: var(--blackColor);
+.auth-page__form .form .inputDiv label, .LoginPage .container .formDiv .form .inputDiv label, .RegisterPage .container .formDiv .form .inputDiv label, .ResetPasswordPage .container .formDiv .form .inputDiv label {
+  color: var(--black);
   font-weight: 400;
-  font-size: 14px;
-  padding: 0.5rem 0;
+  font-size: var(--font-size-sm);
+  padding: var(--spacing-xs) 0;
   display: block;
 }
-.LoginPage .container .form .inputDiv .input, .RegisterPage .container .form .inputDiv .input, .ResetPasswordPage .container .form .inputDiv .input {
-  gap: 0.5rem;
-  padding: 0.8rem;
-  background: var(--inputColor);
-  color: var(--blackColor);
-  border-radius: 10px;
+.auth-page__form .form .inputDiv .input, .LoginPage .container .formDiv .form .inputDiv .input, .RegisterPage .container .formDiv .form .inputDiv .input, .ResetPasswordPage .container .formDiv .form .inputDiv .input {
+  gap: var(--spacing-xs);
+  padding: var(--spacing-sm);
+  background: var(--input-color);
+  color: var(--black);
+  border-radius: var(--border-radius-md);
 }
-.LoginPage .container .form .btn, .RegisterPage .container .form .btn, .ResetPasswordPage .container .form .btn {
-  padding: 0.8rem;
-  background: var(--buttonColor);
-  border-radius: 10px;
-  color: var(--whiteColor);
-  align-items: center;
-  margin: auto;
-  justify-content: center;
-  font-size: 18px;
-  width: 100%;
-  transition: 0.3s ease;
-}
-.LoginPage .container .form .btn .icon, .RegisterPage .container .form .btn .icon, .ResetPasswordPage .container .form .btn .icon {
-  font-size: 25px;
-  transition: 0.3 ease;
-}
-.LoginPage .container .form .btn:hover, .RegisterPage .container .form .btn:hover, .ResetPasswordPage .container .form .btn:hover {
-  background: var(--hover-color);
-  color: var(--blackColor);
-}
-.LoginPage .container .form .btn:hover .icon, .RegisterPage .container .form .btn:hover .icon, .ResetPasswordPage .container .form .btn:hover .icon {
-  color: var(--blackColor);
-  transform: translateX(5px);
-}
-.LoginPage .container .form .forgotPassword, .RegisterPage .container .form .forgotPassword, .ResetPasswordPage .container .form .forgotPassword {
-  color: var(--blackColor);
-  font-size: 14px;
+.auth-page__form .forgotPassword, .LoginPage .container .formDiv .forgotPassword, .RegisterPage .container .formDiv .forgotPassword, .ResetPasswordPage .container .formDiv .forgotPassword {
+  color: var(--black);
+  font-size: var(--font-size-sm);
   text-align: center;
   opacity: 0.7;
+  margin-top: var(--spacing-md);
 }
-.LoginPage .container .form .forgotPassword a, .RegisterPage .container .form .forgotPassword a, .ResetPasswordPage .container .form .forgotPassword a {
+.auth-page__form .forgotPassword a, .LoginPage .container .formDiv .forgotPassword a, .RegisterPage .container .formDiv .forgotPassword a, .ResetPasswordPage .container .formDiv .forgotPassword a {
   text-decoration: underline;
   cursor: pointer;
   opacity: 1;
 }
 
-/* ========== Sidebar ========== */
 .sidebar {
   width: 60px;
   min-height: calc(100vh - 60px);
-  background-color: var(--bgColor);
-  color: var(--whiteColor);
-  transition: width 0.3s ease-in-out;
+  background-color: var(--bg-color);
+  color: var(--white);
+  transition: width var(--transition-default);
   position: fixed;
   left: 0;
   top: 60px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  box-shadow: 2px 0px 10px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow-md);
   overflow: hidden;
+  z-index: 1000;
 }
 .sidebar:hover {
   width: 200px;
+}
+.sidebar .menuTitle, .sidebar .settingsTitle, .sidebar .smallText {
+  display: none;
+}
+.sidebar:hover .menuTitle, .sidebar:hover .settingsTitle, .sidebar:hover .smallText {
+  display: block;
 }
 .sidebar .toggle-btn {
   position: absolute;
@@ -323,59 +333,56 @@ img, video {
   right: -20px;
   width: 35px;
   height: 35px;
-  background-color: var(--bgColor);
-  border: 2px solid var(--whiteColor);
-  color: var(--whiteColor);
+  background-color: var(--bg-color);
+  border: 2px solid var(--white);
+  color: var(--white);
   cursor: pointer;
   padding: 5px;
   border-radius: 50%;
-  transition: all 0.3s ease-in-out;
+  transition: all var(--transition-default);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 .sidebar .toggle-btn:hover {
-  background: var(--hoverButton);
-  color: var(--blackColor);
-}
-.sidebar .toggle-btn:hover .toggle-btn {
-  right: -15px;
+  background-color: var(--hover-color);
+  color: var(--black);
 }
 .sidebar .sidebar-menu {
-  padding: 20px;
+  list-style: none;
+  padding: 0;
 }
 .sidebar .sidebar-menu h3 {
-  font-size: 1rem;
-  margin-bottom: 20px;
+  font-size: var(--font-size-md);
+  margin-bottom: var(--spacing-md);
 }
 .sidebar .sidebar-menu ul {
   list-style: none;
   padding: 0;
 }
 .sidebar .sidebar-menu ul li {
-  margin-bottom: 10px;
+  margin-bottom: var(--spacing-sm);
 }
 .sidebar .sidebar-menu ul li button {
   background: none;
   border: none;
-  color: var(--whiteColor);
-  font-size: 0; /* Ocultar el texto cuando está colapsado */
+  color: var(--white);
+  font-size: 0;
   width: 100%;
   text-align: left;
-  padding: 12px 15px;
-  border-radius: 5px;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--border-radius-sm);
   cursor: pointer;
-  transition: background 0.3s ease-in-out, font-size 0.3s ease-in-out;
+  transition: background var(--transition-default), font-size var(--transition-default);
 }
 .sidebar .sidebar-menu ul li button:hover {
-  background: var(--hoverButton);
-  color: var(--blackColor);
+  background: var(--hover-color);
+  color: var(--black);
 }
 .sidebar:hover .sidebar-menu ul li button {
-  font-size: 0.938rem; /* Mostrar texto cuando el sidebar está expandido */
+  font-size: var(--font-size-base);
 }
 
-/* ========== Dashboard styles ========== */
 .dashboard {
   display: flex;
   flex-direction: column;
@@ -387,43 +394,74 @@ img, video {
   left: 0;
   width: 100%;
   height: 60px;
-  background-color: #2c3e50;
+  background-color: var(--bg-color);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0 20px;
-  box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+  padding: 0 var(--spacing-md);
+  box-shadow: var(--shadow-md);
   z-index: 1000;
 }
 .dashboard .top-section h1 {
-  color: white;
-  font-size: 20px;
+  color: var(--white);
+  font-size: var(--font-size-lg);
+}
+@media (min-width: 768px) {
+  .dashboard .top-section h1 {
+    font-size: var(--font-size-xl);
+  }
 }
 .dashboard .dashboard-layout {
   display: flex;
   flex: 1;
-  transition: margin-left 0.3s ease-in-out;
+  transition: margin-left var(--transition-default);
   flex-direction: row;
   width: 100%;
   height: calc(100vh - 60px);
   margin-top: 60px;
 }
 .dashboard .dashboard-content {
+  color: var(--black) !important;
   flex-grow: 1;
   margin-left: 60px;
-  background: white;
-  border-radius: 20px;
-  padding: 20px;
-  transition: margin-left 0.3s ease-in-out;
-  box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
+  background: var(--white);
+  border-radius: var(--border-radius-md);
+  padding: var(--spacing-md);
+  transition: margin-left var(--transition-default);
+  box-shadow: var(--shadow-md);
+}
+@media (min-width: 768px) {
+  .dashboard .dashboard-content {
+    border-radius: var(--border-radius-lg);
+    padding: var(--spacing-lg);
+  }
+}
+@media (min-width: 992px) {
+  .dashboard .dashboard-content {
+    border-radius: var(--border-radius-xl);
+    padding: var(--spacing-xl);
+  }
 }
 .dashboard .order-summary {
   display: flex;
-  gap: 10px;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+@media (min-width: 768px) {
+  .dashboard .order-summary {
+    flex-direction: row;
+    gap: var(--spacing-md);
+  }
 }
 .dashboard .summary-card {
-  padding: 10px;
-  border-radius: 5px;
+  padding: var(--spacing-sm);
+  border-radius: var(--border-radius-sm);
+  width: 100%;
+}
+@media (min-width: 768px) {
+  .dashboard .summary-card {
+    width: auto;
+  }
 }
 .dashboard .summary-card.pending {
   background: #f9c74f;
@@ -435,31 +473,6 @@ img, video {
   background: #f94144;
 }
 
-/* Expandir el contenido cuando el sidebar está expandido */
 .sidebar:hover ~ .dashboard-layout .dashboard-content {
   margin-left: 200px;
-}
-
-/* Media queries para responsividad */
-@media (max-width: 768px) {
-  .LoginPage .container,
-  .RegisterPage .container,
-  .ResetPasswordPage .container {
-    width: 90%;
-    flex-direction: column;
-  }
-  .LoginPage .container .imgDiv,
-  .RegisterPage .container .imgDiv,
-  .ResetPasswordPage .container .imgDiv {
-    width: 100%;
-    height: 200px;
-  }
-  .LoginPage .container .formDiv,
-  .RegisterPage .container .formDiv,
-  .ResetPasswordPage .container .formDiv {
-    width: 100%;
-  }
-  .dashboard .dashboard-content {
-    padding: 15px;
-  }
 }

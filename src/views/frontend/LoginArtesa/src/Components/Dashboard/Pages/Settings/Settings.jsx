@@ -1,102 +1,114 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from 'react';
+import API from '../../../../api/config';
+import { useAuth } from '../../../../hooks/useAuth';
 
 const Settings = () => {
+    const { user } = useAuth();
+    const [userData, setUserData] = useState({
+        nombre: "",
+        email: "",
+        telefono: "",
+        direccion: "",
+        ciudad: "",
+        identificacion: "",
+        razonSocial: "",
+        cupoActual: "",
+        cupoSolicitado: ""
+    });
 
-  const [theme, setTheme] = useState("light");
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
 
-  const toggleTheme = () => {
-  const newTheme = theme === "light" ? "dark" : "light";
-  setTheme(newTheme);
-  document.documentElement.setAttribute("data-theme", newTheme);
-  };
-  const [userData, setUserData] = useState({
-    nombre: "",
-    email: "",
-    telefono: "",
-    direccion: "",
-    ciudad: "",
-    identificacion: "",
-    razonSocial: "",
-    cupoActual: "",
-    cupoSolicitado: ""
-  });
+    useEffect(() => {
+        const fetchUserData = async () => {
+            setLoading(true);
+            setError('');
+            try {
+                if (!user || !user.id) {
+                    console.warn("No se ha encontrado el ID del usuario.");
+                    setError("No se ha encontrado el ID del usuario.");
+                    return;
+                }
+                const userId = user.id;
+                const response = await API.get(`/client-profiles/user/${userId}`);
 
-  useEffect(() => {
-    fetch("/api/sap/user")
-      .then(response => response.json())
-      .then(data => setUserData(data))
-      .catch(error => console.error("Error obteniendo datos del usuario:", error));
-  }, []);
+                if (response.status !== 200) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
 
-  const [passwords, setPasswords] = useState({
-    currentPassword: "",
-    newPassword: "",
-    confirmPassword: "",
-  });
-  
-  const handlePasswordChange = (e) => {
-    setPasswords({ ...passwords, [e.target.name]: e.target.value });
-  };
-  
-  const handlePasswordSubmit = (e) => {
-    e.preventDefault();
-    
-    if (passwords.newPassword !== passwords.confirmPassword) {
-      alert("Las contraseñas no coinciden.");
-      return;
-    }
-  
-    fetch("/api/sap/change-password", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(passwords),
-    })
-    .then(response => response.json())
-    .then(data => alert("Contraseña actualizada correctamente"))
-    .catch(error => console.error("Error cambiando contraseña:", error));
-  };
-  
+                if (!response.data || !response.data.data) {
+                    throw new Error("No se recibieron datos del usuario.");
+                }
 
-  return (
-    <div className="user-profile-container">
-      <h2 className="form-title">Información del Usuario</h2>
-      <div className="user-profile-display">
-        <div className="form-grid">
-          <div className="form-field"><strong>Nombre:</strong> {userData.nombre}</div>
-          <div className="form-field"><strong>Email:</strong> {userData.email}</div>
-          <div className="form-field"><strong>Teléfono:</strong> {userData.telefono}</div>
-          <div className="form-field"><strong>Dirección:</strong> {userData.direccion}</div>
-          <div className="form-field"><strong>Ciudad:</strong> {userData.ciudad}</div>
-          <div className="form-field"><strong>Identificación:</strong> {userData.identificacion}</div>
-          <div className="form-field"><strong>Razón Social:</strong> {userData.razonSocial}</div>
-          <div className="form-field"><strong>Cupo Actual:</strong> {userData.cupoActual}</div>
-          <div className="form-field"><strong>Cupo Solicitado:</strong> {userData.cupoSolicitado}</div>
+                setUserData(response.data.data);
+            } catch (error) {
+                console.error("Error obteniendo datos del usuario:", error);
+                setError(error.message);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchUserData();
+    }, [user?.id]);
+
+    return (
+        <div className="max-w-screen-lg mx-auto p-6">
+            <h2 className="text-2xl font-semibold text-gray-700 mb-4 text-center">Configuración</h2>
+
+            {/* Mensajes de estado */}
+            {loading && <p className="text-blue-500 text-center">Cargando...</p>}
+            {error && <p className="text-red-500 bg-red-100 p-2 rounded text-center">{error}</p>}
+
+            {/* Información del Usuario */}
+            <section className="bg-white shadow-lg rounded-lg p-6 mb-6">
+                <h3 className="text-xl font-semibold text-gray-600 mb-4 text-center">Información del Usuario</h3>
+                <div className="overflow-x-auto">
+                    <table className="w-full border border-gray-200 rounded-lg">
+                        <tbody>
+                            <tr className="border-b">
+                                <td className="px-4 py-2 font-medium text-gray-600">Nombre:</td>
+                                <td className="px-4 py-2 text-gray-700">{userData.nombre || "N/A"}</td>
+                            </tr>
+                            <tr className="border-b">
+                                <td className="px-4 py-2 font-medium text-gray-600">Email:</td>
+                                <td className="px-4 py-2 text-gray-700">{userData.email || "N/A"}</td>
+                            </tr>
+                            <tr className="border-b">
+                                <td className="px-4 py-2 font-medium text-gray-600">Teléfono:</td>
+                                <td className="px-4 py-2 text-gray-700">{userData.telefono || "N/A"}</td>
+                            </tr>
+                            <tr className="border-b">
+                                <td className="px-4 py-2 font-medium text-gray-600">Dirección:</td>
+                                <td className="px-4 py-2 text-gray-700">{userData.direccion || "N/A"}</td>
+                            </tr>
+                            <tr className="border-b">
+                                <td className="px-4 py-2 font-medium text-gray-600">Ciudad:</td>
+                                <td className="px-4 py-2 text-gray-700">{userData.ciudad || "N/A"}</td>
+                            </tr>
+                            <tr className="border-b">
+                                <td className="px-4 py-2 font-medium text-gray-600">Identificación:</td>
+                                <td className="px-4 py-2 text-gray-700">{userData.identificacion || "N/A"}</td>
+                            </tr>
+                            <tr className="border-b">
+                                <td className="px-4 py-2 font-medium text-gray-600">Razón Social:</td>
+                                <td className="px-4 py-2 text-gray-700">{userData.razonSocial || "N/A"}</td>
+                            </tr>
+                            <tr className="border-b">
+                                <td className="px-4 py-2 font-medium text-gray-600">Cupo Actual:</td>
+                                <td className="px-4 py-2 text-gray-700">{userData.cupoActual || "N/A"}</td>
+                            </tr>
+                            <tr>
+                                <td className="px-4 py-2 font-medium text-gray-600">Cupo Solicitado:</td>
+                                <td className="px-4 py-2 text-gray-700">{userData.cupoSolicitado || "N/A"}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+            
         </div>
-        <div className="password-change-container">
-        <h3>Cambiar Contraseña</h3>
-          <form onSubmit={handlePasswordSubmit}>
-            <label>Contraseña Actual:
-              <input type="password" name="currentPassword" onChange={handlePasswordChange} required />
-            </label>
-            <label>Nueva Contraseña:
-              <input type="password" name="newPassword" onChange={handlePasswordChange} required />
-            </label>
-          <label>Confirmar Nueva Contraseña:
-            <input type="password" name="confirmPassword" onChange={handlePasswordChange} required />
-          </label>
-            <button type="submit" className="submit-btn">Actualizar Contraseña</button>
-           </form>
-           <div className="theme-toggle">
-          <h3>Personalización</h3>
-            <button onClick={toggleTheme} className="theme-btn">
-      Cambiar a {theme === "light" ? "Modo Oscuro" : "Modo Claro"}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-    
-  );
+    );
 };
 
 export default Settings;
