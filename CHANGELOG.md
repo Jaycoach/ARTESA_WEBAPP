@@ -2,6 +2,23 @@
 
 Este documento registra todos los cambios significativos en el proyecto LA ARTESA Web App.
 
+## [v1.3.0] - 2025-03-20
+
+### Añadido
+- **Integración con AWS S3 para almacenamiento de archivos**
+  - Servicio centralizado S3Service para gestión de archivos
+  - Soporte para URLs prefirmadas para documentos privados
+  - Configuración dual (local/S3) para facilitar desarrollo
+  - Script de migración para transferir archivos existentes a S3
+  - Manejo automático de renovación de URLs expiradas
+  - Almacenamiento seguro para documentos sensibles (cédulas, RUT, anexos)
+
+- **Integración completa con SAP Business One Service Layer**
+  - Sistema de sincronización bidireccional de productos
+  - Soporte para sincronización programada general y por grupos
+  - Panel de administración para gestionar sincronización
+  -
+
 ## [v1.2.1] - 2025-02-28
 
 ### Añadido
