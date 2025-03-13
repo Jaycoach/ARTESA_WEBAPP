@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap');
+/*@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap');*/
 
 body {
   font-family: 'Poppins', sans-serif;
@@ -14,6 +14,8 @@ body {
   align-items: center;
   justify-content: center;
   height: 100vh;
+  overflow-y: auto; /* Permite scroll si el contenido es grande */
+  padding: 20px 0;
 }
 
 .hero-section {
@@ -22,7 +24,7 @@ body {
 }
 
 .hero-content h1 {
-  font-size: 2.5rem;
+  font-size: 2rem; /* Tamaño reducido para mejor visualización */
   font-weight: 600;
   margin-bottom: 10px;
   text-shadow: 2px 2px 10px rgba(0, 0, 0, 0.3);
@@ -33,11 +35,15 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 20px;
+  width: 100%;
+  max-width: 1200px;
 }
 
 .user-selection {
   display: flex;
   gap: 30px;
+  flex-wrap: wrap; /* Permite que las tarjetas se ajusten en pantallas pequeñas */
+  justify-content: center;
 }
 
 .selection-card {
@@ -47,7 +53,11 @@ body {
   text-align: center;
   box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.2);
   transition: transform 0.3s ease, box-shadow 0.3s ease;
-  width: 320px;
+  width: 280px; /* Reducido para mejor visualización */
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .selection-card:hover {
@@ -56,7 +66,7 @@ body {
 }
 
 .selection-card h2 {
-  font-size: 1.5rem;
+  font-size: 1.3rem;
   font-weight: 600;
   margin-bottom: 10px;
 }
@@ -67,6 +77,20 @@ body {
   margin-bottom: 15px;
 }
 
+/* Estilos para las imágenes */
+.client-image,
+.Institucion-image {
+  width: 80%;
+  max-width: 180px;
+  height: auto;
+  margin-bottom: 15px;
+  transition: transform 0.3s ease;
+}
+
+.selection-card:hover .client-image,
+.selection-card:hover .Institucion-image {
+  transform: scale(1.05);
+}
 
 .artesa-btn {
   background: #FF6B6B;
@@ -88,4 +112,57 @@ body {
   margin-top: 20px;
   font-size: 0.9rem;
   color: rgba(255, 255, 255, 0.8);
+}
+
+/* Media queries para responsividad */
+@media (max-width: 768px) {
+  .home-container {
+    padding: 15px;
+    height: auto;
+    min-height: 100vh;
+  }
+  
+  .hero-content h1 {
+    font-size: 1.5rem;
+  }
+  
+  .user-selection {
+    flex-direction: column;
+    gap: 15px;
+    width: 100%;
+    align-items: center;
+  }
+  
+  .selection-card {
+    width: 100%;
+    max-width: 300px;
+    padding: 20px 15px;
+  }
+  
+  .client-image,
+  .Institucion-image {
+    width: 70%;
+    max-width: 150px;
+  }
+}
+
+/* Estilos para pantallas muy pequeñas */
+@media (max-width: 400px) {
+  body {
+    font-size: 14px;
+  }
+  
+  .hero-content h1 {
+    font-size: 1.3rem;
+  }
+  
+  .selection-card h2 {
+    font-size: 1.1rem;
+  }
+  
+  .client-image,
+  .Institucion-image {
+    width: 60%;
+    max-width: 120px;
+  }
 }

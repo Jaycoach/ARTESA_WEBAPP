@@ -1,10 +1,71 @@
 <!doctype html>
-<html lang="en">
+<html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/svg+xml" href="/src/LoginsAssets/logo_artesa.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Vite + React</title>
+    <meta name="description" content="Artesa - Portal de gestión y compras" />
+    <title>Artesa - Portal Empresarial</title>
+    <style>
+      /* Estilos críticos iniciales para prevenir FOUC (Flash of Unstyled Content) */
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 16px;
+        overflow-x: hidden;
+        background: linear-gradient(to right, #4B79A1, #283E51); /* Fondo degradado mientras carga */
+        color: #fff;
+      }
+      
+      #root {
+        display: flex;
+        flex-direction: column;
+        min-height: 100vh;
+      }
+      
+      /* Reducir tamaños de fuente para mejorar visualización */
+      html {
+        font-size: 85%;
+      }
+      
+      /* Correcciones para Login y Register */
+      .LoginPage .container, .RegisterPage .container {
+        height: 70vh;
+        width: 80%;
+        max-width: 1000px;
+        overflow: auto;
+      }
+      
+      .LoginPage .container .imgDiv, .RegisterPage .container .imgDiv {
+        width: 50%;
+      }
+      
+      /* Estilos para pre-cargar imágenes */
+      img {
+        max-width: 100%;
+        height: auto;
+      }
+      
+      /* Aseguramos que las tarjetas en Home se vean bien */
+      .selection-card {
+        background: rgba(255, 255, 255, 0.1);
+        padding: 20px;
+        border-radius: 10px;
+        text-align: center;
+        box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.2);
+        max-width: 280px;
+      }
+    </style>
+    <!-- Precarga de fuentes -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    
+    <!-- Precarga de imágenes críticas -->
+    <link rel="preload" href="/src/LoginsAssets/principal_img.jpg" as="image">
+    <link rel="preload" href="/src/LoginsAssets/logo_artesa_alt.png" as="image">
   </head>
   <body>
     <div id="root"></div>
