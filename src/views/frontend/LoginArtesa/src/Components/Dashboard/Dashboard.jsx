@@ -1,13 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import "../../App.scss";
+import "../../App.css";
+import "./Dashboard.css";
 // Importing Components ==========>
 import Sidebar from "./SidebarSection/Sidebar";
 import Top from "./Body Section/TopSection/Top";
 import Listing from "./Body Section/ListingSection/Listing";
 import Activity from "./Body Section/ActivitySection/Activity";
-//import ClientProfile from "./ClientProfile/ClientProfile";//
-import Banner_dash from  "../../DashboardAssets/Banner_dash2.png";
+import ClientProfile from "./ClientProfile/ClientProfile";
 import { FaUserCircle } from "react-icons/fa";
+import Banner from "./Body Section/Banner/Banner"; // Importamos el componente Banner
+
+// Importar la imagen del banner
+import bannerImage from "../../DashboardAssets/Banner_dash2.png";
 
 const Dashboard = () => {
   const [user, setUser] = useState(null);
@@ -65,11 +69,29 @@ const Dashboard = () => {
 
         {/* Contenido a la derecha */}
         <div className="dashboard-content">
-          <img src={Banner_dash} alt='Bannerartesa'/>
           {/* Información del usuario en la parte superior */}
+          {user && (
+            <div className="user-profile-section">
+              <div className="user-profile-info" onClick={toggleProfile}>
+                <FaUserCircle className="user-icon" />
+                <div className="user-details">
+                  <span className="user-name">{userName || userEmail}</span>
+                  <span className="profile-label">Ver perfil</span>
+                </div>
+              </div>
+            </div>
+          )}
 
-          <h1>Bienvenido al Panel de Control</h1>
-          <p>Aquí puedes gestionar tus productos y ventas.</p>
+          {/* Banner en un contenedor separado para evitar superposición */}
+          <div className="banner-container">
+            <Banner imageUrl={bannerImage} altText="Banner Artesa" />
+          </div>
+
+          {/* Contenido de bienvenida en un contenedor separado */}
+          <div className="welcome-container">
+            <h1>Bienvenido al Dashboard de Artesa</h1>
+            <p>Panel de control para gestión de productos y ventas.</p>
+          </div>
 
           {/* Secciones del dashboard */}
           <Top />

@@ -1,87 +1,80 @@
-import React, { useState, useContext, useEffect } from "react";
-import { useNavigate } from "react-router-dom"; // Para la redirección
-import { FaUserCircle } from "react-icons/fa"; // Ícono de usuario
-import AuthContext from "../../../../context/AuthContext";
-import API from "../../../../api/config";
-import "../../../../App.scss";
-import ClientProfile from "../../Pages/ClientProfile/ClientProfile";
-
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { FaUserCircle } from "react-icons/fa";
+import { useAuth } from "../../../../hooks/useAuth"; // Usar el hook personalizado
+import ClientProfile from "../../ClientProfile/ClientProfile";
+import "./Top.scss";
 
 const Top = () => {
   const [menuOpen, setMenuOpen] = useState(false);
-  const [userData, setUserData] = useState(null);
-  const [loading, setLoading] = useState(true); // Estado de carga
-  const [error, setError] = useState(null);
-  const [modalOpen, setModalOpen] = useState(false);
-  const { user, logout } = useContext(AuthContext);
-  console.log("User desde AuthContext:", user);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const { user, logout, updateUserInfo } = useAuth(); // Obtenemos funciones y estado del contexto
+  const [displayName, setDisplayName] = useState("");
   const navigate = useNavigate();
 
-  // Manejo de clics fuera del menú para cerrarlo
-  useEffect(() => {  
-    const fetchUserData = async () => {
-      try {
-        const response = await API.get("/api/client-profiles");
-        console.log("Respuesta de la API:", response.data);
-        if (response.data && response.data.success) {
-          setUserData(response.data.data[0]); // Asignar los datos del usuario
-        } else {
-          setError("No se pudo obtener la información del usuario.");
-        }
-      } catch (err) {
-        console.error("Error al obtener datos del usuario:", err);
-        setError("Error al conectar con el servidor.");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (!user) {
-      fetchUserData();
-    } else {
-      setUserData(user);
+  // Efecto para actualizar el nombre de visualización cuando cambia el usuario
+  useEffect(() => {
+    if (user) {
+      // Priorizar nombres en este orden
+      const name = user.nombre || user.name || user.email || user.mail || "Usuario";
+      setDisplayName(name);
     }
-  
-    console.log("AuthContext user:", user);  
-    console.log("LocalStorage user:", localStorage.getItem("user"));
-  }, [user]);
+  }, [user]); // Se ejecuta cuando cambia el usuario en el contexto
 
-  // Función de cierre de sesión optimizada
   const handleLogout = () => {
     logout();
-    localStorage.removeItem("token");
-    navigate("/");
+    navigate("/"); // Redirigir a la página de inicio
+  };
+
+  const handleOpenProfile = () => {
+    setMenuOpen(false); // Cerrar el menú
+    setShowProfileModal(true); // Mostrar el modal de perfil
+  };
+
+  const handleCloseProfile = () => {
+    setShowProfileModal(false); // Cerrar el modal de perfil
+  };
+
+  const handleProfileUpdate = (updatedUser) => {
+    // Actualizar el contexto con la nueva información
+    updateUserInfo(updatedUser);
+    
+    // También actualizar el nombre de visualización directamente
+    if (updatedUser.nombre) {
+      setDisplayName(updatedUser.nombre);
+    }
   };
 
   return (
-    <div className="top-section">
-      <h1>Bienvenido a Artesa!</h1>
+    <>
+      <div className="top-section">
+        <h1>Dashboard</h1>
 
-      <div className="user-container">
-        <button
-          className="user-icon"
-          onClick={() => setMenuOpen(!menuOpen)}
-        >
-          <FaUserCircle size={30} />
-          {userData ? <span>{userData.nombre || userData.name || "Usuario"}</span> : "Cargando..."}
-        </button>
+        <div className="user-container">
+          <button className="user-icon" onClick={() => setMenuOpen(!menuOpen)}>
+            <FaUserCircle size={30} />
+            {displayName && <span className="username">{displayName}</span>}
+          </button>
 
-        {menuOpen && (
-          <div className="user-menu">
-            <button onClick={() => setModalOpen(true)}>Configuración</button>
-            <button onClick={handleLogout}>Cerrar Sesión</button>
-          </div>
-        )}
+          {menuOpen && (
+            <div className="user-menu">
+              <button onClick={handleOpenProfile}>Perfil</button>
+              <button onClick={() => navigate("/dashboard/settings")}>Configuración</button>
+              <button onClick={handleLogout}>Cerrar Sesión</button>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Modal de Configuración */}
-      {modalOpen && (
-  <>
-    {console.log("Renderizando ClientProfile con userData:", userData)}
-    <ClientProfile user={userData} onClose={() => setModalOpen(false)} />
-  </>
-)}
-    </div>
+      {/* Modal de perfil de cliente */}
+      {showProfileModal && user && (
+        <ClientProfile
+          user={user}
+          onClose={handleCloseProfile}
+          onProfileUpdate={handleProfileUpdate}
+        />
+      )}
+    </>
   );
 };
 

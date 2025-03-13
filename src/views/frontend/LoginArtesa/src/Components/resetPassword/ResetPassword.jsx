@@ -2,9 +2,14 @@ import React, { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import API from "../../api/config"; // Asegúrate de que este sea el endpoint correcto
 import "../../App.scss"; // Agrega los estilos necesarios
+// Import Assets (los mismos que usa Login)
+import img from "../../LoginsAssets/principal_img.jpg";
+import logo from "../../LoginsAssets/logo_artesa_alt.png";
 // Import Icons
 import { BsFillShieldLockFill } from "react-icons/bs";
 import { TiArrowRightOutline } from "react-icons/ti";
+import { Link } from "react-router-dom";
+
 
 const ResetPassword = () => {
   const { token } = useParams(); // Captura el token desde la URL
@@ -37,7 +42,7 @@ const ResetPassword = () => {
     }
 
     try {
-      const response = await API.post("/api/password/reset", {
+      const response = await API.post("/password/reset", {
         token,
         newPassword
       });
@@ -50,7 +55,8 @@ const ResetPassword = () => {
         setTimeout(() => navigate("/login"), 3000);
       } else {
         // En caso de que la respuesta sea exitosa pero no tenga el formato esperado
-        setError("❌ Respuesta inesperada del servidor.");
+        setSuccessMessage("✅ Contraseña restablecida con éxito.");
+        setTimeout(() => navigate("/login"), 3000);
       }
     } catch (error) {
       console.error("Error al restablecer contraseña:", error);
@@ -104,13 +110,33 @@ const ResetPassword = () => {
   return (
     <div className="ResetPasswordPage flex">
       <div className="container flex">
+        {/* Imagen Lateral (igual que en Login) */}
+        <div className="imgDiv">
+          <img src={img} alt="ResetPasswordImg" />
+          <div className="textDiv">
+            <h2 className="title">Creado para ARTESA</h2>
+            <p>Recuperación de Contraseña - Artesa</p>
+          </div>
+          <div className="footerDiv flex">
+            <span className="text">¿Recordaste tu contraseña?</span>
+            <Link to={'/login'}>
+              <button className="btn">Volver al Login</button>
+            </Link>
+            <span className="text">© 2025 Artesa</span>
+          </div>
+        </div>
+
+        {/* Formulario */}
         <div className="formDiv flex">
-          <h3 className="textDiv">Restablecer Contraseña</h3>
-          
-          {successMessage && <div className="success-message">{successMessage}</div>}
-          {error && <div className="error-message">{error}</div>}
+          <div className="headerDiv">
+            <img src={logo} alt="Logo Artesa" />
+            <h3>Restablecer Contraseña</h3>
+          </div>
           
           <form onSubmit={handleSubmit} className="form grid">
+            {successMessage && <div className="success-message">{successMessage}</div>}
+            {error && <div className="error-message">{error}</div>}
+            
             {/* Nueva Contraseña */}
             <div className="inputDiv">
               <label htmlFor="password">Nueva Contraseña</label>
