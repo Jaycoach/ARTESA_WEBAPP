@@ -11,7 +11,8 @@ node_modules/
 # Scripts sensibles
 /scripts/hashPasswords.js
 /scripts/dbdocs.config.js
-
+/scripts
+scripts/
 # Implementaciones de seguridad
 /src/security/
 

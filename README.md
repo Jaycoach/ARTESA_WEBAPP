@@ -183,6 +183,7 @@ Para una descripción detallada de la arquitectura, consulte la [documentación 
 │   ├── controllers/             # Controladores de la API
 │   │   ├── authController.js    # Controlador de autenticación
 │   │   ├── clientProfileController.js # Controlador de perfiles de clientes
+│   │   ├── logoutController.js   # Controlador de cierre API
 │   │   ├── orderController.js   # Controlador de pedidos
 │   │   ├── passwordResetController.js # Controlador de reseteo de contraseñas
 │   │   ├── productController.js # Controlador de productos
