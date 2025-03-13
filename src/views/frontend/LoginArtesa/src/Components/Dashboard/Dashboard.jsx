@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import "../../App.css";
+import "../../App.scss";
 import "./Dashboard.css";
 // Importing Components ==========>
 import Sidebar from "./SidebarSection/Sidebar";
@@ -89,7 +89,9 @@ const Dashboard = () => {
 
           {/* Contenido de bienvenida en un contenedor separado */}
           <div className="welcome-container">
-            <h1>Bienvenido al Dashboard de Artesa</h1>
+          <div className="bg-primary text-secondary rounded-xl p-4 hover:bg-hover">
+  Prueba de variables CSS con Tailwind
+</div>
             <p>Panel de control para gestión de productos y ventas.</p>
           </div>
 
