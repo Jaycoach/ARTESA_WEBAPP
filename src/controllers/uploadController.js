@@ -2,6 +2,7 @@
 const path = require('path');
 const fs = require('fs');
 const { createContextLogger } = require('../config/logger');
+const S3Service = require('../services/S3Service');
 
 // Crear una instancia del logger con contexto
 const logger = createContextLogger('UploadController');
@@ -72,33 +73,62 @@ class UploadController {
    */
   uploadImage = async (req, res) => {
     try {
-      if (!req.file) {
+      if (!req.file && (!req.files || !req.files.image)) {
         logger.warn('Intento de carga sin archivo', { userId: req.user?.id });
         return res.status(400).json({
           success: false,
           message: 'No se ha subido ningún archivo'
         });
       }
-
+  
+      // Determinar el archivo (soporta multer y express-fileupload)
+      let file;
+      let fileName;
+      
+      if (req.file) {
+        // Multer
+        file = {
+          data: fs.readFileSync(req.file.path),
+          mimetype: req.file.mimetype,
+          name: req.file.originalname
+        };
+        fileName = req.file.filename;
+      } else {
+        // Express-fileupload
+        file = req.files.image;
+        fileName = file.name;
+      }
+  
+      // Generar una clave única para S3
+      const uniquePrefix = `${Date.now()}-${Math.round(Math.random() * 1E9)}`;
+      const key = `general/${uniquePrefix}-${path.basename(fileName)}`;
+      
+      // Subir a S3
+      const fileUrl = req.file 
+        ? await S3Service.uploadFile(file.data, key, file.mimetype, { public: true })
+        : await S3Service.uploadFormFile(file, key, { public: true });
+  
       // Registrar información sobre el archivo subido
       logger.info('Archivo subido exitosamente', {
         userId: req.user?.id,
-        fileName: req.file.filename,
-        size: req.file.size,
-        mimetype: req.file.mimetype
+        fileName,
+        key,
+        size: req.file ? req.file.size : file.size,
+        mimetype: req.file ? req.file.mimetype : file.mimetype
       });
-
-      // Crear URL relativa y absoluta para la imagen
-      const relativePath = `/uploads/${req.file.filename}`;
-      const imageUrl = `${req.protocol}://${req.get('host')}${relativePath}`;
-
+  
+      // Limpiar archivo temporal si se usó multer
+      if (req.file && fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
+  
       res.status(200).json({
         success: true,
         message: 'Imagen subida exitosamente',
         data: {
-          fileName: req.file.filename,
-          relativePath,
-          imageUrl
+          fileName,
+          key,
+          imageUrl: fileUrl
         }
       });
     } catch (error) {
@@ -160,39 +190,37 @@ class UploadController {
   deleteImage = async (req, res) => {
     try {
       const { fileName } = req.params;
+      const { key } = req.query;
       
-      if (!fileName) {
+      if (!fileName && !key) {
         return res.status(400).json({
           success: false,
-          message: 'Se requiere el nombre del archivo'
+          message: 'Se requiere el nombre del archivo o la clave'
         });
       }
-
-      // Validar que el nombre de archivo no contenga caracteres peligrosos
-      const sanitizedFileName = path.basename(fileName);
-      const filePath = path.join(process.cwd(), 'uploads', sanitizedFileName);
-
-      // Verificar si el archivo existe
-      if (!fs.existsSync(filePath)) {
-        logger.warn('Intento de eliminar archivo inexistente', {
-          userId: req.user?.id,
-          fileName: sanitizedFileName
-        });
-        
+  
+      let fileKey = key;
+      
+      // Si no se proporcionó la clave pero sí el nombre, intentar construir la clave
+      if (!fileKey && fileName) {
+        fileKey = `general/${fileName}`;
+      }
+      
+      // Eliminar el archivo
+      const deleted = await S3Service.deleteFile(fileKey);
+      
+      if (!deleted) {
         return res.status(404).json({
           success: false,
           message: 'Archivo no encontrado'
         });
       }
-
-      // Eliminar el archivo
-      fs.unlinkSync(filePath);
       
       logger.info('Archivo eliminado exitosamente', {
         userId: req.user?.id,
-        fileName: sanitizedFileName
+        fileKey
       });
-
+  
       res.status(200).json({
         success: true,
         message: 'Imagen eliminada exitosamente'

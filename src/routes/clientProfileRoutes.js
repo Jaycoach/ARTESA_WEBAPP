@@ -590,4 +590,49 @@ router.get('/user/:userId/file/:fileType',
   clientProfileController.getFileByUserId
 );
 
+/**
+ * @swagger
+ * /api/client-profiles/{userId}/documents/{documentType}:
+ *   post:
+ *     summary: Subir documento de perfil
+ *     description: Sube un documento al perfil de cliente (cédula, RUT, anexos)
+ *     tags: [ClientProfiles]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID del usuario
+ *       - in: path
+ *         name: documentType
+ *         required: true
+ *         schema:
+ *           type: string
+ *           enum: [cedula, rut, anexos]
+ *         description: Tipo de documento
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - document
+ *             properties:
+ *               document:
+ *                 type: string
+ *                 format: binary
+ *                 description: Archivo a subir
+ *     responses:
+ *       200:
+ *         description: Documento subido exitosamente
+ */
+router.post('/:userId/documents/:documentType',
+  verifyToken,
+  clientProfileController.uploadProfileDocument
+);
+
 module.exports = router;

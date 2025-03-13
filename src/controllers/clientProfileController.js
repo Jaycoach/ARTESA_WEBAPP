@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const ClientProfile = require('../models/clientProfile');
+const S3Service = require('../services/S3Service');
 
 // Crear una instancia del logger con contexto
 const logger = createContextLogger('ClientProfileController');
@@ -22,7 +23,7 @@ if (!fs.existsSync(uploadDir)) {
  * @param {Object} file - Objeto de archivo de express-fileupload
  * @returns {Promise<string|null>} - Nombre del archivo guardado o null si no hay archivo
  */
-const saveFile = async (file) => {
+const saveFile = async (file, userId, documentType) => {
   if (!file) return null;
   
   try {
@@ -33,7 +34,8 @@ const saveFile = async (file) => {
       name: fileToSave.name,
       size: fileToSave.size,
       mimetype: fileToSave.mimetype,
-      tempFilePath: fileToSave.tempFilePath
+      userId,
+      documentType
     });
     
     // Validar el archivo
@@ -58,31 +60,46 @@ const saveFile = async (file) => {
     
     // Generar nombre único
     const fileExtension = path.extname(fileToSave.name) || '.bin';
-    const uniqueFilename = `${uuidv4()}${fileExtension}`;
-    const filePath = path.join(uploadDir, uniqueFilename);
+    const fileNameSafe = `${Date.now()}${fileExtension}`;
     
-    // Si estamos usando tempFiles, hay que mover el archivo
-    if (fileToSave.tempFilePath) {
-      // Asegurarse de que el directorio existe
-      const fileDir = path.dirname(filePath);
-      if (!fs.existsSync(fileDir)) {
-        fs.mkdirSync(fileDir, { recursive: true });
+    // Definir la clave para S3 o la ruta local
+    const key = `client-profiles/${userId}/${documentType}/${fileNameSafe}`;
+
+    // Determinar si usamos S3 o almacenamiento local
+    if (process.env.STORAGE_MODE === 's3') {
+      // Subir a S3 con configuración de privacidad
+      return await S3Service.uploadFormFile(fileToSave, key, {
+        public: false, // Documentos privados, requieren URL firmada
+        contentType: fileToSave.mimetype
+      });
+    } else {
+      // Modo local (comportamiento original)
+      const filePath = path.join(uploadDir, fileNameSafe);
+      
+      // Si estamos usando tempFiles, hay que mover el archivo
+      if (fileToSave.tempFilePath) {
+        // Asegurarse de que el directorio existe
+        const fileDir = path.dirname(filePath);
+        if (!fs.existsSync(fileDir)) {
+          fs.mkdirSync(fileDir, { recursive: true });
+        }
+        
+        fs.renameSync(fileToSave.tempFilePath, filePath);
+      } else {
+        // Mover el archivo a la ubicación final usando mv()
+        await fileToSave.mv(filePath);
       }
       
-      fs.renameSync(fileToSave.tempFilePath, filePath);
-    } else {
-      // Mover el archivo a la ubicación final usando mv()
-      await fileToSave.mv(filePath);
+      logger.info('Archivo guardado localmente', {
+        originalName: fileToSave.name,
+        newFileName: fileNameSafe,
+        fileSize: fileToSave.size,
+        filePath
+      });
+
+      // Devolver la ruta relativa para almacenamiento local
+      return fileNameSafe;
     }
-    
-    logger.info('Archivo guardado exitosamente', {
-      originalName: fileToSave.name,
-      newFileName: uniqueFilename,
-      fileSize: fileToSave.size,
-      filePath
-    });
-    
-    return uniqueFilename;
   } catch (error) {
     logger.error('Error al guardar archivo', {
       error: error.message,
@@ -611,33 +628,37 @@ class ClientProfileController {
       }
       
       // Procesar archivos si existen
-      try {
-        if (req.files) {
-          // Mapeo de campos antiguos a nuevos y viceversa
-          const fileFieldMap = {
-            'fotocopiaCedula': 'fotocopiaCedula',
-            'fotocopia_cedula': 'fotocopiaCedula',
-            'fotocopiaRut': 'fotocopiaRut',
-            'fotocopia_rut': 'fotocopiaRut',
-            'anexosAdicionales': 'anexosAdicionales',
-            'anexos_adicionales': 'anexosAdicionales'
-          };
-          
-          // Procesar cada campo de archivo soportado
-          Object.keys(req.files).forEach(async field => {
-            if (fileFieldMap[field]) {
-              const standardizedField = fileFieldMap[field];
-              clientData[standardizedField] = await saveFile(req.files[field]);
-            }
-          });
+    try {
+      if (req.files) {
+        // Mapeo de campos antiguos a nuevos y viceversa
+        const fileFieldMap = {
+          'fotocopiaCedula': 'fotocopiaCedula',
+          'fotocopia_cedula': 'fotocopiaCedula',
+          'fotocopiaRut': 'fotocopiaRut',
+          'fotocopia_rut': 'fotocopiaRut', 
+          'anexosAdicionales': 'anexosAdicionales',
+          'anexos_adicionales': 'anexosAdicionales'
+        };
+        
+        // Procesar cada campo de archivo soportado
+        for (const field in req.files) {
+          if (fileFieldMap[field]) {
+            const standardizedField = fileFieldMap[field];
+            // Determinar el tipo de documento para la ruta
+            const docType = standardizedField === 'fotocopiaCedula' ? 'cedula' : 
+                          standardizedField === 'fotocopiaRut' ? 'rut' : 'anexos';
+            
+            clientData[standardizedField] = await saveFile(req.files[field], clientData.userId, docType);
+          }
         }
-      } catch (fileError) {
-        logger.error('Error procesando archivos', {
-          error: fileError.message,
-          stack: fileError.stack
-        });
-        // Continuamos sin archivos
       }
+    } catch (fileError) {
+      logger.error('Error procesando archivos', {
+        error: fileError.message,
+        stack: fileError.stack
+      });
+      // Continuamos sin archivos
+    }
       
       // Crear el perfil
       const profile = await ClientProfile.create(clientData);
@@ -884,27 +905,53 @@ class ClientProfileController {
             if (fileFieldMap[field]) {
               const standardizedField = fileFieldMap[field];
               
-              // Eliminar archivo anterior si existe
-              const oldFileField = standardizedField === 'fotocopiaCedula' ? 'fotocopiaCedula' :
-                                 standardizedField === 'fotocopiaRut' ? 'fotocopiaRut' : 
-                                 'anexosAdicionales';
-                                 
-              if (existingProfile[oldFileField]) {
-                const oldPath = path.join(uploadDir, existingProfile[oldFileField]);
-                if (fs.existsSync(oldPath)) {
-                  fs.unlinkSync(oldPath);
-                  logger.debug('Archivo anterior eliminado', { 
-                    path: oldPath, 
-                    field: oldFileField 
-                  });
+              // Determinar el tipo de documento para la ruta
+              const docType = standardizedField === 'fotocopiaCedula' ? 'cedula' : 
+                            standardizedField === 'fotocopiaRut' ? 'rut' : 'anexos';
+              
+              // Si estamos usando S3 y hay un archivo anterior, eliminar de S3
+              if (process.env.STORAGE_MODE === 's3') {
+                const oldValue = existingProfile[standardizedField];
+                if (oldValue) {
+                  // Intentar extraer la clave del archivo anterior
+                  const oldKey = S3Service.extractKeyFromUrl(oldValue);
+                  if (oldKey) {
+                    try {
+                      // Eliminar el archivo anterior de S3
+                      await S3Service.deleteFile(oldKey);
+                      logger.debug('Archivo anterior eliminado de S3', { 
+                        key: oldKey,
+                        field: standardizedField 
+                      });
+                    } catch (deleteError) {
+                      logger.warn('No se pudo eliminar archivo anterior de S3', {
+                        error: deleteError.message,
+                        key: oldKey
+                      });
+                      // Continuar a pesar del error
+                    }
+                  }
+                }
+              } else {
+                // Modo local: eliminar archivo anterior si existe
+                const oldFileField = standardizedField;
+                if (existingProfile[oldFileField]) {
+                  const oldPath = path.join(uploadDir, existingProfile[oldFileField]);
+                  if (fs.existsSync(oldPath)) {
+                    fs.unlinkSync(oldPath);
+                    logger.debug('Archivo anterior eliminado localmente', { 
+                      path: oldPath, 
+                      field: oldFileField 
+                    });
+                  }
                 }
               }
               
               // Guardar el nuevo archivo
-              updateData[standardizedField] = await saveFile(req.files[field]);
+              updateData[standardizedField] = await saveFile(req.files[field], userId, docType);
               logger.debug('Nuevo archivo guardado', { 
                 field: standardizedField, 
-                filename: updateData[standardizedField] 
+                value: updateData[standardizedField] 
               });
             }
           }
@@ -1015,23 +1062,59 @@ class ClientProfileController {
       
       // Eliminar los archivos asociados al perfil
       if (profile.fotocopiaCedula) {
-        const cedulaPath = path.join(uploadDir, profile.fotocopiaCedula);
-        if (fs.existsSync(cedulaPath)) {
-          fs.unlinkSync(cedulaPath);
+        if (process.env.STORAGE_MODE === 's3') {
+          const key = S3Service.extractKeyFromUrl(profile.fotocopiaCedula);
+          if (key) {
+            try {
+              await S3Service.deleteFile(key);
+              logger.debug('Archivo de cédula eliminado de S3', { key });
+            } catch (error) {
+              logger.warn('Error al eliminar archivo de S3', { key, error: error.message });
+            }
+          }
+        } else {
+          const cedulaPath = path.join(uploadDir, profile.fotocopiaCedula);
+          if (fs.existsSync(cedulaPath)) {
+            fs.unlinkSync(cedulaPath);
+          }
         }
       }
-      
+
       if (profile.fotocopiaRut) {
-        const rutPath = path.join(uploadDir, profile.fotocopiaRut);
-        if (fs.existsSync(rutPath)) {
-          fs.unlinkSync(rutPath);
+        if (process.env.STORAGE_MODE === 's3') {
+          const key = S3Service.extractKeyFromUrl(profile.fotocopiaRut);
+          if (key) {
+            try {
+              await S3Service.deleteFile(key);
+              logger.debug('Archivo de RUT eliminado de S3', { key });
+            } catch (error) {
+              logger.warn('Error al eliminar archivo de S3', { key, error: error.message });
+            }
+          }
+        } else {
+          const rutPath = path.join(uploadDir, profile.fotocopiaRut);
+          if (fs.existsSync(rutPath)) {
+            fs.unlinkSync(rutPath);
+          }
         }
       }
-      
+
       if (profile.anexosAdicionales) {
-        const anexosPath = path.join(uploadDir, profile.anexosAdicionales);
-        if (fs.existsSync(anexosPath)) {
-          fs.unlinkSync(anexosPath);
+        if (process.env.STORAGE_MODE === 's3') {
+          const key = S3Service.extractKeyFromUrl(profile.anexosAdicionales);
+          if (key) {
+            try {
+              await S3Service.deleteFile(key);
+              logger.debug('Archivo de anexos eliminado de S3', { key });
+            } catch (error) {
+              logger.warn('Error al eliminar archivo de S3', { key, error: error.message });
+            }
+          }
+        } else {
+          const anexosPath = path.join(uploadDir, profile.anexosAdicionales);
+          if (fs.existsSync(anexosPath)) {
+            fs.unlinkSync(anexosPath);
+          }
         }
       }
       
@@ -1193,7 +1276,7 @@ async getFile(req, res) {
     }
     
     // Enviar el archivo como respuesta
-    return res.sendFile(filePath);
+    return this.getFileByUserId(req, res);
   } catch (error) {
     logger.error('Error al obtener archivo de perfil de cliente', {
       error: error.message,
@@ -1268,70 +1351,126 @@ async getFile(req, res) {
         });
       }
       
-      let fileName;
-      
-      // Determinar qué archivo se está solicitando
-      if (fileType === 'cedula' && profile.fotocopiaCedula) {
-        fileName = profile.fotocopiaCedula;
-      } else if (fileType === 'rut' && profile.fotocopiaRut) {
-        fileName = profile.fotocopiaRut;
-      } else if (fileType === 'anexos' && profile.anexosAdicionales) {
-        fileName = profile.anexosAdicionales;
-      } else {
-        logger.warn('Archivo no encontrado en el perfil', { 
-          userId, 
-          fileType 
+      // Validar que el usuario tenga permiso
+      if (req.user.id !== parseInt(userId) && req.user.rol_id !== 1) {
+        return res.status(403).json({
+          success: false,
+          message: 'No tiene permiso para acceder a este documento'
         });
-        
+      }
+      
+      // Obtener la URL según el tipo de documento
+      let documentUrl;
+      switch (fileType) {
+        case 'cedula':
+          documentUrl = profile.fotocopiaCedula;
+          break;
+        case 'rut':
+          documentUrl = profile.fotocopiaRut;
+          break;
+        case 'anexos':
+          documentUrl = profile.anexosAdicionales;
+          break;
+        default:
+          return res.status(400).json({
+            success: false,
+            message: 'Tipo de documento no válido'
+          });
+      }
+      
+      if (!documentUrl) {
         return res.status(404).json({
           success: false,
-          message: 'Archivo no encontrado'
+          message: `El documento ${fileType} no existe para este perfil`
         });
       }
       
-      const filePath = path.join(uploadDir, fileName);
-      
-      // Verificar si el archivo existe en el sistema de archivos
-      if (!fs.existsSync(filePath)) {
-        logger.warn('Archivo no encontrado en el servidor', { 
-          userId, 
-          fileType, 
-          path: filePath 
-        });
+      // Modo S3
+      if (process.env.STORAGE_MODE === 's3') {
+        // Si es una URL firmada que aún no ha expirado, redirigir directamente
+        if (documentUrl.includes('Signature=') && !documentUrl.includes('localhost')) {
+          return res.redirect(documentUrl);
+        }
         
-        return res.status(404).json({
-          success: false,
-          message: 'Archivo no encontrado en el servidor'
-        });
+        // Extraer la clave de S3 de la URL
+        const key = S3Service.extractKeyFromUrl(documentUrl);
+        if (!key) {
+          logger.warn('No se pudo determinar la clave S3 del documento', { documentUrl });
+          return res.status(404).json({
+            success: false,
+            message: 'No se pudo determinar la ubicación del documento'
+          });
+        }
+        
+        // Verificar que el archivo existe
+        const exists = await S3Service.fileExists(key);
+        if (!exists) {
+          logger.warn('Documento no encontrado en S3', { key });
+          return res.status(404).json({
+            success: false,
+            message: 'Documento no encontrado'
+          });
+        }
+        
+        // Generar URL firmada para acceso temporal
+        const signedUrl = await S3Service.getSignedUrl('getObject', key, 3600); // 1 hora
+        
+        // Redirigir al documento
+        return res.redirect(signedUrl);
       }
-      
-      // Obtener el tipo de contenido basado en la extensión del archivo
-      const ext = path.extname(fileName).toLowerCase();
-      let contentType = 'application/octet-stream'; // Por defecto
-      
-      // Mapear extensiones comunes a tipos de contenido
-      const mimeTypes = {
-        '.pdf': 'application/pdf',
-        '.jpg': 'image/jpeg',
-        '.jpeg': 'image/jpeg',
-        '.png': 'image/png',
-        '.gif': 'image/gif',
-        '.doc': 'application/msword',
-        '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        '.xls': 'application/vnd.ms-excel',
-        '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        '.txt': 'text/plain'
-      };
-      
-      if (mimeTypes[ext]) {
-        contentType = mimeTypes[ext];
+      // Modo local (comportamiento original)
+      else {
+        const filePath = path.join(uploadDir, documentUrl);
+        
+        // Verificar si el archivo existe en el sistema de archivos
+        if (!fs.existsSync(filePath)) {
+          logger.warn('Archivo no encontrado en el servidor', { 
+            userId, 
+            fileType, 
+            path: filePath 
+          });
+          
+          return res.status(404).json({
+            success: false,
+            message: 'Archivo no encontrado en el servidor'
+          });
+        }
+        
+        // Obtener el tipo de contenido basado en la extensión del archivo
+        const ext = path.extname(documentUrl).toLowerCase();
+        
+        // Mapear extensiones comunes a tipos de contenido
+        const mimeTypes = {
+          '.pdf': 'application/pdf',
+          '.jpg': 'image/jpeg',
+          '.jpeg': 'image/jpeg',
+          '.png': 'image/png',
+          '.gif': 'image/gif',
+          '.doc': 'application/msword',
+          '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          '.xls': 'application/vnd.ms-excel',
+          '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          '.txt': 'text/plain'
+        };
+        
+        // Usar el tipo MIME correcto o por defecto
+        const contentType = mimeTypes[ext] || 'application/octet-stream';
+        
+        // Configurar headers para descarga o visualización
+        res.setHeader('Content-Type', contentType);
+        
+        // Para PDFs y imágenes, intentar mostrarlas en línea
+        const inlineTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/gif'];
+        if (inlineTypes.includes(contentType)) {
+          res.setHeader('Content-Disposition', `inline; filename="${documentUrl}"`);
+        } else {
+          // Para otros tipos, forzar descarga
+          res.setHeader('Content-Disposition', `attachment; filename="${documentUrl}"`);
+        }
+        
+        // Enviar el archivo como respuesta
+        return res.sendFile(filePath);
       }
-      
-      res.setHeader('Content-Type', contentType);
-      res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
-      
-      // Enviar el archivo como respuesta
-      return res.sendFile(filePath);
     } catch (error) {
       logger.error('Error al obtener archivo de perfil de cliente por ID de usuario', {
         error: error.message,
@@ -1343,6 +1482,181 @@ async getFile(req, res) {
       res.status(500).json({
         success: false,
         message: 'Error al obtener archivo',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
+    /**
+   * @swagger
+   * /api/client-profiles/{userId}/documents/{documentType}:
+   *   post:
+   *     summary: Subir documento de perfil
+   *     description: Sube un documento específico (cédula, RUT, anexos) al perfil del cliente
+   *     tags: [ClientProfiles]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: userId
+   *         required: true
+   *         schema:
+   *           type: integer
+   *         description: ID del usuario
+   *       - in: path
+   *         name: documentType
+   *         required: true
+   *         schema:
+   *           type: string
+   *           enum: [cedula, rut, anexos]
+   *         description: Tipo de documento
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         multipart/form-data:
+   *           schema:
+   *             type: object
+   *             required:
+   *               - document
+   *             properties:
+   *               document:
+   *                 type: string
+   *                 format: binary
+   *                 description: Archivo a subir
+   *     responses:
+   *       200:
+   *         description: Documento subido exitosamente
+   *       400:
+   *         description: Datos inválidos
+   *       401:
+   *         description: No autorizado
+   *       403:
+   *         description: Prohibido - No tiene permisos
+   *       404:
+   *         description: Perfil no encontrado
+   *       500:
+   *         description: Error interno del servidor
+   */
+  async uploadProfileDocument(req, res) {
+    try {
+      const { userId, documentType } = req.params;
+      
+      if (!userId || !documentType) {
+        return res.status(400).json({
+          success: false,
+          message: 'Se requiere el ID de usuario y el tipo de documento'
+        });
+      }
+      
+      if (!req.files || !req.files.document) {
+        return res.status(400).json({
+          success: false,
+          message: 'No se ha proporcionado ningún archivo'
+        });
+      }
+      
+      // Obtener perfil de cliente
+      const profile = await ClientProfile.getByUserId(userId);
+      if (!profile) {
+        return res.status(404).json({
+          success: false,
+          message: 'Perfil de cliente no encontrado'
+        });
+      }
+      
+      // Validar que el usuario tenga permiso
+      if (req.user.id !== parseInt(userId) && req.user.rol_id !== 1) {
+        return res.status(403).json({
+          success: false,
+          message: 'No tiene permiso para modificar este perfil'
+        });
+      }
+      
+      const file = req.files.document;
+      
+      // Eliminar archivo anterior si existe
+      let fieldToUpdate;
+      switch (documentType) {
+        case 'cedula':
+          fieldToUpdate = 'fotocopiaCedula';
+          break;
+        case 'rut':
+          fieldToUpdate = 'fotocopiaRut';
+          break;
+        case 'anexos':
+          fieldToUpdate = 'anexosAdicionales';
+          break;
+        default:
+          return res.status(400).json({
+            success: false,
+            message: 'Tipo de documento no válido'
+          });
+      }
+      
+      // Si hay un archivo anterior, eliminarlo
+      if (profile[fieldToUpdate]) {
+        if (process.env.STORAGE_MODE === 's3') {
+          const oldKey = S3Service.extractKeyFromUrl(profile[fieldToUpdate]);
+          if (oldKey) {
+            try {
+              await S3Service.deleteFile(oldKey);
+              logger.debug('Archivo anterior eliminado de S3', { 
+                key: oldKey,
+                field: fieldToUpdate 
+              });
+            } catch (error) {
+              logger.warn('Error al eliminar archivo anterior de S3', {
+                error: error.message,
+                key: oldKey
+              });
+            }
+          }
+        } else {
+          const oldPath = path.join(uploadDir, profile[fieldToUpdate]);
+          if (fs.existsSync(oldPath)) {
+            fs.unlinkSync(oldPath);
+            logger.debug('Archivo anterior eliminado localmente', { 
+              path: oldPath
+            });
+          }
+        }
+      }
+      
+      // Guardar nuevo archivo
+      const fileUrl = await saveFile(file, userId, documentType);
+      
+      // Actualizar el perfil
+      const updateData = {
+        [fieldToUpdate]: fileUrl
+      };
+      
+      const updatedProfile = await ClientProfile.updateByUserId(userId, updateData);
+      
+      if (!updatedProfile) {
+        return res.status(500).json({
+          success: false,
+          message: 'Error al actualizar perfil con nuevo documento'
+        });
+      }
+      
+      res.status(200).json({
+        success: true,
+        message: `Documento ${documentType} subido exitosamente`,
+        data: {
+          documentType,
+          url: fileUrl
+        }
+      });
+    } catch (error) {
+      logger.error('Error al subir documento de perfil', {
+        error: error.message,
+        stack: error.stack,
+        userId: req.params.userId,
+        documentType: req.params.documentType
+      });
+      
+      res.status(500).json({
+        success: false,
+        message: 'Error al subir documento',
         error: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
@@ -1359,5 +1673,6 @@ module.exports = {
   updateProfileByUserId: clientProfileController.updateProfileByUserId,
   deleteProfileByUserId: clientProfileController.deleteProfileByUserId,
   getFile: clientProfileController.getFile,
-  getFileByUserId: clientProfileController.getFileByUserId
+  getFileByUserId: clientProfileController.getFileByUserId,
+  uploadProfileDocument: clientProfileController.uploadProfileDocument
 };

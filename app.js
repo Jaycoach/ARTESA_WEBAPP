@@ -13,6 +13,7 @@ const ensureJsonResponse = require('./src/middleware/ensureJsonResponse');
 const sapIntegrationService = require('./src/services/SapIntegrationService');
 const sapSyncRoutes = require('./src/routes/sapSyncRoutes');
 const { logger, createContextLogger } = require('./src/config/logger');
+const S3Service = require('./src/services/S3Service');
 
 // Importaciones de middlewares
 const { errorHandler, notFound } = require('./src/middleware/errorMiddleware');
@@ -320,6 +321,14 @@ if (process.env.SAP_SERVICE_LAYER_URL) {
     });
 } else {
   appLogger.info('Integración con SAP B1 no configurada');
+}
+
+// Inicializar servicio S3
+if (process.env.STORAGE_MODE === 's3') {
+  logger.info('Inicializando servicio S3');
+  S3Service.initialize();
+} else {
+  logger.info('Usando almacenamiento local para archivos');
 }
 
 // =========================================================================

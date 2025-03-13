@@ -1,6 +1,8 @@
 // src/models/ClientProfile.js - Versión actualizada
 const pool = require('../config/db');
 const { createContextLogger } = require('../config/logger');
+const S3UrlManager = require('../utils/S3UrlManager');
+
 
 // Crear una instancia del logger con contexto
 const logger = createContextLogger('ClientProfileModel');
@@ -113,6 +115,15 @@ class ClientProfile {
         FROM client_profiles cp
         WHERE user_id = $1;
       `;
+
+      if (profile) {
+        // Refrescar URLs de documentos que podrían haber expirado
+        profile = await S3UrlManager.refreshAllUrls(profile, [
+          'fotocopiaCedula', 
+          'fotocopiaRut', 
+          'anexosAdicionales'
+        ]);
+      }
       
       const { rows } = await pool.query(query, [userId]);
       

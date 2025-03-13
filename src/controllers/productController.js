@@ -2,6 +2,7 @@
 const Product = require('../models/Product');
 const { createContextLogger } = require('../config/logger');
 const sapIntegrationService = require('../services/SapIntegrationService');
+const S3Service = require('../services/S3Service');
 
 // Crear una instancia del logger con contexto
 const logger = createContextLogger('ProductController');
@@ -247,11 +248,12 @@ class ProductController {
   async updateProductImage(req, res) {
     try {
       const { productId } = req.params;
-      const { imageUrl } = req.body;
+      let imageUrl = null;
       
       logger.debug('Solicitud de actualización de imagen', {
         productId,
-        imageUrl,
+        hasFile: !!req.files?.image,
+        hasImageUrl: !!req.body.imageUrl,
         userId: req.user?.id
       });
 
@@ -269,12 +271,26 @@ class ProductController {
         });
       }
 
-      // Verificar que el producto existe
-      const existingProduct = await Product.findById(productId);
-      if (!existingProduct) {
-        return res.status(404).json({
+      // Primero intentamos obtener la imagen del formulario
+      if (req.files && req.files.image) {
+        const file = req.files.image;
+        const key = `products/${productId}/${Date.now()}-${file.name}`;
+        
+        // Subir a S3 (o local según configuración)
+        imageUrl = await S3Service.uploadFormFile(file, key, { 
+          public: true,  // Imágenes de productos públicas
+          contentType: file.mimetype
+        });
+        
+        logger.info('Imagen subida exitosamente', { productId, key });
+      } 
+      // Si no hay archivo, usar la URL en el body
+      else if (req.body.imageUrl) {
+        imageUrl = req.body.imageUrl;
+      } else {
+        return res.status(400).json({
           success: false,
-          message: 'Producto no encontrado'
+          message: 'Se requiere un archivo de imagen o una URL de imagen'
         });
       }
 
