@@ -1,5 +1,5 @@
 @charset "UTF-8";
-/*@import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap');*/
+@import url("https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap");
 * {
   padding: 0;
   margin: 0;
@@ -18,13 +18,82 @@
   --bgColor: #687e8d;
   --inputColor: #f6db8e;
   --buttonColor: #f6754e;
-  --biggestFontSize: 2rem;
-  --h1FontSize: 1.3rem;
-  --h2FontSize: 1.1rem;
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  --biggestFontSize: 2.5rem;
+  --h1FontSize: 1.5rem;
+  --h2FontSize: 1.25rem;
   --h3FontSize: 1rem;
   --normalFontSize: 0.938rem;
   --smallFontSize: 0.813rem;
   --smallestFontSize: 0.75rem;
+}
+
+input, textarea, select {
+  width: 100%;
+  padding: var(--spacing-sm);
+  border: 1px solid var(--greyText);
+  border-radius: 4px;
+  font-size: var(--normalFontSize);
+}
+
+label {
+  font-weight: bold;
+  margin-bottom: var(--spacing-xs);
+}
+
+button {
+  padding: var(--spacing-md);
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: var(--normalFontSize);
+  transition: background 0.3s;
+}
+
+button.primary {
+  background-color: var(--buttonColor);
+  color: var(--whiteColor);
+}
+
+button.primary:hover {
+  background-color: var(--buttonColor);
+  filter: brightness(90%);
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: var(--spacing-md);
+}
+
+.user-profile-container {
+  width: 50%;
+  margin: var(--spacing-lg) auto;
+  padding: var(--spacing-lg);
+  background: var(--whiteColor);
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.submit-btn {
+  margin-top: var(--spacing-md);
+  padding: var(--spacing-md);
+  background-color: var(--buttonColor);
+  color: var(--whiteColor);
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: var(--normalFontSize);
+  transition: background 0.3s;
+}
+
+.submit-btn:hover {
+  background-color: var(--buttonColor);
+  filter: brightness(90%);
 }
 
 .flex {
@@ -39,7 +108,7 @@
 }
 
 html {
-  font-size: 85%;
+  font-size: 90%;
 }
 
 a {
@@ -66,26 +135,14 @@ img, video {
 }
 
 .showMessage {
-  width: 100%;
-  text-align: center;
-  margin-bottom: 1rem;
+  display: block;
+  color: var(--whiteColor);
   padding: 10px;
-  border-radius: 5px;
-  background-color: #f44336;
-  color: white;
-  animation: fadeIn 0.3s ease-in-out;
+  background: var(--hover-color);
+  border-radius: 3px;
+  text-align: center;
 }
 
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
 .btn {
   background: var(--buttonColor);
   border: none;
@@ -108,7 +165,7 @@ img, video {
 }
 
 .error-message {
-  background-color: rgba(255, 0, 0, 0.1);
+  background-color: rgba(255, 0, 0, 0.1); /* Fondo rojo claro */
   color: red;
   padding: 5px;
   border-radius: 5px;
@@ -117,13 +174,13 @@ img, video {
 }
 
 .success-message {
-  color: #ffffff;
-  background-color: #f6754e;
+  color: #ffffff; /* Blanco para buen contraste */
+  background-color: #f6754e; /* Azul institucional */
   padding: 6px;
   border-radius: 2px;
   font-weight: bold;
   text-align: center;
-  border: 2px solid #687e8d;
+  border: 2px solid #687e8d; /* Borde naranja terracota */
 }
 
 .LoginPage, .RegisterPage, .ResetPasswordPage {
@@ -137,19 +194,17 @@ img, video {
   box-shadow: 0 7px 50px rgba(0, 0, 0, 0.1);
 }
 .LoginPage .container, .RegisterPage .container, .ResetPasswordPage .container {
-  height: 70vh;
-  width: 80%;
-  max-width: 1000px;
+  height: 75vh;
+  width: 60%;
   margin: auto;
   justify-content: space-between;
   border-radius: 10px;
   background: hsl(0, 0%, 91%);
-  overflow: auto;
 }
 .LoginPage .container .imgDiv, .RegisterPage .container .imgDiv, .ResetPasswordPage .container .imgDiv {
   position: relative;
   height: 100%;
-  width: 50%;
+  width: 70%;
   background: hsl(0, 0%, 91%);
   display: flex;
   flex-basis: 50%;
@@ -167,7 +222,8 @@ img, video {
 .LoginPage .container .imgDiv img, .RegisterPage .container .imgDiv img, .ResetPasswordPage .container .imgDiv img {
   height: 100%;
   width: 100%;
-  object-fit: cover;
+  -o-object-fit: cover;
+     object-fit: cover;
   top: 0;
   bottom: 0;
   right: 0;
@@ -178,7 +234,7 @@ img, video {
 }
 .LoginPage .container .imgDiv .textDiv .title, .RegisterPage .container .imgDiv .textDiv .title, .ResetPasswordPage .container .imgDiv .textDiv .title {
   color: var(--accent-color);
-  font-size: 28px;
+  font-size: 35px;
   font-weight: 800;
   align-items: flex-end;
 }
@@ -195,7 +251,8 @@ img, video {
   left: 0;
   right: 0;
   justify-content: space-between;
-  backdrop-filter: blur(1px);
+  -webkit-backdrop-filter: blur(1px);
+          backdrop-filter: blur(1px);
 }
 .LoginPage .container .imgDiv .text, .RegisterPage .container .imgDiv .text, .ResetPasswordPage .container .imgDiv .text {
   color: var(--whiteColor);
@@ -231,7 +288,7 @@ img, video {
   padding-bottom: 0.5rem;
 }
 .LoginPage .container .formDiv .headerDiv h3, .RegisterPage .container .formDiv .headerDiv h3, .ResetPasswordPage .container .formDiv .headerDiv h3 {
-  font-size: 20px;
+  font-size: 25px;
   color: var(--blackColor);
   font-weight: 600;
 }
@@ -257,7 +314,7 @@ img, video {
 }
 .LoginPage .container .form .inputDiv .input, .RegisterPage .container .form .inputDiv .input, .ResetPasswordPage .container .form .inputDiv .input {
   gap: 0.5rem;
-  padding: 0.8rem;
+  padding: 1rem;
   background: var(--inputColor);
   color: var(--blackColor);
   border-radius: 10px;
@@ -270,7 +327,7 @@ img, video {
   align-items: center;
   margin: auto;
   justify-content: center;
-  font-size: 18px;
+  font-size: 20px;
   width: 100%;
   transition: 0.3s ease;
 }
@@ -410,7 +467,7 @@ img, video {
 }
 .dashboard .dashboard-content {
   flex-grow: 1;
-  margin-left: 60px;
+  margin-left: 200px;
   background: white;
   border-radius: 20px;
   padding: 20px;
@@ -436,30 +493,6 @@ img, video {
 }
 
 /* Expandir el contenido cuando el sidebar está expandido */
-.sidebar:hover ~ .dashboard-layout .dashboard-content {
+.sidebar:hover ~ .dashboard-layout {
   margin-left: 200px;
-}
-
-/* Media queries para responsividad */
-@media (max-width: 768px) {
-  .LoginPage .container,
-  .RegisterPage .container,
-  .ResetPasswordPage .container {
-    width: 90%;
-    flex-direction: column;
-  }
-  .LoginPage .container .imgDiv,
-  .RegisterPage .container .imgDiv,
-  .ResetPasswordPage .container .imgDiv {
-    width: 100%;
-    height: 200px;
-  }
-  .LoginPage .container .formDiv,
-  .RegisterPage .container .formDiv,
-  .ResetPasswordPage .container .formDiv {
-    width: 100%;
-  }
-  .dashboard .dashboard-content {
-    padding: 15px;
-  }
-}
+}/*# sourceMappingURL=App.css.map */

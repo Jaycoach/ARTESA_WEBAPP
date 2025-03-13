@@ -2,12 +2,8 @@ import React, { useState, useEffect } from 'react';
 import './ClientProfile.scss';
 import API from '../../../api/config';
 import { FaTimes, FaUpload } from 'react-icons/fa';
-import { useAuth } from '../../../hooks/useAuth'; // Importar el hook de auth
-import './ConfirmationModal.scss';
-import ConfirmationModal from './ConfirmationModal';
 
 const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
-  const { updateUserInfo } = useAuth(); // Obtener la función de actualización del contexto
   const [formData, setFormData] = useState({
     // Datos básicos
     nombre: '',
@@ -52,81 +48,33 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [existingProfile, setExistingProfile] = useState(null);
-  const [showConfirmation, setShowConfirmation] = useState(false);
-  const [confirmationIsSuccess, setConfirmationIsSuccess] = useState(false);
-  const [confirmationMessage, setConfirmationMessage] = useState('');
   
   useEffect(() => {
     // Verificar si el usuario ya tiene un perfil
     const fetchProfile = async () => {
       try {
-        if (!user || !user.id) {
-          console.log("No hay ID de usuario para buscar perfil");
-          return;
-        }
+        // Intentar obtener el perfil del usuario desde la API
+        const response = await API.get(`/client-profile/${user.id}`);
         
-        console.log("Intentando obtener perfil para usuario ID:", user.id);
-        
-        // Mantener el endpoint tal como está en la API
-        const response = await API.get(`/client-profiles/user/${user.id}`);
-        
-        console.log("Respuesta de API:", response.data);
-        
-        // Extraer los datos - pueden estar en response.data.data o directamente en response.data
-        const profileData = response.data?.data || response.data;
-        
-        if (profileData) {
-          console.log("Perfil encontrado:", profileData);
-          setExistingProfile(profileData);
+        // Si existe un perfil, actualizar el estado
+        if (response.data) {
+          setExistingProfile(response.data);
           
-          // Preparar datos para el formulario
-          const formDataUpdate = {
-            nombre: profileData.nombre || '',
-            direccion: profileData.direccion || '',
-            ciudad: profileData.ciudad || '',
-            pais: profileData.pais || 'Colombia',
-            telefono: profileData.telefono || '',
-            email: profileData.email || user?.email || user?.mail || '',
-            razonSocial: profileData.razonSocial || '',
-            nit: profileData.nit || '',
-          };
+          // Precargar los datos existentes (excepto los archivos)
+          const profileData = { ...response.data };
+          delete profileData.fotocopiaCedula;
+          delete profileData.fotocopiaRut;
+          delete profileData.anexosAdicionales;
           
-          // Si hay un campo notes, puede contener datos adicionales en formato JSON
-          if (profileData.notes) {
-            try {
-              const additionalData = JSON.parse(profileData.notes);
-              console.log("Datos adicionales encontrados en notes:", additionalData);
-              
-              // Combinar con formDataUpdate
-              Object.assign(formDataUpdate, additionalData);
-            } catch (e) {
-              console.error("Error al parsear notes:", e);
-            }
-          }
-          
-          // Procesar campos específicos si están disponibles directamente
-          [
-            'tipoDocumento', 'numeroDocumento', 'representanteLegal',
-            'actividadComercial', 'sectorEconomico', 'tamanoEmpresa',
-            'ingresosMensuales', 'patrimonio', 'entidadBancaria',
-            'tipoCuenta', 'numeroCuenta', 'nombreContacto',
-            'cargoContacto', 'telefonoContacto', 'emailContacto'
-          ].forEach(field => {
-            if (profileData[field]) {
-              formDataUpdate[field] = profileData[field];
-            }
-          });
-          
-          console.log("Actualizando formulario con datos:", formDataUpdate);
           setFormData(prev => ({
             ...prev,
-            ...formDataUpdate,
+            ...profileData,
           }));
           
           console.log('Perfil cargado desde la API');
         }
       } catch (error) {
-        console.error('Error al obtener perfil:', error);
+        console.log('No existe perfil previo o error al obtenerlo');
         
         // Si no existe perfil, inicializar con el email del usuario logueado
         if (user) {
@@ -139,7 +87,16 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
       }
     };
     
-    fetchProfile();
+    if (user && user.id) {
+      fetchProfile();
+    } else if (user) {
+      // Si hay usuario pero no tiene ID, al menos usamos su email
+      setFormData(prev => ({
+        ...prev,
+        email: user.mail || user.email || '',
+        nombre: user.nombre || user.name || ''
+      }));
+    }
   }, [user]);
   
   const handleChange = (e) => {
@@ -156,16 +113,6 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
       ...prev,
       [name]: files[0]
     }));
-  };
-
-  const handleConfirmationClose = () => {
-    setShowConfirmation(false);
-    
-    // Si la operación fue exitosa, cerrar el formulario y regresar al dashboard
-    if (confirmationIsSuccess) {
-      onClose(); // Cerrar el modal de perfil
-    }
-    // Si hubo un error, seguimos mostrando el formulario para corregir
   };
   
   const handleSubmit = async (e) => {
@@ -190,18 +137,14 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
       });
       
       // Agregar ID del usuario
-      if (user && user.id) {
-        formDataToSend.append('userId', user.id);
-      }
+      formDataToSend.append('userId', user.id);
       
-      // Mantener el endpoint tal como está en la API
+      // Endpoint correcto dependiendo si es creación o actualización
       const endpoint = existingProfile 
-        ? `/client-profiles/user/${user.id}` 
-        : '/client-profiles';
+        ? `/client-profile/${user.id}` 
+        : '/client-profile';
       
       const method = existingProfile ? 'put' : 'post';
-      
-      console.log(`Enviando datos al endpoint: ${endpoint} con método: ${method}`);
       
       // Realizar la solicitud a la API
       const response = await API({
@@ -212,52 +155,22 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
           'Content-Type': 'multipart/form-data'
         }
       });
-
-      console.log("Respuesta de guardado:", response.data);
-      
-      // Extraer los datos guardados
-      const savedData = response.data?.data || response.data;
-
-      // Crear objeto con la información relevante actualizada
-      const updatedUserData = {
-        nombre: formData.nombre,
-        email: formData.email,
-        telefono: formData.telefono,
-        direccion: formData.direccion,
-        ciudad: formData.ciudad
-      };
       
       // Guardar perfil en localStorage para acceso rápido
-      localStorage.setItem('clientProfile', JSON.stringify({
+    localStorage.setItem('clientProfile', JSON.stringify({
         nombre: formData.nombre,
         email: formData.email
       }));
-
-      // Actualizar la información en el contexto de autenticación
-      updateUserInfo(updatedUserData);
       
       // Notificar al Dashboard sobre el cambio de nombre si existe la función
       if (typeof onProfileUpdate === 'function') {
         onProfileUpdate(formData.nombre);
       }
       
-      // En lugar de solo mostrar mensaje en el formulario, mostramos el modal de confirmación
       setSuccess('Perfil guardado correctamente');
       setExistingProfile(response.data);
-
-      // Configurar y mostrar el modal de confirmación exitosa
-      setConfirmationIsSuccess(true);
-      setConfirmationMessage('Datos Almacenados Correctamente');
-      setShowConfirmation(true);
-      
     } catch (error) {
       setError(error.response?.data?.message || 'Error al guardar el perfil');
-      console.error('Error al guardar perfil:', error);
-      
-      // Configurar y mostrar el modal de confirmación de error
-      setConfirmationIsSuccess(false);
-      setConfirmationMessage('Datos Incorrectos. Por favor verifique la información proporcionada.');
-      setShowConfirmation(true);
     } finally {
       setLoading(false);
     }
@@ -537,7 +450,59 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
               </div>
             </div>
             
-            {/* Sección 5: Documentos Requeridos */}
+            {/* Sección 5: Contacto Alternativo */}
+            <div className="form-section">
+              <h3 className="section-title">Contacto Alternativo</h3>
+              <div className="form-row">
+                <div className="form-group">
+                  <label htmlFor="nombreContacto">Nombre de Contacto</label>
+                  <input 
+                    type="text" 
+                    id="nombreContacto" 
+                    name="nombreContacto" 
+                    value={formData.nombreContacto} 
+                    onChange={handleChange} 
+                  />
+                </div>
+                
+                <div className="form-group">
+                  <label htmlFor="cargoContacto">Cargo</label>
+                  <input 
+                    type="text" 
+                    id="cargoContacto" 
+                    name="cargoContacto" 
+                    value={formData.cargoContacto} 
+                    onChange={handleChange} 
+                  />
+                </div>
+              </div>
+              
+              <div className="form-row">
+                <div className="form-group">
+                  <label htmlFor="telefonoContacto">Teléfono de Contacto</label>
+                  <input 
+                    type="tel" 
+                    id="telefonoContacto" 
+                    name="telefonoContacto" 
+                    value={formData.telefonoContacto} 
+                    onChange={handleChange} 
+                  />
+                </div>
+                
+                <div className="form-group">
+                  <label htmlFor="emailContacto">Email de Contacto</label>
+                  <input 
+                    type="email" 
+                    id="emailContacto" 
+                    name="emailContacto" 
+                    value={formData.emailContacto} 
+                    onChange={handleChange} 
+                  />
+                </div>
+              </div>
+            </div>
+            
+            {/* Sección 6: Documentos Requeridos */}
             <div className="form-section">
               <h3 className="section-title">Documentos Requeridos</h3>
               <div className="form-row">
@@ -546,9 +511,6 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
                     Fotocopia Cédula*
                     {formData.fotocopiaCedula && (
                       <span className="file-selected"> (Archivo seleccionado)</span>
-                    )}
-                    {existingProfile?.fotocopiaCedula && !formData.fotocopiaCedula && (
-                      <span className="file-selected"> (Archivo ya cargado)</span>
                     )}
                   </label>
                   <div className="file-input-container">
@@ -572,9 +534,6 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
                     {formData.fotocopiaRut && (
                       <span className="file-selected"> (Archivo seleccionado)</span>
                     )}
-                    {existingProfile?.fotocopiaRut && !formData.fotocopiaRut && (
-                      <span className="file-selected"> (Archivo ya cargado)</span>
-                    )}
                   </label>
                   <div className="file-input-container">
                     <input 
@@ -586,6 +545,27 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
                       required={!existingProfile?.fotocopiaRut}
                     />
                     <label htmlFor="fotocopiaRut" className="file-label">
+                      <FaUpload /> Seleccionar Archivo
+                    </label>
+                  </div>
+                </div>
+                
+                <div className="form-group file-upload">
+                  <label htmlFor="anexosAdicionales">
+                    Anexos Adicionales
+                    {formData.anexosAdicionales && (
+                      <span className="file-selected"> (Archivo seleccionado)</span>
+                    )}
+                  </label>
+                  <div className="file-input-container">
+                    <input 
+                      type="file" 
+                      id="anexosAdicionales" 
+                      name="anexosAdicionales" 
+                      onChange={handleFileChange} 
+                      className="file-input"
+                    />
+                    <label htmlFor="anexosAdicionales" className="file-label">
                       <FaUpload /> Seleccionar Archivo
                     </label>
                   </div>
@@ -608,16 +588,6 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
           </form>
         </div>
       </div>
-      
-      {/* Modal de Confirmación */}
-      {showConfirmation && (
-        <ConfirmationModal
-          isSuccess={confirmationIsSuccess}
-          message={confirmationMessage}
-          onClose={handleConfirmationClose}
-        />
-      )}
-      
     </div>
   );
 };

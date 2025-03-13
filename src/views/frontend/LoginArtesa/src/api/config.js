@@ -1,12 +1,9 @@
-// src/api/config.js
 import axios from 'axios';
 
-// Configura la URL base según el entorno
-const baseURL = 'http://localhost:3000/api';
-// Para usar con ngrok, comenta la línea anterior y descomenta la siguiente:
-// const baseURL = 'https://tu-subdominio-ngrok.ngrok-free.app/api';
-
-console.log("API conectada a:", baseURL);
+// Usar la variable de entorno si existe, o la URL de ngrok como fallback
+const baseURL = import.meta.env.VITE_API_URL 
+  ? import.meta.env.VITE_API_URL 
+  : 'https://f3e6-105-74-67-156.ngrok-free.app';
 
 const API = axios.create({
   baseURL,
@@ -17,7 +14,7 @@ const API = axios.create({
 
 // Interceptor para agregar el token a las peticiones
 API.interceptors.request.use(
-  (config) => {
+  config => {
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -28,5 +25,8 @@ API.interceptors.request.use(
     return Promise.reject(error);
   }
 );
+
+// Solo para depuración
+console.log('API configurada con baseURL:', baseURL);
 
 export default API;

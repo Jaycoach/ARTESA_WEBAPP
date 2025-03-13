@@ -4,22 +4,17 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "npm run sass:build && vite",
-    "build": "npm run sass:build && vite build",
-    "sass:build": "node --no-warnings scripts/generate-css.js",
-    "sass:watch": "sass --watch src:src",
+    "dev": "vite",
+    "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },
   "dependencies": {
-    "@tailwindcss/vite": "^4.0.12",
-    "axios": "^1.7.9",
-    "cors": "^2.8.5",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "react-icons": "^5.4.0",
-    "react-router-dom": "^7.1.5",
-    "tailwindcss": "^4.0.12"
+    "axios": "^1.6.2",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-icons": "^5.5.0",
+    "react-router-dom": "^6.20.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.37",
@@ -29,7 +24,6 @@
     "eslint-plugin-react": "^7.33.2",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.4",
-    "glob": "^10.3.10",
     "sass": "^1.85.1",
     "vite": "^6.1.1"
   }

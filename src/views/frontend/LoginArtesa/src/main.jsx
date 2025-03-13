@@ -1,13 +1,13 @@
-import React from 'react';
+import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App.jsx'
 import { AuthProvider } from "./context/AuthContext"; // Importar AuthProvider
-import './App.css'
+import './app.css'
 
 createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
+  <StrictMode>
     <AuthProvider> {/* Ahora toda la app tendrá acceso a la autenticación */}
     <App />
     </AuthProvider>
-    </React.StrictMode>,
+  </StrictMode>,
 )
