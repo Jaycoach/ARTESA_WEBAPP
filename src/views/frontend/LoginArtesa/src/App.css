@@ -315,9 +315,9 @@ img, video {
   flex-direction: column;
   justify-content: space-between;
   box-shadow: var(--shadow-md);
-  overflow: visible; /* Cambiado de 'hidden' a 'visible' para mostrar el botón */
+  overflow: visible; /* Mantener visible para mostrar el botón */
   z-index: 1000;
-  /* Añadir estilos para los elementos del menú */
+  /* Estilos para los elementos del menú */
   /* Separador opcional para el menú */
 }
 .sidebar:hover {
@@ -325,6 +325,10 @@ img, video {
 }
 .sidebar .menuTitle, .sidebar .settingsTitle, .sidebar .smallText {
   display: none;
+  color: var(--white); /* Asegurar que el color sea blanco */
+  margin: 10px 15px;
+  font-size: 16px;
+  font-weight: 600;
 }
 .sidebar:hover .menuTitle, .sidebar:hover .settingsTitle, .sidebar:hover .smallText {
   display: block;
@@ -332,9 +336,9 @@ img, video {
 .sidebar .toggle-btn {
   position: absolute;
   top: 20px;
-  right: -15px; /* Ajustado de -20px a -15px */
-  width: 30px; /* Reducido ligeramente de 35px */
-  height: 30px; /* Reducido ligeramente de 35px */
+  right: -15px;
+  width: 30px;
+  height: 30px;
   background-color: var(--bg-color);
   border: 2px solid var(--white);
   color: var(--white);
@@ -345,7 +349,7 @@ img, video {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1010; /* Añadido z-index mayor que el sidebar */
+  z-index: 1010;
 }
 .sidebar .toggle-btn:hover {
   background-color: var(--hover-color);
@@ -354,39 +358,60 @@ img, video {
 .sidebar .sidebar-menu {
   width: 100%;
   padding: 15px 0;
+  margin-top: 25px; /* Añadir margen superior para evitar solapamiento con el botón */
 }
 .sidebar .sidebar-menu ul {
   padding-left: 0;
+  margin: 0;
+  list-style-type: none;
 }
 .sidebar .sidebar-menu ul li {
   position: relative;
+  margin-bottom: 5px;
 }
 .sidebar .sidebar-menu ul li button {
   display: flex;
   align-items: center;
   width: 100%;
   padding: 12px 15px;
+  background: none;
+  border: none;
+  text-align: left;
+  color: var(--white);
+  transition: background 0.3s ease;
 }
 .sidebar .sidebar-menu ul li button .menu-icon {
   font-size: 18px;
-  min-width: 30px; /* Ancho mínimo para el icono */
+  min-width: 30px;
+  color: var(--white);
 }
 .sidebar .sidebar-menu ul li button .menu-text {
   margin-left: 10px;
   white-space: nowrap;
-  opacity: 0;
+  color: var(--white); /* Asegurar color blanco para el texto */
   transition: opacity 0.3s ease;
 }
-.sidebar .sidebar-menu ul li button.active {
+.sidebar .sidebar-menu ul li button:hover {
   background-color: rgba(255, 255, 255, 0.1);
+}
+.sidebar .sidebar-menu ul li button.active {
+  background-color: rgba(255, 255, 255, 0.15);
   border-left: 3px solid var(--accent-color);
 }
-.sidebar .sidebar:hover .sidebar-menu ul li button .menu-text {
+.sidebar:hover .sidebar-menu ul li button .menu-text {
   opacity: 1;
+  display: inline; /* Asegurar que se muestre al hacer hover */
 }
 .sidebar .separator {
   margin: 10px 15px;
+}
+.sidebar .separator hr {
   opacity: 0.3;
+  border-color: var(--white);
+}
+
+.sidebar:hover ~ .dashboard-layout .dashboard-content {
+  margin-left: 200px;
 }
 
 .dashboard {

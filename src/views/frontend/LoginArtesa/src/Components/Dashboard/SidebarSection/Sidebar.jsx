@@ -175,31 +175,6 @@ const Sidebar = () => {
           </li>
         </ul>
       </div>
-
-      {/* Información de depuración (siempre visible) */}
-      {!collapsed && (
-        <div style={{ padding: '10px', fontSize: '12px', color: '#fff', background: 'rgba(0,0,0,0.5)', marginTop: '20px' }}>
-          <p>Usuario: {user ? user.nombre || user.name || user.email : 'No autenticado'}</p>
-          <p>Rol: {user ? (user.role || user.rol || 'No definido') : 'N/A'}</p>
-          <p>Tipo de rol: {user ? typeof (user.role || user.rol) : 'N/A'}</p>
-          <p>Admin: {hasAdminAccess ? 'Sí' : 'No'}</p>
-          <button 
-            onClick={() => setHasAdminAccess(!hasAdminAccess)}
-            style={{
-              padding: '3px 8px',
-              marginTop: '5px',
-              fontSize: '10px',
-              backgroundColor: hasAdminAccess ? '#dc3545' : '#28a745',
-              color: 'white',
-              border: 'none',
-              borderRadius: '3px',
-              cursor: 'pointer'
-            }}
-          >
-            {hasAdminAccess ? 'Desactivar Admin' : 'Activar Admin'}
-          </button>
-        </div>
-      )}
     </div>
   );
 };
