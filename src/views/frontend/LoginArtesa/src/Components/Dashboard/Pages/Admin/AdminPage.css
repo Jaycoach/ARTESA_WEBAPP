@@ -1,0 +1,144 @@
+.admin-page {
+  background-color: #f9fafb;
+  border-radius: var(--border-radius-lg);
+  padding: var(--spacing-lg);
+}
+.admin-page .section-title {
+  color: var(--bg-color);
+  font-size: var(--font-size-xl);
+  margin-bottom: var(--spacing-md);
+  font-weight: 600;
+  border-bottom: 2px solid var(--accent-color);
+  padding-bottom: var(--spacing-xs);
+}
+.admin-page .form-container {
+  display: grid;
+  gap: var(--spacing-lg);
+}
+@media (min-width: 768px) {
+  .admin-page .form-container {
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  }
+}
+.admin-page .settings-card {
+  background-color: white;
+  border-radius: var(--border-radius-md);
+  padding: var(--spacing-md);
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.admin-page .settings-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+.admin-page .settings-card .card-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: var(--spacing-sm);
+}
+.admin-page .settings-card .card-header .icon {
+  margin-right: var(--spacing-xs);
+  color: var(--accent-color);
+  font-size: var(--font-size-lg);
+}
+.admin-page .settings-card .card-header .title {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--bg-color);
+}
+.admin-page .settings-card .card-body {
+  color: var(--gray);
+}
+.admin-page .image-preview {
+  margin-top: var(--spacing-md);
+  border: 1px solid #e5e7eb;
+  border-radius: var(--border-radius-sm);
+  overflow: hidden;
+  max-width: 100%;
+}
+.admin-page .image-preview img {
+  width: 100%;
+  height: auto;
+  object-fit: cover;
+}
+.admin-page .file-upload {
+  position: relative;
+  display: inline-block;
+}
+.admin-page .file-upload input[type=file] {
+  position: absolute;
+  left: 0;
+  top: 0;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+}
+.admin-page .file-upload .upload-btn {
+  display: inline-flex;
+  align-items: center;
+  background-color: var(--input-color);
+  color: var(--bg-color);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--border-radius-sm);
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+}
+.admin-page .file-upload .upload-btn .icon {
+  margin-right: var(--spacing-xs);
+}
+.admin-page .file-upload .upload-btn:hover {
+  background-color: var(--hover-color);
+}
+.admin-page .action-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-lg);
+}
+.admin-page .action-buttons button {
+  display: flex;
+  align-items: center;
+  padding: var(--spacing-xs) var(--spacing-md);
+  border-radius: var(--border-radius-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+.admin-page .action-buttons button .icon {
+  margin-right: var(--spacing-xs);
+}
+.admin-page .action-buttons .cancel-btn {
+  background-color: #e5e7eb;
+  color: #374151;
+}
+.admin-page .action-buttons .cancel-btn:hover {
+  background-color: #d1d5db;
+}
+.admin-page .action-buttons .save-btn {
+  background-color: var(--accent-color);
+  color: white;
+}
+.admin-page .action-buttons .save-btn:hover {
+  opacity: 0.9;
+}
+.admin-page .action-buttons .save-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.admin-page .notification {
+  padding: var(--spacing-sm);
+  border-radius: var(--border-radius-sm);
+  margin-bottom: var(--spacing-md);
+}
+.admin-page .notification.success {
+  background-color: #d1fae5;
+  border-left: 4px solid #10b981;
+  color: #065f46;
+}
+.admin-page .notification.error {
+  background-color: #fee2e2;
+  border-left: 4px solid #ef4444;
+  color: #b91c1c;
+}

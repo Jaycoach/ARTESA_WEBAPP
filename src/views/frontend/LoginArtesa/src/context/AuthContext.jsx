@@ -1,4 +1,3 @@
-// src/context/AuthContext.jsx
 import React, { createContext, useState, useEffect } from "react";
 import API from "../api/config";
 
@@ -22,6 +21,7 @@ export const AuthProvider = ({ children }) => {
         try {
           // Parsear el usuario almacenado
           let userData = JSON.parse(storedUser);
+          console.log("Usuario recuperado del localStorage:", userData);
           
           // Si existe un perfil guardado, combinar su información con userData
           if (storedProfile) {
@@ -83,15 +83,28 @@ export const AuthProvider = ({ children }) => {
       // Extraer userData que puede estar en data.data o en data directo
       const userData = responseData.data || responseData;
       
+      console.log("Respuesta completa del login:", responseData);
+      console.log("Datos de usuario extraídos:", userData);
+      
+      // Verificar la estructura de los datos recibidos
+      let userObject = userData.user || userData;
+      
+      // Asegurarnos de que el rol esté presente como un número
+      if (userObject.role) {
+        userObject.role = parseInt(userObject.role);
+      }
+      
+      console.log("Objeto de usuario final:", userObject);
+      
       // Verificar si hay un perfil guardado previamente
       const storedProfile = localStorage.getItem("clientProfile");
-      let userWithProfile = userData.user;
+      let userWithProfile = userObject;
       
       if (storedProfile) {
         // Combinar información del perfil con la del usuario
         const profileData = JSON.parse(storedProfile);
-        if (profileData.nombre && profileData.email === (userData.user.email || userData.user.mail)) {
-          userWithProfile = { ...userData.user, ...profileData };
+        if (profileData.nombre && profileData.email === (userObject.email || userObject.mail)) {
+          userWithProfile = { ...userObject, ...profileData };
         }
       }
       
@@ -103,7 +116,7 @@ export const AuthProvider = ({ children }) => {
       setUser(userWithProfile);
       setIsAuthenticated(true);
       
-      console.log("Login exitoso, datos de usuario:", userWithProfile);
+      console.log("Login exitoso, datos de usuario guardados:", userWithProfile);
       
       return userData;
     } catch (error) {
@@ -125,6 +138,8 @@ export const AuthProvider = ({ children }) => {
     // Actualizar estado
     setUser(null);
     setIsAuthenticated(false);
+    
+    console.log("Sesión cerrada correctamente");
   };
 
   // Funciones para registro y recuperación de contraseña

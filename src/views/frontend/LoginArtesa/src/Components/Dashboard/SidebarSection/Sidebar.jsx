@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import "../../../App.scss";
-import { useAuth } from "../../../hooks/useAuth"; // Importar el hook de autenticación
+import { useAuth } from "../../../hooks/useAuth"; 
 import { 
   FaHome, 
   FaListAlt, 
@@ -18,10 +18,12 @@ const Sidebar = () => {
   const [collapsed, setCollapsed] = useState(true);
   const navigate = useNavigate();
   const location = useLocation();
-  const { user } = useAuth(); // Obtener el usuario del contexto
+  const { user, logout } = useAuth(); // Obtener el usuario y la función logout del contexto
   
   // Verificar si el usuario tiene permisos de administración (rol 1 o 3)
+  console.log("User en Sidebar:", user);
   const hasAdminPermission = user && (user.role === 1 || user.role === 3);
+  console.log("¿Tiene permisos de admin?:", hasAdminPermission, "Role:", user?.role);
   
   // Detectar la ruta activa para resaltar el menú correspondiente
   const isActive = (path) => {
@@ -32,12 +34,8 @@ const Sidebar = () => {
   };
   
   const handleLogout = () => {
-    // Limpiar localStorage
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    localStorage.removeItem('clientProfile');
-    
-    console.log('Sesión cerrada');
+    // Usar la función logout del contexto
+    logout();
     navigate("/"); // Redirigir a la página de inicio
   };
 
@@ -108,7 +106,8 @@ const Sidebar = () => {
           </li>
           
           {/* Opción de Administración - Solo visible para roles 1 y 3 */}
-          {hasAdminPermission && (
+          {/* Opción de Administración - Solo visible para roles 1 y 3 */}
+          {user && (parseInt(user.role) === 1 || parseInt(user.role) === 3) && (
             <li>
               <button 
                 className={isActive('/dashboard/admin') ? 'active' : ''}

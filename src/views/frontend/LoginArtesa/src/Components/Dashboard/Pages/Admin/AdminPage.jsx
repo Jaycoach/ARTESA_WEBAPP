@@ -3,8 +3,28 @@ import { useAuth } from '../../../../hooks/useAuth';
 import { adminService } from '../../../../services/adminService';
 import imageService from '../../../../services/imageService';
 import { FaUpload, FaClock, FaImage, FaSave, FaExclamationTriangle, FaCheck, FaTimes } from 'react-icons/fa';
-import SettingsCard from './SettingsCard';
 import './AdminPage.scss';
+
+const SettingsCard = ({ icon, title, description, children, className = '' }) => {
+  return (
+    <div className={`settings-card ${className}`}>
+      <div className="card-header">
+        {icon && <span className="icon">{icon}</span>}
+        <h2 className="title">{title}</h2>
+      </div>
+      
+      {description && (
+        <p className="card-description text-gray-600 mb-4">
+          {description}
+        </p>
+      )}
+      
+      <div className="card-body">
+        {children}
+      </div>
+    </div>
+  );
+};
 
 const AdminPage = () => {
   const { user } = useAuth();
@@ -21,7 +41,11 @@ const AdminPage = () => {
   const [imageError, setImageError] = useState('');
 
   // Verificar si el usuario tiene permisos (rol 1 o 3)
-  const hasAdminPermission = adminService.hasAdminPermission(user);
+  console.log("Usuario en AdminPage:", user);
+  const userRole = user ? parseInt(user.role) : null;
+  console.log("Rol del usuario:", userRole);
+  const hasAdminPermission = userRole === 1 || userRole === 3;
+  console.log("¿Tiene permisos de administración?", hasAdminPermission);
 
   useEffect(() => {
     if (hasAdminPermission) {
@@ -178,7 +202,7 @@ const AdminPage = () => {
       <div className="flex justify-center items-center h-full">
         <div className="notification error">
           <p className="font-bold">Acceso denegado</p>
-          <p>No tiene permisos para acceder a esta página.</p>
+          <p>No tiene permisos para acceder a esta página. Rol requerido: 1 o 3. Su rol: {userRole || 'No definido'}</p>
         </div>
       </div>
     );

@@ -1,4 +1,3 @@
-// src/services/adminService.js
 import API from '../api/config';
 
 export const adminService = {
@@ -39,7 +38,15 @@ export const adminService = {
    * @returns {Boolean} - true si tiene permisos, false si no
    */
   hasAdminPermission(user) {
-    return user && (user.role === 1 || user.role === 3);
+    console.log("Verificando permisos admin para:", user);
+    // Asegurarnos de que user.role se trate como número
+    if (!user) return false;
+    
+    const role = parseInt(user.role);
+    console.log("Rol parseado:", role);
+    
+    // Los roles 1 y 3 tienen acceso a administración
+    return role === 1 || role === 3;
   }
 };
 
