@@ -86,48 +86,42 @@ app.use(morgan('dev'));
 // =========================================================================
 // CONFIGURACIÓN DE CORS
 // =========================================================================
+// First, remove the custom middleware that manually sets CORS headers
+
+// Then, update your cors middleware configuration
 app.use(cors({
   origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
+    
+    // Define allowed origins explicitly
     const allowedOrigins = [
       'http://localhost:3000',
       'http://localhost:5173',
-      'http://localhost:5174',
-      process.env.DEV_NGROK_URL,
-      process.env.PROD_URL
-    ].filter(Boolean);
-
-    // Permitir solicitudes sin origen (como las de Postman o Swagger UI)
-    if (!origin) return callback(null, true);
+      'http://localhost:5174'
+    ];
     
-    // Comprueba si es localhost o contiene ngrok-free.app
+    // Always allow localhost and ngrok domains
     if (allowedOrigins.includes(origin) || 
-        origin.includes('ngrok-free.app') || 
-        origin.includes('localhost')) {
+        origin.includes('localhost') || 
+        origin.includes('ngrok-free.app')) {
       callback(null, true);
     } else {
       console.log('CORS rechazado para origen:', origin);
       callback(new Error('No permitido por CORS'));
     }
   },
-  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Content-Type', 'Bypass-Tunnel-Reminder', 'ngrok-skip-browser-warning'],
-  exposedHeaders: ['Access-Control-Allow-Origin', 'Access-Control-Allow-Credentials'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH', 'HEAD'],
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization', 
+    'X-Requested-With', 
+    'Bypass-Tunnel-Reminder', 
+    'ngrok-skip-browser-warning'
+  ],
   credentials: true,
-  preflightContinue: false,
   optionsSuccessStatus: 204
 }));
-
-// Middleware para manejar errores CORS
-app.use((err, req, res, next) => {
-  if (err.message === 'No permitido por CORS') {
-    return res.status(403).json({
-      success: false,
-      message: 'Acceso no permitido por CORS',
-      origin: req.headers.origin
-    });
-  }
-  next(err);
-});
 
 // =========================================================================
 // CARGA DE ARCHIVOS - Configurado pero NO aplicado globalmente
