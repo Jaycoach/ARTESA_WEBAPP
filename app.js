@@ -263,6 +263,7 @@ const passwordResetRoutes = require('./src/routes/passwordResetRoutes');
 const paymentRoutes = require('./src/routes/paymentRoutes');
 const uploadRoutes = require('./src/routes/uploadRoutes');
 const clientProfileRoutes = require('./src/routes/clientProfileRoutes');
+const adminRoutes = require('./src/routes/adminRoutes');
 
 // =========================================================================
 // RUTAS DE LA API
@@ -274,6 +275,7 @@ app.use(API_PREFIX, secureProductRoutes);
 app.use(API_PREFIX, orderRoutes);
 // Nueva ruta para SAP
 app.use(`${API_PREFIX}/sap`, sapSyncRoutes);
+app.use(`${API_PREFIX}/admin`, adminRoutes);
 
 // Aplicamos fileUpload sólo a las rutas específicas que lo necesitan
 app.use(`${API_PREFIX}/upload`, fileUpload(fileUploadOptions), uploadRoutes);

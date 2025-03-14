@@ -241,6 +241,65 @@ class S3Service {
   }
 
   /**
+ * Verifica si un archivo es una imagen válida
+ * @param {Object} file - Objeto de archivo (express-fileupload)
+ * @returns {boolean} - true si es una imagen válida
+ */
+isValidImage(file) {
+  const validMimeTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
+  return validMimeTypes.includes(file.mimetype);
+}
+
+/**
+ * Verifica si un archivo excede el tamaño máximo
+ * @param {Object} file - Objeto de archivo (express-fileupload)
+ * @param {number} maxSizeMB - Tamaño máximo en MB
+ * @returns {boolean} - true si excede el tamaño máximo
+ */
+exceedsMaxSize(file, maxSizeMB) {
+  const maxSizeBytes = maxSizeMB * 1024 * 1024;
+  return file.size > maxSizeBytes;
+}
+
+/**
+ * Carga un archivo específicamente para banners
+ * @param {Object} file - Objeto de archivo (express-fileupload)
+ * @param {string} [customName] - Nombre personalizado (opcional)
+ * @returns {Promise<string>} - URL de la imagen subida
+ */
+async uploadBannerImage(file, customName) {
+  try {
+    // Validar que sea una imagen
+    if (!this.isValidImage(file)) {
+      throw new Error('El archivo no es una imagen válida');
+    }
+    
+    // Validar tamaño (máximo 5MB)
+    if (this.exceedsMaxSize(file, 5)) {
+      throw new Error('La imagen excede el tamaño máximo de 5MB');
+    }
+    
+    // Generar nombre de archivo único
+    const fileName = customName || `banner-${Date.now()}-${file.name.replace(/\s+/g, '-')}`;
+    const key = `banners/${fileName}`;
+    
+    // Subir archivo
+    const imageUrl = await this.uploadFormFile(file, key, { 
+      public: true,
+      contentType: file.mimetype
+    });
+    
+    return imageUrl;
+  } catch (error) {
+    logger.error('Error al subir imagen de banner', {
+      error: error.message,
+      fileName: file.name
+    });
+    throw error;
+  }
+}
+
+  /**
    * Normaliza una clave de S3
    * @private
    */

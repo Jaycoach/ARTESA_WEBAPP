@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import "../../../App.scss";
+import { useAuth } from "../../../hooks/useAuth"; // Importar el hook de autenticación
 import { 
   FaHome, 
   FaListAlt, 
@@ -9,13 +10,18 @@ import {
   FaCog,
   FaSignOutAlt,
   FaAngleLeft,
-  FaAngleRight
+  FaAngleRight,
+  FaTools // Icono para administración
 } from "react-icons/fa";
 
 const Sidebar = () => {
   const [collapsed, setCollapsed] = useState(true);
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth(); // Obtener el usuario del contexto
+  
+  // Verificar si el usuario tiene permisos de administración (rol 1 o 3)
+  const hasAdminPermission = user && (user.role === 1 || user.role === 3);
   
   // Detectar la ruta activa para resaltar el menú correspondiente
   const isActive = (path) => {
@@ -100,6 +106,20 @@ const Sidebar = () => {
               <span className="menu-text">Configuración</span>
             </button>
           </li>
+          
+          {/* Opción de Administración - Solo visible para roles 1 y 3 */}
+          {hasAdminPermission && (
+            <li>
+              <button 
+                className={isActive('/dashboard/admin') ? 'active' : ''}
+                onClick={() => navigate('/dashboard/admin')}
+              >
+                <FaTools className="menu-icon" />
+                <span className="menu-text">Administración</span>
+              </button>
+            </li>
+          )}
+          
           <li>
             <button onClick={handleLogout}>
               <FaSignOutAlt className="menu-icon" />
