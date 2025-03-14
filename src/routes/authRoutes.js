@@ -1,8 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/authController');
+const logoutController = require('../controllers/logoutController');
 const AuthValidators = require('../validators/authValidators');
 const { sanitizeBody, securityHeaders } = require('../middleware/security');
+const { verifyToken } = require('../middleware/auth');
+
 
 // Aplicar headers de seguridad a todas las rutas
 router.use(securityHeaders);
@@ -241,6 +244,40 @@ router.post(
     AuthValidators.validateEmail,
     AuthValidators.validatePassword,
     authController.register
+);
+
+/**
+ * @swagger
+ * /api/auth/logout:
+ *   post:
+ *     summary: Cerrar sesión
+ *     description: Revoca el token JWT actual para cerrar la sesión del usuario
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       '200':
+ *         description: Sesión cerrada exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Sesión cerrada exitosamente
+ *       '401':
+ *         description: No autorizado - Token no proporcionado o inválido
+ *       '500':
+ *         description: Error interno del servidor
+ */
+router.post(
+    '/logout',
+    verifyToken,
+    logoutController.logout
 );
 
 module.exports = router;
