@@ -23,9 +23,16 @@ export const AuthProvider = ({ children }) => {
           let userData = JSON.parse(storedUser);
           console.log("Usuario recuperado del localStorage:", userData);
           
-          // Asegurarnos de que el rol sea un número
+          // Asegurarnos de que el rol sea un número (manejar estructura anidada)
           if (userData.role) {
-            userData.role = parseInt(userData.role);
+            // Si role es un objeto, extraer el id
+            if (typeof userData.role === 'object' && userData.role !== null && userData.role.id) {
+              console.log("Role es un objeto, extrayendo id:", userData.role);
+              userData.role = parseInt(userData.role.id);
+            } else if (typeof userData.role === 'string' || typeof userData.role === 'number') {
+              // Si role ya es un string o número, intentar convertir a número
+              userData.role = parseInt(userData.role);
+            }
             console.log("Role convertido a número:", userData.role);
           }
           
@@ -96,8 +103,16 @@ export const AuthProvider = ({ children }) => {
       let userObject = userData.user || userData;
       
       // Asegurarnos de que el rol esté presente como un número
+      // Manejar estructura de rol anidada
       if (userObject.role) {
-        userObject.role = parseInt(userObject.role);
+        // Si role es un objeto, extraer el id
+        if (typeof userObject.role === 'object' && userObject.role !== null && userObject.role.id) {
+          console.log("Role es un objeto, extrayendo id:", userObject.role);
+          userObject.role = parseInt(userObject.role.id);
+        } else if (typeof userObject.role === 'string' || typeof userObject.role === 'number') {
+          // Si role ya es un string o número, intentar convertir a número
+          userObject.role = parseInt(userObject.role);
+        }
         console.log("Role convertido a número durante login:", userObject.role);
       }
       

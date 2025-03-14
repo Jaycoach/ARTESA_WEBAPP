@@ -198,8 +198,10 @@ static incrementLoginAttempts(mail) {
             expiresAt
           });
       
-          // Registrar token activo en la base de datos
-          await TokenRevocation.registerActiveToken(token, user.id, expiresAt);
+          // Revocar todos los tokens anteriores del usuario para seguridad
+          logger.debug('Revocando tokens anteriores del usuario', { userId: user.id });
+          // Registrar token activo en la base de datos        
+          await TokenRevocation.revokeAllUserTokens(user.id, 'new_login', token);
       
           return token;
         } catch (error) {
