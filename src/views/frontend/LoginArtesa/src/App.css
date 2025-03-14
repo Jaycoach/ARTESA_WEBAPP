@@ -315,8 +315,10 @@ img, video {
   flex-direction: column;
   justify-content: space-between;
   box-shadow: var(--shadow-md);
-  overflow: hidden;
+  overflow: visible; /* Cambiado de 'hidden' a 'visible' para mostrar el botón */
   z-index: 1000;
+  /* Añadir estilos para los elementos del menú */
+  /* Separador opcional para el menú */
 }
 .sidebar:hover {
   width: 200px;
@@ -330,9 +332,9 @@ img, video {
 .sidebar .toggle-btn {
   position: absolute;
   top: 20px;
-  right: -20px;
-  width: 35px;
-  height: 35px;
+  right: -15px; /* Ajustado de -20px a -15px */
+  width: 30px; /* Reducido ligeramente de 35px */
+  height: 30px; /* Reducido ligeramente de 35px */
   background-color: var(--bg-color);
   border: 2px solid var(--white);
   color: var(--white);
@@ -343,44 +345,48 @@ img, video {
   display: flex;
   align-items: center;
   justify-content: center;
+  z-index: 1010; /* Añadido z-index mayor que el sidebar */
 }
 .sidebar .toggle-btn:hover {
   background-color: var(--hover-color);
   color: var(--black);
 }
 .sidebar .sidebar-menu {
-  list-style: none;
-  padding: 0;
-}
-.sidebar .sidebar-menu h3 {
-  font-size: var(--font-size-md);
-  margin-bottom: var(--spacing-md);
+  width: 100%;
+  padding: 15px 0;
 }
 .sidebar .sidebar-menu ul {
-  list-style: none;
-  padding: 0;
+  padding-left: 0;
 }
 .sidebar .sidebar-menu ul li {
-  margin-bottom: var(--spacing-sm);
+  position: relative;
 }
 .sidebar .sidebar-menu ul li button {
-  background: none;
-  border: none;
-  color: var(--white);
-  font-size: 0;
+  display: flex;
+  align-items: center;
   width: 100%;
-  text-align: left;
-  padding: var(--spacing-sm) var(--spacing-md);
-  border-radius: var(--border-radius-sm);
-  cursor: pointer;
-  transition: background var(--transition-default), font-size var(--transition-default);
+  padding: 12px 15px;
 }
-.sidebar .sidebar-menu ul li button:hover {
-  background: var(--hover-color);
-  color: var(--black);
+.sidebar .sidebar-menu ul li button .menu-icon {
+  font-size: 18px;
+  min-width: 30px; /* Ancho mínimo para el icono */
 }
-.sidebar:hover .sidebar-menu ul li button {
-  font-size: var(--font-size-base);
+.sidebar .sidebar-menu ul li button .menu-text {
+  margin-left: 10px;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.sidebar .sidebar-menu ul li button.active {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-left: 3px solid var(--accent-color);
+}
+.sidebar .sidebar:hover .sidebar-menu ul li button .menu-text {
+  opacity: 1;
+}
+.sidebar .separator {
+  margin: 10px 15px;
+  opacity: 0.3;
 }
 
 .dashboard {

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import '../../../../App.scss';
 import API from '../../../../api/config';
 import { FaTimes, FaUpload } from 'react-icons/fa';
+import './ClientProfile.scss';
 
 const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
   const [formData, setFormData] = useState({
