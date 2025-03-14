@@ -4,6 +4,8 @@ import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom'
 // Importar componentes de manera normal para páginas principales
 import Home from './Components/Home/Home';
 
+const AdminPage = lazy(() => import('./Components/Dashboard/Pages/Admin/AdminPage'));
+
 // Importar el contexto de autenticación
 import { useAuth } from './hooks/useAuth';
 
@@ -157,6 +159,14 @@ const router = createBrowserRouter([
         element: (
           <Suspense fallback={<LoadingScreen />}>
             <Settings />
+          </Suspense>
+        ),
+      },
+      {
+        path: "admin",
+        element: (
+          <Suspense fallback={<LoadingScreen />}>
+            <AdminPage />
           </Suspense>
         ),
       },

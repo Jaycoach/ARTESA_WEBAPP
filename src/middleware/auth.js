@@ -48,13 +48,13 @@ const verifyToken = async (req, res, next) => {
 
     // Verificar si hay una revocación global de tokens para este usuario
     const query = `
-      SELECT 1 FROM revoked_tokens 
-      WHERE user_id = $1 
-      AND token_hash = 'all_tokens' 
-      AND revoke_all_before > $2
-      AND expires_at > NOW()
-      LIMIT 1
-    `;
+    SELECT 1 FROM revoked_tokens 
+    WHERE user_id = $1 
+    AND token_hash = 'all_tokens' 
+    AND revoke_all_before > $2
+    AND expires_at > NOW()
+    LIMIT 1
+  `;
     
     const { rows } = await require('../config/db').query(query, [
       decoded.id, 

@@ -1,4 +1,3 @@
-// src/context/AuthContext.jsx
 import React, { createContext, useState, useEffect } from "react";
 import API from "../api/config";
 
@@ -22,6 +21,20 @@ export const AuthProvider = ({ children }) => {
         try {
           // Parsear el usuario almacenado
           let userData = JSON.parse(storedUser);
+          console.log("Usuario recuperado del localStorage:", userData);
+          
+          // Asegurarnos de que el rol sea un número (manejar estructura anidada)
+          if (userData.role) {
+            // Si role es un objeto, extraer el id
+            if (typeof userData.role === 'object' && userData.role !== null && userData.role.id) {
+              console.log("Role es un objeto, extrayendo id:", userData.role);
+              userData.role = parseInt(userData.role.id);
+            } else if (typeof userData.role === 'string' || typeof userData.role === 'number') {
+              // Si role ya es un string o número, intentar convertir a número
+              userData.role = parseInt(userData.role);
+            }
+            console.log("Role convertido a número:", userData.role);
+          }
           
           // Si existe un perfil guardado, combinar su información con userData
           if (storedProfile) {
@@ -83,15 +96,37 @@ export const AuthProvider = ({ children }) => {
       // Extraer userData que puede estar en data.data o en data directo
       const userData = responseData.data || responseData;
       
+      console.log("Respuesta completa del login:", responseData);
+      console.log("Datos de usuario extraídos:", userData);
+      
+      // Verificar la estructura de los datos recibidos
+      let userObject = userData.user || userData;
+      
+      // Asegurarnos de que el rol esté presente como un número
+      // Manejar estructura de rol anidada
+      if (userObject.role) {
+        // Si role es un objeto, extraer el id
+        if (typeof userObject.role === 'object' && userObject.role !== null && userObject.role.id) {
+          console.log("Role es un objeto, extrayendo id:", userObject.role);
+          userObject.role = parseInt(userObject.role.id);
+        } else if (typeof userObject.role === 'string' || typeof userObject.role === 'number') {
+          // Si role ya es un string o número, intentar convertir a número
+          userObject.role = parseInt(userObject.role);
+        }
+        console.log("Role convertido a número durante login:", userObject.role);
+      }
+      
+      console.log("Objeto de usuario final:", userObject);
+      
       // Verificar si hay un perfil guardado previamente
       const storedProfile = localStorage.getItem("clientProfile");
-      let userWithProfile = userData.user;
+      let userWithProfile = userObject;
       
       if (storedProfile) {
         // Combinar información del perfil con la del usuario
         const profileData = JSON.parse(storedProfile);
-        if (profileData.nombre && profileData.email === (userData.user.email || userData.user.mail)) {
-          userWithProfile = { ...userData.user, ...profileData };
+        if (profileData.nombre && profileData.email === (userObject.email || userObject.mail)) {
+          userWithProfile = { ...userObject, ...profileData };
         }
       }
       
@@ -103,7 +138,7 @@ export const AuthProvider = ({ children }) => {
       setUser(userWithProfile);
       setIsAuthenticated(true);
       
-      console.log("Login exitoso, datos de usuario:", userWithProfile);
+      console.log("Login exitoso, datos de usuario guardados:", userWithProfile);
       
       return userData;
     } catch (error) {
@@ -125,6 +160,8 @@ export const AuthProvider = ({ children }) => {
     // Actualizar estado
     setUser(null);
     setIsAuthenticated(false);
+    
+    console.log("Sesión cerrada correctamente");
   };
 
   // Funciones para registro y recuperación de contraseña
@@ -173,6 +210,36 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Verificar permisos de administrador
+  const isAdmin = () => {
+    if (!user) return false;
+    
+    // Verificar en múltiples propiedades donde podría estar el rol
+    const role = user.role || user.rol;
+    
+    if (role === undefined || role === null) {
+      console.log("No se encontró propiedad de rol en el usuario:", user);
+      return false;
+    }
+    
+    // Intentar convertir a número
+    if (typeof role === 'string') {
+      const roleNumber = parseInt(role);
+      if (!isNaN(roleNumber)) {
+        return roleNumber === 1 || roleNumber === 3;
+      }
+      // Si es string pero no se puede convertir, comparar directamente
+      return role === "1" || role === "3";
+    }
+    
+    // Si ya es número
+    if (typeof role === 'number') {
+      return role === 1 || role === 3;
+    }
+    
+    return false;
+  };
+
   // Valor que se proporciona al contexto
   const contextValue = {
     user,
@@ -184,7 +251,8 @@ export const AuthProvider = ({ children }) => {
     register,
     requestPasswordReset,
     resetPassword,
-    updateUserInfo
+    updateUserInfo,
+    isAdmin
   };
 
   return (
