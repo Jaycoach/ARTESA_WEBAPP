@@ -23,6 +23,12 @@ export const AuthProvider = ({ children }) => {
           let userData = JSON.parse(storedUser);
           console.log("Usuario recuperado del localStorage:", userData);
           
+          // Asegurarnos de que el rol sea un número
+          if (userData.role) {
+            userData.role = parseInt(userData.role);
+            console.log("Role convertido a número:", userData.role);
+          }
+          
           // Si existe un perfil guardado, combinar su información con userData
           if (storedProfile) {
             const profileData = JSON.parse(storedProfile);
@@ -92,6 +98,7 @@ export const AuthProvider = ({ children }) => {
       // Asegurarnos de que el rol esté presente como un número
       if (userObject.role) {
         userObject.role = parseInt(userObject.role);
+        console.log("Role convertido a número durante login:", userObject.role);
       }
       
       console.log("Objeto de usuario final:", userObject);
@@ -188,6 +195,36 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Verificar permisos de administrador
+  const isAdmin = () => {
+    if (!user) return false;
+    
+    // Verificar en múltiples propiedades donde podría estar el rol
+    const role = user.role || user.rol;
+    
+    if (role === undefined || role === null) {
+      console.log("No se encontró propiedad de rol en el usuario:", user);
+      return false;
+    }
+    
+    // Intentar convertir a número
+    if (typeof role === 'string') {
+      const roleNumber = parseInt(role);
+      if (!isNaN(roleNumber)) {
+        return roleNumber === 1 || roleNumber === 3;
+      }
+      // Si es string pero no se puede convertir, comparar directamente
+      return role === "1" || role === "3";
+    }
+    
+    // Si ya es número
+    if (typeof role === 'number') {
+      return role === 1 || role === 3;
+    }
+    
+    return false;
+  };
+
   // Valor que se proporciona al contexto
   const contextValue = {
     user,
@@ -199,7 +236,8 @@ export const AuthProvider = ({ children }) => {
     register,
     requestPasswordReset,
     resetPassword,
-    updateUserInfo
+    updateUserInfo,
+    isAdmin
   };
 
   return (
