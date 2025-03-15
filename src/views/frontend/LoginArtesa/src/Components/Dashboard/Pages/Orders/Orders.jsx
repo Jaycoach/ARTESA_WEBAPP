@@ -61,6 +61,14 @@ const Orders = () => {
       setActiveTab('new');
     }
   }, []);
+
+  // Agregar esta función en el componente Orders
+  const handleOrderUpdated = () => {
+    setActiveTab('list');
+    showNotification('Tu pedido ha sido actualizado exitosamente', 'success');
+    navigate('/dashboard/orders');
+    // Si tienes una función para refrescar pedidos, llámala aquí
+  };
   
   if (!isAuthenticated) {
     return (

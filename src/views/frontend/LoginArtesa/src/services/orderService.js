@@ -40,7 +40,7 @@ export const orderService = {
         ? { 'Content-Type': 'multipart/form-data' }
         : { 'Content-Type': 'application/json' };
       
-      const response = await API.put(`/orders/${orderId}`, orderData, {
+        const response = await API.put(`/api/orders/${orderId}`, orderData, {
         headers
       });
       

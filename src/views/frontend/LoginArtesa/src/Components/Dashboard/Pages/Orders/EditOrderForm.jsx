@@ -5,6 +5,7 @@ import { orderService } from '../../../../services/orderService';
 import API from '../../../../api/config';
 import DeliveryDatePicker from './DeliveryDatePicker';
 import OrderFileUpload from './OrderFileUpload';
+import { FaExclamationTriangle } from 'react-icons/fa';
 
 const EditOrderForm = ({ orderId, onOrderUpdated }) => {
   const navigate = useNavigate();
@@ -264,7 +265,11 @@ const EditOrderForm = ({ orderId, onOrderUpdated }) => {
       console.log('Actualizando pedido:', orderData);
       
       // Enviar a la API (usando formData si hay archivo)
-      const result = await orderService.updateOrder(orderId, formData || orderData, !!formData);
+      const result = await orderService.updateOrder(
+        orderId, 
+        formData || orderData, 
+        !!formData
+      );
       
       if (result.success) {
         showNotification('Pedido actualizado exitosamente', 'success');
@@ -339,14 +344,41 @@ const EditOrderForm = ({ orderId, onOrderUpdated }) => {
             {notification.message}
           </div>
         )}
-        
+        {/* Agregar esto después del encabezado */}
+        <div className="bg-amber-50 border-l-4 border-amber-500 p-4 mb-6 rounded-md">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <FaExclamationTriangle className="h-5 w-5 text-amber-400" />
+            </div>
+            <div className="ml-3">
+              <p className="text-sm text-amber-700">
+                <span className="font-medium">Recuerda: </span> 
+                Solo puedes editar este pedido hasta las {siteSettings.orderTimeLimit} del día siguiente a su creación.
+                {order && (
+                  <span>
+                    {' '}El pedido fue creado el {new Date(order.order_date).toLocaleDateString('es-ES')}.
+                  </span>
+                )}
+              </p>
+            </div>
+          </div>
+        </div>
         {/* Sección de Fecha de Entrega */}
         <div className="bg-gray-50 p-4 rounded-md mb-6">
           <h3 className="text-lg font-medium text-gray-900 mb-3">Fecha de Entrega</h3>
           <p className="text-sm text-gray-600 mb-3">
             Selecciona la fecha en que necesitas recibir tu pedido.
             <br/>
-            Pedidos actualizados después de las {siteSettings.orderTimeLimit} requieren al menos 2 días para entrega.
+            <span className="font-medium text-amber-700">
+              Importante: Solo podrás editar este pedido hasta las {siteSettings.orderTimeLimit} del {
+                (() => {
+                  const orderDate = order ? new Date(order.order_date) : new Date();
+                  const nextDay = new Date(orderDate);
+                  nextDay.setDate(orderDate.getDate() + 1);
+                  return nextDay.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+                })()
+              }.
+            </span>
           </p>
           
           <DeliveryDatePicker 
