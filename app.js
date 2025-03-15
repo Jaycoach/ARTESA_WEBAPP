@@ -241,10 +241,33 @@ app.get('/swagger.json', (req, res) => {
 // =========================================================================
 // RATE LIMITING - Antes de las rutas de API
 // =========================================================================
-app.use(`${API_PREFIX}/auth`, sensitiveApiLimiter);
-app.use(`${API_PREFIX}/secure`, sensitiveApiLimiter);
-app.use(API_PREFIX, standardApiLimiter);
+// Aplicar rate limiting solo en producción o configurar límites más altos en desarrollo
+if (process.env.NODE_ENV === 'production') {
+  app.use(`${API_PREFIX}/auth`, sensitiveApiLimiter);
+  app.use(`${API_PREFIX}/secure`, sensitiveApiLimiter);
+  // No aplicar standardApiLimiter a todas las rutas en producción
+  app.use(`${API_PREFIX}/payments`, sensitiveApiLimiter);
+} else {
+  // En desarrollo, aplicar limiters con configuración muy permisiva
+  // o no aplicarlos para evitar problemas durante el desarrollo
+  console.log('Rate limiting configurado en modo permisivo para desarrollo');
+}
 
+// Alternativa: especificar rutas que NO deben tener rate limiting en desarrollo
+const excludedFromRateLimit = [
+  `${API_PREFIX}/admin`,
+  `${API_PREFIX}/orders`,
+  `${API_PREFIX}/products`
+];
+
+// Middleware que solo aplica rate limiting si la ruta no está excluida
+app.use((req, res, next) => {
+  if (process.env.NODE_ENV !== 'production' && 
+      excludedFromRateLimit.some(prefix => req.path.startsWith(prefix))) {
+    return next();
+  }
+  return standardApiLimiter(req, res, next);
+});
 // =========================================================================
 // IMPORTACIÓN DE RUTAS
 // =========================================================================
