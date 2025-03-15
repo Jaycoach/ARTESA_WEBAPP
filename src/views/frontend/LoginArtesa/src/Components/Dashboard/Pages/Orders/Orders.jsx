@@ -5,6 +5,7 @@ import { useOrders } from '../../../../hooks/useOrders';
 import CreateOrderForm from './CreateOrderForm';
 import OrderList from './OrderList';
 import EditOrderForm from './EditOrderForm';
+import Notification from '../../../../Components/ui/Notification';
 
 const Orders = () => {
   const { user, isAuthenticated } = useAuth();
@@ -88,13 +89,11 @@ const Orders = () => {
         <h1 className="text-3xl font-bold text-gray-900 mb-8">Editar Pedido #{orderId}</h1>
         
         {notification.show && (
-          <div className={`mb-4 p-4 rounded-md ${
-            notification.type === 'success' ? 'bg-green-100 text-green-800 border-l-4 border-green-500' : 
-            notification.type === 'warning' ? 'bg-yellow-100 text-yellow-800 border-l-4 border-yellow-500' : 
-            'bg-red-100 text-red-800 border-l-4 border-red-500'
-          }`}>
-            {notification.message}
-          </div>
+          <Notification 
+            message={notification.message}
+            type={notification.type}
+            onClose={() => setNotification({ show: false, message: '', type: '' })}
+          />
         )}
         
         <EditOrderForm 
@@ -110,13 +109,11 @@ const Orders = () => {
       <h1 className="text-3xl font-bold text-gray-900 mb-8">Gestión de Pedidos</h1>
       
       {notification.show && (
-        <div className={`mb-4 p-4 rounded-md ${
-          notification.type === 'success' ? 'bg-green-100 text-green-800 border-l-4 border-green-500' : 
-          notification.type === 'warning' ? 'bg-yellow-100 text-yellow-800 border-l-4 border-yellow-500' : 
-          'bg-red-100 text-red-800 border-l-4 border-red-500'
-        }`}>
-          {notification.message}
-        </div>
+        <Notification 
+          message={notification.message}
+          type={notification.type}
+          onClose={() => setNotification({ show: false, message: '', type: '' })}
+        />
       )}
       
       <div className="mb-6">

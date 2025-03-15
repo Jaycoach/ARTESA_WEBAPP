@@ -4,6 +4,7 @@ import { orderService } from '../../../../services/orderService';
 import API from '../../../../api/config';
 import DeliveryDatePicker from './DeliveryDatePicker';
 import OrderFileUpload from './OrderFileUpload';
+import Notification from '../../../../Components/ui/Notification';
 
 const CreateOrderForm = ({ onOrderCreated }) => {
   const { user } = useAuth();
@@ -217,13 +218,11 @@ const CreateOrderForm = ({ onOrderCreated }) => {
         <h2 className="text-xl font-semibold text-gray-800">Crear Nuevo Pedido</h2>
         
         {notification.show && (
-          <div className={`p-4 mb-4 rounded-md ${
-            notification.type === 'success' ? 'bg-green-100 text-green-800' : 
-            notification.type === 'warning' ? 'bg-yellow-100 text-yellow-800' : 
-            'bg-red-100 text-red-800'
-          }`}>
-            {notification.message}
-          </div>
+          <Notification 
+            message={notification.message}
+            type={notification.type}
+            onClose={() => setNotification({ show: false, message: '', type: '' })}
+          />
         )}
         
         {/* Sección de Fecha de Entrega */}

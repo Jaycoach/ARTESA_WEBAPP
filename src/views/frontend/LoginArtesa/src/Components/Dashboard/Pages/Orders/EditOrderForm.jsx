@@ -6,6 +6,7 @@ import API from '../../../../api/config';
 import DeliveryDatePicker from './DeliveryDatePicker';
 import OrderFileUpload from './OrderFileUpload';
 import { FaExclamationTriangle } from 'react-icons/fa';
+import Notification from '../../../../Components/ui/Notification';
 
 const EditOrderForm = ({ orderId, onOrderUpdated }) => {
   const navigate = useNavigate();
@@ -336,13 +337,11 @@ const EditOrderForm = ({ orderId, onOrderUpdated }) => {
         </div>
         
         {notification.show && (
-          <div className={`p-4 mb-4 rounded-md ${
-            notification.type === 'success' ? 'bg-green-100 text-green-800' : 
-            notification.type === 'warning' ? 'bg-yellow-100 text-yellow-800' : 
-            'bg-red-100 text-red-800'
-          }`}>
-            {notification.message}
-          </div>
+          <Notification 
+            message={notification.message}
+            type={notification.type}
+            onClose={() => setNotification({ show: false, message: '', type: '' })}
+          />
         )}
         {/* Agregar esto después del encabezado */}
         <div className="bg-amber-50 border-l-4 border-amber-500 p-4 mb-6 rounded-md">

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { FiSearch, FiEye, FiClipboard, FiPlus, FiMinus, FiList, FiGrid, FiCheck } from 'react-icons/fi';
 import API from '../../../../api/config';
+import Notification from '../../../../Components/ui/Notification';
 
 // Importación de componentes personalizados
 import Modal from '../../../../Components/ui/Modal';
@@ -17,7 +18,7 @@ const Products = () => {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [quantity, setQuantity] = useState(1);
   const [viewMode, setViewMode] = useState('table');
-  const [notification, setNotification] = useState(null);
+  const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
   
   // Estado para la paginación
   const [currentPage, setCurrentPage] = useState(1);
@@ -30,8 +31,8 @@ const Products = () => {
 
   // Función para mostrar notificaciones
   const showNotification = useCallback((message, type = 'success') => {
-    setNotification({ message, type });
-    setTimeout(() => setNotification(null), 3000);
+    setNotification({ show: true, message, type });
+    // El componente Notification maneja internamente el timeout
   }, []);
 
   // Funciones para interactuar con la API
@@ -129,7 +130,7 @@ const Products = () => {
         }))
       };
       
-      const response = await API.post('/api/orders', orderData);
+      const response = await API.post('/orders', orderData);
       
       if (response.data.success) {
         showNotification('Pedido enviado correctamente a SAP');
@@ -185,12 +186,12 @@ const Products = () => {
 
   return (
     <div className="bg-gray-100 h-full w-full overflow-hidden">
-      {notification && (
-        <div className={`fixed top-4 right-4 p-4 rounded-lg shadow-lg z-50 ${
-          notification.type === 'success' ? 'bg-green-500' : 'bg-red-500'
-        } text-white font-medium max-w-sm`}>
-          {notification.message}
-        </div>
+      {notification.show && (
+        <Notification 
+          message={notification.message}
+          type={notification.type}
+          onClose={() => setNotification({ show: false, message: '', type: '' })}
+        />
       )}
 
       <div className="h-full w-full flex flex-col">
