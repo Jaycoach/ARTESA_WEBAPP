@@ -34,8 +34,8 @@ const OrderDetails = () => {
 
   useEffect(() => {
     const fetchOrderDetails = async () => {
-      if (!orderId) {
-        setError('ID de pedido no proporcionado');
+      if (!orderId || orderId === 'undefined') {
+        setError('ID de pedido no proporcionado o inválido');
         setIsLoading(false);
         return;
       }
@@ -50,6 +50,10 @@ const OrderDetails = () => {
         setIsLoading(true);
         setError(null);
         
+        if (!orderId || orderId === 'undefined') {
+          throw new Error('ID de pedido inválido');
+        }
+
         const result = await orderService.getOrderById(orderId);
         
         if (result && result.success) {

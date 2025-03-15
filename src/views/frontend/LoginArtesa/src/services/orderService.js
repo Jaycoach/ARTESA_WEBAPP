@@ -66,6 +66,10 @@ export const orderService = {
   // Obtener una orden por su ID
   async getOrderById(orderId) {
     try {
+      if (!orderId) {
+        throw new Error('ID de orden no proporcionado o inválido');
+      }
+
       const response = await API.get(`/orders/${orderId}`);
       
       if (response.data.success) {

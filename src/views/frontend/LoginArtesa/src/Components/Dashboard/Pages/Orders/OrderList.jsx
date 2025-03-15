@@ -186,14 +186,20 @@ const OrderList = () => {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
                   <div className="flex justify-center space-x-2">
-                    <Link 
-                      to={`/dashboard/orders/${order.order_id}`}
-                      className="text-indigo-600 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 px-3 py-1 rounded-md flex items-center"
-                      title="Ver detalles"
-                    >
-                      <FaEye className="mr-1" />
-                      <span className="hidden sm:inline">Ver</span>
-                    </Link>
+                  <Link 
+                    to={order.order_id ? `/dashboard/orders/${order.order_id}` : '#'}
+                    className={`text-indigo-600 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 px-3 py-1 rounded-md flex items-center ${!order.order_id ? 'opacity-50 pointer-events-none' : ''}`}
+                    title="Ver detalles"
+                    onClick={(e) => {
+                      if (!order.order_id) {
+                        e.preventDefault();
+                        alert('ID de orden no disponible');
+                      }
+                    }}
+                  >
+                    <FaEye className="mr-1" />
+                    <span className="hidden sm:inline">Ver</span>
+                  </Link>
                     
                     {editableOrders[order.order_id] ? (
                       <Link 
