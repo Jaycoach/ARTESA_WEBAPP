@@ -4,8 +4,6 @@ import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom'
 // Importar componentes de manera normal para páginas principales
 import Home from './Components/Home/Home';
 
-const AdminPage = lazy(() => import('./Components/Dashboard/Pages/Admin/AdminPage'));
-
 // Importar el contexto de autenticación
 import { useAuth } from './hooks/useAuth';
 
@@ -19,8 +17,11 @@ const Dashboard = lazy(() => import('./Components/Dashboard/Dashboard'));
 const Products = lazy(() => import('./Components/Dashboard/Pages/Products/Products'));
 const Orders = lazy(() => import('./Components/Dashboard/Pages/Orders/Orders'));
 const OrderDetails = lazy(() => import('./Components/Dashboard/Pages/Orders/OrderDetails'));
+const CreateOrderForm = lazy(() => import('./Components/Dashboard/Pages/Orders/CreateOrderForm'));
+const EditOrderForm = lazy(() => import('./Components/Dashboard/Pages/Orders/EditOrderForm'));
 const Invoices = lazy(() => import('./Components/Dashboard/Pages/Invoices/Invoices'));
 const Settings = lazy(() => import('./Components/Dashboard/Pages/Settings/Settings'));
+const AdminPage = lazy(() => import('./Components/Dashboard/Pages/Admin/AdminPage'));
 
 // Componente de carga para Suspense
 const LoadingScreen = () => (
@@ -138,11 +139,29 @@ const router = createBrowserRouter([
           </Suspense>
         ),
       },
+      // Create new order
+      {
+        path: "orders/new",
+        element: (
+          <Suspense fallback={<LoadingScreen />}>
+            <Orders />
+          </Suspense>
+        ),
+      },
+      // Order details
       {
         path: "orders/:orderId",
         element: (
           <Suspense fallback={<LoadingScreen />}>
             <OrderDetails />
+          </Suspense>
+        ),
+      },
+      {
+        path: "orders/:orderId/edit",
+        element: (
+          <Suspense fallback={<LoadingScreen />}>
+            <EditOrderForm />
           </Suspense>
         ),
       },
