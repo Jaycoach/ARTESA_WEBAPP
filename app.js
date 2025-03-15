@@ -14,6 +14,7 @@ const sapIntegrationService = require('./src/services/SapIntegrationService');
 const sapSyncRoutes = require('./src/routes/sapSyncRoutes');
 const { logger, createContextLogger } = require('./src/config/logger');
 const S3Service = require('./src/services/S3Service');
+const orderScheduler = require('./src/services/OrderScheduler');
 
 // Importaciones de middlewares
 const { errorHandler, notFound } = require('./src/middleware/errorMiddleware');
@@ -349,6 +350,19 @@ if (process.env.STORAGE_MODE === 's3') {
 } else {
   logger.info('Usando almacenamiento local para archivos');
 }
+
+// Inicializar servicio de programación de órdenes
+logger.info('Inicializando servicio de programación de órdenes');
+orderScheduler.initialize()
+  .then(() => {
+    logger.info('Servicio de programación de órdenes iniciado exitosamente');
+  })
+  .catch(error => {
+    logger.error('Error al iniciar servicio de programación de órdenes', {
+      error: error.message,
+      stack: error.stack
+    });
+  });
 
 // =========================================================================
 // INICIAR SERVIDOR

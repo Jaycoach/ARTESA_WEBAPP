@@ -100,12 +100,14 @@ const logger = createContextLogger('OrderController');
  */
 const createOrder = async (req, res) => {
   try {
-    const { user_id, total_amount, details } = req.body;
+    const { user_id, total_amount, details, delivery_date, status_id } = req.body;
     
     logger.debug('Iniciando creación de orden', { 
       userId: user_id, 
       totalAmount: total_amount, 
-      detailsCount: details?.length 
+      detailsCount: details?.length,
+      deliveryDate: delivery_date,
+      statusId: status_id
     });
 
     // Validación básica
@@ -129,14 +131,57 @@ const createOrder = async (req, res) => {
         message: 'No se puede crear una orden sin detalles'
       });
     }
+    
+    // Validar fecha de entrega si se proporciona
+    let parsedDeliveryDate = null;
+    if (delivery_date) {
+      parsedDeliveryDate = new Date(delivery_date);
+      
+      if (isNaN(parsedDeliveryDate.getTime())) {
+        return res.status(400).json({
+          success: false,
+          message: 'Formato de fecha de entrega inválido'
+        });
+      }
+      
+      // Obtener configuración de hora límite
+      const adminSettings = await require('../models/AdminSettings').getSettings();
+      const orderTimeLimit = adminSettings.orderTimeLimit || "18:00";
+      
+      // Calcular fecha mínima permitida
+      const minDeliveryDate = Order.calculateDeliveryDate(new Date(), orderTimeLimit);
+      
+      // Comparar solo las fechas (sin la hora)
+      const deliveryDateOnly = new Date(parsedDeliveryDate.toDateString());
+      const minDeliveryDateOnly = new Date(minDeliveryDate.toDateString());
+      
+      if (deliveryDateOnly < minDeliveryDateOnly) {
+        return res.status(400).json({
+          success: false,
+          message: `La fecha de entrega debe ser a partir del ${minDeliveryDate.toISOString().split('T')[0]}`,
+          minDeliveryDate: minDeliveryDate.toISOString().split('T')[0]
+        });
+      }
+    }
+    
+    // Usar estado predeterminado si no se proporciona
+    const initialStatus = status_id || 1; // Por defecto: Abierto
 
-    // Crear la orden
-    const result = await Order.createOrder(user_id, total_amount, details);
+    // Crear la orden con la fecha de entrega y estado
+    const result = await Order.createOrder(
+      user_id, 
+      total_amount, 
+      details, 
+      parsedDeliveryDate,
+      initialStatus
+    );
     
     logger.info('Orden creada exitosamente', {
       userId: user_id,
       orderId: result.order_id,
-      detailsCount: result.details_count
+      detailsCount: result.details_count,
+      deliveryDate: parsedDeliveryDate,
+      statusId: initialStatus
     });
 
     res.status(201).json({
@@ -326,8 +371,395 @@ const getUserOrders = async (req, res) => {
   }
 };
 
+/**
+ * @swagger
+ * /api/orders/{orderId}:
+ *   put:
+ *     summary: Actualizar una orden existente
+ *     description: Actualiza una orden y sus detalles según el ID proporcionado
+ *     tags: [Orders]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: orderId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID de la orden a actualizar
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               status_id:
+ *                 type: integer
+ *                 description: ID del nuevo estado
+ *               delivery_date:
+ *                 type: string
+ *                 format: date
+ *                 description: Nueva fecha de entrega (YYYY-MM-DD)
+ *               total_amount:
+ *                 type: number
+ *                 description: Nuevo monto total de la orden
+ *               details:
+ *                 type: array
+ *                 description: Nuevos detalles de la orden (reemplazará los existentes)
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     product_id:
+ *                       type: integer
+ *                       description: ID del producto
+ *                     quantity:
+ *                       type: integer
+ *                       description: Cantidad del producto
+ *                     unit_price:
+ *                       type: number
+ *                       description: Precio unitario
+ *     responses:
+ *       200:
+ *         description: Orden actualizada exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Orden actualizada exitosamente
+ *                 data:
+ *                   type: object
+ *       400:
+ *         description: Datos inválidos o la orden no se puede modificar
+ *       401:
+ *         description: No autorizado - Token no proporcionado o inválido
+ *       403:
+ *         description: Prohibido - Sin permisos para modificar esta orden
+ *       404:
+ *         description: Orden no encontrada
+ *       500:
+ *         description: Error interno del servidor
+ */
+const updateOrder = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const updateData = req.body;
+    const user = req.user;
+    
+    logger.debug('Solicitando actualización de orden', { 
+      orderId, 
+      userId: user.id,
+      updateData
+    });
+
+    // Verificar que el ID de orden sea válido
+    if (!orderId || isNaN(parseInt(orderId))) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID de orden inválido'
+      });
+    }
+
+    // Obtener la orden actual para verificar permisos
+    const currentOrder = await Order.getOrderWithDetails(orderId);
+    
+    if (!currentOrder) {
+      return res.status(404).json({
+        success: false,
+        message: 'Orden no encontrada'
+      });
+    }
+
+    // Verificar permisos - solo el dueño o un administrador pueden modificar la orden
+    if (currentOrder.user_id !== user.id && user.rol_id !== 1) {
+      logger.warn('Intento de acceso no autorizado a actualización de orden', {
+        orderId,
+        orderUserId: currentOrder.user_id,
+        requestingUserId: user.id,
+        requestingUserRole: user.rol_id
+      });
+
+      return res.status(403).json({
+        success: false,
+        message: 'No tienes permiso para modificar esta orden'
+      });
+    }
+
+    // Validar fecha de entrega si se proporciona
+    if (updateData.delivery_date) {
+      const deliveryDate = new Date(updateData.delivery_date);
+      
+      // Obtener configuración de hora límite
+      const adminSettings = await require('../models/AdminSettings').getSettings();
+      const orderTimeLimit = adminSettings.orderTimeLimit || "18:00";
+      
+      // Calcular fecha mínima permitida
+      const minDeliveryDate = Order.calculateDeliveryDate(new Date(), orderTimeLimit);
+      
+      // Verificar que la fecha sea válida
+      if (isNaN(deliveryDate.getTime())) {
+        return res.status(400).json({
+          success: false,
+          message: 'Formato de fecha de entrega inválido'
+        });
+      }
+      
+      // Comparar solo las fechas (sin la hora)
+      const deliveryDateOnly = new Date(deliveryDate.toDateString());
+      const minDeliveryDateOnly = new Date(minDeliveryDate.toDateString());
+      
+      if (deliveryDateOnly < minDeliveryDateOnly) {
+        return res.status(400).json({
+          success: false,
+          message: `La fecha de entrega debe ser a partir del ${minDeliveryDate.toISOString().split('T')[0]}`,
+          minDeliveryDate: minDeliveryDate.toISOString().split('T')[0]
+        });
+      }
+    }
+
+    // Actualizar la orden
+    const updatedOrder = await Order.updateOrder(orderId, updateData);
+    
+    if (!updatedOrder) {
+      return res.status(404).json({
+        success: false,
+        message: 'No se pudo actualizar la orden'
+      });
+    }
+    
+    // Responder con la orden actualizada
+    res.status(200).json({
+      success: true,
+      message: 'Orden actualizada exitosamente',
+      data: updatedOrder
+    });
+  } catch (error) {
+    logger.error('Error al actualizar orden', {
+      error: error.message,
+      stack: error.stack,
+      orderId: req.params?.orderId,
+      userId: req.user?.id
+    });
+    
+    // Manejo de errores específicos
+    if (error.message.includes('No se puede modificar')) {
+      return res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error al actualizar la orden',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * @swagger
+ * /api/orders/status/{statusId}:
+ *   get:
+ *     summary: Obtener órdenes por estado
+ *     description: Recupera todas las órdenes que tienen un estado específico
+ *     tags: [Orders]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: statusId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID del estado a filtrar
+ *     responses:
+ *       200:
+ *         description: Lista de órdenes recuperada exitosamente
+ *       401:
+ *         description: No autorizado - Token no proporcionado o inválido
+ *       403:
+ *         description: Prohibido - Sin permisos para ver estas órdenes
+ *       500:
+ *         description: Error interno del servidor
+ */
+const getOrdersByStatus = async (req, res) => {
+  try {
+    const { statusId } = req.params;
+    const user = req.user;
+    
+    logger.debug('Solicitando órdenes por estado', { 
+      statusId, 
+      userId: user.id 
+    });
+
+    // Verificar que el ID de estado sea válido
+    if (!statusId || isNaN(parseInt(statusId))) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID de estado inválido'
+      });
+    }
+
+    // Verificar permisos - solo los administradores pueden ver todas las órdenes por estado
+    if (user.rol_id !== 1) {
+      logger.warn('Intento de acceso no autorizado a listado de órdenes por estado', {
+        statusId,
+        userId: user.id,
+        userRole: user.rol_id
+      });
+
+      // Si no es administrador, solo puede ver sus propias órdenes
+      const userOrders = await Order.getUserOrders(user.id);
+      const filteredOrders = userOrders.filter(order => order.status_id === parseInt(statusId));
+      
+      return res.status(200).json({
+        success: true,
+        data: filteredOrders
+      });
+    }
+
+    // Obtener órdenes por estado
+    const orders = await Order.getOrdersByStatus(statusId);
+    
+    res.status(200).json({
+      success: true,
+      data: orders
+    });
+  } catch (error) {
+    logger.error('Error al obtener órdenes por estado', {
+      error: error.message,
+      stack: error.stack,
+      statusId: req.params?.statusId,
+      userId: req.user?.id
+    });
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error al obtener órdenes por estado',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * @swagger
+ * /api/orders/statuses:
+ *   get:
+ *     summary: Obtener todos los estados de órdenes
+ *     description: Recupera la lista de posibles estados para las órdenes
+ *     tags: [Orders]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Lista de estados recuperada exitosamente
+ *       401:
+ *         description: No autorizado - Token no proporcionado o inválido
+ *       500:
+ *         description: Error interno del servidor
+ */
+const getOrderStatuses = async (req, res) => {
+  try {
+    logger.debug('Solicitando estados de órdenes');
+
+    // Obtener estados de órdenes
+    const statuses = await Order.getOrderStatuses();
+    
+    res.status(200).json({
+      success: true,
+      data: statuses
+    });
+  } catch (error) {
+    logger.error('Error al obtener estados de órdenes', {
+      error: error.message,
+      stack: error.stack
+    });
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error al obtener estados de órdenes',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * @swagger
+ * /api/orders/delivery-date:
+ *   get:
+ *     summary: Calcular fecha de entrega disponible
+ *     description: Calcula la fecha de entrega más próxima disponible según las reglas de negocio
+ *     tags: [Orders]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Fecha de entrega calculada exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     deliveryDate:
+ *                       type: string
+ *                       format: date
+ *                       example: "2025-03-22"
+ *       401:
+ *         description: No autorizado - Token no proporcionado o inválido
+ *       500:
+ *         description: Error interno del servidor
+ */
+const calculateDeliveryDate = async (req, res) => {
+  try {
+    logger.debug('Calculando fecha de entrega disponible');
+
+    // Obtener configuración de hora límite
+    const adminSettings = await require('../models/AdminSettings').getSettings();
+    const orderTimeLimit = adminSettings.orderTimeLimit || "18:00";
+    
+    // Calcular fecha de entrega
+    const deliveryDate = Order.calculateDeliveryDate(new Date(), orderTimeLimit);
+    
+    res.status(200).json({
+      success: true,
+      data: {
+        deliveryDate: deliveryDate.toISOString().split('T')[0],
+        orderTimeLimit
+      }
+    });
+  } catch (error) {
+    logger.error('Error al calcular fecha de entrega', {
+      error: error.message,
+      stack: error.stack
+    });
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error al calcular fecha de entrega',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
 module.exports = { 
   createOrder,
   getOrderById,
-  getUserOrders
+  getUserOrders,
+  updateOrder,
+  getOrdersByStatus,
+  getOrderStatuses,
+  calculateDeliveryDate
 };

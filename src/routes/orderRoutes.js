@@ -1,6 +1,14 @@
 const express = require('express');
 const { verifyToken } = require('../middleware/auth');
-const { createOrder, getOrderById, getUserOrders } = require('../controllers/orderController');
+const { 
+    createOrder, 
+    getOrderById, 
+    getUserOrders, 
+    updateOrder, 
+    getOrdersByStatus, 
+    getOrderStatuses,
+    calculateDeliveryDate
+  } = require('../controllers/orderController');
 
 const router = express.Router();
 
@@ -16,6 +24,8 @@ const router = express.Router();
  * @property {number} user_id.required - ID del usuario
  * @property {number} total_amount.required - Monto total de la orden
  * @property {Array<OrderDetail>} details.required - Detalles de la orden
+ * @property {Date} delivery_date - Fecha de entrega programada
+ * @property {number} status_id - ID del estado inicial (por defecto: 1 - Abierto)
  */
 
 /**
@@ -23,6 +33,14 @@ const router = express.Router();
  * @property {string} message - Mensaje de éxito
  * @property {object} order_id - ID de la orden creada
  * @property {number} details_count - Cantidad de detalles en la orden
+ */
+
+/**
+ * @typedef {object} UpdateOrderRequest
+ * @property {number} status_id - ID del nuevo estado
+ * @property {Date} delivery_date - Nueva fecha de entrega
+ * @property {number} total_amount - Nuevo monto total
+ * @property {Array<OrderDetail>} details - Nuevos detalles de la orden
  */
 
 /**
@@ -39,11 +57,88 @@ const router = express.Router();
 // Ruta para crear una orden
 router.post('/orders', verifyToken, createOrder);
 
-// Añadir estas dos rutas que faltan:
-// Ruta para obtener órdenes de un usuario
-router.get('/orders/user/:userId', verifyToken, getUserOrders);
+/**
+ * Actualizar una orden existente
+ * @route PUT /orders/{orderId}
+ * @group Orders - Operaciones relacionadas con órdenes
+ * @param {number} orderId.path.required - ID de la orden a actualizar
+ * @param {UpdateOrderRequest} request.body.required - Datos para actualizar la orden
+ * @security bearerAuth
+ * @returns {object} 200 - Orden actualizada exitosamente
+ * @returns {object} 400 - Datos inválidos
+ * @returns {object} 401 - No autorizado
+ * @returns {object} 403 - No tiene permisos para actualizar esta orden
+ * @returns {object} 404 - Orden no encontrada
+ * @returns {object} 500 - Error interno del servidor
+ */
+// Ruta para actualizar una orden
+router.put('/orders/:orderId', verifyToken, updateOrder);
 
+/**
+ * Obtener órdenes por estado
+ * @route GET /orders/status/{statusId}
+ * @group Orders - Operaciones relacionadas con órdenes
+ * @param {number} statusId.path.required - ID del estado a filtrar
+ * @security bearerAuth
+ * @returns {object} 200 - Lista de órdenes recuperada exitosamente
+ * @returns {object} 401 - No autorizado
+ * @returns {object} 403 - No tiene permisos para ver estas órdenes
+ * @returns {object} 500 - Error interno del servidor
+ */
+// Ruta para obtener órdenes por estado
+router.get('/orders/status/:statusId', verifyToken, getOrdersByStatus);
+
+/**
+ * Obtener todos los estados de órdenes
+ * @route GET /orders/statuses
+ * @group Orders - Operaciones relacionadas con órdenes
+ * @security bearerAuth
+ * @returns {object} 200 - Lista de estados recuperada exitosamente
+ * @returns {object} 401 - No autorizado
+ * @returns {object} 500 - Error interno del servidor
+ */
+// Ruta para obtener todos los estados de órdenes
+router.get('/orders/statuses', verifyToken, getOrderStatuses);
+
+/**
+ * Calcular fecha de entrega disponible
+ * @route GET /orders/delivery-date
+ * @group Orders - Operaciones relacionadas con órdenes
+ * @security bearerAuth
+ * @returns {object} 200 - Fecha de entrega calculada exitosamente
+ * @returns {object} 401 - No autorizado
+ * @returns {object} 500 - Error interno del servidor
+ */
+// Ruta para calcular fecha de entrega disponible
+router.get('/orders/delivery-date', verifyToken, calculateDeliveryDate);
+
+/**
+ * Obtener una orden específica
+ * @route GET /orders/{orderId}
+ * @group Orders - Operaciones relacionadas con órdenes
+ * @param {number} orderId.path.required - ID de la orden
+ * @security bearerAuth
+ * @returns {object} 200 - Orden recuperada exitosamente
+ * @returns {object} 401 - No autorizado
+ * @returns {object} 403 - No tiene permisos para ver esta orden
+ * @returns {object} 404 - Orden no encontrada
+ * @returns {object} 500 - Error interno del servidor
+ */
 // Ruta para obtener una orden específica
 router.get('/orders/:orderId', verifyToken, getOrderById);
+
+/**
+ * Obtener órdenes de un usuario
+ * @route GET /orders/user/{userId}
+ * @group Orders - Operaciones relacionadas con órdenes
+ * @param {number} userId.path.required - ID del usuario
+ * @security bearerAuth
+ * @returns {object} 200 - Órdenes recuperadas exitosamente
+ * @returns {object} 401 - No autorizado
+ * @returns {object} 403 - No tiene permisos para ver estas órdenes
+ * @returns {object} 500 - Error interno del servidor
+ */
+// Ruta para obtener órdenes de un usuario
+router.get('/orders/user/:userId', verifyToken, getUserOrders);
 
 module.exports = router;
