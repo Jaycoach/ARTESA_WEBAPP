@@ -19,6 +19,9 @@ const Products = () => {
   const [quantity, setQuantity] = useState(1);
   const [viewMode, setViewMode] = useState('table');
   const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
+
+  // Estado para manejar cantidades de cada producto
+  const [productQuantities, setProductQuantities] = useState({});
   
   // Estado para la paginación
   const [currentPage, setCurrentPage] = useState(1);
@@ -62,42 +65,57 @@ const Products = () => {
   // Funcionalidades de producto
   const openProductDetails = useCallback((product) => {
     setSelectedProduct(product);
-    setQuantity(1);
+    // Inicializa con la cantidad guardada o 1 por defecto
+    const savedQuantity = productQuantities[product.product_id] || 1;
+    setQuantity(savedQuantity);
     setModalVisible(true);
-  }, []);
+  }, [productQuantities]);
 
   const closeModal = useCallback(() => {
     setModalVisible(false);
   }, []);
 
+  const updateQuantity = useCallback((productId, quantity) => {
+    setProductQuantities(prev => ({
+      ...prev,
+      [productId]: quantity
+    }));
+  }, []);
+
   const incrementQuantity = useCallback(() => {
     if (selectedProduct && quantity < selectedProduct.stock) {
-      setQuantity(quantity + 1);
+      const newQuantity = quantity + 1;
+      setQuantity(newQuantity);
+      updateQuantity(selectedProduct.product_id, newQuantity);
     }
-  }, [selectedProduct, quantity]);
+  }, [selectedProduct, quantity, updateQuantity]);
 
   const decrementQuantity = useCallback(() => {
     if (quantity > 1) {
-      setQuantity(quantity - 1);
+      const newQuantity = quantity - 1;
+      setQuantity(newQuantity);
+      updateQuantity(selectedProduct.product_id, newQuantity);
     }
-  }, [quantity]);
+  }, [quantity, selectedProduct, updateQuantity]);
 
   // Función para agregar a pedido
   const addToOrder = useCallback((product, qty = 1) => {
     try {
-      const existingItemIndex = orderItems.findIndex(item => item.product_id === product.product_id);
+      const quantityToAdd = qty || productQuantities[product.product_id] || 1;
       
+      const existingItemIndex = orderItems.findIndex(item => item.product_id === product.product_id);
+    
       if (existingItemIndex >= 0) {
         // Si el producto ya está en el pedido, actualizamos la cantidad
         const updatedItems = [...orderItems];
-        updatedItems[existingItemIndex].quantity += qty;
+        updatedItems[existingItemIndex].quantity += quantityToAdd;
         setOrderItems(updatedItems);
       } else {
         // Si es un producto nuevo, lo agregamos al pedido
         setOrderItems([...orderItems, {
           product_id: product.product_id,
           name: product.name,
-          quantity: qty,
+          quantity: quantityToAdd,
           unit_price: product.price_list1
         }]);
       }
@@ -108,7 +126,23 @@ const Products = () => {
       console.error('Error adding to order:', error);
       showNotification('Error al agregar al pedido', 'error');
     }
-  }, [orderItems, modalVisible, closeModal, showNotification]);
+  }, [orderItems, modalVisible, closeModal, showNotification, productQuantities]);
+
+  //Manejador para actualizar cantidades
+  const handleQuantityChange = useCallback((productId, newValue) => {
+    // Asegurarse de que la cantidad es válida (mínimo 1)
+    const validQuantity = Math.max(1, newValue);
+    
+    // Verificar stock si está disponible
+    const product = products.find(p => p.product_id === productId);
+    if (product && product.stock) {
+      // No exceder el stock disponible
+      const quantity = Math.min(validQuantity, product.stock);
+      updateQuantity(productId, quantity);
+    } else {
+      updateQuantity(productId, validQuantity);
+    }
+  }, [products, updateQuantity]);
 
   // Función para enviar el pedido completo a la API
   const submitOrder = useCallback(async () => {
@@ -290,6 +324,9 @@ const Products = () => {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Precio Normal
                       </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Cantidad
+                      </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Acciones
                       </th>
@@ -311,6 +348,15 @@ const Products = () => {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="text-sm font-bold text-blue-600">{formatCurrency(product.price_list1)}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <input 
+                              type="number" 
+                              min="1" 
+                              value={productQuantities[product.product_id] || 1} 
+                              onChange={(e) => handleQuantityChange(product.product_id, parseInt(e.target.value))}
+                              className="mt-1 block w-16 py-1 px-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                            />
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <div className="flex space-x-2">
@@ -362,7 +408,33 @@ const Products = () => {
                     <div className="p-4 flex-1 flex flex-col">
                       <h3 className="font-medium text-gray-900 text-sm md:text-base mb-2 line-clamp-2 h-10">{product.name}</h3>
                       <p className="text-lg font-bold text-blue-600 mb-2">{formatCurrency(product.price_list1)}</p>
-                      
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm text-gray-600">Cantidad:</span>
+                        <div className="flex items-center border rounded-md">
+                          <button
+                            onClick={() => handleQuantityChange(product.product_id, (productQuantities[product.product_id] || 1) - 1)}
+                            className="p-1 text-gray-600 hover:text-gray-800 disabled:opacity-50"
+                            disabled={(productQuantities[product.product_id] || 1) <= 1}
+                          >
+                            <FiMinus size={12} />
+                          </button>
+                          <input
+                            type="number"
+                            min="1"
+                            value={productQuantities[product.product_id] || 1}
+                            onChange={(e) => handleQuantityChange(product.product_id, parseInt(e.target.value))}
+                            className="w-10 text-center text-sm border-0 focus:ring-0"
+                          />
+                          <button
+                            onClick={() => handleQuantityChange(product.product_id, (productQuantities[product.product_id] || 1) + 1)}
+                            className="p-1 text-gray-600 hover:text-gray-800 disabled:opacity-50"
+                            disabled={product.stock && (productQuantities[product.product_id] || 1) >= product.stock}
+                          >
+                            <FiPlus size={12} />
+                          </button>
+                        </div>
+                      </div>
+
                       <div className="flex gap-2 mt-auto">
                         <Button
                           variant="outline"

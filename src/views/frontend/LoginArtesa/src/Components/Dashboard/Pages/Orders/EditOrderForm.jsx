@@ -52,6 +52,9 @@ const EditOrderForm = ({ orderId, onOrderUpdated }) => {
       try {
         setLoading(true);
         
+        // Agrega logs para depuración
+        console.log('Intentando obtener orden con ID:', orderId);
+
         // Obtener detalles del pedido
         const result = await orderService.getOrderById(orderId);
         
