@@ -12,10 +12,13 @@ const OrderList = ({ userId }) => {
       try {
         setIsLoading(true);
         const data = await orderService.getUserOrders(userId);
-        setOrders(data);
+        console.log('Datos recibidos:', data);
+        setOrders(Array.isArray(data) ? data : []);
         setError(null);
       } catch (err) {
+        console.error('Error al obtener órdenes:', err);
         setError(err.message || 'Error al cargar las órdenes');
+        setOrders([]);
       } finally {
         setIsLoading(false);
       }

@@ -10,6 +10,10 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const fileUpload = require('express-fileupload');
 const ensureJsonResponse = require('./src/middleware/ensureJsonResponse');
+const sapIntegrationService = require('./src/services/SapIntegrationService');
+const sapSyncRoutes = require('./src/routes/sapSyncRoutes');
+const { logger, createContextLogger } = require('./src/config/logger');
+const S3Service = require('./src/services/S3Service');
 
 // Importaciones de middlewares
 const { errorHandler, notFound } = require('./src/middleware/errorMiddleware');
@@ -32,6 +36,9 @@ app.set('trust proxy', 1); // trust first proxy
 // Constantes de configuración
 const API_PREFIX = '/api';
 const PORT = process.env.PORT || 3000;
+
+// Crear una instancia del logger para app.js
+const appLogger = createContextLogger('App');
 
 // =========================================================================
 // FUNCIÓN PARA ASEGURAR DIRECTORIOS
@@ -79,48 +86,42 @@ app.use(morgan('dev'));
 // =========================================================================
 // CONFIGURACIÓN DE CORS
 // =========================================================================
+// First, remove the custom middleware that manually sets CORS headers
+
+// Then, update your cors middleware configuration
 app.use(cors({
   origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
+    
+    // Define allowed origins explicitly
     const allowedOrigins = [
       'http://localhost:3000',
       'http://localhost:5173',
-      'http://localhost:5174',
-      process.env.DEV_NGROK_URL,
-      process.env.PROD_URL
-    ].filter(Boolean);
-
-    // Permitir solicitudes sin origen (como las de Postman o Swagger UI)
-    if (!origin) return callback(null, true);
+      'http://localhost:5174'
+    ];
     
-    // Comprueba si es localhost o contiene ngrok-free.app
+    // Always allow localhost and ngrok domains
     if (allowedOrigins.includes(origin) || 
-        origin.includes('ngrok-free.app') || 
-        origin.includes('localhost')) {
+        origin.includes('localhost') || 
+        origin.includes('ngrok-free.app')) {
       callback(null, true);
     } else {
       console.log('CORS rechazado para origen:', origin);
       callback(new Error('No permitido por CORS'));
     }
   },
-  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  exposedHeaders: ['Access-Control-Allow-Origin', 'Access-Control-Allow-Credentials'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH', 'HEAD'],
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization', 
+    'X-Requested-With', 
+    'Bypass-Tunnel-Reminder', 
+    'ngrok-skip-browser-warning'
+  ],
   credentials: true,
-  preflightContinue: false,
   optionsSuccessStatus: 204
 }));
-
-// Middleware para manejar errores CORS
-app.use((err, req, res, next) => {
-  if (err.message === 'No permitido por CORS') {
-    return res.status(403).json({
-      success: false,
-      message: 'Acceso no permitido por CORS',
-      origin: req.headers.origin
-    });
-  }
-  next(err);
-});
 
 // =========================================================================
 // CARGA DE ARCHIVOS - Configurado pero NO aplicado globalmente
@@ -256,6 +257,7 @@ const passwordResetRoutes = require('./src/routes/passwordResetRoutes');
 const paymentRoutes = require('./src/routes/paymentRoutes');
 const uploadRoutes = require('./src/routes/uploadRoutes');
 const clientProfileRoutes = require('./src/routes/clientProfileRoutes');
+const adminRoutes = require('./src/routes/adminRoutes');
 
 // =========================================================================
 // RUTAS DE LA API
@@ -265,6 +267,9 @@ app.use(`${API_PREFIX}/auth`, authRoutes);
 app.use(API_PREFIX, productRoutes);
 app.use(API_PREFIX, secureProductRoutes);
 app.use(API_PREFIX, orderRoutes);
+// Nueva ruta para SAP
+app.use(`${API_PREFIX}/sap`, sapSyncRoutes);
+app.use(`${API_PREFIX}/admin`, adminRoutes);
 
 // Aplicamos fileUpload sólo a las rutas específicas que lo necesitan
 app.use(`${API_PREFIX}/upload`, fileUpload(fileUploadOptions), uploadRoutes);
@@ -292,6 +297,35 @@ app.use(notFound);
 // MIDDLEWARE DE ERRORES - Siempre al final
 // =========================================================================
 app.use(errorHandler);
+
+// =========================================================================
+// INICIALIZACIÓN DE SERVICIOS
+// =========================================================================
+// Inicializar servicio de integración con SAP B1 (si está configurado)
+if (process.env.SAP_SERVICE_LAYER_URL) {
+  appLogger.info('Iniciando servicio de integración con SAP B1');
+  
+  sapIntegrationService.initialize()
+    .then(() => {
+      appLogger.info('Servicio de integración con SAP B1 iniciado exitosamente');
+    })
+    .catch(error => {
+      logger.error('Error al iniciar servicio de integración con SAP B1', {
+        error: error.message,
+        stack: error.stack
+      });
+    });
+} else {
+  appLogger.info('Integración con SAP B1 no configurada');
+}
+
+// Inicializar servicio S3
+if (process.env.STORAGE_MODE === 's3') {
+  logger.info('Inicializando servicio S3');
+  S3Service.initialize();
+} else {
+  logger.info('Usando almacenamiento local para archivos');
+}
 
 // =========================================================================
 // INICIAR SERVIDOR

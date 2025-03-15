@@ -151,6 +151,40 @@ class Order {
       throw error;
     }
   }
+  /**
+   * Obtiene todas las órdenes de un usuario específico
+   * @async
+   * @param {number} userId - ID del usuario
+   * @returns {Promise<Array<Object>>} - Lista de órdenes del usuario
+   * @throws {Error} Si ocurre un error en la consulta
+   */
+  static async getUserOrders(userId) {
+    try {
+      logger.debug('Obteniendo órdenes del usuario', { userId });
+      
+      const query = `
+        SELECT o.*, 
+              COUNT(od.order_detail_id) as item_count, 
+              SUM(od.quantity) as total_items
+        FROM Orders o
+        LEFT JOIN Order_Details od ON o.order_id = od.order_id
+        WHERE o.user_id = $1
+        GROUP BY o.order_id
+        ORDER BY o.order_date DESC
+      `;
+      
+      const { rows } = await pool.query(query, [userId]);
+      
+      logger.info('Órdenes de usuario recuperadas', { userId, count: rows.length });
+      return rows;
+    } catch (error) {
+      logger.error('Error al obtener órdenes del usuario', { 
+        error: error.message,
+        userId
+      });
+      throw error;
+    }
+  }
 }
 
 module.exports = Order;

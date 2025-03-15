@@ -406,7 +406,7 @@ img, video {
   flex-direction: column;
   justify-content: space-between;
   box-shadow: var(--shadow-md);
-  overflow: hidden;
+  overflow: visible; /* Mantener visible para mostrar el botón */
   z-index: 1000;
   
   &:hover {
@@ -415,6 +415,10 @@ img, video {
   
   .menuTitle, .settingsTitle, .smallText {
     display: none;
+    color: var(--white); /* Asegurar que el color sea blanco */
+    margin: 10px 15px;
+    font-size: 16px;
+    font-weight: 600;
   }
   
   &:hover .menuTitle, 
@@ -426,9 +430,9 @@ img, video {
   .toggle-btn {
     position: absolute;
     top: 20px;
-    right: -20px;
-    width: 35px;
-    height: 35px;
+    right: -15px;
+    width: 30px;
+    height: 30px;
     background-color: var(--bg-color);
     border: 2px solid var(--white);
     color: var(--white);
@@ -439,6 +443,7 @@ img, video {
     display: flex;
     align-items: center;
     justify-content: center;
+    z-index: 1010;
     
     &:hover {
       background-color: var(--hover-color);
@@ -446,47 +451,77 @@ img, video {
     }
   }
   
+  /* Estilos para los elementos del menú */
   .sidebar-menu {
-    list-style: none;
-    padding: 0;
-    
-    h3 {
-      font-size: var(--font-size-md);
-      margin-bottom: var(--spacing-md);
-    }
+    width: 100%;
+    padding: 15px 0;
+    margin-top: 25px; /* Añadir margen superior para evitar solapamiento con el botón */
     
     ul {
-      list-style: none;
-      padding: 0;
+      padding-left: 0;
+      margin: 0;
+      list-style-type: none;
       
       li {
-        margin-bottom: var(--spacing-sm);
+        position: relative;
+        margin-bottom: 5px;
         
         button {
+          display: flex;
+          align-items: center;
+          width: 100%;
+          padding: 12px 15px;
           background: none;
           border: none;
-          color: var(--white);
-          font-size: 0;
-          width: 100%;
           text-align: left;
-          padding: var(--spacing-sm) var(--spacing-md);
-          border-radius: var(--border-radius-sm);
-          cursor: pointer;
-          transition: background var(--transition-default),
-                     font-size var(--transition-default);
+          color: var(--white);
+          transition: background 0.3s ease;
+          
+          .menu-icon {
+            font-size: 18px;
+            min-width: 30px;
+            color: var(--white);
+          }
+          
+          .menu-text {
+            margin-left: 10px;
+            white-space: nowrap;
+            color: var(--white); /* Asegurar color blanco para el texto */
+            transition: opacity 0.3s ease;
+          }
           
           &:hover {
-            background: var(--hover-color);
-            color: var(--black);
+            background-color: rgba(255, 255, 255, 0.1);
+          }
+          
+          &.active {
+            background-color: rgba(255, 255, 255, 0.15);
+            border-left: 3px solid var(--accent-color);
           }
         }
       }
     }
   }
   
-  &:hover .sidebar-menu ul li button {
-    font-size: var(--font-size-base);
+  &:hover .sidebar-menu ul li button .menu-text {
+    opacity: 1;
+    display: inline; /* Asegurar que se muestre al hacer hover */
   }
+  
+  /* Separador opcional para el menú */
+  .separator {
+    margin: 10px 15px;
+    
+    hr {
+      opacity: 0.3;
+      border-color: var(--white);
+    }
+  }
+}
+
+// Ajustar el contenido cuando el sidebar está expandido
+.sidebar:hover ~ .dashboard-layout .dashboard-content {
+  margin-left: 200px;
 }
 
 // Dashboard

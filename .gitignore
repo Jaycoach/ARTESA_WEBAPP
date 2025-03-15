@@ -1,41 +1,42 @@
+# Dependencias
+/node_modules
 node_modules/
 
 # Archivos de seguridad y documentación sensible
-SECURITY.md
-docs/database-structure.md
-database.md
-scripts/docs/database-structure.md
+/SECURITY.md
+/docs/database-structure.md
+/database.md
+/scripts/docs/database-structure.md
 
 # Scripts sensibles
-scripts/hashPasswords.js
-scripts/generateDbDocs.js
-
+/scripts/hashPasswords.js
+/scripts/dbdocs.config.js
+/scripts
+scripts/
 # Implementaciones de seguridad
-src/security/
+/src/security/
 
 # Archivos de configuración con datos sensibles
-src/config/db.js
+/src/config/db.js
 
 # Archivos de configuración y secretos
 .env
 .env.*
 .env.local
 .env.*.local
-config/secrets.js
+/config/secrets.js
 *.pem
 *.key
 *.cert
 *.p12
-config/*.json
-config/secrets.json
-certificates/
+/config/*.json
+/config/secrets.json
+/certificates/
 
 # Logs y archivos de debug
-logs/
+/logs/
 *.log
-logs/*.log
-*/logs
-*/logs/*
+/logs/*.log
 npm-debug.log*
 
 # Archivos de sistema
@@ -43,31 +44,30 @@ npm-debug.log*
 .idea/
 .vscode/
 
-# Dependencias y builds
-node_modules/
-dist/
-build/
-coverage/
+# Builds y coverage
+/dist/
+/build/
+/coverage/
 
 # Archivos temporales
-tmp/
-temp/
+/tmp/
+/temp/
 .tmp/
 
-# Archivos temporales y uploads
-uploads/
+# Uploads
+/uploads/
 
-# Archivos de auditoría de seguridad
-security-audit/
-vulnerability-reports/
+# Auditoría de seguridad
+/security-audit/
+/vulnerability-reports/
 
-# Carpeta de tests
-tests/
+# Tests
+/tests/
 
-# Documentación detallada generada
-public/swagger.json
+# Documentación generada
+/public/swagger.json
 
-# Certificados y claves
+# Certificados
 *.pem
 *.key
 *.cert

@@ -1,7 +1,8 @@
 import React from 'react';
+import '../../App.css'
 import PropTypes from 'prop-types';
 
-const Modal = ({ isOpen, onClose, children, title }) => {
+const Modal = ({ isOpen, onClose, children, title, footer }) => {
   if (!isOpen) return null;
 
   return (
@@ -25,6 +26,8 @@ const Modal = ({ isOpen, onClose, children, title }) => {
 };
 
 Modal.propTypes = {
+  isOpen: PropTypes.bool.isRequired,
+  onClose: PropTypes.func.isRequired,
   title: PropTypes.string.isRequired,
   children: PropTypes.node.isRequired,
   footer: PropTypes.node,
