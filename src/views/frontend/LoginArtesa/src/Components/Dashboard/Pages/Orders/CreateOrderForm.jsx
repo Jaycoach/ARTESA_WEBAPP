@@ -1,28 +1,44 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../../../../hooks/useAuth';
 import { orderService } from '../../../../services/orderService';
 import API from '../../../../api/config';
 
-const CreateOrderForm = ({ userId, onOrderCreated }) => {
+const CreateOrderForm = ({ onOrderCreated }) => {
+  const { user } = useAuth();
   const [products, setProducts] = useState([]);
   const [orderDetails, setOrderDetails] = useState([{ product_id: '', quantity: 1, unit_price: 0 }]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notification, setNotification] = useState({ show: false, message: '', type: '' });
+  const [loadingProducts, setLoadingProducts] = useState(true);
 
   // Cargar productos disponibles
   useEffect(() => {
     const fetchProducts = async () => {
+      setLoadingProducts(true);
       try {
-        // Reemplaza esto con tu endpoint real de productos
         const response = await API.get('/products');
-        setProducts(response.data.data || []);
+        if (response.data.success) {
+          setProducts(response.data.data || []);
+        } else {
+          showNotification('No se pudieron cargar los productos', 'error');
+          // Datos de ejemplo como fallback
+          setProducts([
+            { product_id: 1, name: 'Pan Blanco', price_list1: 25.99 },
+            { product_id: 2, name: 'Croissant', price_list1: 15.50 },
+            { product_id: 3, name: 'Pan Integral', price_list1: 39.99 }
+          ]);
+        }
       } catch (error) {
         console.error('Error fetching products:', error);
-        // Si no hay acceso a la API real, usar datos de ejemplo
+        showNotification('Error al cargar productos', 'error');
+        // Datos de ejemplo como fallback
         setProducts([
-          { id: 1, name: 'Producto 1', price: 25.99 },
-          { id: 2, name: 'Producto 2', price: 15.50 },
-          { id: 3, name: 'Producto 3', price: 39.99 }
+          { product_id: 1, name: 'Pan Blanco', price_list1: 25.99 },
+          { product_id: 2, name: 'Croissant', price_list1: 15.50 },
+          { product_id: 3, name: 'Pan Integral', price_list1: 39.99 }
         ]);
+      } finally {
+        setLoadingProducts(false);
       }
     };
 
@@ -34,9 +50,13 @@ const CreateOrderForm = ({ userId, onOrderCreated }) => {
   };
 
   const handleRemoveProduct = (index) => {
-    const newDetails = [...orderDetails];
-    newDetails.splice(index, 1);
-    setOrderDetails(newDetails);
+    if (orderDetails.length > 1) {
+      const newDetails = [...orderDetails];
+      newDetails.splice(index, 1);
+      setOrderDetails(newDetails);
+    } else {
+      showNotification('No se puede eliminar el único producto del pedido', 'warning');
+    }
   };
 
   const handleProductChange = (index, field, value) => {
@@ -44,9 +64,16 @@ const CreateOrderForm = ({ userId, onOrderCreated }) => {
     newDetails[index][field] = value;
     
     if (field === 'product_id') {
-      const selectedProduct = products.find(p => p.id === parseInt(value));
+      const selectedProduct = products.find(p => p.product_id === parseInt(value));
       if (selectedProduct) {
-        newDetails[index].unit_price = selectedProduct.price;
+        // Usar price_list1 como precio unitario
+        newDetails[index].unit_price = selectedProduct.price_list1;
+        
+        // Validar que no supere el stock disponible
+        if (selectedProduct.stock && selectedProduct.stock < newDetails[index].quantity) {
+          newDetails[index].quantity = selectedProduct.stock;
+          showNotification(`Solo hay ${selectedProduct.stock} unidades disponibles de este producto`, 'warning');
+        }
       }
     }
     
@@ -55,11 +82,12 @@ const CreateOrderForm = ({ userId, onOrderCreated }) => {
 
   const calculateTotal = () => {
     return orderDetails.reduce((total, item) => {
-      return total + (item.quantity * item.unit_price);
+      const itemTotal = item.quantity * item.unit_price;
+      return total + (isNaN(itemTotal) ? 0 : itemTotal);
     }, 0).toFixed(2);
   };
 
-  const showNotification = (message, type) => {
+  const showNotification = (message, type = 'success') => {
     setNotification({ show: true, message, type });
     setTimeout(() => setNotification({ show: false, message: '', type: '' }), 5000);
   };
@@ -67,7 +95,13 @@ const CreateOrderForm = ({ userId, onOrderCreated }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Validación
+    // Validaciones
+    if (!user || !user.id) {
+      showNotification('Debes iniciar sesión para crear un pedido', 'error');
+      return;
+    }
+    
+    // Validar productos y cantidades
     const isValid = orderDetails.every(detail => 
       detail.product_id && detail.quantity > 0 && detail.unit_price > 0
     );
@@ -80,9 +114,13 @@ const CreateOrderForm = ({ userId, onOrderCreated }) => {
     try {
       setIsSubmitting(true);
       
+      // Calcular total
+      const totalAmount = parseFloat(calculateTotal());
+      
+      // Preparar datos para la API
       const orderData = {
-        user_id: userId,
-        total_amount: parseFloat(calculateTotal()),
+        user_id: user.id,
+        total_amount: totalAmount,
         details: orderDetails.map(detail => ({
           product_id: parseInt(detail.product_id),
           quantity: parseInt(detail.quantity),
@@ -90,32 +128,51 @@ const CreateOrderForm = ({ userId, onOrderCreated }) => {
         }))
       };
       
+      console.log('Enviando pedido:', orderData);
+      
+      // Enviar a la API
       const result = await orderService.createOrder(orderData);
       
-      showNotification(`Orden creada exitosamente`, 'success');
-      
-      // Resetear formulario
-      setOrderDetails([{ product_id: '', quantity: 1, unit_price: 0 }]);
-      
-      // Notificar al componente padre
-      if (onOrderCreated) onOrderCreated(result.data);
-      
+      if (result.success) {
+        showNotification('Pedido creado exitosamente', 'success');
+        
+        // Resetear formulario
+        setOrderDetails([{ product_id: '', quantity: 1, unit_price: 0 }]);
+        
+        // Notificar al componente padre
+        if (onOrderCreated) onOrderCreated(result.data);
+      } else {
+        throw new Error(result.message || 'Error al crear el pedido');
+      }
     } catch (error) {
-      showNotification(error.message || 'Ocurrió un error al procesar tu orden', 'error');
-      console.error('Order creation error:', error);
+      console.error('Error creating order:', error);
+      showNotification(error.message || 'Ocurrió un error al procesar tu pedido', 'error');
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  // Si están cargando los productos, mostrar indicador
+  if (loadingProducts) {
+    return (
+      <div className="w-full p-6 bg-white rounded-lg border border-gray-200 shadow-sm">
+        <div className="flex justify-center items-center h-40">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full p-6 bg-white rounded-lg border border-gray-200 shadow-sm">
       <form onSubmit={handleSubmit} className="space-y-6">
-        <h2 className="text-xl font-semibold text-gray-800">Crear Nueva Orden</h2>
+        <h2 className="text-xl font-semibold text-gray-800">Crear Nuevo Pedido</h2>
         
         {notification.show && (
           <div className={`p-4 mb-4 rounded-md ${
-            notification.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+            notification.type === 'success' ? 'bg-green-100 text-green-800' : 
+            notification.type === 'warning' ? 'bg-yellow-100 text-yellow-800' : 
+            'bg-red-100 text-red-800'
           }`}>
             {notification.message}
           </div>
@@ -154,8 +211,8 @@ const CreateOrderForm = ({ userId, onOrderCreated }) => {
                     >
                       <option value="">Seleccionar producto</option>
                       {products.map(product => (
-                        <option key={product.id} value={product.id}>
-                          {product.name}
+                        <option key={product.product_id} value={product.product_id}>
+                          {product.name} {product.stock > 0 ? `(${product.stock} disponibles)` : '(Agotado)'}
                         </option>
                       ))}
                     </select>
@@ -171,23 +228,22 @@ const CreateOrderForm = ({ userId, onOrderCreated }) => {
                     />
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    ${detail.unit_price.toFixed(2)}
+                    ${parseFloat(detail.unit_price).toFixed(2)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     ${(detail.quantity * detail.unit_price).toFixed(2)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    {orderDetails.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveProduct(index)}
-                        className="text-red-600 hover:text-red-800"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveProduct(index)}
+                      className="text-red-600 hover:text-red-800"
+                      disabled={orderDetails.length <= 1}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -223,9 +279,9 @@ const CreateOrderForm = ({ userId, onOrderCreated }) => {
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
-              Creando...
+              Procesando...
             </span>
-          ) : 'Crear Orden'}
+          ) : 'Crear Pedido'}
         </button>
       </form>
     </div>
