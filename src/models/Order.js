@@ -152,6 +152,64 @@ class Order {
     }
   }
   /**
+   * Obtiene una orden con todos sus detalles
+   * @async
+   * @param {number} orderId - ID de la orden
+   * @returns {Promise<Object|null>} - Orden con sus detalles o null si no existe
+   * @throws {Error} Si ocurre un error en la consulta
+   */
+  static async getOrderWithDetails(orderId) {
+    try {
+      logger.debug('Obteniendo orden con detalles', { orderId });
+      
+      // Obtener información básica de la orden
+      const orderQuery = `
+        SELECT o.*, u.name as user_name 
+        FROM Orders o
+        JOIN users u ON o.user_id = u.id
+        WHERE o.order_id = $1
+      `;
+      
+      const { rows } = await pool.query(orderQuery, [orderId]);
+      
+      if (rows.length === 0) {
+        logger.warn('Orden no encontrada', { orderId });
+        return null;
+      }
+      
+      // Obtener detalles de la orden
+      const detailsQuery = `
+        SELECT od.*, p.name as product_name, p.image_url 
+        FROM Order_Details od
+        JOIN Products p ON od.product_id = p.product_id
+        WHERE od.order_id = $1
+      `;
+      
+      const detailsResult = await pool.query(detailsQuery, [orderId]);
+      
+      // Construir objeto completo de orden con detalles
+      const order = {
+        ...rows[0],
+        details: detailsResult.rows
+      };
+      
+      logger.info('Orden con detalles obtenida exitosamente', { 
+        orderId, 
+        detailsCount: detailsResult.rows.length 
+      });
+      
+      return order;
+    } catch (error) {
+      logger.error('Error al obtener orden con detalles', { 
+        error: error.message,
+        orderId,
+        stack: error.stack 
+      });
+      throw error;
+    }
+  }
+
+  /**
    * Obtiene todas las órdenes de un usuario específico
    * @async
    * @param {number} userId - ID del usuario

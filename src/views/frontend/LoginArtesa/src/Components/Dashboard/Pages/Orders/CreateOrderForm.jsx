@@ -1,41 +1,69 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../../../../hooks/useAuth';
 import { orderService } from '../../../../services/orderService';
 import API from '../../../../api/config';
+import DeliveryDatePicker from './DeliveryDatePicker';
+import OrderFileUpload from './OrderFileUpload';
 
-const CreateOrderForm = ({ userId, onOrderCreated }) => {
+const CreateOrderForm = ({ onOrderCreated }) => {
+  const { user } = useAuth();
   const [products, setProducts] = useState([]);
-  const [orderDetails, setOrderDetails] = useState([
-    { product_id: '', quantity: 1, unit_price: 0 }
-  ]);
+  const [orderDetails, setOrderDetails] = useState([{ product_id: '', quantity: 1, unit_price: 0 }]);
+  const [deliveryDate, setDeliveryDate] = useState('');
+  const [orderFile, setOrderFile] = useState(null);
+  const [orderNotes, setOrderNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notification, setNotification] = useState({ show: false, message: '', type: '' });
-  const [productData, setProductData] = useState({}); // Para almacenar los datos completos
+  const [loadingProducts, setLoadingProducts] = useState(true);
+  const [siteSettings, setSiteSettings] = useState({ orderTimeLimit: '18:00' });
+  const [loadingSettings, setLoadingSettings] = useState(true);
+
+  // Cargar configuración del sitio
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const response = await API.get('/admin/settings');
+        if (response.data && response.data.success) {
+          setSiteSettings(response.data.data);
+        }
+      } catch (error) {
+        console.error('Error fetching site settings:', error);
+      } finally {
+        setLoadingSettings(false);
+      }
+    };
+
+    fetchSettings();
+  }, []);
 
   // Cargar productos disponibles
   useEffect(() => {
     const fetchProducts = async () => {
+      setLoadingProducts(true);
       try {
         const response = await API.get('/products');
-        console.log('Productos recibidos de la API:', response.data.data);
-        
-        // Transformamos los productos para crear un mapa para acceso rápido
-        const productsMap = {};
-        const productsArray = response.data.data || [];
-        
-        productsArray.forEach(product => {
-          productsMap[product.id || product.product_id] = product;
-        });
-        
-        setProductData(productsMap);
-        setProducts(productsArray);
+        if (response.data.success) {
+          setProducts(response.data.data || []);
+        } else {
+          showNotification('No se pudieron cargar los productos', 'error');
+          // Datos de ejemplo como fallback
+          setProducts([
+            { product_id: 1, name: 'Pan Blanco', price_list1: 25.99 },
+            { product_id: 2, name: 'Croissant', price_list1: 15.50 },
+            { product_id: 3, name: 'Pan Integral', price_list1: 39.99 }
+          ]);
+        }
       } catch (error) {
         console.error('Error fetching products:', error);
-        // Datos de ejemplo solo en caso de error
+        showNotification('Error al cargar productos', 'error');
+        // Datos de ejemplo como fallback
         setProducts([
-          { id: 1, name: 'Producto 1', priceList1: 25.99 },
-          { id: 2, name: 'Producto 2', priceList1: 15.50 },
-          { id: 3, name: 'Producto 3', priceList1: 39.99 }
+          { product_id: 1, name: 'Pan Blanco', price_list1: 25.99 },
+          { product_id: 2, name: 'Croissant', price_list1: 15.50 },
+          { product_id: 3, name: 'Pan Integral', price_list1: 39.99 }
         ]);
+      } finally {
+        setLoadingProducts(false);
       }
     };
 
@@ -69,7 +97,7 @@ const CreateOrderForm = ({ userId, onOrderCreated }) => {
       newDetails.splice(index, 1);
       setOrderDetails(newDetails);
     } else {
-      showNotification('Debe haber al menos un producto en la orden', 'warning');
+      showNotification('No se puede eliminar el único producto del pedido', 'warning');
     }
   };
 
@@ -77,23 +105,17 @@ const CreateOrderForm = ({ userId, onOrderCreated }) => {
     const newDetails = [...orderDetails];
     newDetails[index][field] = value;
     
-    if (field === 'product_id' && value) {
-      // Buscar el producto por ID
-      const productId = parseInt(value);
-      const selectedProduct = productData[productId] || 
-                             products.find(p => p.id === productId || p.product_id === productId);
-      
+    if (field === 'product_id') {
+      const selectedProduct = products.find(p => p.product_id === parseInt(value));
       if (selectedProduct) {
-        // Obtener el precio usando la función auxiliar
-        const price = getProductPrice(selectedProduct);
+        // Usar price_list1 como precio unitario
+        newDetails[index].unit_price = selectedProduct.price_list1;
         
-        console.log("Producto seleccionado:", selectedProduct);
-        console.log("Precio obtenido:", price);
-        
-        newDetails[index].unit_price = price;
-      } else {
-        console.warn(`Producto con ID ${productId} no encontrado`);
-        newDetails[index].unit_price = 0;
+        // Validar que no supere el stock disponible
+        if (selectedProduct.stock && selectedProduct.stock < newDetails[index].quantity) {
+          newDetails[index].quantity = selectedProduct.stock;
+          showNotification(`Solo hay ${selectedProduct.stock} unidades disponibles de este producto`, 'warning');
+        }
       }
     }
     
@@ -102,13 +124,12 @@ const CreateOrderForm = ({ userId, onOrderCreated }) => {
 
   const calculateTotal = () => {
     return orderDetails.reduce((total, item) => {
-      const quantity = Number(item.quantity) || 0;
-      const unitPrice = Number(item.unit_price) || 0;
-      return total + (quantity * unitPrice);
+      const itemTotal = item.quantity * item.unit_price;
+      return total + (isNaN(itemTotal) ? 0 : itemTotal);
     }, 0).toFixed(2);
   };
 
-  const showNotification = (message, type) => {
+  const showNotification = (message, type = 'success') => {
     setNotification({ show: true, message, type });
     setTimeout(() => setNotification({ show: false, message: '', type: '' }), 5000);
   };
@@ -116,121 +137,200 @@ const CreateOrderForm = ({ userId, onOrderCreated }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Validación mejorada
-    const invalidItems = orderDetails.filter(detail => 
-      !detail.product_id || 
-      detail.quantity <= 0 || 
-      detail.unit_price <= 0
+    // Validaciones
+    if (!user || !user.id) {
+      showNotification('Debes iniciar sesión para crear un pedido', 'error');
+      return;
+    }
+    
+    // Validar productos y cantidades
+    const isValid = orderDetails.every(detail => 
+      detail.product_id && detail.quantity > 0 && detail.unit_price > 0
     );
     
     if (invalidItems.length > 0) {
       showNotification('Por favor completa todos los campos correctamente. Asegúrate de que los productos tengan precios válidos.', 'error');
       return;
     }
-
+    
+    // Validar fecha de entrega
+    if (!deliveryDate) {
+      showNotification('Selecciona una fecha de entrega válida', 'error');
+      return;
+    }
+    
     try {
       setIsSubmitting(true);
       
+      // Calcular total
+      const totalAmount = parseFloat(calculateTotal());
+      
+      // Preparar datos para la API
       const orderData = {
-        user_id: userId,
-        total_amount: parseFloat(calculateTotal()),
+        user_id: user.id,
+        total_amount: totalAmount,
+        delivery_date: deliveryDate,
+        notes: orderNotes,
         details: orderDetails.map(detail => ({
           product_id: parseInt(detail.product_id || 0),
           quantity: parseInt(detail.quantity || 0),
           unit_price: parseFloat(detail.unit_price || 0)
         }))
       };
-
-      const result = await orderService.createOrder(orderData);
-      showNotification(`Orden creada exitosamente`, 'success');
       
-      // Resetear formulario
-      setOrderDetails([{ product_id: '', quantity: 1, unit_price: 0 }]);
+      // Si hay un archivo adjunto, crear FormData para envío multipart
+      let formData = null;
+      if (orderFile) {
+        formData = new FormData();
+        
+        // Agregar el archivo
+        formData.append('orderFile', orderFile);
+        
+        // Agregar los demás datos como JSON
+        formData.append('orderData', JSON.stringify(orderData));
+      }
       
-      // Notificar al componente padre
-      if (onOrderCreated) onOrderCreated(result.data);
+      console.log('Enviando pedido:', orderData);
+      
+      // Enviar a la API (usando formData si hay archivo)
+      const result = await orderService.createOrder(formData || orderData, !!formData);
+      
+      if (result.success) {
+        showNotification('Pedido creado exitosamente', 'success');
+        
+        // Resetear formulario
+        setOrderDetails([{ product_id: '', quantity: 1, unit_price: 0 }]);
+        setDeliveryDate('');
+        setOrderFile(null);
+        setOrderNotes('');
+        
+        // Notificar al componente padre
+        if (onOrderCreated) onOrderCreated(result.data);
+      } else {
+        throw new Error(result.message || 'Error al crear el pedido');
+      }
     } catch (error) {
-      showNotification(error.message || 'Ocurrió un error al procesar tu orden', 'error');
-      console.error('Order creation error:', error);
+      console.error('Error creating order:', error);
+      showNotification(error.message || 'Ocurrió un error al procesar tu pedido', 'error');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  return (
-    <div className="bg-white shadow-md rounded-lg p-6">
-      <h2 className="text-2xl font-semibold mb-4" style={{ color: '#687e8d' }}>Crear Nueva Orden</h2>
-      
-      {notification.show && (
-        <div className={`mb-4 p-3 rounded ${
-          notification.type === 'error' ? 'bg-red-100 text-red-700' : 
-          notification.type === 'success' ? 'bg-green-100 text-green-700' : 
-          'bg-yellow-100 text-yellow-700'
-        }`}>
-          {notification.message}
+  // Si están cargando los productos o configuraciones, mostrar indicador
+  if (loadingProducts || loadingSettings) {
+    return (
+      <div className="w-full p-6 bg-white rounded-lg border border-gray-200 shadow-sm">
+        <div className="flex justify-center items-center h-40">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
         </div>
-      )}
+      </div>
+    );
+  }
 
-      <form onSubmit={handleSubmit}>
-        <div className="space-y-4 mb-6">
-          {orderDetails.map((detail, index) => (
-            <div key={index} className="flex flex-col md:flex-row gap-4 p-4 border rounded-lg">
-              <div className="flex-grow">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+  return (
+    <div className="w-full p-6 bg-white rounded-lg border border-gray-200 shadow-sm">
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <h2 className="text-xl font-semibold text-gray-800">Crear Nuevo Pedido</h2>
+        
+        {notification.show && (
+          <div className={`p-4 mb-4 rounded-md ${
+            notification.type === 'success' ? 'bg-green-100 text-green-800' : 
+            notification.type === 'warning' ? 'bg-yellow-100 text-yellow-800' : 
+            'bg-red-100 text-red-800'
+          }`}>
+            {notification.message}
+          </div>
+        )}
+        
+        {/* Sección de Fecha de Entrega */}
+        <div className="bg-gray-50 p-4 rounded-md mb-6">
+          <h3 className="text-lg font-medium text-gray-900 mb-3">Fecha de Entrega</h3>
+          <p className="text-sm text-gray-600 mb-3">
+            Selecciona la fecha en que necesitas recibir tu pedido.
+            <br/>
+            Pedidos realizados después de las {siteSettings.orderTimeLimit} requieren al menos 2 días para entrega.
+          </p>
+          
+          <DeliveryDatePicker 
+            value={deliveryDate}
+            onChange={setDeliveryDate}
+            orderTimeLimit={siteSettings.orderTimeLimit}
+          />
+        </div>
+        
+        {/* Productos */}
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Producto
-                </label>
-                <select
-                  className="w-full border rounded-md px-3 py-2"
-                  style={{ borderColor: '#f6db8e' }}
-                  value={detail.product_id}
-                  onChange={(e) => handleProductChange(index, 'product_id', e.target.value)}
-                  required
-                >
-                  <option value="">Seleccionar producto</option>
-                  {products.map(product => (
-                    <option key={product.id || product.product_id} value={product.id || product.product_id}>
-                      {product.name} - ${getProductPrice(product).toFixed(2)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              
-              <div className="w-24">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Cantidad
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  className="w-full border rounded-md px-3 py-2"
-                  style={{ borderColor: '#f6db8e' }}
-                  value={detail.quantity}
-                  onChange={(e) => handleProductChange(index, 'quantity', e.target.value)}
-                  required
-                />
-              </div>
-              
-              <div className="w-28">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Precio
-                </label>
-                <div className="border rounded-md px-3 py-2 bg-gray-50">
-                  ${(detail.unit_price || 0).toFixed(2)}
-                </div>
-              </div>
-              
-              <div className="flex items-end">
-                <button
-                  type="button"
-                  className="text-white p-2 rounded hover:opacity-90"
-                  style={{ backgroundColor: '#f6754e' }}
-                  onClick={() => handleRemoveProduct(index)}
-                >
-                  Eliminar
-                </button>
-              </div>
-            </div>
-          ))}
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Precio Unitario
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Subtotal
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Acciones
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {orderDetails.map((detail, index) => (
+                <tr key={index}>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <select 
+                      value={detail.product_id} 
+                      onChange={(e) => handleProductChange(index, 'product_id', e.target.value)}
+                      className="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      required
+                    >
+                      <option value="">Seleccionar producto</option>
+                      {products.map(product => (
+                        <option key={product.product_id} value={product.product_id}>
+                          {product.name} {product.stock > 0 ? `(${product.stock} disponibles)` : '(Agotado)'}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <input 
+                      type="number" 
+                      min="1" 
+                      value={detail.quantity} 
+                      onChange={(e) => handleProductChange(index, 'quantity', e.target.value)}
+                      className="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      required
+                    />
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    ${parseFloat(detail.unit_price).toFixed(2)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    ${(detail.quantity * detail.unit_price).toFixed(2)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveProduct(index)}
+                      className="text-red-600 hover:text-red-800"
+                      disabled={orderDetails.length <= 1}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
         
         <div className="flex justify-between items-center mb-6">
@@ -248,16 +348,48 @@ const CreateOrderForm = ({ userId, onOrderCreated }) => {
           </div>
         </div>
         
-        <div className="flex justify-center">
-          <button
-            type="submit"
-            className="text-white px-6 py-2 rounded-lg hover:opacity-90 w-full md:w-auto"
-            style={{ backgroundColor: '#f6754e' }}
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? 'Procesando...' : 'Crear Orden'}
-          </button>
+        {/* Notas y Adjuntos */}
+        <div className="space-y-4 mt-6 border-t pt-6">
+          <div>
+            <label htmlFor="orderNotes" className="block text-sm font-medium text-gray-700 mb-1">
+              Notas adicionales
+            </label>
+            <textarea
+              id="orderNotes"
+              rows="3"
+              value={orderNotes}
+              onChange={(e) => setOrderNotes(e.target.value)}
+              placeholder="Instrucciones especiales, detalles de entrega, etc."
+              className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+            ></textarea>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Archivo adjunto (opcional)
+            </label>
+            <OrderFileUpload
+              value={orderFile}
+              onChange={setOrderFile}
+            />
+          </div>
         </div>
+        
+        <button 
+          type="submit" 
+          className={`w-full py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 ${isSubmitting ? 'opacity-75 cursor-not-allowed' : ''}`}
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? (
+            <span className="flex justify-center items-center">
+              <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Procesando...
+            </span>
+          ) : 'Crear Pedido'}
+        </button>
       </form>
     </div>
   );
