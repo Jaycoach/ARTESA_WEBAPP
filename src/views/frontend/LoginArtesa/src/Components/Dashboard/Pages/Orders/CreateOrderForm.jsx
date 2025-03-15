@@ -2,14 +2,39 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../../../hooks/useAuth';
 import { orderService } from '../../../../services/orderService';
 import API from '../../../../api/config';
+import DeliveryDatePicker from './DeliveryDatePicker';
+import OrderFileUpload from './OrderFileUpload';
 
 const CreateOrderForm = ({ onOrderCreated }) => {
   const { user } = useAuth();
   const [products, setProducts] = useState([]);
   const [orderDetails, setOrderDetails] = useState([{ product_id: '', quantity: 1, unit_price: 0 }]);
+  const [deliveryDate, setDeliveryDate] = useState('');
+  const [orderFile, setOrderFile] = useState(null);
+  const [orderNotes, setOrderNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notification, setNotification] = useState({ show: false, message: '', type: '' });
   const [loadingProducts, setLoadingProducts] = useState(true);
+  const [siteSettings, setSiteSettings] = useState({ orderTimeLimit: '18:00' });
+  const [loadingSettings, setLoadingSettings] = useState(true);
+
+  // Cargar configuración del sitio
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const response = await API.get('/admin/settings');
+        if (response.data && response.data.success) {
+          setSiteSettings(response.data.data);
+        }
+      } catch (error) {
+        console.error('Error fetching site settings:', error);
+      } finally {
+        setLoadingSettings(false);
+      }
+    };
+
+    fetchSettings();
+  }, []);
 
   // Cargar productos disponibles
   useEffect(() => {
@@ -111,6 +136,12 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       return;
     }
     
+    // Validar fecha de entrega
+    if (!deliveryDate) {
+      showNotification('Selecciona una fecha de entrega válida', 'error');
+      return;
+    }
+    
     try {
       setIsSubmitting(true);
       
@@ -121,6 +152,8 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       const orderData = {
         user_id: user.id,
         total_amount: totalAmount,
+        delivery_date: deliveryDate,
+        notes: orderNotes,
         details: orderDetails.map(detail => ({
           product_id: parseInt(detail.product_id),
           quantity: parseInt(detail.quantity),
@@ -128,16 +161,31 @@ const CreateOrderForm = ({ onOrderCreated }) => {
         }))
       };
       
+      // Si hay un archivo adjunto, crear FormData para envío multipart
+      let formData = null;
+      if (orderFile) {
+        formData = new FormData();
+        
+        // Agregar el archivo
+        formData.append('orderFile', orderFile);
+        
+        // Agregar los demás datos como JSON
+        formData.append('orderData', JSON.stringify(orderData));
+      }
+      
       console.log('Enviando pedido:', orderData);
       
-      // Enviar a la API
-      const result = await orderService.createOrder(orderData);
+      // Enviar a la API (usando formData si hay archivo)
+      const result = await orderService.createOrder(formData || orderData, !!formData);
       
       if (result.success) {
         showNotification('Pedido creado exitosamente', 'success');
         
         // Resetear formulario
         setOrderDetails([{ product_id: '', quantity: 1, unit_price: 0 }]);
+        setDeliveryDate('');
+        setOrderFile(null);
+        setOrderNotes('');
         
         // Notificar al componente padre
         if (onOrderCreated) onOrderCreated(result.data);
@@ -152,8 +200,8 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     }
   };
 
-  // Si están cargando los productos, mostrar indicador
-  if (loadingProducts) {
+  // Si están cargando los productos o configuraciones, mostrar indicador
+  if (loadingProducts || loadingSettings) {
     return (
       <div className="w-full p-6 bg-white rounded-lg border border-gray-200 shadow-sm">
         <div className="flex justify-center items-center h-40">
@@ -178,6 +226,23 @@ const CreateOrderForm = ({ onOrderCreated }) => {
           </div>
         )}
         
+        {/* Sección de Fecha de Entrega */}
+        <div className="bg-gray-50 p-4 rounded-md mb-6">
+          <h3 className="text-lg font-medium text-gray-900 mb-3">Fecha de Entrega</h3>
+          <p className="text-sm text-gray-600 mb-3">
+            Selecciona la fecha en que necesitas recibir tu pedido.
+            <br/>
+            Pedidos realizados después de las {siteSettings.orderTimeLimit} requieren al menos 2 días para entrega.
+          </p>
+          
+          <DeliveryDatePicker 
+            value={deliveryDate}
+            onChange={setDeliveryDate}
+            orderTimeLimit={siteSettings.orderTimeLimit}
+          />
+        </div>
+        
+        {/* Productos */}
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -265,6 +330,33 @@ const CreateOrderForm = ({ onOrderCreated }) => {
           
           <div className="text-xl font-bold">
             Total: ${calculateTotal()}
+          </div>
+        </div>
+        
+        {/* Notas y Adjuntos */}
+        <div className="space-y-4 mt-6 border-t pt-6">
+          <div>
+            <label htmlFor="orderNotes" className="block text-sm font-medium text-gray-700 mb-1">
+              Notas adicionales
+            </label>
+            <textarea
+              id="orderNotes"
+              rows="3"
+              value={orderNotes}
+              onChange={(e) => setOrderNotes(e.target.value)}
+              placeholder="Instrucciones especiales, detalles de entrega, etc."
+              className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+            ></textarea>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Archivo adjunto (opcional)
+            </label>
+            <OrderFileUpload
+              value={orderFile}
+              onChange={setOrderFile}
+            />
           </div>
         </div>
         

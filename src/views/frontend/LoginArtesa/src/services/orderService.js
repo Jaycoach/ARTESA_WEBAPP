@@ -3,9 +3,16 @@ import API from '../api/config';
 
 export const orderService = {
   // Crear una nueva orden
-  async createOrder(orderData) {
+  async createOrder(orderData, isMultipart = false) {
     try {
-      const response = await API.post('/orders', orderData);
+      // Determinar el método de envío según si hay archivos adjuntos
+      const headers = isMultipart 
+        ? { 'Content-Type': 'multipart/form-data' }
+        : { 'Content-Type': 'application/json' };
+      
+        const response = await API.post('/orders', orderData, {
+          headers
+        });
       
       if (response.data.success) {
         return {
@@ -67,5 +74,28 @@ export const orderService = {
         error: error
       };
     }
+  },
+  
+  // Obtener configuración del sitio (incluyendo orderTimeLimit)
+  async getSiteSettings() {
+    try {
+      const response = await API.get('/admin/settings');
+      
+      if (response.data.success) {
+        return {
+          success: true,
+          data: response.data.data || { orderTimeLimit: '18:00' } // Valor por defecto
+        };
+      } else {
+        throw new Error(response.data.message || 'Error al obtener la configuración');
+      }
+    } catch (error) {
+      console.error('Error fetching site settings:', error);
+      return {
+        success: false,
+        data: { orderTimeLimit: '18:00' }, // Valor por defecto
+        message: error.message || 'Error al obtener configuración'
+      };
+    }
   }
-};
+}

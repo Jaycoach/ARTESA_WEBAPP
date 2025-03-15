@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { orderService } from '../../../../services/orderService';
 import { useAuth } from '../../../../hooks/useAuth';
 import OrderStatusBadge from './OrderStatusBadge';
+import { FaFileDownload, FaFileImage, FaFilePdf, FaFile } from 'react-icons/fa';
 
 const OrderDetails = () => {
   const { orderId } = useParams();
@@ -62,6 +63,19 @@ const OrderDetails = () => {
       hour: '2-digit',
       minute: '2-digit'
     }).format(date);
+  };
+
+  // Función para mostrar el tipo de archivo:
+  const getFileIcon = (fileType) => {
+    if (!fileType) return <FaFile />;
+    
+    if (fileType.startsWith('image/')) {
+      return <FaFileImage className="text-blue-500" />;
+    } else if (fileType === 'application/pdf') {
+      return <FaFilePdf className="text-red-500" />;
+    } else {
+      return <FaFile className="text-gray-500" />;
+    }
   };
 
   // Mostrar un spinner mientras se cargan los datos
@@ -222,6 +236,19 @@ const OrderDetails = () => {
           <div className="bg-gray-50 p-4 rounded-lg">
             <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2">
               <div className="sm:col-span-1">
+                <dt className="text-sm font-medium text-gray-500">Fecha de entrega</dt>
+                <dd className="mt-1 text-sm text-gray-900">
+                  {order.delivery_date 
+                    ? new Date(order.delivery_date).toLocaleDateString('es-ES', {
+                        weekday: 'long',
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                      }) 
+                    : 'No especificada'}
+                </dd>
+              </div>
+              <div className="sm:col-span-1">
                 <dt className="text-sm font-medium text-gray-500">Método de pago</dt>
                 <dd className="mt-1 text-sm text-gray-900">{order.payment_method || 'No especificado'}</dd>
               </div>
@@ -233,9 +260,31 @@ const OrderDetails = () => {
                 <dt className="text-sm font-medium text-gray-500">Dirección de envío</dt>
                 <dd className="mt-1 text-sm text-gray-900">{order.shipping_address || 'No especificada'}</dd>
               </div>
-              <div className="sm:col-span-1">
+              {order.file_url && (
+                <div className="sm:col-span-2">
+                  <dt className="text-sm font-medium text-gray-500">Archivo adjunto</dt>
+                  <dd className="mt-2">
+                    <a 
+                      href={order.file_url} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                    >
+                      {getFileIcon(order.file_type)}
+                      <span className="ml-2">Descargar archivo</span>
+                      <FaFileDownload className="ml-2" />
+                    </a>
+                  </dd>
+                </div>
+              )}
+              <div className="sm:col-span-2">
                 <dt className="text-sm font-medium text-gray-500">Notas</dt>
-                <dd className="mt-1 text-sm text-gray-900">{order.notes || 'Sin notas adicionales'}</dd>
+                <dd className="mt-1 text-sm text-gray-900">
+                  {order.notes 
+                    ? <p className="whitespace-pre-line">{order.notes}</p>
+                    : 'Sin notas adicionales'
+                  }
+                </dd>
               </div>
             </dl>
           </div>
