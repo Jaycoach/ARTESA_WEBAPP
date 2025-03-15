@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import "../../../App.scss";
+import "../../../App.css";
 import { useAuth } from "../../../hooks/useAuth"; 
 import { 
   FaHome, 
@@ -90,7 +90,7 @@ const Sidebar = () => {
 
   return (
     <div
-      className={`sidebar ${collapsed ? "collapsed" : ""}`}
+      className={`sidebar ${collapsed ? "collapsed" : "expanded"}`}
       onMouseEnter={() => setCollapsed(false)}  
       onMouseLeave={() => setCollapsed(true)}
     >

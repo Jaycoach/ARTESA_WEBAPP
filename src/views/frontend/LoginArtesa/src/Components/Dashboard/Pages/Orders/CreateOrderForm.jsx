@@ -9,26 +9,55 @@ const CreateOrderForm = ({ userId, onOrderCreated }) => {
   ]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notification, setNotification] = useState({ show: false, message: '', type: '' });
+  const [productData, setProductData] = useState({}); // Para almacenar los datos completos
 
   // Cargar productos disponibles
   useEffect(() => {
     const fetchProducts = async () => {
       try {
         const response = await API.get('/products');
-        setProducts(response.data.data || []);
+        console.log('Productos recibidos de la API:', response.data.data);
+        
+        // Transformamos los productos para crear un mapa para acceso rápido
+        const productsMap = {};
+        const productsArray = response.data.data || [];
+        
+        productsArray.forEach(product => {
+          productsMap[product.id || product.product_id] = product;
+        });
+        
+        setProductData(productsMap);
+        setProducts(productsArray);
       } catch (error) {
         console.error('Error fetching products:', error);
-        // Si no hay acceso a la API real, usar datos de ejemplo
+        // Datos de ejemplo solo en caso de error
         setProducts([
-          { id: 1, name: 'Producto 1', price: 25.99 },
-          { id: 2, name: 'Producto 2', price: 15.50 },
-          { id: 3, name: 'Producto 3', price: 39.99 }
+          { id: 1, name: 'Producto 1', priceList1: 25.99 },
+          { id: 2, name: 'Producto 2', priceList1: 15.50 },
+          { id: 3, name: 'Producto 3', priceList1: 39.99 }
         ]);
       }
     };
 
     fetchProducts();
   }, []);
+
+  // Función para obtener el precio de un producto según su estructura
+  const getProductPrice = (product) => {
+    if (!product) return 0;
+    
+    // Intentar obtener el precio desde diferentes propiedades posibles
+    return product.price || 
+           product.priceList1 || 
+           product.price_list1 || 
+           0;
+  };
+
+  // Formatear precio para visualización
+  const formatProductName = (product) => {
+    const price = getProductPrice(product);
+    return `${product.name} - $${price.toFixed(2)}`;
+  };
 
   const handleAddProduct = () => {
     setOrderDetails([...orderDetails, { product_id: '', quantity: 1, unit_price: 0 }]);
@@ -49,11 +78,22 @@ const CreateOrderForm = ({ userId, onOrderCreated }) => {
     newDetails[index][field] = value;
     
     if (field === 'product_id' && value) {
-      const selectedProduct = products.find(p => p.id === parseInt(value));
-      if (selectedProduct && selectedProduct.price !== undefined) {
-        newDetails[index].unit_price = selectedProduct.price;
+      // Buscar el producto por ID
+      const productId = parseInt(value);
+      const selectedProduct = productData[productId] || 
+                             products.find(p => p.id === productId || p.product_id === productId);
+      
+      if (selectedProduct) {
+        // Obtener el precio usando la función auxiliar
+        const price = getProductPrice(selectedProduct);
+        
+        console.log("Producto seleccionado:", selectedProduct);
+        console.log("Precio obtenido:", price);
+        
+        newDetails[index].unit_price = price;
       } else {
-        newDetails[index].unit_price = 0; // Valor por defecto si no hay precio
+        console.warn(`Producto con ID ${productId} no encontrado`);
+        newDetails[index].unit_price = 0;
       }
     }
     
@@ -76,13 +116,15 @@ const CreateOrderForm = ({ userId, onOrderCreated }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Validación
-    const isValid = orderDetails.every(detail => 
-      detail.product_id && detail.quantity > 0 && detail.unit_price > 0
+    // Validación mejorada
+    const invalidItems = orderDetails.filter(detail => 
+      !detail.product_id || 
+      detail.quantity <= 0 || 
+      detail.unit_price <= 0
     );
     
-    if (!isValid) {
-      showNotification('Por favor completa todos los campos correctamente', 'error');
+    if (invalidItems.length > 0) {
+      showNotification('Por favor completa todos los campos correctamente. Asegúrate de que los productos tengan precios válidos.', 'error');
       return;
     }
 
@@ -146,8 +188,8 @@ const CreateOrderForm = ({ userId, onOrderCreated }) => {
                 >
                   <option value="">Seleccionar producto</option>
                   {products.map(product => (
-                    <option key={product.id} value={product.id}>
-                      {product.name} - ${(product.price !== undefined ? product.price : 0).toFixed(2)}
+                    <option key={product.id || product.product_id} value={product.id || product.product_id}>
+                      {product.name} - ${getProductPrice(product).toFixed(2)}
                     </option>
                   ))}
                 </select>
@@ -173,7 +215,7 @@ const CreateOrderForm = ({ userId, onOrderCreated }) => {
                   Precio
                 </label>
                 <div className="border rounded-md px-3 py-2 bg-gray-50">
-                  ${(detail.unit_price !== undefined ? detail.unit_price : 0).toFixed(2)}
+                  ${(detail.unit_price || 0).toFixed(2)}
                 </div>
               </div>
               
