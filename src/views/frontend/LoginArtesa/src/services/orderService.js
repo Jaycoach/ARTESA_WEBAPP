@@ -1,4 +1,3 @@
-// src/services/orderService.js
 import API from '../api/config';
 
 export const orderService = {
@@ -33,9 +32,44 @@ export const orderService = {
     }
   },
   
+  // Actualizar una orden existente
+  async updateOrder(orderId, orderData, isMultipart = false) {
+    try {
+      // Determinar el método de envío según si hay archivos adjuntos
+      const headers = isMultipart 
+        ? { 'Content-Type': 'multipart/form-data' }
+        : { 'Content-Type': 'application/json' };
+      
+        const response = await API.put(`/orders/${orderId}`, orderData, {
+        headers
+      });
+      
+      if (response.data.success) {
+        return {
+          success: true,
+          data: response.data.data,
+          message: 'Pedido actualizado exitosamente'
+        };
+      } else {
+        throw new Error(response.data.message || 'Error al actualizar el pedido');
+      }
+    } catch (error) {
+      console.error('Error updating order:', error);
+      throw {
+        success: false,
+        message: error.response?.data?.message || error.message || 'Error al actualizar el pedido',
+        error: error
+      };
+    }
+  },
+  
   // Obtener una orden por su ID
   async getOrderById(orderId) {
     try {
+      if (!orderId) {
+        throw new Error('ID de orden no proporcionado o inválido');
+      }
+
       const response = await API.get(`/orders/${orderId}`);
       
       if (response.data.success) {
@@ -72,6 +106,62 @@ export const orderService = {
         success: false,
         message: error.response?.data?.message || error.message || 'Error al obtener los pedidos',
         error: error
+      };
+    }
+  },
+  
+  // Verificar si un pedido puede ser editado
+  async canEditOrder(orderId, orderTimeLimit = '18:00') {
+    try {
+      const orderResult = await this.getOrderById(orderId);
+      
+      if (!orderResult.success) {
+        return {
+          canEdit: false,
+          reason: 'No se pudo obtener información del pedido'
+        };
+      }
+      
+      const order = orderResult.data;
+      
+      // Verificar si el pedido está en un estado que permite edición
+      if (['completado', 'completed', 'entregado', 'delivered', 'cancelado', 'canceled'].includes(
+        order.status?.toLowerCase()
+      )) {
+        return {
+          canEdit: false,
+          reason: `No se puede editar un pedido con estado: ${order.status}`
+        };
+      }
+      
+      // Verificar la hora límite para edición
+      const orderDate = new Date(order.order_date);
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const orderDay = new Date(orderDate.getFullYear(), orderDate.getMonth(), orderDate.getDate());
+      
+      // Si el pedido es de un día anterior, verificar la hora límite
+      if (orderDay.getTime() < today.getTime()) {
+        const [limitHours, limitMinutes] = orderTimeLimit.split(':').map(Number);
+        const limitTime = new Date();
+        limitTime.setHours(limitHours, limitMinutes, 0, 0);
+        
+        if (now > limitTime) {
+          return {
+            canEdit: false,
+            reason: `No se puede editar después de las ${orderTimeLimit}`
+          };
+        }
+      }
+      
+      return {
+        canEdit: true
+      };
+    } catch (error) {
+      console.error('Error checking if order can be edited:', error);
+      return {
+        canEdit: false,
+        reason: error.message || 'Error al verificar si el pedido puede ser editado'
       };
     }
   },

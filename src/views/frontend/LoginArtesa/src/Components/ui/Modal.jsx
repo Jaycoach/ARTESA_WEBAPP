@@ -17,9 +17,11 @@ const Modal = ({ isOpen, onClose, children, title, footer }) => {
         <div className="p-4">
           {children}
         </div>
-        <div className="flex justify-end p-4 border-t">
-          {footer}
-        </div>
+        {footer && (
+          <div className="flex justify-end p-4 border-t">
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -35,6 +37,7 @@ Modal.propTypes = {
 
 Modal.defaultProps = {
   footer: null,
+  isOpen: false,
 };
 
 export default Modal;

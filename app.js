@@ -14,6 +14,7 @@ const sapIntegrationService = require('./src/services/SapIntegrationService');
 const sapSyncRoutes = require('./src/routes/sapSyncRoutes');
 const { logger, createContextLogger } = require('./src/config/logger');
 const S3Service = require('./src/services/S3Service');
+const orderScheduler = require('./src/services/OrderScheduler');
 
 // Importaciones de middlewares
 const { errorHandler, notFound } = require('./src/middleware/errorMiddleware');
@@ -241,10 +242,33 @@ app.get('/swagger.json', (req, res) => {
 // =========================================================================
 // RATE LIMITING - Antes de las rutas de API
 // =========================================================================
-app.use(`${API_PREFIX}/auth`, sensitiveApiLimiter);
-app.use(`${API_PREFIX}/secure`, sensitiveApiLimiter);
-app.use(API_PREFIX, standardApiLimiter);
+// Aplicar rate limiting solo en producción o configurar límites más altos en desarrollo
+if (process.env.NODE_ENV === 'production') {
+  app.use(`${API_PREFIX}/auth`, sensitiveApiLimiter);
+  app.use(`${API_PREFIX}/secure`, sensitiveApiLimiter);
+  // No aplicar standardApiLimiter a todas las rutas en producción
+  app.use(`${API_PREFIX}/payments`, sensitiveApiLimiter);
+} else {
+  // En desarrollo, aplicar limiters con configuración muy permisiva
+  // o no aplicarlos para evitar problemas durante el desarrollo
+  console.log('Rate limiting configurado en modo permisivo para desarrollo');
+}
 
+// Alternativa: especificar rutas que NO deben tener rate limiting en desarrollo
+const excludedFromRateLimit = [
+  `${API_PREFIX}/admin`,
+  `${API_PREFIX}/orders`,
+  `${API_PREFIX}/products`
+];
+
+// Middleware que solo aplica rate limiting si la ruta no está excluida
+app.use((req, res, next) => {
+  if (process.env.NODE_ENV !== 'production' && 
+      excludedFromRateLimit.some(prefix => req.path.startsWith(prefix))) {
+    return next();
+  }
+  return standardApiLimiter(req, res, next);
+});
 // =========================================================================
 // IMPORTACIÓN DE RUTAS
 // =========================================================================
@@ -326,6 +350,19 @@ if (process.env.STORAGE_MODE === 's3') {
 } else {
   logger.info('Usando almacenamiento local para archivos');
 }
+
+// Inicializar servicio de programación de órdenes
+logger.info('Inicializando servicio de programación de órdenes');
+orderScheduler.initialize()
+  .then(() => {
+    logger.info('Servicio de programación de órdenes iniciado exitosamente');
+  })
+  .catch(error => {
+    logger.error('Error al iniciar servicio de programación de órdenes', {
+      error: error.message,
+      stack: error.stack
+    });
+  });
 
 // =========================================================================
 // INICIAR SERVIDOR

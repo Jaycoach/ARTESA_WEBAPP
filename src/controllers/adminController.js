@@ -2,6 +2,7 @@ const AdminSettings = require('../models/AdminSettings');
 const S3Service = require('../services/S3Service');
 const { createContextLogger } = require('../config/logger');
 const AuditService = require('../services/AuditService');
+const orderScheduler = require('../services/OrderScheduler');
 
 // Crear una instancia del logger con contexto
 const logger = createContextLogger('AdminController');
@@ -225,6 +226,24 @@ class AdminController {
         req.user.id,
         AuditService.SEVERITY_LEVELS.INFO
       );
+
+      if (settingsToUpdate.orderTimeLimit) {
+        try {
+          await orderScheduler.updateTaskSettings({
+            orderTimeLimit: settingsToUpdate.orderTimeLimit
+          });
+          
+          logger.info('Configuración de programación de órdenes actualizada', {
+            orderTimeLimit: settingsToUpdate.orderTimeLimit
+          });
+        } catch (schedulerError) {
+          logger.error('Error al actualizar programación de órdenes', {
+            error: schedulerError.message,
+            stack: schedulerError.stack
+          });
+          // No fallamos la operación principal si hay error en el scheduler
+        }
+      }
       
       res.status(200).json({
         success: true,

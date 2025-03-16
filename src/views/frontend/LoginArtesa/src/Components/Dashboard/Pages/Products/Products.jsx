@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { FiSearch, FiEye, FiClipboard, FiPlus, FiMinus, FiList, FiGrid, FiCheck } from 'react-icons/fi';
 import API from '../../../../api/config';
+import Notification from '../../../../Components/ui/Notification';
 
 // Importación de componentes personalizados
 import Modal from '../../../../Components/ui/Modal';
@@ -17,7 +18,10 @@ const Products = () => {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [quantity, setQuantity] = useState(1);
   const [viewMode, setViewMode] = useState('table');
-  const [notification, setNotification] = useState(null);
+  const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
+
+  // Estado para manejar cantidades de cada producto
+  const [productQuantities, setProductQuantities] = useState({});
   
   // Estado para la paginación
   const [currentPage, setCurrentPage] = useState(1);
@@ -28,10 +32,13 @@ const Products = () => {
   const [orderTotal, setOrderTotal] = useState(0);
   const [submittingOrder, setSubmittingOrder] = useState(false);
 
+  // Efecto para cargar la configuración del sitio
+  const [siteSettings, setSiteSettings] = useState({ orderTimeLimit: '18:00' });
+
   // Función para mostrar notificaciones
   const showNotification = useCallback((message, type = 'success') => {
-    setNotification({ message, type });
-    setTimeout(() => setNotification(null), 3000);
+    setNotification({ show: true, message, type });
+    // El componente Notification maneja internamente el timeout
   }, []);
 
   // Funciones para interactuar con la API
@@ -61,42 +68,66 @@ const Products = () => {
   // Funcionalidades de producto
   const openProductDetails = useCallback((product) => {
     setSelectedProduct(product);
-    setQuantity(1);
+    // Inicializa con la cantidad guardada o 1 por defecto
+    const savedQuantity = productQuantities[product.product_id] || 1;
+    setQuantity(savedQuantity);
     setModalVisible(true);
-  }, []);
+  }, [productQuantities]);
 
   const closeModal = useCallback(() => {
     setModalVisible(false);
   }, []);
 
+  const updateQuantity = useCallback((productId, quantity) => {
+    setProductQuantities(prev => ({
+      ...prev,
+      [productId]: quantity
+    }));
+    console.log("Product quantities updated:", productId, quantity);
+  }, []);
+
   const incrementQuantity = useCallback(() => {
-    if (selectedProduct && quantity < selectedProduct.stock) {
-      setQuantity(quantity + 1);
+    if (selectedProduct) {
+      const currentQty = quantity || 1;
+      const maxStock = selectedProduct.stock || 999;
+      
+      if (currentQty < maxStock) {
+        const newQuantity = currentQty + 1;
+        setQuantity(newQuantity);
+        updateQuantity(selectedProduct.product_id, newQuantity);
+      }
     }
-  }, [selectedProduct, quantity]);
+  }, [selectedProduct, quantity, updateQuantity]);
 
   const decrementQuantity = useCallback(() => {
-    if (quantity > 1) {
-      setQuantity(quantity - 1);
+    const currentQty = quantity || 1;
+    if (currentQty > 1) {
+      const newQuantity = currentQty - 1;
+      setQuantity(newQuantity);
+      if (selectedProduct) {
+        updateQuantity(selectedProduct.product_id, newQuantity);
+      }
     }
-  }, [quantity]);
+  }, [quantity, selectedProduct, updateQuantity]);
 
   // Función para agregar a pedido
   const addToOrder = useCallback((product, qty = 1) => {
     try {
-      const existingItemIndex = orderItems.findIndex(item => item.product_id === product.product_id);
+      const quantityToAdd = qty || productQuantities[product.product_id] || 1;
       
+      const existingItemIndex = orderItems.findIndex(item => item.product_id === product.product_id);
+    
       if (existingItemIndex >= 0) {
         // Si el producto ya está en el pedido, actualizamos la cantidad
         const updatedItems = [...orderItems];
-        updatedItems[existingItemIndex].quantity += qty;
+        updatedItems[existingItemIndex].quantity += quantityToAdd;
         setOrderItems(updatedItems);
       } else {
         // Si es un producto nuevo, lo agregamos al pedido
         setOrderItems([...orderItems, {
           product_id: product.product_id,
           name: product.name,
-          quantity: qty,
+          quantity: quantityToAdd,
           unit_price: product.price_list1
         }]);
       }
@@ -107,7 +138,49 @@ const Products = () => {
       console.error('Error adding to order:', error);
       showNotification('Error al agregar al pedido', 'error');
     }
-  }, [orderItems, modalVisible, closeModal, showNotification]);
+  }, [orderItems, modalVisible, closeModal, showNotification, productQuantities]);
+
+  //Manejador para actualizar cantidades
+  const handleQuantityChange = useCallback((productId, newValue) => {
+    // Asegurarse de que la cantidad es un número
+    const numValue = parseInt(newValue, 10);
+    if (isNaN(numValue)) return;
+  
+    // Asegurarse de que la cantidad es válida (mínimo 1)
+    const validQuantity = Math.max(1, numValue);
+      
+    // Verificar stock si está disponible
+    const product = products.find(p => p.product_id === productId);
+    if (product && product.stock) {
+      // No exceder el stock disponible
+      const maxQuantity = Math.min(validQuantity, product.stock);
+      
+      setProductQuantities(prev => ({
+        ...prev,
+        [productId]: maxQuantity
+      }));
+      
+      // Si estamos en el modal y el producto seleccionado coincide con el productId,
+      // también actualizamos el estado de quantity
+      if (selectedProduct && selectedProduct.product_id === productId) {
+        setQuantity(maxQuantity);
+      }
+    } else {
+      setProductQuantities(prev => ({
+        ...prev,
+        [productId]: validQuantity
+      }));
+      
+      if (selectedProduct && selectedProduct.product_id === productId) {
+        setQuantity(validQuantity);
+      }
+    }
+  }, [products, selectedProduct]);
+
+  // Función auxiliar para obtener el ID del usuario actual
+  const getCurrentUserId = useCallback(() => {
+    return localStorage.getItem('userId') || 1; // Valor predeterminado para pruebas
+  }, []);
 
   // Función para enviar el pedido completo a la API
   const submitOrder = useCallback(async () => {
@@ -115,13 +188,56 @@ const Products = () => {
       showNotification('No hay productos en el pedido', 'error');
       return;
     }
-
+  
     setSubmittingOrder(true);
     try {
+      // Obtener fecha de entrega según políticas de negocio
+      const now = new Date();
+      const currentDay = now.getDay(); // 0 (domingo) a 6 (sábado)
+      const currentHour = now.getHours();
+      const currentMinute = now.getMinutes();
+      
+      // Convertir orderTimeLimit a horas y minutos (usar valor predeterminado si no está disponible)
+      const orderTimeLimit = siteSettings?.orderTimeLimit || '18:00';
+      const [limitHours, limitMinutes] = orderTimeLimit.split(':').map(Number);
+      
+      const isPastTimeLimit = currentHour > limitHours || 
+        (currentHour === limitHours && currentMinute >= limitMinutes);
+      
+      // Calcular días de entrega según reglas
+      let deliveryOffset = 2; // Mínimo 2 días en el futuro para entrega
+      
+      // Regla especial para sábados
+      if (currentDay === 6) { // Sábado
+        if (isPastTimeLimit) {
+          // Después del límite, entrega el miércoles (4 días después)
+          deliveryOffset = 4;
+        } else {
+          // Antes del límite, entrega el martes (3 días después)
+          deliveryOffset = 3;
+        }
+      } 
+      // Regla para domingos - siempre entrega el miércoles (3 días)
+      else if (currentDay === 0) {
+        deliveryOffset = 3;
+      }
+      // Para otros días, si pasó el límite, agregar un día extra
+      else if (isPastTimeLimit) {
+        deliveryOffset++;
+      }
+      
+      // Calcular fecha de entrega
+      const deliveryDate = new Date(now);
+      deliveryDate.setDate(now.getDate() + deliveryOffset);
+      
+      // Formato YYYY-MM-DD para la API
+      const formattedDeliveryDate = deliveryDate.toISOString().split('T')[0];
+      
       // Preparar datos para la API según la estructura de orderController
       const orderData = {
         user_id: getCurrentUserId(),
         total_amount: orderTotal,
+        delivery_date: formattedDeliveryDate, // Añadir fecha de entrega
         details: orderItems.map(item => ({
           product_id: item.product_id,
           quantity: item.quantity,
@@ -129,10 +245,17 @@ const Products = () => {
         }))
       };
       
-      const response = await API.post('/api/orders', orderData);
+      // Agregar información del sitio para la fecha de entrega
+      const response = await API.post('/orders', orderData);
       
       if (response.data.success) {
-        showNotification('Pedido enviado correctamente a SAP');
+        showNotification('Pedido enviado correctamente. Entrega programada para: ' + 
+          new Date(formattedDeliveryDate).toLocaleDateString('es-ES', { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+          }));
         setOrderItems([]);
         setOrderTotal(0);
       } else {
@@ -144,12 +267,7 @@ const Products = () => {
     } finally {
       setSubmittingOrder(false);
     }
-  }, [orderItems, orderTotal, showNotification]);
-
-  // Función auxiliar para obtener el ID del usuario actual
-  const getCurrentUserId = useCallback(() => {
-    return localStorage.getItem('userId') || 1; // Valor predeterminado para pruebas
-  }, []);
+  }, [orderItems, orderTotal, showNotification, getCurrentUserId, siteSettings]);
 
   // Formatear precio
   const formatCurrency = useCallback((value) => {
@@ -168,6 +286,22 @@ const Products = () => {
   const currentItems = products.slice(indexOfFirstItem, indexOfLastItem);
   const paginate = useCallback((pageNumber) => setCurrentPage(pageNumber), []);
 
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const response = await API.get('/admin/settings');
+        if (response.data && response.data.success) {
+          setSiteSettings(response.data.data);
+        }
+      } catch (error) {
+        console.error('Error fetching site settings:', error);
+        // Usar valores predeterminados si no se puede cargar
+      }
+    };
+  
+    fetchSettings();
+  }, []);
+
   // Cargar datos iniciales
   useEffect(() => {
     fetchProducts();
@@ -185,12 +319,12 @@ const Products = () => {
 
   return (
     <div className="bg-gray-100 h-full w-full overflow-hidden">
-      {notification && (
-        <div className={`fixed top-4 right-4 p-4 rounded-lg shadow-lg z-50 ${
-          notification.type === 'success' ? 'bg-green-500' : 'bg-red-500'
-        } text-white font-medium max-w-sm`}>
-          {notification.message}
-        </div>
+      {notification.show && (
+        <Notification 
+          message={notification.message}
+          type={notification.type}
+          onClose={() => setNotification({ show: false, message: '', type: '' })}
+        />
       )}
 
       <div className="h-full w-full flex flex-col">
@@ -289,6 +423,9 @@ const Products = () => {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Precio Normal
                       </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Cantidad
+                      </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Acciones
                       </th>
@@ -310,6 +447,45 @@ const Products = () => {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="text-sm font-bold text-blue-600">{formatCurrency(product.price_list1)}</div>
+                          </td>
+                          {/* En la vista de tabla */}
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center border rounded-md">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const currentQty = productQuantities[product.product_id] || 1;
+                                  if (currentQty > 1) {
+                                    handleQuantityChange(product.product_id, currentQty - 1);
+                                  }
+                                }}
+                                className="p-1 text-gray-600 hover:text-gray-800 disabled:opacity-50"
+                                disabled={(productQuantities[product.product_id] || 1) <= 1}
+                              >
+                                <FiMinus size={16} />
+                              </button>
+                              <input
+                                type="number"
+                                min="1"
+                                value={productQuantities[product.product_id] || 1}
+                                onChange={(e) => handleQuantityChange(product.product_id, parseInt(e.target.value, 10))}
+                                className="w-12 text-center text-sm border-0 focus:ring-0"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const currentQty = productQuantities[product.product_id] || 1;
+                                  const maxStock = product.stock || 999;
+                                  if (currentQty < maxStock) {
+                                    handleQuantityChange(product.product_id, currentQty + 1);
+                                  }
+                                }}
+                                className="p-1 text-gray-600 hover:text-gray-800 disabled:opacity-50"
+                                disabled={product.stock && (productQuantities[product.product_id] || 1) >= product.stock}
+                              >
+                                <FiPlus size={16} />
+                              </button>
+                            </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <div className="flex space-x-2">
@@ -361,7 +537,46 @@ const Products = () => {
                     <div className="p-4 flex-1 flex flex-col">
                       <h3 className="font-medium text-gray-900 text-sm md:text-base mb-2 line-clamp-2 h-10">{product.name}</h3>
                       <p className="text-lg font-bold text-blue-600 mb-2">{formatCurrency(product.price_list1)}</p>
-                      
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm text-gray-600">Cantidad:</span>
+                        <div className="flex items-center border rounded-md">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const currentQty = productQuantities[product.product_id] || 1;
+                              if (currentQty > 1) {
+                                handleQuantityChange(product.product_id, currentQty - 1);
+                              }
+                            }}
+                            className="p-1 text-gray-600 hover:text-gray-800 disabled:opacity-50"
+                            disabled={(productQuantities[product.product_id] || 1) <= 1}
+                          >
+                            <FiMinus size={16} />
+                          </button>
+                          <input
+                            type="number"
+                            min="1"
+                            value={productQuantities[product.product_id] || 1}
+                            onChange={(e) => handleQuantityChange(product.product_id, parseInt(e.target.value))}
+                            className="w-12 text-center text-sm border-0 focus:ring-0"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const currentQty = productQuantities[product.product_id] || 1;
+                              const maxStock = product.stock || 999;
+                              if (currentQty < maxStock) {
+                                handleQuantityChange(product.product_id, currentQty + 1);
+                              }
+                            }}
+                            className="p-1 text-gray-600 hover:text-gray-800 disabled:opacity-50"
+                            disabled={product.stock && (productQuantities[product.product_id] || 1) >= product.stock}
+                          >
+                            <FiPlus size={16} />
+                          </button>
+                        </div>
+                      </div>
+
                       <div className="flex gap-2 mt-auto">
                         <Button
                           variant="outline"

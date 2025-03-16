@@ -10,27 +10,31 @@ const OrderStatusBadge = ({ status, size = 'md' }) => {
   // Normalizar el status a minúsculas y quitar espacios
   const normalizedStatus = status?.toString().toLowerCase().trim() || 'pendiente';
   
+  // Actualizar la función getStatusConfig para utilizar nombres en lugar de códigos
   const getStatusConfig = () => {
     switch (normalizedStatus) {
       case 'pendiente':
       case 'pending':
-        return { bg: 'bg-yellow-100', text: 'text-yellow-800', border: 'border-yellow-200', label: 'Pendiente' };
+      case 'abierto':
+        return { bg: 'bg-yellow-100', text: 'text-yellow-800', border: 'border-yellow-200', label: status || 'Pendiente' };
       
       case 'completado':
       case 'completed':
       case 'entregado':
       case 'delivered':
-        return { bg: 'bg-green-100', text: 'text-green-800', border: 'border-green-200', label: 'Completado' };
+        return { bg: 'bg-green-100', text: 'text-green-800', border: 'border-green-200', label: status || 'Completado' };
       
       case 'cancelado':
       case 'canceled':
       case 'cancelled':
-        return { bg: 'bg-red-100', text: 'text-red-800', border: 'border-red-200', label: 'Cancelado' };
+      case 'cerrado':
+        return { bg: 'bg-red-100', text: 'text-red-800', border: 'border-red-200', label: status || 'Cancelado' };
       
       case 'en proceso':
+      case 'en producción':
       case 'in progress':
       case 'processing':
-        return { bg: 'bg-blue-100', text: 'text-blue-800', border: 'border-blue-200', label: 'En Proceso' };
+        return { bg: 'bg-blue-100', text: 'text-blue-800', border: 'border-blue-200', label: status || 'En Proceso' };
       
       case 'en preparación':
       case 'preparando':

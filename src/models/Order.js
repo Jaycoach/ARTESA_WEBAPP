@@ -48,7 +48,18 @@ class Order {
    * @returns {Promise<OrderResponse>} - Información de la orden creada
    * @throws {Error} Si no hay detalles o ocurre un error en la transacción
    */
-  static async createOrder(user_id, total_amount, details) {
+  /**
+   * Crea una nueva orden con sus detalles
+   * @async
+   * @param {number} user_id - ID del usuario que realiza la orden
+   * @param {number} total_amount - Monto total de la orden
+   * @param {Array<OrderDetail>} details - Detalles de la orden
+   * @param {Date} [delivery_date=null] - Fecha de entrega programada
+   * @param {number} [status_id=1] - Estado inicial de la orden (por defecto: Abierto)
+   * @returns {Promise<OrderResponse>} - Información de la orden creada
+   * @throws {Error} Si no hay detalles o ocurre un error en la transacción
+   */
+  static async createOrder(user_id, total_amount, details, delivery_date = null, status_id = 1) {
     if (!details || details.length === 0) {
       logger.warn('Intento de crear orden sin detalles', { user_id });
       throw new Error("No se puede insertar una orden sin detalles.");
@@ -56,19 +67,34 @@ class Order {
 
     const client = await pool.connect();
     try {
-      logger.debug('Iniciando transacción para crear orden', { user_id, total_amount, detailsCount: details.length });
+      logger.debug('Iniciando transacción para crear orden', { 
+        user_id, 
+        total_amount, 
+        detailsCount: details.length,
+        delivery_date,
+        status_id
+      });
+      
       await client.query('BEGIN');
 
-      // Insertar en Orders
+      // Insertar en Orders con fecha de entrega y estado
       const orderQuery = `
-        INSERT INTO Orders (user_id, total_amount)
-        VALUES ($1, $2)
+        INSERT INTO Orders (user_id, total_amount, delivery_date, status_id)
+        VALUES ($1, $2, $3, $4)
         RETURNING order_id;
       `;
-      const orderResult = await client.query(orderQuery, [user_id, total_amount]);
+      const orderResult = await client.query(orderQuery, [
+        user_id, 
+        total_amount, 
+        delivery_date, 
+        status_id
+      ]);
       const order_id = orderResult.rows[0].order_id;
 
-      logger.debug('Orden creada, insertando detalles', { order_id, detailsCount: details.length });
+      logger.debug('Orden creada, insertando detalles', { 
+        order_id, 
+        detailsCount: details.length 
+      });
 
       // Insertar múltiples detalles en una sola consulta
       const detailValues = details.map((detail, index) => {
@@ -92,7 +118,13 @@ class Order {
       
       await client.query('COMMIT');
       
-      logger.info('Orden creada exitosamente', { order_id, user_id, detailsCount: details.length });
+      logger.info('Orden creada exitosamente', { 
+        order_id, 
+        user_id, 
+        detailsCount: details.length,
+        delivery_date,
+        status_id
+      });
       
       return {
         order_id,
@@ -100,7 +132,11 @@ class Order {
       };
     } catch (error) {
       await client.query('ROLLBACK');
-      logger.error('Error en createOrder', { error: error.message, user_id });
+      logger.error('Error en createOrder', { 
+        error: error.message, 
+        user_id, 
+        stack: error.stack 
+      });
       throw error;
     } finally {
       client.release();
@@ -239,6 +275,481 @@ class Order {
       logger.error('Error al obtener órdenes del usuario', { 
         error: error.message,
         userId
+      });
+      throw error;
+    }
+  }
+  /**
+   * Actualiza una orden existente
+   * @async
+   * @param {number} orderId - ID de la orden a actualizar
+   * @param {Object} updateData - Datos para actualizar la orden
+   * @param {number} updateData.status_id - ID del nuevo estado
+   * @param {Date} updateData.delivery_date - Nueva fecha de entrega
+   * @param {number} updateData.total_amount - Nuevo monto total
+   * @returns {Promise<Object|null>} - Orden actualizada o null si no existe
+   * @throws {Error} Si ocurre un error en la actualización
+   */
+  static async updateOrder(orderId, updateData) {
+    const client = await pool.connect();
+    try {
+      logger.debug('Iniciando actualización de orden', { 
+        orderId,
+        updateData
+      });
+      
+      await client.query('BEGIN');
+      
+      // Primero verificamos si la orden existe
+      const checkQuery = 'SELECT order_id, status_id FROM orders WHERE order_id = $1';
+      const checkResult = await client.query(checkQuery, [orderId]);
+      
+      if (checkResult.rows.length === 0) {
+        logger.warn('Orden no encontrada para actualización', { orderId });
+        await client.query('ROLLBACK');
+        return null;
+      }
+      
+      const currentOrder = checkResult.rows[0];
+      
+      // Verificar si la orden está en un estado que permite modificación
+      const nonModifiableStates = [4, 5, 6]; // Entregado, Cerrado, Cancelado
+      if (nonModifiableStates.includes(currentOrder.status_id)) {
+        logger.warn('Intento de modificar orden en estado no modificable', { 
+          orderId, 
+          currentStatus: currentOrder.status_id 
+        });
+        throw new Error('No se puede modificar una orden en estado Entregado, Cerrado o Cancelado');
+      }
+      
+      // Construir query de actualización
+      const updateFields = [];
+      const queryParams = [];
+      let paramIndex = 1;
+      
+      // Actualizar solo los campos proporcionados
+      if (updateData.status_id !== undefined) {
+        updateFields.push(`status_id = $${paramIndex}`);
+        queryParams.push(updateData.status_id);
+        paramIndex++;
+        
+        // Actualizar timestamp de cambio de estado
+        updateFields.push(`last_status_update = CURRENT_TIMESTAMP`);
+      }
+      
+      if (updateData.delivery_date !== undefined) {
+        updateFields.push(`delivery_date = $${paramIndex}`);
+        queryParams.push(updateData.delivery_date);
+        paramIndex++;
+      }
+      
+      if (updateData.total_amount !== undefined) {
+        updateFields.push(`total_amount = $${paramIndex}`);
+        queryParams.push(updateData.total_amount);
+        paramIndex++;
+      }
+      
+      // Siempre actualizar el timestamp
+      updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
+      
+      // Si no hay campos para actualizar, terminamos
+      if (updateFields.length === 0) {
+        logger.debug('No hay campos para actualizar', { orderId });
+        await client.query('COMMIT');
+        return await this.getOrderWithDetails(orderId);
+      }
+      
+      // Construir y ejecutar la query de actualización
+      const updateQuery = `
+        UPDATE orders 
+        SET ${updateFields.join(', ')}
+        WHERE order_id = $${paramIndex}
+        RETURNING *
+      `;
+      
+      queryParams.push(orderId);
+      const updateResult = await client.query(updateQuery, queryParams);
+      
+      // Actualizar detalles de la orden si se proporcionan
+      if (updateData.details && updateData.details.length > 0) {
+        // Primero eliminamos los detalles existentes
+        await client.query('DELETE FROM order_details WHERE order_id = $1', [orderId]);
+        
+        // Luego insertamos los nuevos detalles
+        const detailValues = updateData.details.map((detail, index) => {
+          const offset = index * 4;
+          return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4})`;
+        }).join(', ');
+
+        const detailParams = updateData.details.flatMap(detail => [
+          orderId,
+          detail.product_id,
+          detail.quantity,
+          detail.unit_price
+        ]);
+
+        const detailQuery = `
+          INSERT INTO order_details (order_id, product_id, quantity, unit_price)
+          VALUES ${detailValues};
+        `;
+
+        await client.query(detailQuery, detailParams);
+      }
+      
+      await client.query('COMMIT');
+      
+      logger.info('Orden actualizada exitosamente', { 
+        orderId, 
+        statusId: updateData.status_id,
+        detailsUpdated: updateData.details ? true : false
+      });
+      
+      // Devolver la orden actualizada con sus detalles
+      return await this.getOrderWithDetails(orderId);
+    } catch (error) {
+      await client.query('ROLLBACK');
+      logger.error('Error al actualizar orden', { 
+        error: error.message, 
+        orderId,
+        stack: error.stack
+      });
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * Calcula la fecha de entrega disponible más cercana según reglas de negocio
+   * @param {Date} [orderDate=new Date()] - Fecha de creación de la orden (por defecto: fecha actual)
+   * @param {string} [orderTimeLimit="18:00"] - Hora límite para pedidos del día (formato HH:MM)
+   * @returns {Date} Fecha de entrega calculada
+   */
+  static calculateDeliveryDate(orderDate = new Date(), orderTimeLimit = "18:00") {
+    const date = new Date(orderDate);
+    const [limitHours, limitMinutes] = orderTimeLimit.split(':').map(Number);
+    
+    // Verificar si ya pasó la hora límite
+    const isPastTimeLimit = date.getHours() > limitHours || 
+      (date.getHours() === limitHours && date.getMinutes() >= limitMinutes);
+    
+    // Determinar día de la semana (0 = domingo, 6 = sábado)
+    const dayOfWeek = date.getDay();
+    
+    // Calcular días adicionales según el día de la semana y hora
+    let additionalDays = 2; // Por defecto, 2 días hábiles
+    
+    if (dayOfWeek === 5) { // Viernes
+      additionalDays = isPastTimeLimit ? 4 : 3; // Lunes o martes
+    } 
+    else if (dayOfWeek === 6) { // Sábado
+      additionalDays = isPastTimeLimit ? 3 : 2; // Miércoles o martes
+    }
+    else if (dayOfWeek === 0) { // Domingo
+      additionalDays = 2; // Martes
+    }
+    else { // Lunes a jueves
+      additionalDays = isPastTimeLimit ? 3 : 2; // +3 o +2 días
+    }
+    
+    // Añadir los días calculados
+    date.setDate(date.getDate() + additionalDays);
+    
+    // Asegurar que no caiga en fin de semana
+    const newDayOfWeek = date.getDay();
+    if (newDayOfWeek === 0) { // domingo
+      date.setDate(date.getDate() + 1); // mover al lunes
+    } else if (newDayOfWeek === 6) { // sábado
+      date.setDate(date.getDate() + 2); // mover al lunes
+    }
+    
+    return date;
+  }
+
+  /**
+   * Actualiza el estado de las órdenes pendientes a "En Producción"
+   * @async
+   * @param {string} orderTimeLimit - Hora límite para pedidos (formato HH:MM)
+   * @param {Object} [options] - Opciones adicionales
+   * @param {boolean} [options.ignoreTimeLimit=false] - Si es true, ignora la restricción de hora límite
+   * @param {boolean} [options.ignoreCreationDate=false] - Si es true, ignora la restricción de fecha de creación
+   * @returns {Promise<number>} - Número de órdenes actualizadas
+   */
+  static async updatePendingOrdersStatus(orderTimeLimit = "18:00", options = {}) {
+    try {
+      const { ignoreTimeLimit = false, ignoreCreationDate = false } = options;
+      
+      logger.debug('Actualizando órdenes pendientes a En Producción', { 
+        orderTimeLimit,
+        ignoreTimeLimit,
+        ignoreCreationDate
+      });
+      
+      // Construir condiciones de la consulta basadas en las opciones
+      let whereConditions = [`status_id = 2`]; // Siempre filtrar por órdenes pendientes
+      
+      // Agregar condición de hora límite si no se ignora
+      if (!ignoreTimeLimit) {
+        whereConditions.push(`TO_CHAR(NOW(), 'HH24:MI') >= $1`);
+      }
+      
+      // Agregar condición de fecha de creación si no se ignora
+      if (!ignoreCreationDate) {
+        whereConditions.push(`DATE(order_date) = DATE(NOW())`);
+      }
+      
+      // Construir consulta completa
+      const query = `
+        UPDATE orders
+        SET status_id = 3, -- En Producción
+            last_status_update = CURRENT_TIMESTAMP
+        WHERE ${whereConditions.join(' AND ')}
+        RETURNING order_id
+      `;
+      
+      // Arreglo de parámetros
+      const params = ignoreTimeLimit ? [] : [orderTimeLimit];
+      
+      const result = await pool.query(query, params);
+      
+      const updatedCount = result.rowCount;
+      
+      if (updatedCount > 0) {
+        logger.info('Órdenes actualizadas a estado En Producción', { 
+          count: updatedCount, 
+          ids: result.rows.map(row => row.order_id),
+          ignoreTimeLimit,
+          ignoreCreationDate
+        });
+      } else {
+        logger.debug('No hay órdenes pendientes para actualizar');
+      }
+      
+      return updatedCount;
+    } catch (error) {
+      logger.error('Error al actualizar estado de órdenes pendientes', { 
+        error: error.message, 
+        stack: error.stack
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Cancela una orden existente cambiando su estado a Cancelado (7)
+   * @async
+   * @param {number} orderId - ID de la orden a cancelar
+   * @param {number} userId - ID del usuario que realiza la cancelación
+   * @returns {Promise<Object|null>} - Orden cancelada o null si no existe
+   * @throws {Error} Si ocurre un error en la cancelación
+   */
+  static async cancelOrder(orderId, userId = null, reason = null) {
+    const client = await pool.connect();
+    try {
+      logger.debug('Cancelando orden', { orderId, userId });
+      
+      await client.query('BEGIN');
+      
+      // Primero verificamos si la orden existe y si puede ser cancelada
+      const checkQuery = 'SELECT order_id, status_id, user_id FROM orders WHERE order_id = $1';
+      const checkResult = await client.query(checkQuery, [orderId]);
+      
+      if (checkResult.rows.length === 0) {
+        logger.warn('Orden no encontrada para cancelación', { orderId });
+        await client.query('ROLLBACK');
+        return null;
+      }
+      
+      const currentOrder = checkResult.rows[0];
+      
+      // Verificar si la orden ya está en un estado final
+      const finalStates = [4, 5, 6]; // Entregado, Cerrado, Cancelado
+      if (finalStates.includes(currentOrder.status_id)) {
+        logger.warn('Intento de cancelar orden en estado final', {
+          orderId,
+          currentStatus: currentOrder.status_id
+        });
+        throw new Error('No se puede cancelar una orden en estado Entregado, Cerrado o Cancelado');
+      }
+      
+      // Obtener el ID del estado "Cancelado" de la base de datos
+      const statusQuery = "SELECT status_id FROM order_status WHERE name = 'Cancelado'";
+      const statusResult = await client.query(statusQuery);
+      
+      if (statusResult.rows.length === 0) {
+        throw new Error('Estado "Cancelado" no encontrado en la base de datos');
+      }
+      
+      const cancelStatusId = statusResult.rows[0].status_id;
+      
+      // Actualizar el estado de la orden
+      const updateQuery = `
+        UPDATE orders 
+        SET status_id = $1,
+            last_status_update = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE order_id = $2
+        RETURNING *
+      `;
+      
+      const updateResult = await client.query(updateQuery, [cancelStatusId, orderId]);
+      
+      // Si hay razón de cancelación, registrarla
+      if (reason) {
+        const reasonQuery = `
+          INSERT INTO order_notes (order_id, user_id, note_type, note, created_at)
+          VALUES ($1, $2, 'cancelation_reason', $3, CURRENT_TIMESTAMP)
+        `;
+        await client.query(reasonQuery, [orderId, userId, reason]);
+      }
+      
+      await client.query('COMMIT');
+      
+      logger.info('Orden cancelada exitosamente', {
+        orderId,
+        userId,
+        reason: reason ? true : false
+      });
+      
+      return updateResult.rows[0];
+    } catch (error) {
+      await client.query('ROLLBACK');
+      logger.error('Error al cancelar orden', {
+        error: error.message,
+        orderId,
+        stack: error.stack
+      });
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * Obtiene órdenes por fecha de entrega y opcionalmente por estado
+   * @async
+   * @param {Date} deliveryDate - Fecha de entrega para filtrar
+   * @param {number|null} statusId - ID del estado para filtrar (opcional)
+   * @returns {Promise<Array<Object>>} - Lista de órdenes encontradas
+   * @throws {Error} Si ocurre un error en la consulta
+   */
+  static async getOrdersByDeliveryDate(deliveryDate, statusId = null) {
+    try {
+      logger.debug('Obteniendo órdenes por fecha de entrega', { 
+        deliveryDate, 
+        statusId 
+      });
+      
+      // Convertir la fecha a formato ISO para asegurar formato correcto
+      const formattedDate = new Date(deliveryDate).toISOString().split('T')[0];
+      
+      // Preparar la consulta base
+      let query = `
+        SELECT o.*, 
+              u.name as user_name, 
+              os.name as status_name,
+              COUNT(od.order_detail_id) as item_count, 
+              SUM(od.quantity) as total_items
+        FROM orders o
+        JOIN users u ON o.user_id = u.id
+        JOIN order_status os ON o.status_id = os.status_id
+        LEFT JOIN order_details od ON o.order_id = od.order_id
+        WHERE DATE(o.delivery_date) = $1
+      `;
+      
+      let params = [formattedDate];
+      
+      // Añadir filtro de estado si se proporciona
+      if (statusId !== null) {
+        query += ` AND o.status_id = $2`;
+        params.push(statusId);
+      }
+      
+      // Agrupar y ordenar
+      query += `
+        GROUP BY o.order_id, u.name, os.name
+        ORDER BY o.delivery_date, o.order_date DESC
+      `;
+      
+      const { rows } = await pool.query(query, params);
+      
+      logger.info('Órdenes recuperadas por fecha de entrega', { 
+        deliveryDate: formattedDate, 
+        statusId, 
+        count: rows.length 
+      });
+      
+      return rows;
+    } catch (error) {
+      logger.error('Error al obtener órdenes por fecha de entrega', { 
+        error: error.message,
+        deliveryDate,
+        statusId,
+        stack: error.stack
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Obtiene todas las órdenes por estado
+   * @async
+   * @param {number} statusId - ID del estado a filtrar
+   * @returns {Promise<Array<Object>>} - Lista de órdenes con el estado especificado
+   * @throws {Error} Si ocurre un error en la consulta
+   */
+  static async getOrdersByStatus(statusId) {
+    try {
+      logger.debug('Obteniendo órdenes por estado', { statusId });
+      
+      const query = `
+        SELECT o.*, 
+              u.name as user_name, 
+              os.name as status_name,
+              COUNT(od.order_detail_id) as item_count, 
+              SUM(od.quantity) as total_items
+        FROM orders o
+        JOIN users u ON o.user_id = u.id
+        JOIN order_status os ON o.status_id = os.status_id
+        LEFT JOIN order_details od ON o.order_id = od.order_id
+        WHERE o.status_id = $1
+        GROUP BY o.order_id, u.name, os.name
+        ORDER BY o.order_date DESC
+      `;
+      
+      const { rows } = await pool.query(query, [statusId]);
+      
+      logger.info('Órdenes recuperadas por estado', { 
+        statusId, 
+        count: rows.length 
+      });
+      
+      return rows;
+    } catch (error) {
+      logger.error('Error al obtener órdenes por estado', { 
+        error: error.message,
+        statusId
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Obtiene todos los estados de órdenes
+   * @async
+   * @returns {Promise<Array<Object>>} - Lista de estados disponibles
+   * @throws {Error} Si ocurre un error en la consulta
+   */
+  static async getOrderStatuses() {
+    try {
+      const query = 'SELECT * FROM order_status ORDER BY status_id';
+      const { rows } = await pool.query(query);
+      
+      logger.debug('Estados de órdenes recuperados', { count: rows.length });
+      return rows;
+    } catch (error) {
+      logger.error('Error al obtener estados de órdenes', { 
+        error: error.message
       });
       throw error;
     }

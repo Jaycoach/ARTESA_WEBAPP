@@ -1,17 +1,44 @@
-// Configuración inicial
-const config = require('./dbdocs.config');
-
 const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
+
+// Agregar validación de variables de entorno
+const validateEnvVariables = () => {
+  const required = ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_DATABASE', 'DB_PORT'];
+  const missing = required.filter(key => !process.env[key]);
+  
+  if (missing.length > 0) {
+    throw new Error(`Faltan variables de entorno requeridas: ${missing.join(', ')}`);
+  }
+
+  // Validar que el password sea string
+  if (typeof process.env.DB_PASSWORD !== 'string') {
+    process.env.DB_PASSWORD = String(process.env.DB_PASSWORD);
+  }
+};
+
+// Validar antes de crear el pool
+validateEnvVariables();
+
 const fs = require('fs');
 const { Pool } = require('pg');
 
+// Crear el pool con validación adicional
 const pool = new Pool({
-    host: config.db.host,
-    user: config.db.user,
-    password: config.db.password,
-    database: config.db.database,
-    port: config.db.port
-  });
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    password: String(process.env.DB_PASSWORD), // Asegurar que sea string
+    database: process.env.DB_DATABASE,
+    port: parseInt(process.env.DB_PORT),
+    // Agregar opciones adicionales para mayor estabilidad
+    connectionTimeoutMillis: 5000,
+    idleTimeoutMillis: 30000,
+    max: 1 // Limitar a una conexión para scripts
+});
+
+// Agregar manejo de errores del pool
+pool.on('error', (err) => {
+    console.error('Error inesperado del pool:', err);
+});
 
 // Consultas SQL
 const queries = {
@@ -333,7 +360,13 @@ function generateMarkdown(data) {
 }
 
 async function generateDocs() {
+    let client;
     try {
+        // Probar la conexión antes de continuar
+        client = await pool.connect();
+        console.log('Conexión a la base de datos establecida correctamente');
+        client.release();
+
         // Obtener todos los datos necesarios
         const data = await getTableData();
 
@@ -341,7 +374,7 @@ async function generateDocs() {
         const markdown = generateMarkdown(data);
 
         // Guardar el archivo
-        const docsPath = path.resolve(__dirname, './docs');
+        const docsPath = path.resolve(__dirname, '../docs'); // Cambiar la ruta
         if (!fs.existsSync(docsPath)) {
             fs.mkdirSync(docsPath, { recursive: true });
         }
@@ -351,9 +384,28 @@ async function generateDocs() {
         
         console.log(`Documentación generada exitosamente en: ${filePath}`);
     } catch (error) {
-        console.error('Error generando la documentación:', error);
+        console.error('Error en el proceso de generación de documentación:');
+        console.error('Mensaje:', error.message);
+        console.error('Stack:', error.stack);
+        
+        if (error.message.includes('SASL') || error.message.includes('password')) {
+            console.error('\nError de autenticación detectado. Verificar:');
+            console.log('1. Variables de entorno cargadas:');
+            console.log('   DB_HOST:', process.env.DB_HOST);
+            console.log('   DB_USER:', process.env.DB_USER);
+            console.log('   DB_DATABASE:', process.env.DB_DATABASE);
+            console.log('   DB_PORT:', process.env.PORT);
+            console.log('   DB_PASSWORD: [OCULTO]');
+        }
+        
+        throw error;
     } finally {
-        await pool.end();
+        try {
+            await pool.end();
+            console.log('Conexión a la base de datos cerrada correctamente');
+        } catch (endError) {
+            console.error('Error al cerrar el pool:', endError);
+        }
     }
 }
 

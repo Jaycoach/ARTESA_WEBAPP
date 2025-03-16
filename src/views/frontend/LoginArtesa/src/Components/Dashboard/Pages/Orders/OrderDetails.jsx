@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { orderService } from '../../../../services/orderService';
 import { useAuth } from '../../../../hooks/useAuth';
 import OrderStatusBadge from './OrderStatusBadge';
-import { FaFileDownload, FaFileImage, FaFilePdf, FaFile } from 'react-icons/fa';
+import { FaFileDownload, FaFileImage, FaFilePdf, FaFile, FaEdit, FaCheck, FaExclamationTriangle } from 'react-icons/fa';
 
 const OrderDetails = () => {
   const { orderId } = useParams();
@@ -11,12 +11,31 @@ const OrderDetails = () => {
   const [order, setOrder] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [canEdit, setCanEdit] = useState(false);
+  const [editRestriction, setEditRestriction] = useState('');
+  const [siteSettings, setSiteSettings] = useState({ orderTimeLimit: '18:00' });
   const navigate = useNavigate();
+
+  // Obtener configuración del sitio al cargar
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const result = await orderService.getSiteSettings();
+        if (result.success) {
+          setSiteSettings(result.data);
+        }
+      } catch (error) {
+        console.error('Error fetching settings:', error);
+      }
+    };
+
+    fetchSettings();
+  }, []);
 
   useEffect(() => {
     const fetchOrderDetails = async () => {
-      if (!orderId) {
-        setError('ID de pedido no proporcionado');
+      if (!orderId || orderId === 'undefined') {
+        setError('ID de pedido no proporcionado o inválido');
         setIsLoading(false);
         return;
       }
@@ -31,10 +50,28 @@ const OrderDetails = () => {
         setIsLoading(true);
         setError(null);
         
+        if (!orderId || orderId === 'undefined') {
+          throw new Error('ID de pedido inválido');
+        }
+
         const result = await orderService.getOrderById(orderId);
         
         if (result && result.success) {
           setOrder(result.data);
+          
+          // Verificar si el pedido pertenece al usuario actual
+          if (result.data.user_id === user.id) {
+            // Verificar si el pedido puede ser editado
+            const editCheck = await orderService.canEditOrder(
+              orderId, 
+              siteSettings.orderTimeLimit
+            );
+            
+            setCanEdit(editCheck.canEdit);
+            if (!editCheck.canEdit) {
+              setEditRestriction(editCheck.reason);
+            }
+          }
         } else {
           throw new Error('No se pudo obtener los detalles del pedido');
         }
@@ -47,7 +84,7 @@ const OrderDetails = () => {
     };
 
     fetchOrderDetails();
-  }, [orderId, user]);
+  }, [orderId, user, siteSettings.orderTimeLimit]);
 
   // Función para formatear la fecha
   const formatDate = (dateString) => {
@@ -141,15 +178,34 @@ const OrderDetails = () => {
             Volver a pedidos
           </button>
           
-          <button
-            onClick={() => window.print()}
-            className="flex items-center text-blue-600 hover:text-blue-800"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-            </svg>
-            Imprimir
-          </button>
+          <div className="flex space-x-4">
+            {canEdit ? (
+              <button
+                onClick={() => navigate(`/dashboard/orders/${orderId}/edit`)}
+                className="flex items-center text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-md"
+              >
+                <FaEdit className="mr-2" />
+                Editar pedido
+              </button>
+            ) : (
+              order.user_id === user.id && editRestriction && (
+                <div className="flex items-center text-gray-500 bg-gray-100 px-3 py-2 rounded-md" title={editRestriction}>
+                  <FaExclamationTriangle className="mr-2 text-yellow-500" />
+                  No se puede editar
+                </div>
+              )
+            )}
+            
+            <button
+              onClick={() => window.print()}
+              className="flex items-center text-gray-600 hover:text-gray-800 bg-gray-50 hover:bg-gray-100 px-3 py-2 rounded-md"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+              </svg>
+              Imprimir
+            </button>
+          </div>
         </div>
         
         <div className="border-b pb-6 mb-6">
@@ -289,6 +345,27 @@ const OrderDetails = () => {
             </dl>
           </div>
         </div>
+
+        {/* Mostrar ayuda para edición si es necesario */}
+        {!canEdit && order.user_id === user.id && (
+          <div className="mt-6 bg-yellow-50 rounded-lg p-4 border border-yellow-200">
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <FaExclamationTriangle className="h-5 w-5 text-yellow-400" />
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-yellow-800">Información sobre edición de pedidos</h3>
+                <div className="mt-2 text-sm text-yellow-700">
+                  <p>
+                    {editRestriction || `No se puede editar este pedido después de las ${siteSettings.orderTimeLimit}.`}
+                    <br />
+                    Si necesitas modificar tu pedido, contacta con soporte.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
