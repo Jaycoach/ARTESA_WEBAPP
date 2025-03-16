@@ -32,6 +32,9 @@ const Products = () => {
   const [orderTotal, setOrderTotal] = useState(0);
   const [submittingOrder, setSubmittingOrder] = useState(false);
 
+  // Efecto para cargar la configuración del sitio
+  const [siteSettings, setSiteSettings] = useState({ orderTimeLimit: '18:00' });
+
   // Función para mostrar notificaciones
   const showNotification = useCallback((message, type = 'success') => {
     setNotification({ show: true, message, type });
@@ -167,6 +170,11 @@ const Products = () => {
     }
   }, [products, updateQuantity, selectedProduct]);
 
+  // Función auxiliar para obtener el ID del usuario actual
+  const getCurrentUserId = useCallback(() => {
+    return localStorage.getItem('userId') || 1; // Valor predeterminado para pruebas
+  }, []);
+
   // Función para enviar el pedido completo a la API
   const submitOrder = useCallback(async () => {
     if (orderItems.length === 0) {
@@ -254,11 +262,6 @@ const Products = () => {
     }
   }, [orderItems, orderTotal, showNotification, getCurrentUserId, siteSettings]);
 
-  // Función auxiliar para obtener el ID del usuario actual
-  const getCurrentUserId = useCallback(() => {
-    return localStorage.getItem('userId') || 1; // Valor predeterminado para pruebas
-  }, []);
-
   // Formatear precio
   const formatCurrency = useCallback((value) => {
     return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(value);
@@ -275,9 +278,6 @@ const Products = () => {
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentItems = products.slice(indexOfFirstItem, indexOfLastItem);
   const paginate = useCallback((pageNumber) => setCurrentPage(pageNumber), []);
-  
-  // Efecto para cargar la configuración del sitio
-  const [siteSettings, setSiteSettings] = useState({ orderTimeLimit: '18:00' });
 
   useEffect(() => {
     const fetchSettings = async () => {
