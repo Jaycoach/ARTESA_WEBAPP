@@ -1,4 +1,5 @@
 import React from 'react';
+import '../../App.css'
 import PropTypes from 'prop-types';
 
 const Modal = ({ isOpen, onClose, children, title, footer }) => {

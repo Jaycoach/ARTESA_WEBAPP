@@ -386,6 +386,7 @@ img, video {
   color: var(--white);
 }
 .sidebar .sidebar-menu ul li button .menu-text {
+  display: none;
   margin-left: 10px;
   white-space: nowrap;
   color: var(--white); /* Asegurar color blanco para el texto */

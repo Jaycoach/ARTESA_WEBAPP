@@ -1,0 +1,159 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 800">
+  <!-- Fondo y Título -->
+  <rect width="1000" height="800" fill="#f8f9fa" />
+  <text x="500" y="40" font-family="Arial" font-size="24" font-weight="bold" text-anchor="middle">Arquitectura de LA ARTESA Web App</text>
+  
+  <!-- Leyenda -->
+  <g transform="translate(800, 60)">
+    <text x="0" y="0" font-family="Arial" font-size="14" font-weight="bold">Leyenda</text>
+    
+    <!-- Componentes -->
+    <rect x="0" y="10" width="20" height="20" fill="#a7c0e3" stroke="#5b81c1" stroke-width="2" />
+    <text x="30" y="25" font-family="Arial" font-size="12">Middleware</text>
+    
+    <rect x="0" y="40" width="20" height="20" fill="#9ed9b5" stroke="#50a878" stroke-width="2" />
+    <text x="30" y="55" font-family="Arial" font-size="12">Controladores</text>
+    
+    <rect x="0" y="70" width="20" height="20" fill="#fff19e" stroke="#dfb100" stroke-width="2" />
+    <text x="30" y="85" font-family="Arial" font-size="12">Servicios</text>
+    
+    <rect x="0" y="100" width="20" height="20" fill="#ffb6c1" stroke="#e77c8d" stroke-width="2" />
+    <text x="30" y="115" font-family="Arial" font-size="12">Modelos</text>
+    
+    <rect x="0" y="130" width="20" height="20" fill="#c2a5df" stroke="#8a5cba" stroke-width="2" />
+    <text x="30" y="145" font-family="Arial" font-size="12">Config / Utilidades</text>
+    
+    <rect x="0" y="160" width="20" height="20" fill="#f8d9ac" stroke="#e8ae67" stroke-width="2" />
+    <text x="30" y="175" font-family="Arial" font-size="12">Rutas</text>
+    
+    <!-- Flechas -->
+    <line x1="0" y1="200" x2="30" y2="200" stroke="#333" stroke-width="2" marker-end="url(#arrow)" />
+    <text x="40" y="205" font-family="Arial" font-size="12">Flujo de datos</text>
+    
+    <line x1="0" y1="230" x2="30" y2="230" stroke="#666" stroke-width="1" stroke-dasharray="5,3" />
+    <text x="40" y="235" font-family="Arial" font-size="12">Dependencia</text>
+  </g>
+  
+  <!-- Definición de marcadores -->
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#333" />
+    </marker>
+  </defs>
+  
+  <!-- Componentes de la aplicación -->
+  
+  <!-- Cliente -->
+  <rect x="80" y="100" width="120" height="60" rx="10" ry="10" fill="#f0f0f0" stroke="#333" stroke-width="2" />
+  <text x="140" y="137" font-family="Arial" font-size="14" text-anchor="middle">Cliente</text>
+  
+  <!-- Express App -->
+  <rect x="300" y="100" width="400" height="60" rx="10" ry="10" fill="#e0e0e0" stroke="#333" stroke-width="2" />
+  <text x="500" y="137" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle">Express App (app.js)</text>
+  
+  <!-- Middleware -->
+  <rect x="300" y="200" width="400" height="100" rx="10" ry="10" fill="#a7c0e3" stroke="#5b81c1" stroke-width="2" />
+  <text x="500" y="225" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle">Middleware</text>
+  <text x="500" y="250" font-family="Arial" font-size="12" text-anchor="middle">Auth, Security, ErrorHandling, RateLimit</text>
+  <text x="500" y="270" font-family="Arial" font-size="12" text-anchor="middle">TokenRevocation, Validation, Sanitization</text>
+  
+  <!-- Rutas -->
+  <rect x="300" y="340" width="400" height="60" rx="10" ry="10" fill="#f8d9ac" stroke="#e8ae67" stroke-width="2" />
+  <text x="500" y="368" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle">Rutas (Routes)</text>
+  <text x="500" y="388" font-family="Arial" font-size="10" text-anchor="middle">authRoutes, userRoutes, productRoutes, clientProfileRoutes, etc.</text>
+  
+  <!-- Controladores -->
+  <rect x="300" y="440" width="400" height="70" rx="10" ry="10" fill="#9ed9b5" stroke="#50a878" stroke-width="2" />
+  <text x="500" y="465" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle">Controladores</text>
+  <text x="500" y="485" font-family="Arial" font-size="10" text-anchor="middle">authController, userController, productController, clientProfileController, etc.</text>
+  
+  <!-- Servicios -->
+  <g>
+    <rect x="120" y="460" width="120" height="60" rx="10" ry="10" fill="#fff19e" stroke="#dfb100" stroke-width="2" />
+    <text x="180" y="490" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle">EmailService</text>
+  </g>
+  
+  <g>
+    <rect x="120" y="540" width="120" height="60" rx="10" ry="10" fill="#fff19e" stroke="#dfb100" stroke-width="2" />
+    <text x="180" y="570" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle">AuditService</text>
+  </g>
+  
+  <!-- Modelos -->
+  <rect x="300" y="550" width="400" height="70" rx="10" ry="10" fill="#ffb6c1" stroke="#e77c8d" stroke-width="2" />
+  <text x="500" y="580" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle">Modelos</text>
+  <text x="500" y="600" font-family="Arial" font-size="10" text-anchor="middle">Product, User, Order, ClientProfile, PasswordReset, Roles</text>
+  
+  <!-- Base de Datos -->
+  <g>
+    <path d="M400,680 C400,700 600,700 600,680 L600,660 C600,640 400,640 400,660 Z" fill="#d0d0d0" stroke="#333" stroke-width="2" />
+    <path d="M400,660 C400,680 600,680 600,660" fill="none" stroke="#333" stroke-width="1" />
+    <text x="500" y="665" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle">PostgreSQL</text>
+  </g>
+  
+  <!-- Utilities -->
+  <g>
+    <rect x="740" y="460" width="120" height="60" rx="10" ry="10" fill="#c2a5df" stroke="#8a5cba" stroke-width="2" />
+    <text x="800" y="490" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle">Logger</text>
+  </g>
+  
+  <g>
+    <rect x="740" y="540" width="120" height="60" rx="10" ry="10" fill="#c2a5df" stroke="#8a5cba" stroke-width="2" />
+    <text x="800" y="570" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle">Database Utils</text>
+  </g>
+  
+  <!-- Relaciones / Flujo de datos -->
+
+  <!-- Cliente a Express -->
+  <line x1="200" y1="130" x2="280" y2="130" stroke="#333" stroke-width="2" marker-end="url(#arrow)" />
+  <text x="240" y="120" font-family="Arial" font-size="10" text-anchor="middle">HTTP</text>
+  
+  <!-- Express a Middleware -->
+  <line x1="500" y1="160" x2="500" y2="190" stroke="#333" stroke-width="2" marker-end="url(#arrow)" />
+  
+  <!-- Middleware a Rutas -->
+  <line x1="500" y1="300" x2="500" y2="330" stroke="#333" stroke-width="2" marker-end="url(#arrow)" />
+  
+  <!-- Rutas a Controladores -->
+  <line x1="500" y1="400" x2="500" y2="430" stroke="#333" stroke-width="2" marker-end="url(#arrow)" />
+  
+  <!-- Controladores a Modelos -->
+  <line x1="500" y1="510" x2="500" y2="540" stroke="#333" stroke-width="2" marker-end="url(#arrow)" />
+  
+  <!-- Controladores a Servicios -->
+  <line x1="300" y1="475" x2="250" y2="490" stroke="#333" stroke-width="2" marker-end="url(#arrow)" />
+  <line x1="300" y1="490" x2="250" y2="550" stroke="#333" stroke-width="2" marker-end="url(#arrow)" />
+  
+  <!-- Modelos a Base de Datos -->
+  <line x1="500" y1="620" x2="500" y2="640" stroke="#333" stroke-width="2" marker-end="url(#arrow)" />
+  
+  <!-- Utilidades conexiones -->
+  <line x1="740" y1="490" x2="710" y2="490" stroke="#666" stroke-width="1" stroke-dasharray="5,3" />
+  <line x1="740" y1="570" x2="710" y2="570" stroke="#666" stroke-width="1" stroke-dasharray="5,3" />
+  
+  <!-- Servicios a Base de Datos -->
+  <line x1="180" y1="600" x2="180" y2="660" stroke="#333" stroke-width="2" />
+  <line x1="180" y1="660" x2="390" y2="660" stroke="#333" stroke-width="2" marker-end="url(#arrow)" />
+  
+  <!-- Flujo de respuesta -->
+  <line x1="480" y1="160" x2="480" y2="300" stroke="#666" stroke-width="1" stroke-dasharray="5,3" transform="translate(-20, 0)" />
+  <line x1="480" y1="400" x2="480" y2="510" stroke="#666" stroke-width="1" stroke-dasharray="5,3" transform="translate(-20, 0)" />
+  <line x1="480" y1="620" x2="480" y2="510" stroke="#666" stroke-width="1" stroke-dasharray="5,3" transform="translate(-20, 0)" />
+  <line x1="280" y1="140" x2="210" y2="140" stroke="#666" stroke-width="1" stroke-dasharray="5,3" />
+  <text x="240" y="155" font-family="Arial" font-size="10" text-anchor="middle">JSON/HTTP</text>
+  
+  <!-- Capas principales -->
+  <text x="50" y="250" font-family="Arial" font-size="16" font-weight="bold" transform="rotate(-90, 50, 250)">Capa de Presentación</text>
+  <text x="50" y="480" font-family="Arial" font-size="16" font-weight="bold" transform="rotate(-90, 50, 480)">Capa de Negocio</text>
+  <text x="50" y="650" font-family="Arial" font-size="16" font-weight="bold" transform="rotate(-90, 50, 650)">Capa de Datos</text>
+  
+  <!-- Almacenamiento de archivos -->
+  <g>
+    <rect x="740" y="620" width="120" height="60" rx="10" ry="10" fill="#d0d0d0" stroke="#333" stroke-width="2" />
+    <text x="800" y="650" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle">File System</text>
+    <text x="800" y="670" font-family="Arial" font-size="10" text-anchor="middle">uploads/</text>
+  </g>
+  
+  <!-- Conexión de ClientProfile a filesystem -->
+  <line x1="700" y1="590" x2="740" y2="620" stroke="#333" stroke-width="2" marker-end="url(#arrow)" />
+  <text x="730" y="610" font-family="Arial" font-size="10">Archivos</text>
+</svg>

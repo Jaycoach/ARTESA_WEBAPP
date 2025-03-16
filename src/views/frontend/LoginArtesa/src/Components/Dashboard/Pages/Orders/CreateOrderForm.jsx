@@ -71,6 +71,23 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     fetchProducts();
   }, []);
 
+  // Función para obtener el precio de un producto según su estructura
+  const getProductPrice = (product) => {
+    if (!product) return 0;
+    
+    // Intentar obtener el precio desde diferentes propiedades posibles
+    return product.price || 
+           product.priceList1 || 
+           product.price_list1 || 
+           0;
+  };
+
+  // Formatear precio para visualización
+  const formatProductName = (product) => {
+    const price = getProductPrice(product);
+    return `${product.name} - $${price.toFixed(2)}`;
+  };
+
   const handleAddProduct = () => {
     setOrderDetails([...orderDetails, { product_id: '', quantity: 1, unit_price: 0 }]);
   };
@@ -132,8 +149,8 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       detail.product_id && detail.quantity > 0 && detail.unit_price > 0
     );
     
-    if (!isValid) {
-      showNotification('Por favor completa todos los campos correctamente', 'error');
+    if (invalidItems.length > 0) {
+      showNotification('Por favor completa todos los campos correctamente. Asegúrate de que los productos tengan precios válidos.', 'error');
       return;
     }
     
@@ -156,9 +173,9 @@ const CreateOrderForm = ({ onOrderCreated }) => {
         delivery_date: deliveryDate,
         notes: orderNotes,
         details: orderDetails.map(detail => ({
-          product_id: parseInt(detail.product_id),
-          quantity: parseInt(detail.quantity),
-          unit_price: parseFloat(detail.unit_price)
+          product_id: parseInt(detail.product_id || 0),
+          quantity: parseInt(detail.quantity || 0),
+          unit_price: parseFloat(detail.unit_price || 0)
         }))
       };
       
@@ -315,19 +332,17 @@ const CreateOrderForm = ({ onOrderCreated }) => {
           </table>
         </div>
         
-        <div className="flex justify-between items-center">
-          <button 
-            type="button" 
+        <div className="flex justify-between items-center mb-6">
+          <button
+            type="button"
+            className="text-white px-4 py-2 rounded hover:opacity-90"
+            style={{ backgroundColor: '#687e8d' }}
             onClick={handleAddProduct}
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-indigo-700 bg-indigo-100 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Agregar Producto
+            + Agregar Producto
           </button>
           
-          <div className="text-xl font-bold">
+          <div className="text-xl font-bold" style={{ color: '#2c3e50' }}>
             Total: ${calculateTotal()}
           </div>
         </div>
