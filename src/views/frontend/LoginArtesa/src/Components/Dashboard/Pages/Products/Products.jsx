@@ -89,13 +89,9 @@ const Products = () => {
   const incrementQuantity = useCallback(() => {
     if (selectedProduct) {
       const currentQty = quantity || 1;
-      const maxStock = selectedProduct.stock || 999;
-      
-      if (currentQty < maxStock) {
-        const newQuantity = currentQty + 1;
-        setQuantity(newQuantity);
-        updateQuantity(selectedProduct.product_id, newQuantity);
-      }
+      const newQuantity = currentQty + 1;
+      setQuantity(newQuantity);
+      updateQuantity(selectedProduct.product_id, newQuantity);
     }
   }, [selectedProduct, quantity, updateQuantity]);
 
@@ -148,34 +144,19 @@ const Products = () => {
   
     // Asegurarse de que la cantidad es válida (mínimo 1)
     const validQuantity = Math.max(1, numValue);
-      
-    // Verificar stock si está disponible
-    const product = products.find(p => p.product_id === productId);
-    if (product && product.stock) {
-      // No exceder el stock disponible
-      const maxQuantity = Math.min(validQuantity, product.stock);
-      
-      setProductQuantities(prev => ({
-        ...prev,
-        [productId]: maxQuantity
-      }));
+    
+    // Actualizar la cantidad sin restricciones de stock
+    setProductQuantities(prev => ({
+      ...prev,
+      [productId]: validQuantity
+    }));
       
       // Si estamos en el modal y el producto seleccionado coincide con el productId,
       // también actualizamos el estado de quantity
       if (selectedProduct && selectedProduct.product_id === productId) {
-        setQuantity(maxQuantity);
-      }
-    } else {
-      setProductQuantities(prev => ({
-        ...prev,
-        [productId]: validQuantity
-      }));
-      
-      if (selectedProduct && selectedProduct.product_id === productId) {
         setQuantity(validQuantity);
       }
-    }
-  }, [products, selectedProduct]);
+    }, [products, selectedProduct]);
 
   // Función auxiliar para obtener el ID del usuario actual
   const getCurrentUserId = useCallback(() => {
@@ -475,13 +456,9 @@ const Products = () => {
                                 type="button"
                                 onClick={() => {
                                   const currentQty = productQuantities[product.product_id] || 1;
-                                  const maxStock = product.stock || 999;
-                                  if (currentQty < maxStock) {
-                                    handleQuantityChange(product.product_id, currentQty + 1);
-                                  }
+                                  handleQuantityChange(product.product_id, currentQty + 1);
                                 }}
-                                className="p-1 text-gray-600 hover:text-gray-800 disabled:opacity-50"
-                                disabled={product.stock && (productQuantities[product.product_id] || 1) >= product.stock}
+                                className="p-1 text-gray-600 hover:text-gray-800"
                               >
                                 <FiPlus size={16} />
                               </button>
@@ -564,13 +541,9 @@ const Products = () => {
                             type="button"
                             onClick={() => {
                               const currentQty = productQuantities[product.product_id] || 1;
-                              const maxStock = product.stock || 999;
-                              if (currentQty < maxStock) {
-                                handleQuantityChange(product.product_id, currentQty + 1);
-                              }
+                              handleQuantityChange(product.product_id, currentQty + 1);
                             }}
-                            className="p-1 text-gray-600 hover:text-gray-800 disabled:opacity-50"
-                            disabled={product.stock && (productQuantities[product.product_id] || 1) >= product.stock}
+                            className="p-1 text-gray-600 hover:text-gray-800"
                           >
                             <FiPlus size={16} />
                           </button>
@@ -706,8 +679,7 @@ const Products = () => {
                         <span className="w-10 text-center">{quantity}</span>
                         <button
                           onClick={incrementQuantity}
-                          className="p-2 text-gray-600 hover:text-gray-800 disabled:opacity-50"
-                          disabled={quantity >= selectedProduct.stock}
+                          className="p-2 text-gray-600 hover:text-gray-800"
                         >
                           <FiPlus />
                         </button>
