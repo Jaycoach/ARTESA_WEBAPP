@@ -536,92 +536,158 @@ class Order {
   }
 
   /**
-   * Elimina una orden si cumple con las condiciones permitidas
+   * Cancela una orden existente cambiando su estado a Cancelado (7)
    * @async
-   * @param {number} orderId - ID de la orden a eliminar
-   * @param {number} userId - ID del usuario que solicita la eliminación
-   * @returns {Promise<Object|null>} - Orden eliminada o null si no existe o no se puede eliminar
-   * @throws {Error} Si ocurre un error en la eliminación
+   * @param {number} orderId - ID de la orden a cancelar
+   * @param {number} userId - ID del usuario que realiza la cancelación
+   * @returns {Promise<Object|null>} - Orden cancelada o null si no existe
+   * @throws {Error} Si ocurre un error en la cancelación
    */
-  static async deleteOrder(orderId, userId) {
+  static async cancelOrder(orderId, userId = null, reason = null) {
     const client = await pool.connect();
     try {
-      logger.debug('Iniciando eliminación de orden', { orderId, userId });
+      logger.debug('Cancelando orden', { orderId, userId });
       
       await client.query('BEGIN');
       
-      // Primero verificar si la orden existe y comprobar su estado
-      const orderQuery = `
-        SELECT o.*, u.name as user_name 
-        FROM Orders o
-        JOIN users u ON o.user_id = u.id
-        WHERE o.order_id = $1
+      // Primero verificamos si la orden existe y si puede ser cancelada
+      const checkQuery = 'SELECT order_id, status_id, user_id FROM orders WHERE order_id = $1';
+      const checkResult = await client.query(checkQuery, [orderId]);
+      
+      if (checkResult.rows.length === 0) {
+        logger.warn('Orden no encontrada para cancelación', { orderId });
+        await client.query('ROLLBACK');
+        return null;
+      }
+      
+      const currentOrder = checkResult.rows[0];
+      
+      // Verificar si la orden ya está en un estado final
+      const finalStates = [4, 5, 6]; // Entregado, Cerrado, Cancelado
+      if (finalStates.includes(currentOrder.status_id)) {
+        logger.warn('Intento de cancelar orden en estado final', {
+          orderId,
+          currentStatus: currentOrder.status_id
+        });
+        throw new Error('No se puede cancelar una orden en estado Entregado, Cerrado o Cancelado');
+      }
+      
+      // Obtener el ID del estado "Cancelado" de la base de datos
+      const statusQuery = "SELECT status_id FROM order_status WHERE name = 'Cancelado'";
+      const statusResult = await client.query(statusQuery);
+      
+      if (statusResult.rows.length === 0) {
+        throw new Error('Estado "Cancelado" no encontrado en la base de datos');
+      }
+      
+      const cancelStatusId = statusResult.rows[0].status_id;
+      
+      // Actualizar el estado de la orden
+      const updateQuery = `
+        UPDATE orders 
+        SET status_id = $1,
+            last_status_update = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE order_id = $2
+        RETURNING *
       `;
       
-      const orderResult = await client.query(orderQuery, [orderId]);
+      const updateResult = await client.query(updateQuery, [cancelStatusId, orderId]);
       
-      if (orderResult.rows.length === 0) {
-        logger.warn('Orden no encontrada para eliminación', { orderId });
-        await client.query('ROLLBACK');
-        return null;
-      }
-      
-      const order = orderResult.rows[0];
-      
-      // Verificar si el usuario es el propietario o un administrador
-      if (order.user_id !== userId && userId !== 1) { // Asumiendo que rol_id 1 es ADMIN
-        logger.warn('Intento de eliminación no autorizado', { orderId, userId, orderUserId: order.user_id });
-        await client.query('ROLLBACK');
-        throw new Error('No tiene permisos para eliminar esta orden');
-      }
-      
-      // Verificar si la orden está en un estado que permite eliminación
-      // Asumiendo que estado_id 3 es "En Producción"
-      if (order.status_id === 3) {
-        logger.warn('No se puede eliminar una orden en estado "En Producción"', {
-          orderId,
-          statusId: order.status_id
-        });
-        await client.query('ROLLBACK');
-        throw new Error('No se puede eliminar una orden que ya está en producción');
-      }
-      
-      // Primero eliminar los detalles de la orden
-      await client.query('DELETE FROM order_details WHERE order_id = $1', [orderId]);
-      
-      // Luego eliminar la orden
-      const deleteQuery = 'DELETE FROM orders WHERE order_id = $1 RETURNING *';
-      const deleteResult = await client.query(deleteQuery, [orderId]);
-      
-      if (deleteResult.rows.length === 0) {
-        logger.warn('Error al eliminar la orden', { orderId });
-        await client.query('ROLLBACK');
-        return null;
+      // Si hay razón de cancelación, registrarla
+      if (reason) {
+        const reasonQuery = `
+          INSERT INTO order_notes (order_id, user_id, note_type, note, created_at)
+          VALUES ($1, $2, 'cancelation_reason', $3, CURRENT_TIMESTAMP)
+        `;
+        await client.query(reasonQuery, [orderId, userId, reason]);
       }
       
       await client.query('COMMIT');
       
-      logger.info('Orden eliminada exitosamente', { 
-        orderId, 
-        userId,
-        statusId: order.status_id
-      });
-      
-      return {
-        ...order,
-        deleted: true
-      };
-    } catch (error) {
-      await client.query('ROLLBACK');
-      logger.error('Error al eliminar orden', { 
-        error: error.message, 
+      logger.info('Orden cancelada exitosamente', {
         orderId,
         userId,
+        reason: reason ? true : false
+      });
+      
+      return updateResult.rows[0];
+    } catch (error) {
+      await client.query('ROLLBACK');
+      logger.error('Error al cancelar orden', {
+        error: error.message,
+        orderId,
         stack: error.stack
       });
       throw error;
     } finally {
       client.release();
+    }
+  }
+
+  /**
+   * Obtiene órdenes por fecha de entrega y opcionalmente por estado
+   * @async
+   * @param {Date} deliveryDate - Fecha de entrega para filtrar
+   * @param {number|null} statusId - ID del estado para filtrar (opcional)
+   * @returns {Promise<Array<Object>>} - Lista de órdenes encontradas
+   * @throws {Error} Si ocurre un error en la consulta
+   */
+  static async getOrdersByDeliveryDate(deliveryDate, statusId = null) {
+    try {
+      logger.debug('Obteniendo órdenes por fecha de entrega', { 
+        deliveryDate, 
+        statusId 
+      });
+      
+      // Convertir la fecha a formato ISO para asegurar formato correcto
+      const formattedDate = new Date(deliveryDate).toISOString().split('T')[0];
+      
+      // Preparar la consulta base
+      let query = `
+        SELECT o.*, 
+              u.name as user_name, 
+              os.name as status_name,
+              COUNT(od.order_detail_id) as item_count, 
+              SUM(od.quantity) as total_items
+        FROM orders o
+        JOIN users u ON o.user_id = u.id
+        JOIN order_status os ON o.status_id = os.status_id
+        LEFT JOIN order_details od ON o.order_id = od.order_id
+        WHERE DATE(o.delivery_date) = $1
+      `;
+      
+      let params = [formattedDate];
+      
+      // Añadir filtro de estado si se proporciona
+      if (statusId !== null) {
+        query += ` AND o.status_id = $2`;
+        params.push(statusId);
+      }
+      
+      // Agrupar y ordenar
+      query += `
+        GROUP BY o.order_id, u.name, os.name
+        ORDER BY o.delivery_date, o.order_date DESC
+      `;
+      
+      const { rows } = await pool.query(query, params);
+      
+      logger.info('Órdenes recuperadas por fecha de entrega', { 
+        deliveryDate: formattedDate, 
+        statusId, 
+        count: rows.length 
+      });
+      
+      return rows;
+    } catch (error) {
+      logger.error('Error al obtener órdenes por fecha de entrega', { 
+        error: error.message,
+        deliveryDate,
+        statusId,
+        stack: error.stack
+      });
+      throw error;
     }
   }
 

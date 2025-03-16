@@ -1,15 +1,17 @@
 const express = require('express');
-const { verifyToken } = require('../middleware/auth');
+const { verifyToken, checkRole } = require('../middleware/auth');
 const { 
-      createOrder, 
-      getOrderById, 
-      getUserOrders, 
-      updateOrder, 
-      getOrdersByStatus, 
-      getOrderStatuses,
-      calculateDeliveryDate,
-      updatePendingOrders
-  } = require('../controllers/orderController');
+  createOrder, 
+  getOrderById, 
+  getUserOrders, 
+  updateOrder, 
+  getOrdersByStatus, 
+  getOrderStatuses,
+  calculateDeliveryDate,
+  updatePendingOrders,
+  cancelOrder,
+  getOrdersByDeliveryDate
+} = require('../controllers/orderController');
 
 const router = express.Router();
 
@@ -142,20 +144,35 @@ router.post('/orders/process-pending', verifyToken, checkRole([1]), updatePendin
 router.get('/orders/:orderId', verifyToken, getOrderById);
 
 /**
- * Eliminar una orden
- * @route DELETE /orders/{orderId}
+ * Cancelar una orden
+ * @route PUT /orders/{orderId}/cancel
  * @group Orders - Operaciones relacionadas con órdenes
- * @param {number} orderId.path.required - ID de la orden a eliminar
+ * @param {number} orderId.path.required - ID de la orden a cancelar
+ * @param {object} request.body - Datos para la cancelación
+ * @param {string} request.body.reason - Razón de la cancelación
  * @security bearerAuth
- * @returns {object} 200 - Orden eliminada exitosamente
- * @returns {object} 400 - No se puede eliminar la orden (ej. está en producción)
+ * @returns {object} 200 - Orden cancelada exitosamente
+ * @returns {object} 400 - Datos inválidos o la orden no se puede cancelar
  * @returns {object} 401 - No autorizado
- * @returns {object} 403 - No tiene permisos para eliminar esta orden
+ * @returns {object} 403 - No tiene permisos para cancelar esta orden
  * @returns {object} 404 - Orden no encontrada
  * @returns {object} 500 - Error interno del servidor
  */
-// Ruta para eliminar una orden
-router.delete('/orders/:orderId', verifyToken, deleteOrder);
+router.put('/orders/:orderId/cancel', verifyToken, cancelOrder);
+
+/**
+ * Obtener órdenes por fecha de entrega
+ * @route GET /orders/byDeliveryDate
+ * @group Orders - Operaciones relacionadas con órdenes
+ * @param {string} deliveryDate.query.required - Fecha de entrega en formato YYYY-MM-DD
+ * @param {number} statusId.query - ID del estado a filtrar (opcional)
+ * @security bearerAuth
+ * @returns {object} 200 - Lista de órdenes recuperada exitosamente
+ * @returns {object} 400 - Formato de fecha inválido
+ * @returns {object} 401 - No autorizado
+ * @returns {object} 500 - Error interno del servidor
+ */
+router.get('/orders/byDeliveryDate', verifyToken, getOrdersByDeliveryDate);
 
 /**
  * Obtener órdenes de un usuario

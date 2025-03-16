@@ -878,10 +878,10 @@ const updatePendingOrders = async (req, res) => {
 
 /**
  * @swagger
- * /api/orders/{orderId}:
- *   delete:
- *     summary: Eliminar una orden
- *     description: Elimina una orden si no está en estado "En Producción"
+ * /api/orders/{orderId}/cancel:
+ *   put:
+ *     summary: Cancelar una orden
+ *     description: Cambia el estado de una orden existente a Cancelado
  *     tags: [Orders]
  *     security:
  *       - bearerAuth: []
@@ -891,10 +891,10 @@ const updatePendingOrders = async (req, res) => {
  *         required: true
  *         schema:
  *           type: integer
- *         description: ID de la orden a eliminar
+ *         description: ID de la orden a cancelar
  *     responses:
  *       200:
- *         description: Orden eliminada exitosamente
+ *         description: Orden cancelada exitosamente
  *         content:
  *           application/json:
  *             schema:
@@ -905,30 +905,28 @@ const updatePendingOrders = async (req, res) => {
  *                   example: true
  *                 message:
  *                   type: string
- *                   example: Orden eliminada exitosamente
+ *                   example: Orden cancelada exitosamente
  *                 data:
  *                   type: object
- *       400:
- *         description: No se puede eliminar la orden (ej. está en producción)
  *       401:
  *         description: No autorizado - Token no proporcionado o inválido
  *       403:
- *         description: Prohibido - Sin permisos para eliminar esta orden
+ *         description: Prohibido - Sin permisos para cancelar esta orden
  *       404:
  *         description: Orden no encontrada
  *       500:
  *         description: Error interno del servidor
  */
-const deleteOrder = async (req, res) => {
+const cancelOrder = async (req, res) => {
   try {
     const { orderId } = req.params;
     const user = req.user;
     
-    logger.debug('Solicitud de eliminación de orden', { 
-      orderId,
-      userId: user.id
+    logger.debug('Solicitando cancelación de orden', { 
+      orderId, 
+      userId: user.id 
     });
-    
+
     // Verificar que el ID de orden sea válido
     if (!orderId || isNaN(parseInt(orderId))) {
       return res.status(400).json({
@@ -936,58 +934,195 @@ const deleteOrder = async (req, res) => {
         message: 'ID de orden inválido'
       });
     }
+
+    // Obtener la orden para verificar permisos
+    const order = await Order.getOrderById(orderId);
     
-    try {
-      // Intentar eliminar la orden
-      const deletedOrder = await Order.deleteOrder(orderId, user.id);
-      
-      if (!deletedOrder) {
-        return res.status(404).json({
-          success: false,
-          message: 'Orden no encontrada'
-        });
-      }
-      
-      res.status(200).json({
-        success: true,
-        message: 'Orden eliminada exitosamente',
-        data: {
-          orderId: deletedOrder.order_id,
-          userId: deletedOrder.user_id,
-          statusId: deletedOrder.status_id,
-          orderDate: deletedOrder.order_date
-        }
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Orden no encontrada'
       });
-    } catch (deleteError) {
-      // Capturar errores específicos del modelo
-      if (deleteError.message.includes('No tiene permisos')) {
-        return res.status(403).json({
-          success: false,
-          message: deleteError.message
-        });
-      }
-      
-      if (deleteError.message.includes('No se puede eliminar')) {
-        return res.status(400).json({
-          success: false,
-          message: deleteError.message
-        });
-      }
-      
-      // Propagar otros errores
-      throw deleteError;
     }
+
+    // Verificar permisos - solo el dueño o un administrador pueden cancelar la orden
+    if (order.user_id !== user.id && user.rol_id !== 1) {
+      logger.warn('Intento de acceso no autorizado para cancelación de orden', {
+        orderId,
+        orderUserId: order.user_id,
+        requestingUserId: user.id,
+        requestingUserRole: user.rol_id
+      });
+
+      return res.status(403).json({
+        success: false,
+        message: 'No tienes permiso para cancelar esta orden'
+      });
+    }
+    
+    // Verificar si la orden está en un estado que permite cancelación
+    const nonCancelableStates = [4, 5, 7]; // Entregado, Cerrado, ya Cancelado
+    if (nonCancelableStates.includes(order.status_id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'No se puede cancelar esta orden debido a su estado actual'
+      });
+    }
+
+    // Cancelar la orden
+    const canceledOrder = await Order.cancelOrder(orderId, user.id);
+    
+    if (!canceledOrder) {
+      return res.status(500).json({
+        success: false,
+        message: 'Error al cancelar la orden'
+      });
+    }
+    
+    // Responder con la orden cancelada
+    res.status(200).json({
+      success: true,
+      message: 'Orden cancelada exitosamente',
+      data: canceledOrder
+    });
   } catch (error) {
-    logger.error('Error general al eliminar orden', {
+    logger.error('Error al cancelar orden', {
       error: error.message,
       stack: error.stack,
-      orderId: req.params.orderId,
+      orderId: req.params?.orderId,
       userId: req.user?.id
     });
     
     res.status(500).json({
       success: false,
-      message: 'Error al eliminar la orden',
+      message: 'Error al cancelar la orden',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * @swagger
+ * /api/orders/byDeliveryDate:
+ *   get:
+ *     summary: Obtener órdenes por fecha de entrega
+ *     description: Recupera órdenes filtradas por fecha de entrega y opcionalmente por estado
+ *     tags: [Orders]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: deliveryDate
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Fecha de entrega en formato YYYY-MM-DD
+ *       - in: query
+ *         name: statusId
+ *         required: false
+ *         schema:
+ *           type: integer
+ *         description: ID del estado a filtrar (opcional)
+ *     responses:
+ *       200:
+ *         description: Lista de órdenes recuperada exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *       400:
+ *         description: Formato de fecha inválido
+ *       401:
+ *         description: No autorizado - Token no proporcionado o inválido
+ *       403:
+ *         description: Prohibido - Sin permisos para ver estas órdenes
+ *       500:
+ *         description: Error interno del servidor
+ */
+const getOrdersByDeliveryDate = async (req, res) => {
+  try {
+    const { deliveryDate, statusId } = req.query;
+    const user = req.user;
+    
+    logger.debug('Solicitando órdenes por fecha de entrega', { 
+      deliveryDate, 
+      statusId, 
+      userId: user.id 
+    });
+
+    // Validar que la fecha tenga un formato válido
+    if (!deliveryDate || isNaN(new Date(deliveryDate).getTime())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Formato de fecha inválido. Utilice YYYY-MM-DD'
+      });
+    }
+
+    // Validar el estado si se proporciona
+    if (statusId !== undefined && (isNaN(parseInt(statusId)) || parseInt(statusId) < 0)) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID de estado inválido'
+      });
+    }
+
+    let filteredStatusId = statusId ? parseInt(statusId) : null;
+    
+    // Si no es administrador, solo puede ver sus propias órdenes
+    if (user.rol_id !== 1) {
+      // Obtener todas las órdenes del usuario primero
+      const userOrders = await Order.getUserOrders(user.id);
+      
+      // Filtrar manualmente por fecha de entrega y estado
+      const formatDate = date => new Date(date).toISOString().split('T')[0];
+      const formattedDeliveryDate = formatDate(deliveryDate);
+      
+      const filteredOrders = userOrders.filter(order => {
+        const orderDeliveryDate = order.delivery_date ? formatDate(order.delivery_date) : null;
+        
+        // Verificar coincidencia de fecha
+        const dateMatches = orderDeliveryDate === formattedDeliveryDate;
+        
+        // Verificar coincidencia de estado (si se especificó)
+        const statusMatches = filteredStatusId === null || order.status_id === filteredStatusId;
+        
+        return dateMatches && statusMatches;
+      });
+      
+      return res.status(200).json({
+        success: true,
+        data: filteredOrders
+      });
+    }
+
+    // Si es administrador, obtener todas las órdenes por fecha y estado
+    const orders = await Order.getOrdersByDeliveryDate(deliveryDate, filteredStatusId);
+    
+    res.status(200).json({
+      success: true,
+      data: orders
+    });
+  } catch (error) {
+    logger.error('Error al obtener órdenes por fecha de entrega', {
+      error: error.message,
+      stack: error.stack,
+      deliveryDate: req.query?.deliveryDate,
+      statusId: req.query?.statusId,
+      userId: req.user?.id
+    });
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error al obtener órdenes por fecha de entrega',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
@@ -1002,5 +1137,6 @@ module.exports = {
   getOrderStatuses,
   calculateDeliveryDate,
   updatePendingOrders,
-  deleteOrder
+  cancelOrder,
+  getOrdersByDeliveryDate
 };
