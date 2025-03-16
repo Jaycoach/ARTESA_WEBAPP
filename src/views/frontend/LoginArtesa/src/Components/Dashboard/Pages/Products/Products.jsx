@@ -84,18 +84,26 @@ const Products = () => {
   }, []);
 
   const incrementQuantity = useCallback(() => {
-    if (selectedProduct && quantity < (selectedProduct.stock || 999)) {
-      const newQuantity = quantity + 1;
-      setQuantity(newQuantity);
-      updateQuantity(selectedProduct.product_id, newQuantity);
+    if (selectedProduct) {
+      const currentQty = quantity || 1;
+      const maxStock = selectedProduct.stock || 999;
+      
+      if (currentQty < maxStock) {
+        const newQuantity = currentQty + 1;
+        setQuantity(newQuantity);
+        updateQuantity(selectedProduct.product_id, newQuantity);
+      }
     }
   }, [selectedProduct, quantity, updateQuantity]);
 
   const decrementQuantity = useCallback(() => {
-    if (quantity > 1) {
-      const newQuantity = quantity - 1;
+    const currentQty = quantity || 1;
+    if (currentQty > 1) {
+      const newQuantity = currentQty - 1;
       setQuantity(newQuantity);
-      updateQuantity(selectedProduct.product_id, newQuantity);
+      if (selectedProduct) {
+        updateQuantity(selectedProduct.product_id, newQuantity);
+      }
     }
   }, [quantity, selectedProduct, updateQuantity]);
 
@@ -134,23 +142,28 @@ const Products = () => {
     // Asegurarse de que la cantidad es un número
     const numValue = parseInt(newValue, 10);
     if (isNaN(numValue)) return;
-
+  
     // Asegurarse de que la cantidad es válida (mínimo 1)
-  const validQuantity = Math.max(1, numValue);
-    
+    const validQuantity = Math.max(1, numValue);
+      
     // Verificar stock si está disponible
     const product = products.find(p => p.product_id === productId);
     if (product && product.stock) {
       // No exceder el stock disponible
-      const quantity = Math.min(validQuantity, product.stock);
-      updateQuantity(productId, quantity);
+      const maxQuantity = Math.min(validQuantity, product.stock);
+      updateQuantity(productId, maxQuantity);
+      
+      // Si estamos en el modal y el producto seleccionado coincide con el productId,
+      // también actualizamos el estado de quantity
+      if (selectedProduct && selectedProduct.product_id === productId) {
+        setQuantity(maxQuantity);
+      }
     } else {
       updateQuantity(productId, validQuantity);
-    }
-    // Si estamos en el modal y el producto seleccionado coincide con el productId,
-    // también actualizamos el estado de quantity
-    if (selectedProduct && selectedProduct.product_id === productId) {
-      setQuantity(validQuantity);
+      
+      if (selectedProduct && selectedProduct.product_id === productId) {
+        setQuantity(validQuantity);
+      }
     }
   }, [products, updateQuantity, selectedProduct]);
 
@@ -160,13 +173,56 @@ const Products = () => {
       showNotification('No hay productos en el pedido', 'error');
       return;
     }
-
+  
     setSubmittingOrder(true);
     try {
+      // Obtener fecha de entrega según políticas de negocio
+      const now = new Date();
+      const currentDay = now.getDay(); // 0 (domingo) a 6 (sábado)
+      const currentHour = now.getHours();
+      const currentMinute = now.getMinutes();
+      
+      // Convertir orderTimeLimit a horas y minutos (usar valor predeterminado si no está disponible)
+      const orderTimeLimit = siteSettings?.orderTimeLimit || '18:00';
+      const [limitHours, limitMinutes] = orderTimeLimit.split(':').map(Number);
+      
+      const isPastTimeLimit = currentHour > limitHours || 
+        (currentHour === limitHours && currentMinute >= limitMinutes);
+      
+      // Calcular días de entrega según reglas
+      let deliveryOffset = 2; // Mínimo 2 días en el futuro para entrega
+      
+      // Regla especial para sábados
+      if (currentDay === 6) { // Sábado
+        if (isPastTimeLimit) {
+          // Después del límite, entrega el miércoles (4 días después)
+          deliveryOffset = 4;
+        } else {
+          // Antes del límite, entrega el martes (3 días después)
+          deliveryOffset = 3;
+        }
+      } 
+      // Regla para domingos - siempre entrega el miércoles (3 días)
+      else if (currentDay === 0) {
+        deliveryOffset = 3;
+      }
+      // Para otros días, si pasó el límite, agregar un día extra
+      else if (isPastTimeLimit) {
+        deliveryOffset++;
+      }
+      
+      // Calcular fecha de entrega
+      const deliveryDate = new Date(now);
+      deliveryDate.setDate(now.getDate() + deliveryOffset);
+      
+      // Formato YYYY-MM-DD para la API
+      const formattedDeliveryDate = deliveryDate.toISOString().split('T')[0];
+      
       // Preparar datos para la API según la estructura de orderController
       const orderData = {
         user_id: getCurrentUserId(),
         total_amount: orderTotal,
+        delivery_date: formattedDeliveryDate, // Añadir fecha de entrega
         details: orderItems.map(item => ({
           product_id: item.product_id,
           quantity: item.quantity,
@@ -174,10 +230,17 @@ const Products = () => {
         }))
       };
       
+      // Agregar información del sitio para la fecha de entrega
       const response = await API.post('/orders', orderData);
       
       if (response.data.success) {
-        showNotification('Pedido enviado correctamente a SAP');
+        showNotification('Pedido enviado correctamente. Entrega programada para: ' + 
+          new Date(formattedDeliveryDate).toLocaleDateString('es-ES', { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+          }));
         setOrderItems([]);
         setOrderTotal(0);
       } else {
@@ -189,7 +252,7 @@ const Products = () => {
     } finally {
       setSubmittingOrder(false);
     }
-  }, [orderItems, orderTotal, showNotification]);
+  }, [orderItems, orderTotal, showNotification, getCurrentUserId, siteSettings]);
 
   // Función auxiliar para obtener el ID del usuario actual
   const getCurrentUserId = useCallback(() => {
@@ -212,6 +275,25 @@ const Products = () => {
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentItems = products.slice(indexOfFirstItem, indexOfLastItem);
   const paginate = useCallback((pageNumber) => setCurrentPage(pageNumber), []);
+  
+  // Efecto para cargar la configuración del sitio
+  const [siteSettings, setSiteSettings] = useState({ orderTimeLimit: '18:00' });
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const response = await API.get('/admin/settings');
+        if (response.data && response.data.success) {
+          setSiteSettings(response.data.data);
+        }
+      } catch (error) {
+        console.error('Error fetching site settings:', error);
+        // Usar valores predeterminados si no se puede cargar
+      }
+    };
+  
+    fetchSettings();
+  }, []);
 
   // Cargar datos iniciales
   useEffect(() => {
@@ -440,13 +522,19 @@ const Products = () => {
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-sm text-gray-600">Cantidad:</span>
                         <div className="flex items-center border rounded-md">
-                          <button
-                            onClick={() => handleQuantityChange(product.product_id, (productQuantities[product.product_id] || 1) - 1)}
-                            className="p-1 text-gray-600 hover:text-gray-800 disabled:opacity-50"
-                            disabled={(productQuantities[product.product_id] || 1) <= 1}
-                          >
-                            <FiMinus size={12} />
-                          </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const currentQty = productQuantities[product.product_id] || 1;
+                            if (currentQty > 1) {
+                              handleQuantityChange(product.product_id, currentQty - 1);
+                            }
+                          }}
+                          className="p-1 text-gray-600 hover:text-gray-800 disabled:opacity-50"
+                          disabled={(productQuantities[product.product_id] || 1) <= 1}
+                        >
+                          <FiMinus size={12} />
+                        </button>
                           <input
                             type="number"
                             min="1"
@@ -455,7 +543,14 @@ const Products = () => {
                             className="w-10 text-center text-sm border-0 focus:ring-0"
                           />
                           <button
-                            onClick={() => handleQuantityChange(product.product_id, (productQuantities[product.product_id] || 1) + 1)}
+                            type="button"
+                            onClick={() => {
+                              const currentQty = productQuantities[product.product_id] || 1;
+                              const maxStock = product.stock || 999;
+                              if (currentQty < maxStock) {
+                                handleQuantityChange(product.product_id, currentQty + 1);
+                              }
+                            }}
                             className="p-1 text-gray-600 hover:text-gray-800 disabled:opacity-50"
                             disabled={product.stock && (productQuantities[product.product_id] || 1) >= product.stock}
                           >

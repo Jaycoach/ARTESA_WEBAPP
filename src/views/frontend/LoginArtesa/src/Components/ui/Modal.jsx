@@ -1,7 +1,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 
-const Modal = ({ isOpen, onClose, children, title }) => {
+const Modal = ({ isOpen, onClose, children, title, footer }) => {
   if (!isOpen) return null;
 
   return (
@@ -16,15 +16,19 @@ const Modal = ({ isOpen, onClose, children, title }) => {
         <div className="p-4">
           {children}
         </div>
-        <div className="flex justify-end p-4 border-t">
-          {footer}
-        </div>
+        {footer && (
+          <div className="flex justify-end p-4 border-t">
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   );
 };
 
 Modal.propTypes = {
+  isOpen: PropTypes.bool.isRequired,
+  onClose: PropTypes.func.isRequired,
   title: PropTypes.string.isRequired,
   children: PropTypes.node.isRequired,
   footer: PropTypes.node,
@@ -32,6 +36,7 @@ Modal.propTypes = {
 
 Modal.defaultProps = {
   footer: null,
+  isOpen: false,
 };
 
 export default Modal;
