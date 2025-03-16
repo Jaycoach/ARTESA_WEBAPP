@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../../hooks/useAuth';
 import { orderService } from '../../../../services/orderService';
 import API from '../../../../api/config';
@@ -8,9 +8,11 @@ import OrderFileUpload from './OrderFileUpload';
 import { FaExclamationTriangle } from 'react-icons/fa';
 import Notification from '../../../../Components/ui/Notification';
 
-const EditOrderForm = ({ orderId, onOrderUpdated }) => {
+const EditOrderForm = ({ onOrderUpdated }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  // Obtenemos orderId únicamente de useParams
+  const { orderId } = useParams();
   const [order, setOrder] = useState(null);
   const [products, setProducts] = useState([]);
   const [orderDetails, setOrderDetails] = useState([]);
@@ -23,7 +25,6 @@ const EditOrderForm = ({ orderId, onOrderUpdated }) => {
   const [siteSettings, setSiteSettings] = useState({ orderTimeLimit: '18:00' });
   const [canEdit, setCanEdit] = useState(true);
   const [editNotAllowedReason, setEditNotAllowedReason] = useState('');
-  const { orderId } = useParams();
 
   // Cargar configuración del sitio
   useEffect(() => {
@@ -58,18 +59,6 @@ const EditOrderForm = ({ orderId, onOrderUpdated }) => {
 
         // Obtener detalles del pedido
         const result = await orderService.getOrderById(orderId);
-
-        useEffect(() => {
-          if (order && order.details && order.details.length > 0) {
-            // Transformar los detalles del pedido para la edición
-            setOrderDetails(order.details.map(detail => ({
-              product_id: detail.product_id.toString(),
-              quantity: detail.quantity,
-              unit_price: detail.unit_price,
-              name: detail.product_name // Añadir el nombre del producto
-            })));
-          }
-        }, [order]);
         
         if (result && result.success) {
           const orderData = result.data;
@@ -170,6 +159,19 @@ const EditOrderForm = ({ orderId, onOrderUpdated }) => {
 
     fetchProducts();
   }, []);
+
+  useEffect(() => {
+    // Actualizar los detalles del pedido cuando se cambia el pedido
+    if (order && order.details && order.details.length > 0) {
+      // Transformar los detalles del pedido para la edición
+      setOrderDetails(order.details.map(detail => ({
+        product_id: detail.product_id.toString(),
+        quantity: detail.quantity,
+        unit_price: detail.unit_price,
+        name: detail.product_name // Añadir el nombre del producto
+      })));
+    }
+  }, [order]);
 
   useEffect(() => {
     // Actualizar los precios unitarios en los detalles del pedido según los productos disponibles

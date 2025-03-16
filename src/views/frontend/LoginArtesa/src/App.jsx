@@ -15,7 +15,7 @@ const NotFound = lazy(() => import('./Components/NotFound/NotFound'));
 const DashboardLayout = lazy(() => import('./Components/Dashboard/DashboardLayout'));
 const Dashboard = lazy(() => import('./Components/Dashboard/Dashboard'));
 const Products = lazy(() => import('./Components/Dashboard/Pages/Products/Products'));
-const Orders = lazy(() => import('./Components/Dashboard/Pages/Orders/Orders'));
+const Orders = lazy(() => import('./Components/Dashboard/Pages/Orders/Orders.jsx'));
 const OrderDetails = lazy(() => import('./Components/Dashboard/Pages/Orders/OrderDetails'));
 const CreateOrderForm = lazy(() => import('./Components/Dashboard/Pages/Orders/CreateOrderForm'));
 const EditOrderForm = lazy(() => import('./Components/Dashboard/Pages/Orders/EditOrderForm'));

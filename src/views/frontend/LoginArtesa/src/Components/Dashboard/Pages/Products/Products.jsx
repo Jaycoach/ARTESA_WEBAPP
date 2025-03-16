@@ -80,10 +80,11 @@ const Products = () => {
       ...prev,
       [productId]: quantity
     }));
+    console.log("Product quantities updated:", productId, quantity);
   }, []);
 
   const incrementQuantity = useCallback(() => {
-    if (selectedProduct && quantity < selectedProduct.stock) {
+    if (selectedProduct && quantity < (selectedProduct.stock || 999)) {
       const newQuantity = quantity + 1;
       setQuantity(newQuantity);
       updateQuantity(selectedProduct.product_id, newQuantity);
@@ -130,8 +131,12 @@ const Products = () => {
 
   //Manejador para actualizar cantidades
   const handleQuantityChange = useCallback((productId, newValue) => {
+    // Asegurarse de que la cantidad es un número
+    const numValue = parseInt(newValue, 10);
+    if (isNaN(numValue)) return;
+
     // Asegurarse de que la cantidad es válida (mínimo 1)
-    const validQuantity = Math.max(1, newValue);
+  const validQuantity = Math.max(1, numValue);
     
     // Verificar stock si está disponible
     const product = products.find(p => p.product_id === productId);
@@ -142,7 +147,12 @@ const Products = () => {
     } else {
       updateQuantity(productId, validQuantity);
     }
-  }, [products, updateQuantity]);
+    // Si estamos en el modal y el producto seleccionado coincide con el productId,
+    // también actualizamos el estado de quantity
+    if (selectedProduct && selectedProduct.product_id === productId) {
+      setQuantity(validQuantity);
+    }
+  }, [products, updateQuantity, selectedProduct]);
 
   // Función para enviar el pedido completo a la API
   const submitOrder = useCallback(async () => {
@@ -349,14 +359,33 @@ const Products = () => {
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="text-sm font-bold text-blue-600">{formatCurrency(product.price_list1)}</div>
                           </td>
+                          {/* En la vista de tabla */}
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <input 
-                              type="number" 
-                              min="1" 
-                              value={productQuantities[product.product_id] || 1} 
-                              onChange={(e) => handleQuantityChange(product.product_id, parseInt(e.target.value))}
-                              className="mt-1 block w-16 py-1 px-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                            />
+                            <div className="flex items-center border rounded-md">
+                              <button
+                                type="button"
+                                onClick={() => handleQuantityChange(product.product_id, (productQuantities[product.product_id] || 1) - 1)}
+                                className="p-1 text-gray-600 hover:text-gray-800 disabled:opacity-50"
+                                disabled={(productQuantities[product.product_id] || 1) <= 1}
+                              >
+                                <FiMinus size={12} />
+                              </button>
+                              <input
+                                type="number"
+                                min="1"
+                                value={productQuantities[product.product_id] || 1}
+                                onChange={(e) => handleQuantityChange(product.product_id, parseInt(e.target.value, 10))}
+                                className="w-10 text-center text-sm border-0 focus:ring-0"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleQuantityChange(product.product_id, (productQuantities[product.product_id] || 1) + 1)}
+                                className="p-1 text-gray-600 hover:text-gray-800 disabled:opacity-50"
+                                disabled={product.stock && (productQuantities[product.product_id] || 1) >= product.stock}
+                              >
+                                <FiPlus size={12} />
+                              </button>
+                            </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <div className="flex space-x-2">
