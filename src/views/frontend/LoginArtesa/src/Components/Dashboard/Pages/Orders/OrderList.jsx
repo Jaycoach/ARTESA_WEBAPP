@@ -21,17 +21,24 @@ const OrderList = () => {
   useEffect(() => {
     const fetchSettings = async () => {
       try {
-        const response = await API.get('/orders/statuses');
-        if (response.data.success) {
+        // Obtener los estados de pedidos
+        const statusResponse = await API.get('/orders/statuses');
+        if (statusResponse.data.success) {
           // Convertir el array a un objeto para fácil acceso por ID
           const statusMap = {};
-          response.data.data.forEach(status => {
+          statusResponse.data.data.forEach(status => {
             statusMap[status.status_id] = status.name;
           });
           setOrderStatuses(statusMap);
         }
+        
+        // Obtener la configuración del sitio (orderTimeLimit)
+        const siteConfigResponse = await API.get('/admin/settings');
+        if (siteConfigResponse.data && siteConfigResponse.data.success) {
+          setOrderTimeLimit(siteConfigResponse.data.data.orderTimeLimit || '18:00');
+        }
       } catch (error) {
-        console.error('Error fetching order statuses:', error);
+        console.error('Error fetching settings:', error);
       }
     };
 
