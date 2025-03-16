@@ -45,11 +45,17 @@ export const useOrders = () => {
     }
   };
 
+  const refreshOrders = useCallback(() => {
+    setRefreshTrigger(prev => prev + 1);
+  }, []);
+  
   return {
     orders,
     loading,
     error,
+    refreshOrders,
     fetchUserOrders,
-    getOrderById
+    getOrderById,
+    createOrder
   };
 };

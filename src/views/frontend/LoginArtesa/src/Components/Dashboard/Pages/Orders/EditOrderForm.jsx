@@ -23,6 +23,7 @@ const EditOrderForm = ({ orderId, onOrderUpdated }) => {
   const [siteSettings, setSiteSettings] = useState({ orderTimeLimit: '18:00' });
   const [canEdit, setCanEdit] = useState(true);
   const [editNotAllowedReason, setEditNotAllowedReason] = useState('');
+  const { orderId } = useParams();
 
   // Cargar configuración del sitio
   useEffect(() => {
@@ -57,6 +58,18 @@ const EditOrderForm = ({ orderId, onOrderUpdated }) => {
 
         // Obtener detalles del pedido
         const result = await orderService.getOrderById(orderId);
+
+        useEffect(() => {
+          if (order && order.details && order.details.length > 0) {
+            // Transformar los detalles del pedido para la edición
+            setOrderDetails(order.details.map(detail => ({
+              product_id: detail.product_id.toString(),
+              quantity: detail.quantity,
+              unit_price: detail.unit_price,
+              name: detail.product_name // Añadir el nombre del producto
+            })));
+          }
+        }, [order]);
         
         if (result && result.success) {
           const orderData = result.data;
@@ -158,6 +171,24 @@ const EditOrderForm = ({ orderId, onOrderUpdated }) => {
     fetchProducts();
   }, []);
 
+  useEffect(() => {
+    // Actualizar los precios unitarios en los detalles del pedido según los productos disponibles
+    if (products.length > 0 && orderDetails.length > 0) {
+      const updatedDetails = orderDetails.map(detail => {
+        const product = products.find(p => p.product_id.toString() === detail.product_id);
+        if (product) {
+          return {
+            ...detail,
+            unit_price: product.price_list1,
+            name: product.name
+          };
+        }
+        return detail;
+      });
+      setOrderDetails(updatedDetails);
+    }
+  }, [products, orderDetails.length]);
+
   const handleAddProduct = () => {
     setOrderDetails([...orderDetails, { product_id: '', quantity: 1, unit_price: 0 }]);
   };
@@ -174,20 +205,27 @@ const EditOrderForm = ({ orderId, onOrderUpdated }) => {
 
   const handleProductChange = (index, field, value) => {
     const newDetails = [...orderDetails];
-    newDetails[index][field] = value;
     
     if (field === 'product_id') {
       const selectedProduct = products.find(p => p.product_id === parseInt(value));
       if (selectedProduct) {
-        // Usar price_list1 como precio unitario
-        newDetails[index].unit_price = selectedProduct.price_list1;
-        
-        // Validar que no supere el stock disponible
-        if (selectedProduct.stock && selectedProduct.stock < newDetails[index].quantity) {
-          newDetails[index].quantity = selectedProduct.stock;
-          showNotification(`Solo hay ${selectedProduct.stock} unidades disponibles de este producto`, 'warning');
-        }
+        newDetails[index] = {
+          ...newDetails[index],
+          product_id: value,
+          unit_price: selectedProduct.price_list1,
+          name: selectedProduct.name
+        };
+      } else {
+        newDetails[index] = {
+          ...newDetails[index],
+          product_id: value
+        };
       }
+    } else {
+      newDetails[index] = {
+        ...newDetails[index],
+        [field]: value
+      };
     }
     
     setOrderDetails(newDetails);
@@ -244,7 +282,7 @@ const EditOrderForm = ({ orderId, onOrderUpdated }) => {
       // Preparar datos para la API
       const orderData = {
         user_id: user.id,
-        total_amount: totalAmount,
+        total_amount: parseFloat(calculateTotal()),
         delivery_date: deliveryDate,
         notes: orderNotes,
         details: orderDetails.map(detail => ({
@@ -392,24 +430,15 @@ const EditOrderForm = ({ orderId, onOrderUpdated }) => {
         
         {/* Productos */}
         <div className="overflow-x-auto">
+          {/* En la sección de productos del formulario */}
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Producto
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Cantidad
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Precio Unitario
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Subtotal
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Acciones
-                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Producto</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cantidad</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Precio Unitario</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subtotal</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -424,7 +453,13 @@ const EditOrderForm = ({ orderId, onOrderUpdated }) => {
                     >
                       <option value="">Seleccionar producto</option>
                       {products.map(product => (
-                        <option key={product.product_id} value={product.product_id}>
+                        <option 
+                          key={product.product_id} 
+                          value={product.product_id}
+                          disabled={orderDetails.some(
+                            item => item !== detail && item.product_id === product.product_id.toString()
+                          )}
+                        >
                           {product.name} {product.stock > 0 ? `(${product.stock} disponibles)` : '(Agotado)'}
                         </option>
                       ))}
@@ -435,7 +470,7 @@ const EditOrderForm = ({ orderId, onOrderUpdated }) => {
                       type="number" 
                       min="1" 
                       value={detail.quantity} 
-                      onChange={(e) => handleProductChange(index, 'quantity', e.target.value)}
+                      onChange={(e) => handleProductChange(index, 'quantity', parseInt(e.target.value) || 1)}
                       className="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                       required
                     />
