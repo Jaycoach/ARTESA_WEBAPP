@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { orderService } from '../../../../services/orderService';
 import { useAuth } from '../../../../hooks/useAuth';
 import OrderStatusBadge from './OrderStatusBadge';
-import { FaEdit, FaEye, FaExclamationTriangle } from 'react-icons/fa';
+import { FaEdit, FaEye, FaExclamationTriangle, FaTrashAlt } from 'react-icons/fa';
 
 const OrderList = () => {
   const { user } = useAuth();
@@ -44,7 +44,12 @@ const OrderList = () => {
         setError(null);
         
         const data = await orderService.getUserOrders(user.id);
-        setOrders(data);
+        // Filtrar órdenes canceladas
+        const filteredOrders = data.filter(order => 
+          !['cancelado', 'canceled'].includes(order.status?.toLowerCase()) && 
+          order.status_id !== '5'
+        );
+        setOrders(filteredOrders);
 
         // Comprobar cuáles pedidos pueden ser editados
         const editableOrdersMap = {};
@@ -79,6 +84,25 @@ const OrderList = () => {
       hour: '2-digit',
       minute: '2-digit'
     }).format(date);
+  };
+
+  const handleCancelOrder = async (orderId) => {
+    if (!window.confirm('¿Estás seguro que deseas cancelar este pedido?')) {
+      return;
+    }
+    
+    try {
+      const response = await API.post(`/api/orders/${orderId}/cancel`);
+      if (response.data.success) {
+        // Refrescar la lista
+        fetchOrders();
+      } else {
+        alert('Error al cancelar el pedido: ' + response.data.message);
+      }
+    } catch (error) {
+      console.error('Error cancelando orden:', error);
+      alert('Error al cancelar el pedido');
+    }
   };
 
   // Calcular el índice del último y primer pedido de la página actual
@@ -182,7 +206,7 @@ const OrderList = () => {
                   ${parseFloat(order.total_amount).toFixed(2)}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-center">
-                  <OrderStatusBadge status={order.status || 'pendiente'} />
+                  <OrderStatusBadge status={order.status_id || order.status || 'pendiente'} />
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
                   <div className="flex justify-center space-x-2">
@@ -213,11 +237,23 @@ const OrderList = () => {
                     ) : (
                       <span 
                         className="text-gray-400 bg-gray-100 px-3 py-1 rounded-md flex items-center cursor-not-allowed"
-                        title={`No se puede editar este pedido (${['completado', 'completed', 'entregado', 'delivered', 'cancelado', 'canceled'].includes(order.status?.toLowerCase()) ? 'Estado: ' + order.status : 'Fuera de horario de edición'}`}
+                        title={`No se puede editar este pedido (${['completado', 'completed', 'entregado', 'delivered', 'cancelado', 'canceled'].includes(order.status?.toLowerCase()) || ['3', '4', '5'].includes(order.status_id?.toString())['completado', 'completed', 'entregado', 'delivered', 'cancelado', 'canceled'].includes(order.status?.toLowerCase()) ? 'Estado: ' + order.status : 'Fuera de horario de edición'}`}
                       >
                         <FaExclamationTriangle className="mr-1 text-yellow-500" />
                         <span className="hidden sm:inline">No editable</span>
                       </span>
+                    )}
+
+                    {/* Botón de cancelar pedido */}
+                    {!['cancelado', 'canceled'].includes(order.status?.toLowerCase()) && order.status_id !== '5' && (
+                      <button
+                        onClick={() => handleCancelOrder(order.order_id)}
+                        className="text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 px-3 py-1 rounded-md flex items-center"
+                        title="Cancelar pedido"
+                      >
+                        <FaTrashAlt className="mr-1" />
+                        <span className="hidden sm:inline">Cancelar</span>
+                      </button>
                     )}
                   </div>
                 </td>

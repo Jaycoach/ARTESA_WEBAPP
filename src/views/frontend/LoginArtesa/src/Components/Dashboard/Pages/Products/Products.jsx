@@ -154,7 +154,11 @@ const Products = () => {
     if (product && product.stock) {
       // No exceder el stock disponible
       const maxQuantity = Math.min(validQuantity, product.stock);
-      updateQuantity(productId, maxQuantity);
+      
+      setProductQuantities(prev => ({
+        ...prev,
+        [productId]: maxQuantity
+      }));
       
       // Si estamos en el modal y el producto seleccionado coincide con el productId,
       // también actualizamos el estado de quantity
@@ -162,13 +166,16 @@ const Products = () => {
         setQuantity(maxQuantity);
       }
     } else {
-      updateQuantity(productId, validQuantity);
+      setProductQuantities(prev => ({
+        ...prev,
+        [productId]: validQuantity
+      }));
       
       if (selectedProduct && selectedProduct.product_id === productId) {
         setQuantity(validQuantity);
       }
     }
-  }, [products, updateQuantity, selectedProduct]);
+  }, [products, selectedProduct]);
 
   // Función auxiliar para obtener el ID del usuario actual
   const getCurrentUserId = useCallback(() => {
@@ -446,26 +453,37 @@ const Products = () => {
                             <div className="flex items-center border rounded-md">
                               <button
                                 type="button"
-                                onClick={() => handleQuantityChange(product.product_id, (productQuantities[product.product_id] || 1) - 1)}
+                                onClick={() => {
+                                  const currentQty = productQuantities[product.product_id] || 1;
+                                  if (currentQty > 1) {
+                                    handleQuantityChange(product.product_id, currentQty - 1);
+                                  }
+                                }}
                                 className="p-1 text-gray-600 hover:text-gray-800 disabled:opacity-50"
                                 disabled={(productQuantities[product.product_id] || 1) <= 1}
                               >
-                                <FiMinus size={12} />
+                                <FiMinus size={16} />
                               </button>
                               <input
                                 type="number"
                                 min="1"
                                 value={productQuantities[product.product_id] || 1}
                                 onChange={(e) => handleQuantityChange(product.product_id, parseInt(e.target.value, 10))}
-                                className="w-10 text-center text-sm border-0 focus:ring-0"
+                                className="w-12 text-center text-sm border-0 focus:ring-0"
                               />
                               <button
                                 type="button"
-                                onClick={() => handleQuantityChange(product.product_id, (productQuantities[product.product_id] || 1) + 1)}
+                                onClick={() => {
+                                  const currentQty = productQuantities[product.product_id] || 1;
+                                  const maxStock = product.stock || 999;
+                                  if (currentQty < maxStock) {
+                                    handleQuantityChange(product.product_id, currentQty + 1);
+                                  }
+                                }}
                                 className="p-1 text-gray-600 hover:text-gray-800 disabled:opacity-50"
                                 disabled={product.stock && (productQuantities[product.product_id] || 1) >= product.stock}
                               >
-                                <FiPlus size={12} />
+                                <FiPlus size={16} />
                               </button>
                             </div>
                           </td>
@@ -522,25 +540,25 @@ const Products = () => {
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-sm text-gray-600">Cantidad:</span>
                         <div className="flex items-center border rounded-md">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const currentQty = productQuantities[product.product_id] || 1;
-                            if (currentQty > 1) {
-                              handleQuantityChange(product.product_id, currentQty - 1);
-                            }
-                          }}
-                          className="p-1 text-gray-600 hover:text-gray-800 disabled:opacity-50"
-                          disabled={(productQuantities[product.product_id] || 1) <= 1}
-                        >
-                          <FiMinus size={12} />
-                        </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const currentQty = productQuantities[product.product_id] || 1;
+                              if (currentQty > 1) {
+                                handleQuantityChange(product.product_id, currentQty - 1);
+                              }
+                            }}
+                            className="p-1 text-gray-600 hover:text-gray-800 disabled:opacity-50"
+                            disabled={(productQuantities[product.product_id] || 1) <= 1}
+                          >
+                            <FiMinus size={16} />
+                          </button>
                           <input
                             type="number"
                             min="1"
                             value={productQuantities[product.product_id] || 1}
                             onChange={(e) => handleQuantityChange(product.product_id, parseInt(e.target.value))}
-                            className="w-10 text-center text-sm border-0 focus:ring-0"
+                            className="w-12 text-center text-sm border-0 focus:ring-0"
                           />
                           <button
                             type="button"
@@ -554,7 +572,7 @@ const Products = () => {
                             className="p-1 text-gray-600 hover:text-gray-800 disabled:opacity-50"
                             disabled={product.stock && (productQuantities[product.product_id] || 1) >= product.stock}
                           >
-                            <FiPlus size={12} />
+                            <FiPlus size={16} />
                           </button>
                         </div>
                       </div>
