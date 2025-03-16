@@ -467,35 +467,59 @@ class Order {
   }
 
   /**
-   * Actualiza el estado de todas las órdenes pendientes a "En Producción" después de la hora límite
+   * Actualiza el estado de las órdenes pendientes a "En Producción"
    * @async
    * @param {string} orderTimeLimit - Hora límite para pedidos (formato HH:MM)
+   * @param {Object} [options] - Opciones adicionales
+   * @param {boolean} [options.ignoreTimeLimit=false] - Si es true, ignora la restricción de hora límite
+   * @param {boolean} [options.ignoreCreationDate=false] - Si es true, ignora la restricción de fecha de creación
    * @returns {Promise<number>} - Número de órdenes actualizadas
    */
-  static async updatePendingOrdersStatus(orderTimeLimit = "18:00") {
+  static async updatePendingOrdersStatus(orderTimeLimit = "18:00", options = {}) {
     try {
+      const { ignoreTimeLimit = false, ignoreCreationDate = false } = options;
+      
       logger.debug('Actualizando órdenes pendientes a En Producción', { 
-        orderTimeLimit
+        orderTimeLimit,
+        ignoreTimeLimit,
+        ignoreCreationDate
       });
       
+      // Construir condiciones de la consulta basadas en las opciones
+      let whereConditions = [`status_id = 2`]; // Siempre filtrar por órdenes pendientes
+      
+      // Agregar condición de hora límite si no se ignora
+      if (!ignoreTimeLimit) {
+        whereConditions.push(`TO_CHAR(NOW(), 'HH24:MI') >= $1`);
+      }
+      
+      // Agregar condición de fecha de creación si no se ignora
+      if (!ignoreCreationDate) {
+        whereConditions.push(`DATE(order_date) = DATE(NOW())`);
+      }
+      
+      // Construir consulta completa
       const query = `
         UPDATE orders
         SET status_id = 3, -- En Producción
             last_status_update = CURRENT_TIMESTAMP
-        WHERE status_id = 2 -- Pendiente
-        AND TO_CHAR(NOW(), 'HH24:MI') >= $1
-        AND DATE(order_date) = DATE(NOW())
+        WHERE ${whereConditions.join(' AND ')}
         RETURNING order_id
       `;
       
-      const result = await pool.query(query, [orderTimeLimit]);
+      // Arreglo de parámetros
+      const params = ignoreTimeLimit ? [] : [orderTimeLimit];
+      
+      const result = await pool.query(query, params);
       
       const updatedCount = result.rowCount;
       
       if (updatedCount > 0) {
         logger.info('Órdenes actualizadas a estado En Producción', { 
           count: updatedCount, 
-          ids: result.rows.map(row => row.order_id) 
+          ids: result.rows.map(row => row.order_id),
+          ignoreTimeLimit,
+          ignoreCreationDate
         });
       } else {
         logger.debug('No hay órdenes pendientes para actualizar');
@@ -508,6 +532,96 @@ class Order {
         stack: error.stack
       });
       throw error;
+    }
+  }
+
+  /**
+   * Elimina una orden si cumple con las condiciones permitidas
+   * @async
+   * @param {number} orderId - ID de la orden a eliminar
+   * @param {number} userId - ID del usuario que solicita la eliminación
+   * @returns {Promise<Object|null>} - Orden eliminada o null si no existe o no se puede eliminar
+   * @throws {Error} Si ocurre un error en la eliminación
+   */
+  static async deleteOrder(orderId, userId) {
+    const client = await pool.connect();
+    try {
+      logger.debug('Iniciando eliminación de orden', { orderId, userId });
+      
+      await client.query('BEGIN');
+      
+      // Primero verificar si la orden existe y comprobar su estado
+      const orderQuery = `
+        SELECT o.*, u.name as user_name 
+        FROM Orders o
+        JOIN users u ON o.user_id = u.id
+        WHERE o.order_id = $1
+      `;
+      
+      const orderResult = await client.query(orderQuery, [orderId]);
+      
+      if (orderResult.rows.length === 0) {
+        logger.warn('Orden no encontrada para eliminación', { orderId });
+        await client.query('ROLLBACK');
+        return null;
+      }
+      
+      const order = orderResult.rows[0];
+      
+      // Verificar si el usuario es el propietario o un administrador
+      if (order.user_id !== userId && userId !== 1) { // Asumiendo que rol_id 1 es ADMIN
+        logger.warn('Intento de eliminación no autorizado', { orderId, userId, orderUserId: order.user_id });
+        await client.query('ROLLBACK');
+        throw new Error('No tiene permisos para eliminar esta orden');
+      }
+      
+      // Verificar si la orden está en un estado que permite eliminación
+      // Asumiendo que estado_id 3 es "En Producción"
+      if (order.status_id === 3) {
+        logger.warn('No se puede eliminar una orden en estado "En Producción"', {
+          orderId,
+          statusId: order.status_id
+        });
+        await client.query('ROLLBACK');
+        throw new Error('No se puede eliminar una orden que ya está en producción');
+      }
+      
+      // Primero eliminar los detalles de la orden
+      await client.query('DELETE FROM order_details WHERE order_id = $1', [orderId]);
+      
+      // Luego eliminar la orden
+      const deleteQuery = 'DELETE FROM orders WHERE order_id = $1 RETURNING *';
+      const deleteResult = await client.query(deleteQuery, [orderId]);
+      
+      if (deleteResult.rows.length === 0) {
+        logger.warn('Error al eliminar la orden', { orderId });
+        await client.query('ROLLBACK');
+        return null;
+      }
+      
+      await client.query('COMMIT');
+      
+      logger.info('Orden eliminada exitosamente', { 
+        orderId, 
+        userId,
+        statusId: order.status_id
+      });
+      
+      return {
+        ...order,
+        deleted: true
+      };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      logger.error('Error al eliminar orden', { 
+        error: error.message, 
+        orderId,
+        userId,
+        stack: error.stack
+      });
+      throw error;
+    } finally {
+      client.release();
     }
   }
 

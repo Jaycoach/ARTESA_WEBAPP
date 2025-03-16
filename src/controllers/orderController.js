@@ -154,7 +154,7 @@ const createOrder = async (req, res) => {
       // Comparar solo las fechas (sin la hora)
       const deliveryDateOnly = new Date(parsedDeliveryDate.toDateString());
       const minDeliveryDateOnly = new Date(minDeliveryDate.toDateString());
-      
+
       if (deliveryDateOnly < minDeliveryDateOnly) {
         return res.status(400).json({
           success: false,
@@ -162,6 +162,20 @@ const createOrder = async (req, res) => {
           minDeliveryDate: minDeliveryDate.toISOString().split('T')[0]
         });
       }
+    }
+
+    if (!delivery_date) {
+      // Obtener configuración de hora límite
+      const adminSettings = await require('../models/AdminSettings').getSettings();
+      const orderTimeLimit = adminSettings.orderTimeLimit || "18:00";
+      
+      // Calcular fecha de entrega automáticamente
+      parsedDeliveryDate = Order.calculateDeliveryDate(new Date(), orderTimeLimit);
+      
+      logger.debug('Asignando fecha de entrega automática al no proporcionarse', {
+        calculatedDate: parsedDeliveryDate,
+        orderTimeLimit
+      });
     }
     
     // Usar estado predeterminado si no se proporciona
@@ -754,6 +768,231 @@ const calculateDeliveryDate = async (req, res) => {
   }
 };
 
+/**
+ * Actualiza manualmente las órdenes pendientes a "En Producción"
+ * @swagger
+ * /api/orders/process-pending:
+ *   post:
+ *     summary: Actualizar estado de órdenes pendientes
+ *     description: Actualiza todas las órdenes pendientes a estado "En Producción" (igual que el proceso automático)
+ *     tags: [Orders]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               ignoreTimeLimit:
+ *                 type: boolean
+ *                 description: Si es true, ignora la restricción de hora límite
+ *                 example: false
+ *               ignoreCreationDate:
+ *                 type: boolean
+ *                 description: Si es true, actualiza órdenes de cualquier fecha (no solo de hoy)
+ *                 example: false
+ *     responses:
+ *       200:
+ *         description: Órdenes actualizadas exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "5 órdenes actualizadas a estado 'En Producción'"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     orderTimeLimit:
+ *                       type: string
+ *                       example: "18:00"
+ *                     updatedCount:
+ *                       type: integer
+ *                       example: 5
+ *                     ignoreTimeLimit:
+ *                       type: boolean
+ *                       example: false
+ *                     ignoreCreationDate:
+ *                       type: boolean
+ *                       example: false
+ *       401:
+ *         description: No autorizado
+ *       403:
+ *         description: Prohibido - Sin permisos para realizar esta acción
+ *       500:
+ *         description: Error interno del servidor
+ */
+const updatePendingOrders = async (req, res) => {
+  try {
+    // Obtener configuración de hora límite
+    const adminSettings = await require('../models/AdminSettings').getSettings();
+    const orderTimeLimit = adminSettings.orderTimeLimit || "18:00";
+    
+    // Obtener opciones de la solicitud
+    const ignoreTimeLimit = req.body.ignoreTimeLimit === true;
+    const ignoreCreationDate = req.body.ignoreCreationDate === true;
+    
+    logger.info('Iniciando actualización manual de órdenes pendientes', {
+      userId: req.user.id,
+      orderTimeLimit,
+      ignoreTimeLimit,
+      ignoreCreationDate
+    });
+
+    // Llamar al método del modelo que actualiza las órdenes
+    const updatedCount = await Order.updatePendingOrdersStatus(orderTimeLimit, {
+      ignoreTimeLimit,
+      ignoreCreationDate
+    });
+    
+    res.status(200).json({
+      success: true,
+      message: `${updatedCount} órdenes actualizadas a estado 'En Producción'`,
+      data: {
+        orderTimeLimit,
+        updatedCount,
+        ignoreTimeLimit,
+        ignoreCreationDate
+      }
+    });
+  } catch (error) {
+    logger.error('Error al actualizar estado de órdenes pendientes', {
+      error: error.message,
+      stack: error.stack
+    });
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error al actualizar estado de órdenes pendientes',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * @swagger
+ * /api/orders/{orderId}:
+ *   delete:
+ *     summary: Eliminar una orden
+ *     description: Elimina una orden si no está en estado "En Producción"
+ *     tags: [Orders]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: orderId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID de la orden a eliminar
+ *     responses:
+ *       200:
+ *         description: Orden eliminada exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Orden eliminada exitosamente
+ *                 data:
+ *                   type: object
+ *       400:
+ *         description: No se puede eliminar la orden (ej. está en producción)
+ *       401:
+ *         description: No autorizado - Token no proporcionado o inválido
+ *       403:
+ *         description: Prohibido - Sin permisos para eliminar esta orden
+ *       404:
+ *         description: Orden no encontrada
+ *       500:
+ *         description: Error interno del servidor
+ */
+const deleteOrder = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const user = req.user;
+    
+    logger.debug('Solicitud de eliminación de orden', { 
+      orderId,
+      userId: user.id
+    });
+    
+    // Verificar que el ID de orden sea válido
+    if (!orderId || isNaN(parseInt(orderId))) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID de orden inválido'
+      });
+    }
+    
+    try {
+      // Intentar eliminar la orden
+      const deletedOrder = await Order.deleteOrder(orderId, user.id);
+      
+      if (!deletedOrder) {
+        return res.status(404).json({
+          success: false,
+          message: 'Orden no encontrada'
+        });
+      }
+      
+      res.status(200).json({
+        success: true,
+        message: 'Orden eliminada exitosamente',
+        data: {
+          orderId: deletedOrder.order_id,
+          userId: deletedOrder.user_id,
+          statusId: deletedOrder.status_id,
+          orderDate: deletedOrder.order_date
+        }
+      });
+    } catch (deleteError) {
+      // Capturar errores específicos del modelo
+      if (deleteError.message.includes('No tiene permisos')) {
+        return res.status(403).json({
+          success: false,
+          message: deleteError.message
+        });
+      }
+      
+      if (deleteError.message.includes('No se puede eliminar')) {
+        return res.status(400).json({
+          success: false,
+          message: deleteError.message
+        });
+      }
+      
+      // Propagar otros errores
+      throw deleteError;
+    }
+  } catch (error) {
+    logger.error('Error general al eliminar orden', {
+      error: error.message,
+      stack: error.stack,
+      orderId: req.params.orderId,
+      userId: req.user?.id
+    });
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error al eliminar la orden',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
 module.exports = { 
   createOrder,
   getOrderById,
@@ -761,5 +1000,7 @@ module.exports = {
   updateOrder,
   getOrdersByStatus,
   getOrderStatuses,
-  calculateDeliveryDate
+  calculateDeliveryDate,
+  updatePendingOrders,
+  deleteOrder
 };

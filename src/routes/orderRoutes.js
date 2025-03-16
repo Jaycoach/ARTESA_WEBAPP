@@ -1,13 +1,14 @@
 const express = require('express');
 const { verifyToken } = require('../middleware/auth');
 const { 
-    createOrder, 
-    getOrderById, 
-    getUserOrders, 
-    updateOrder, 
-    getOrdersByStatus, 
-    getOrderStatuses,
-    calculateDeliveryDate
+      createOrder, 
+      getOrderById, 
+      getUserOrders, 
+      updateOrder, 
+      getOrdersByStatus, 
+      getOrderStatuses,
+      calculateDeliveryDate,
+      updatePendingOrders
   } = require('../controllers/orderController');
 
 const router = express.Router();
@@ -113,6 +114,19 @@ router.get('/orders/statuses', verifyToken, getOrderStatuses);
 router.get('/orders/delivery-date', verifyToken, calculateDeliveryDate);
 
 /**
+ * Actualizar manualmente órdenes pendientes a "En Producción"
+ * @route POST /orders/process-pending
+ * @group Orders - Operaciones relacionadas con órdenes
+ * @security bearerAuth
+ * @returns {object} 200 - Órdenes actualizadas exitosamente
+ * @returns {object} 401 - No autorizado
+ * @returns {object} 403 - No tiene permisos para realizar esta acción
+ * @returns {object} 500 - Error interno del servidor
+ */
+// Ruta para actualizar manualmente órdenes pendientes
+router.post('/orders/process-pending', verifyToken, checkRole([1]), updatePendingOrders);
+
+/**
  * Obtener una orden específica
  * @route GET /orders/{orderId}
  * @group Orders - Operaciones relacionadas con órdenes
@@ -126,6 +140,22 @@ router.get('/orders/delivery-date', verifyToken, calculateDeliveryDate);
  */
 // Ruta para obtener una orden específica
 router.get('/orders/:orderId', verifyToken, getOrderById);
+
+/**
+ * Eliminar una orden
+ * @route DELETE /orders/{orderId}
+ * @group Orders - Operaciones relacionadas con órdenes
+ * @param {number} orderId.path.required - ID de la orden a eliminar
+ * @security bearerAuth
+ * @returns {object} 200 - Orden eliminada exitosamente
+ * @returns {object} 400 - No se puede eliminar la orden (ej. está en producción)
+ * @returns {object} 401 - No autorizado
+ * @returns {object} 403 - No tiene permisos para eliminar esta orden
+ * @returns {object} 404 - Orden no encontrada
+ * @returns {object} 500 - Error interno del servidor
+ */
+// Ruta para eliminar una orden
+router.delete('/orders/:orderId', verifyToken, deleteOrder);
 
 /**
  * Obtener órdenes de un usuario
