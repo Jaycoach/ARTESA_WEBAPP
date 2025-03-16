@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { orderService } from '../../../../services/orderService';
 import { useAuth } from '../../../../hooks/useAuth';
 import OrderStatusBadge from './OrderStatusBadge';
 import { FaEdit, FaEye, FaExclamationTriangle, FaTrashAlt } from 'react-icons/fa';
+import API from '../../../../api/config';
 
 const OrderList = () => {
   const { user } = useAuth();
@@ -14,77 +15,69 @@ const OrderList = () => {
   const [orderTimeLimit, setOrderTimeLimit] = useState('18:00');
   const [editableOrders, setEditableOrders] = useState({});
   const ordersPerPage = 10;
+  const [orderStatuses, setOrderStatuses] = useState({});
 
   // Cargar configuración de horario límite
   useEffect(() => {
     const fetchSettings = async () => {
       try {
-        const result = await orderService.getSiteSettings();
-        if (result.success) {
-          setOrderTimeLimit(result.data.orderTimeLimit);
+        const response = await API.get('/orders/statuses');
+        if (response.data.success) {
+          // Convertir el array a un objeto para fácil acceso por ID
+          const statusMap = {};
+          response.data.data.forEach(status => {
+            statusMap[status.status_id] = status.name;
+          });
+          setOrderStatuses(statusMap);
         }
       } catch (error) {
-        console.error('Error fetching settings:', error);
+        console.error('Error fetching order statuses:', error);
       }
     };
 
     fetchSettings();
   }, []);
 
-  useEffect(() => {
-    const fetchOrders = async () => {
-      if (!user || !user.id) {
-        setError('Usuario no identificado');
-        setIsLoading(false);
-        return;
-      }
+  const fetchOrders = useCallback(async () => {
+    if (!user || !user.id) {
+      setError('Usuario no identificado');
+      setIsLoading(false);
+      return;
+    }
+    
+    try {
+      setIsLoading(true);
+      setError(null);
       
-      try {
-        setIsLoading(true);
-        setError(null);
-        
-        const data = await orderService.getUserOrders(user.id);
-        // Filtrar órdenes canceladas
-        const filteredOrders = data.filter(order => 
-          !['cancelado', 'canceled'].includes(order.status?.toLowerCase()) && 
-          order.status_id !== '5'
-        );
-        setOrders(filteredOrders);
+      const data = await orderService.getUserOrders(user.id);
+      // Filtrar órdenes con status_id 6 (Cancelado/Cerrado)
+      const filteredOrders = data.filter(order => 
+        order.status_id !== 6 && 
+        order.status_id !== '6' &&
+        !['cancelado', 'canceled', 'cerrado'].includes(order.status?.toLowerCase())
+      );
+      setOrders(filteredOrders);
 
-        // Comprobar cuáles pedidos pueden ser editados
-        const editableOrdersMap = {};
-        for (const order of data) {
-          const editCheck = await orderService.canEditOrder(order.order_id, orderTimeLimit);
-          editableOrdersMap[order.order_id] = editCheck.canEdit;
-        }
-        setEditableOrders(editableOrdersMap);
-        
-      } catch (err) {
-        console.error('Error fetching orders:', err);
-        setError(err.message || 'Error al cargar los pedidos');
-      } finally {
-        setIsLoading(false);
+      // Comprobar cuáles pedidos pueden ser editados
+      const editableOrdersMap = {};
+      for (const order of data) {
+        const editCheck = await orderService.canEditOrder(order.order_id, orderTimeLimit);
+        editableOrdersMap[order.order_id] = editCheck.canEdit;
       }
-    };
-
-    fetchOrders();
+      setEditableOrders(editableOrdersMap);
+      
+    } catch (err) {
+      console.error('Error fetching orders:', err);
+      setError(err.message || 'Error al cargar los pedidos');
+    } finally {
+      setIsLoading(false);
+    }
   }, [user, orderTimeLimit]);
 
-  // Función para formatear la fecha
-  const formatDate = (dateString) => {
-    if (!dateString) return 'Fecha no disponible';
-    
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return 'Fecha inválida';
-    
-    return new Intl.DateTimeFormat('es-ES', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
-    }).format(date);
-  };
+  // Usar la función definida en el useEffect
+  useEffect(() => {
+    fetchOrders();
+  }, [user, orderTimeLimit]); // Incluye fetchOrders en el array de dependencias
 
   const handleCancelOrder = async (orderId) => {
     if (!window.confirm('¿Estás seguro que deseas cancelar este pedido?')) {
@@ -92,9 +85,10 @@ const OrderList = () => {
     }
     
     try {
-      const response = await API.post(`/api/orders/${orderId}/cancel`);
+      // Corrección: Usar el método PUT y la ruta completa con /api
+      const response = await API.put(`/orders/${orderId}/cancel`);
       if (response.data.success) {
-        // Refrescar la lista
+        // Ahora fetchOrders está disponible aquí
         fetchOrders();
       } else {
         alert('Error al cancelar el pedido: ' + response.data.message);
@@ -104,6 +98,22 @@ const OrderList = () => {
       alert('Error al cancelar el pedido');
     }
   };
+
+    // Función para formatear la fecha
+    const formatDate = (dateString) => {
+      if (!dateString) return 'Fecha no disponible';
+      
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return 'Fecha inválida';
+      
+      return new Intl.DateTimeFormat('es-ES', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      }).format(date);
+    };
 
   // Calcular el índice del último y primer pedido de la página actual
   const indexOfLastOrder = currentPage * ordersPerPage;
@@ -206,7 +216,7 @@ const OrderList = () => {
                   ${parseFloat(order.total_amount).toFixed(2)}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-center">
-                  <OrderStatusBadge status={order.status_id || order.status || 'pendiente'} />
+                  <OrderStatusBadge status={orderStatuses[order.status_id] || order.status || 'pendiente'} />
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
                   <div className="flex justify-center space-x-2">
