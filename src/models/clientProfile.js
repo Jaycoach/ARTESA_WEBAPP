@@ -537,6 +537,36 @@ static async create(clientData) {
       throw error;
     }
   }
+
+  /**
+   * Convierte un perfil de cliente al formato esperado por SAP B1
+   * @param {Object} profile - Perfil de cliente
+   * @returns {Object} - Datos formateados para SAP B1
+   */
+  static toSapBusinessPartner(profile) {
+    // Asegurarse que tenemos los datos mínimos necesarios
+    if (!profile || !profile.nit_number || !profile.verification_digit) {
+      throw new Error('Datos insuficientes para crear BusinessPartner en SAP');
+    }
+    
+    // Construcción del objeto para SAP
+    const businessPartner = {
+      CardCode: `C${profile.nit_number}`, // Prefijo 'C' seguido del NIT sin DV
+      CardName: profile.razonSocial || profile.nombre || profile.company_name || profile.contact_name || 'Sin nombre',
+      CardType: "L", // Lead por defecto
+      GroupCode: 102, // Grupo fijo
+      FederalTaxID: `${profile.nit_number}-${profile.verification_digit}`,
+      Phone1: profile.telefono || profile.contact_phone || "",
+      EmailAddress: profile.email || profile.contact_email || "",
+      Address: profile.direccion || profile.address || "",
+      U_HBT_City: profile.ciudad || profile.city || "",
+      U_HBT_Country: profile.pais || profile.country || "Colombia",
+      Notes: profile.notas || profile.notes || "",
+      PriceListNum: profile.listaPrecios || profile.price_list || 1
+    };
+    
+    return businessPartner;
+  }
 }
 
 module.exports = ClientProfile;
