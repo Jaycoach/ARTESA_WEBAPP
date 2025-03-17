@@ -109,7 +109,7 @@ const Products = () => {
   // Función para agregar a pedido
   const addToOrder = useCallback((product, qty = 1) => {
     try {
-      const quantityToAdd = qty || productQuantities[product.product_id] || 1;
+      const quantityToAdd = Number(qty || productQuantities[product.product_id] || 1);
       
       const existingItemIndex = orderItems.findIndex(item => item.product_id === product.product_id);
     
@@ -138,25 +138,23 @@ const Products = () => {
 
   //Manejador para actualizar cantidades
   const handleQuantityChange = useCallback((productId, newValue) => {
-    // Asegurarse de que la cantidad es un número
+    // Asegurarse de que la cantidad es un número válido
     const numValue = parseInt(newValue, 10);
-    if (isNaN(numValue)) return;
-  
-    // Asegurarse de que la cantidad es válida (mínimo 1)
-    const validQuantity = Math.max(1, numValue);
+    // Si no es un número o es menor que 1, usar 1
+    const validQuantity = !isNaN(numValue) && numValue > 0 ? numValue : 1;
     
-    // Actualizar la cantidad sin restricciones de stock
+    // Actualizar la cantidad
     setProductQuantities(prev => ({
       ...prev,
       [productId]: validQuantity
     }));
       
-      // Si estamos en el modal y el producto seleccionado coincide con el productId,
-      // también actualizamos el estado de quantity
-      if (selectedProduct && selectedProduct.product_id === productId) {
-        setQuantity(validQuantity);
-      }
-    }, [products, selectedProduct]);
+    // Si estamos en el modal y el producto seleccionado coincide con el productId,
+    // también actualizamos el estado de quantity
+    if (selectedProduct && selectedProduct.product_id === productId) {
+      setQuantity(validQuantity);
+    }
+  }, [selectedProduct]);
 
   // Función auxiliar para obtener el ID del usuario actual
   const getCurrentUserId = useCallback(() => {
@@ -287,6 +285,17 @@ const Products = () => {
   useEffect(() => {
     fetchProducts();
   }, [fetchProducts]);
+
+  // Inicializar cantidades de productos cuando se cargan
+useEffect(() => {
+  if (products.length > 0) {
+    const initialQuantities = {};
+    products.forEach(product => {
+      initialQuantities[product.product_id] = 1;
+    });
+    setProductQuantities(initialQuantities);
+  }
+}, [products]);
 
   // Actualizar productos cuando cambia la búsqueda
   useEffect(() => {
@@ -431,55 +440,55 @@ const Products = () => {
                           </td>
                           {/* En la vista de tabla */}
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center border rounded-md">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const currentQty = productQuantities[product.product_id] || 1;
-                                  if (currentQty > 1) {
-                                    handleQuantityChange(product.product_id, currentQty - 1);
-                                  }
-                                }}
-                                className="p-1 text-gray-600 hover:text-gray-800 disabled:opacity-50"
-                                disabled={(productQuantities[product.product_id] || 1) <= 1}
-                              >
-                                <FiMinus size={16} />
-                              </button>
-                              <input
-                                type="number"
-                                min="1"
-                                value={productQuantities[product.product_id] || 1}
-                                onChange={(e) => handleQuantityChange(product.product_id, parseInt(e.target.value, 10))}
-                                className="w-12 text-center text-sm border-0 focus:ring-0"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const currentQty = productQuantities[product.product_id] || 1;
-                                  handleQuantityChange(product.product_id, currentQty + 1);
-                                }}
-                                className="p-1 text-gray-600 hover:text-gray-800"
-                              >
-                                <FiPlus size={16} />
-                              </button>
-                            </div>
+                          <div className="flex items-center border rounded-md bg-white shadow-sm">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const currentQty = productQuantities[product.product_id] || 1;
+                                if (currentQty > 1) {
+                                  handleQuantityChange(product.product_id, currentQty - 1);
+                                }
+                              }}
+                              className="p-1 text-gray-600 hover:text-gray-800 disabled:opacity-50 bg-gray-50 hover:bg-gray-100 px-2"
+                              disabled={(productQuantities[product.product_id] || 1) <= 1}
+                            >
+                              <FiMinus size={16} />
+                            </button>
+                            <input
+                              type="number"
+                              min="1"
+                              value={productQuantities[product.product_id] || 1}
+                              onChange={(e) => handleQuantityChange(product.product_id, parseInt(e.target.value, 10))}
+                              className="w-14 text-center text-sm border-0 focus:ring-0 focus:outline-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const currentQty = productQuantities[product.product_id] || 1;
+                                handleQuantityChange(product.product_id, currentQty + 1);
+                              }}
+                              className="p-1 text-gray-600 hover:text-gray-800 bg-gray-50 hover:bg-gray-100 px-2"
+                            >
+                              <FiPlus size={16} />
+                            </button>
+                          </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <div className="flex space-x-2">
-                              <Button
-                                variant="outline"
-                                className="flex items-center gap-1 !py-1 !px-2"
-                                onClick={() => openProductDetails(product)}
-                              >
-                                <FiEye /> Ver
-                              </Button>
-                              <Button
-                                variant="primary"
-                                className="flex items-center gap-1 !py-1 !px-2"
-                                onClick={() => addToOrder(product)}
-                              >
-                                <FiClipboard /> Agregar a Pedido
-                              </Button>
+                            <Button
+                              variant="outline"
+                              className="flex items-center gap-1 py-1 px-2 text-blue-600 border border-blue-600 hover:bg-blue-50"
+                              onClick={() => openProductDetails(product)}
+                            >
+                              <FiEye /> Ver
+                            </Button>
+                            <Button
+                              variant="primary"
+                              className="flex items-center gap-1 py-1 px-2 bg-blue-600 text-white hover:bg-blue-700"
+                              onClick={() => addToOrder(product, productQuantities[product.product_id] || 1)}
+                            >
+                              <FiClipboard /> Agregar a Pedido
+                            </Button>
                             </div>
                           </td>
                         </tr>
