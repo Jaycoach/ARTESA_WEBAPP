@@ -3,7 +3,7 @@ import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom'
 
 // Importar componentes de manera normal para páginas principales
 import Home from './Components/Home/home2';
-import OriginalHome from './Components/Home/Home.jsx';
+import OriginalHome from './Components/Home/Home';
 
 // Importar el contexto de autenticación
 import { useAuth } from './hooks/useAuth';
@@ -76,7 +76,7 @@ const router = createBrowserRouter([
     path: '/original-home', // o cualquier ruta que prefieras
     element: (
       <Suspense fallback={<LoadingScreen />}>
-        <OriginalHome /> // Donde OriginalHome sería el componente importado de Home.jsx
+        <OriginalHome />
       </Suspense>
     ),
   },
