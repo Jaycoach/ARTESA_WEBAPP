@@ -13,6 +13,7 @@
 
 /* Overlay para el modal */
 .client-profile-overlay {
+  color: #000000 !important;
   position: fixed;
   top: 0;
   left: 0;
@@ -29,6 +30,7 @@
 
 /* Contenedor principal del formulario */
 .client-profile-container {
+  color: #000000 !important;
   background-color: var(--whiteColor);
   border-radius: 10px;
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
@@ -55,7 +57,7 @@
 .client-profile-header h2 {
   margin: 0;
   font-size: 1.5rem;
-  color: var(--blackColor);
+  color: #000000 !important;
 }
 .client-profile-header .close-button {
   background: none;
@@ -70,6 +72,7 @@
 
 /* Contenido del formulario */
 .client-profile-content {
+  color: #000000 !important;
   padding: 20px;
 }
 
@@ -113,7 +116,7 @@
   margin-bottom: 15px;
   font-size: 1.2rem;
   font-weight: 600;
-  color: var(--blackColor);
+  color: #000000 !important;
   border-bottom: 1px solid #eee;
   padding-bottom: 10px;
 }
@@ -139,7 +142,7 @@
   margin-bottom: 6px;
   font-weight: 500;
   font-size: 0.9rem;
-  color: #555;
+  color: #000000 !important;
 }
 .form-group input, .form-group select {
   width: 100%;
@@ -149,6 +152,10 @@
   background-color: var(--whiteColor);
   font-size: 0.95rem;
   transition: border-color 0.3s;
+  color: #000000 !important;
+}
+.form-group input::placeholder, .form-group select::placeholder {
+  color: #666666 !important;
 }
 .form-group input:focus, .form-group select:focus {
   outline: none;
