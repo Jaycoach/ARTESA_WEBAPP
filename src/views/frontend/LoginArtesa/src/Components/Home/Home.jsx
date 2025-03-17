@@ -28,7 +28,7 @@ const Home = () => {
             <img src={btn_home_1} className="client-image" alt="Cliente Artesa" />
             <button 
               className="artesa-btn primary"
-              onClick={() => window.location.href = 'https://artesa.com.co'}
+              onClick={() => handleNavigation('/')}
             >
               {user ? 'Ir al Home' : 'Acceder como Cliente'}
             </button>
