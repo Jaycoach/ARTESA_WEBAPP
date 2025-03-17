@@ -21,6 +21,9 @@ const Orders = () => {
   
   // Check if we're in new mode based on URL path or query param
   const isNewMode = location.pathname.includes('/new') || location.search.includes('tab=new');
+
+  // Modal confirmación cancelación
+  const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
   
   useEffect(() => {
     // Set the active tab based on URL
@@ -53,6 +56,15 @@ const Orders = () => {
     }, 5000);
   };
   
+  const handleConfirmCancel = () => {
+    setShowCancelConfirmation(false);
+    navigate('/dashboard/orders');
+  };
+  
+  const handleCancelConfirmationClose = () => {
+    setShowCancelConfirmation(false);
+  };
+
   useEffect(() => {
     // Verificar si hay un parámetro "tab" en la URL
     const urlParams = new URLSearchParams(window.location.search);
@@ -119,16 +131,24 @@ const Orders = () => {
       <div className="mb-6">
         <div className="border-b border-gray-200">
           <nav className="-mb-px flex" aria-label="Tabs">
-            <button
-              onClick={() => navigate('/dashboard/orders')}
-              className={`${
-                activeTab === 'list'
-                  ? 'border-indigo-500 text-indigo-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              } w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm`}
-            >
-              Mis Pedidos
-              </button>
+          <button
+            onClick={() => {
+              if (activeTab === 'new') {
+                // Si estamos en "Nuevo Pedido", mostrar confirmación
+                setShowCancelConfirmation(true);
+              } else {
+                // Si no, navegar directamente
+                navigate('/dashboard/orders');
+              }
+            }}
+            className={`${
+              activeTab === 'list'
+                ? 'border-indigo-500 text-indigo-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            } w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm`}
+          >
+            Mis Pedidos
+          </button>
             <button
               onClick={() => navigate('/dashboard/orders/new')}
               className={`${
@@ -152,6 +172,33 @@ const Orders = () => {
           <OrderList />
         )}
       </div>
+
+      {/* Modal de confirmación para cancelar */}
+      {showCancelConfirmation && (
+        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-sm mx-auto">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Confirmar cancelación</h3>
+            <p className="text-gray-500 mb-6">¿En realidad quiere cancelar el trabajo en curso?</p>
+            
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300"
+                onClick={handleCancelConfirmationClose}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+                onClick={handleConfirmCancel}
+              >
+                Aceptar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
