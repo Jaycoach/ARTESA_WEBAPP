@@ -477,7 +477,6 @@ const Products = () => {
                                 variant="primary"
                                 className="flex items-center gap-1 !py-1 !px-2"
                                 onClick={() => addToOrder(product)}
-                                disabled={product.stock <= 0}
                               >
                                 <FiClipboard /> Agregar a Pedido
                               </Button>
@@ -562,7 +561,6 @@ const Products = () => {
                           variant="primary"
                           className="flex-1 flex items-center justify-center gap-1 text-xs"
                           onClick={() => addToOrder(product)}
-                          disabled={product.stock <= 0}
                         >
                           <FiClipboard /> Agregar
                         </Button>
@@ -663,8 +661,6 @@ const Products = () => {
                     )}
                   </div>
                 </div>
-                
-                {selectedProduct.stock > 0 && (
                   <div className="border-t pt-4">
                     <div className="flex items-center justify-between mb-4">
                       <span className="text-gray-800 font-medium">Cantidad:</span>
@@ -694,7 +690,6 @@ const Products = () => {
                       <FiClipboard /> Agregar a Pedido
                     </Button>
                   </div>
-                )}
               </div>
             </div>
           </div>
