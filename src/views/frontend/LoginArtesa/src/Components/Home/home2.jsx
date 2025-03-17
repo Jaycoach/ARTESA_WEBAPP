@@ -1,7 +1,9 @@
 import React from 'react';
 import '../../App.scss';
+import { useNavigate } from 'react-router-dom';
 
 const Home = () => {
+  const navigate = useNavigate();
   return (
     <div className="bg-gray-100 min-h-screen font-montserrat">
       {/* Header */}
@@ -22,7 +24,12 @@ const Home = () => {
         <section className="bg-white p-8 rounded-lg shadow-lg text-center flex flex-col items-center">
           <h2 className="text-3xl font-semibold text-gray-800">Productos pasteleros de alta calidad</h2>
           <p className="mt-2 text-gray-600">Programa tu pedido en línea con transporte seguro y pago confiable.</p>
-          <button className="mt-4 bg-accent-color text-white px-6 py-3 rounded-lg shadow-md hover:bg-hover-color">Realizar Pedido</button>
+          <button 
+            className="mt-4 bg-accent-color text-white px-6 py-3 rounded-lg shadow-md hover:bg-hover-color"
+            onClick={() => navigate('/original-home')}
+          >
+            Realizar Pedido
+          </button>
         </section>
 
         {/* Product Categories */}
