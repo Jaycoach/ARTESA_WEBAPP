@@ -111,16 +111,6 @@ const Dashboard = () => {
       {/* Header con perfil de usuario */}
       <div className="flex justify-between items-center mb-5">
         <h1 className="text-2xl font-semibold text-gray-800">Bienvenido, {userName || "Usuario"}</h1>
-        {user && (
-          <div className="flex items-center p-2 rounded-lg bg-gray-50 hover:bg-gray-100 cursor-pointer transition-colors" 
-               onClick={toggleProfile}>
-            <FaUserCircle className="text-3xl text-gray-600 mr-3" />
-            <div className="flex flex-col">
-              <span className="font-medium text-gray-800">{userName || userEmail}</span>
-              <span className="text-xs text-gray-500">Ver perfil</span>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Banner de Artesa */}

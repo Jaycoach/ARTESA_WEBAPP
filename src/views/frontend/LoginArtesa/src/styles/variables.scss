@@ -9,6 +9,8 @@ $grey-text: #808080;
 $bg-color: #687e8d;
 $input-color: #f6db8e;
 $button-color: #f6754e;
+$danger-color: #e74c3c;
+$text-color: #333333;
 
 // Tamaños de fuente
 $biggest-font-size: 2.5rem;
@@ -18,3 +20,8 @@ $h3-font-size: 1rem;
 $normal-font-size: 0.938rem;
 $small-font-size: 0.813rem;
 $smallest-font-size: 0.75rem;
+
+// Tamaños de padding y margin
+$sidebarWidth: 260px;
+$collapsedSidebarWidth: 80px;
+$transitionSpeed: 0.3s;
