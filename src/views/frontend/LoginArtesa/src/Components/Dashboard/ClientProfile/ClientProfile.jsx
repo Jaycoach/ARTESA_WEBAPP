@@ -22,6 +22,7 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
     // Información empresarial
     razonSocial: '',
     nit: '',
+    digitoVerificacion: '',
     representanteLegal: '',
     actividadComercial: '',
     sectorEconomico: '',
@@ -50,6 +51,7 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
   const [success, setSuccess] = useState('');
   const [existingProfile, setExistingProfile] = useState(null);
   const [showConfirmation, setShowConfirmation] = useState(false);
@@ -74,6 +76,10 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
         
         // Extraer los datos - pueden estar en response.data.data o directamente en response.data
         const profileData = response.data?.data || response.data;
+
+        if (profileData.verification_digit) {
+          formDataUpdate.digitoVerificacion = profileData.verification_digit;
+        }
         
         if (profileData) {
           console.log("Perfil encontrado:", profileData);
@@ -144,10 +150,37 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
   
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    
+    // Eliminar el error específico del campo cuando cambia su valor
+    if (fieldErrors[name]) {
+      setFieldErrors(prev => {
+        const newErrors = {...prev};
+        delete newErrors[name];
+        return newErrors;
+      });
+    }
+    
+    // Validación específica para NIT (solo números)
+    if (name === 'nit') {
+      // Si el valor no está vacío y no es un número, muestra un error
+      if (value && !/^\d+$/.test(value)) {
+        setFieldErrors(prev => ({
+          ...prev,
+          nit: 'El NIT debe contener solo números enteros'
+        }));
+      }
+      // Almacena el valor solo si es un número o está vacío
+      setFormData(prev => ({
+        ...prev,
+        [name]: /^\d*$/.test(value) ? value : prev[name]
+      }));
+    } else {
+      // Comportamiento normal para otros campos
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
   };
   
   const handleFileChange = (e) => {
@@ -173,10 +206,42 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
     setLoading(true);
     setError('');
     setSuccess('');
+
+    // Validar que el NIT solo contenga números
+    if (formData.nit && !/^\d+$/.test(formData.nit)) {
+      setFieldErrors(prev => ({
+        ...prev,
+        nit: 'El NIT debe contener solo números enteros'
+      }));
+      setError('Hay errores en el formulario. Por favor verifique los campos marcados en rojo.');
+      setLoading(false);
+      return;
+    }
+
+    // Validar que digitoVerificacion sea un número entero de un solo dígito
+    if (formData.digitoVerificacion && (!/^[0-9]$/.test(formData.digitoVerificacion))) {
+      setError('El dígito de verificación debe ser un número entre 0 y 9');
+      setLoading(false);
+      return;
+    }
     
+    // Crear el tax_id combinando NIT y dígito de verificación
+    let taxId = '';
+    if (formData.nit) {
+      taxId = formData.nit;
+      if (formData.digitoVerificacion) {
+        taxId += '-' + formData.digitoVerificacion;
+      }
+    }
+
     try {
       // Crear FormData para enviar archivos
       const formDataToSend = new FormData();
+
+      // Agregar nit_number y verification_digit como campos separados
+      formDataToSend.append('nit_number', formData.nit || '');
+      formDataToSend.append('verification_digit', formData.digitoVerificacion || '');
+      formDataToSend.append('tax_id', taxId);
       
       // Agregar todos los campos del formulario
       Object.keys(formData).forEach(key => {
@@ -403,15 +468,38 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
                   />
                 </div>
                 
-                <div className="form-group">
-                  <label htmlFor="nit">NIT</label>
+                <div className={`form-group ${fieldErrors.nit ? 'error' : ''}`}>
+                  <label htmlFor="nit">NIT (Sin dígito de verificación)</label>
                   <input 
                     type="text" 
                     id="nit" 
                     name="nit" 
                     value={formData.nit} 
                     onChange={handleChange} 
+                    className={fieldErrors.nit ? 'input-error' : ''}
                   />
+                  {fieldErrors.nit && (
+                    <div className="error-text">{fieldErrors.nit}</div>
+                  )}
+                </div>
+
+                <div className="form-group">
+                <label htmlFor="digitoVerificacion">Dígito de Verificación</label>
+                <input 
+                  type="text" 
+                  id="digitoVerificacion" 
+                  name="digitoVerificacion" 
+                  value={formData.digitoVerificacion} 
+                  onChange={(e) => {
+                    // Solo permitir un dígito numérico
+                    const value = e.target.value;
+                    if (value === '' || /^[0-9]$/.test(value)) {
+                      handleChange(e);
+                    }
+                  }}
+                  maxLength="1"
+                  pattern="[0-9]"
+                />
                 </div>
               </div>
               
@@ -592,6 +680,18 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
                 </div>
               </div>
             </div>
+
+            {/* Mostrar resumen de errores si existen */}
+            {Object.keys(fieldErrors).length > 0 && (
+              <div className="form-section error-summary">
+                <h3 className="section-title">Errores en el formulario</h3>
+                <ul>
+                  {Object.entries(fieldErrors).map(([field, message]) => (
+                    <li key={field}>{message}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
             
             <div className="form-actions">
               <button type="button" className="cancel-btn" onClick={onClose}>

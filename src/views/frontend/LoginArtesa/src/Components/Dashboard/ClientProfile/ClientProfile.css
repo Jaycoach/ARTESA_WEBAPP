@@ -236,6 +236,37 @@
   cursor: not-allowed;
 }
 
+/* Estilos para campos con error */
+.form-group.error label {
+  color: #d32f2f;
+}
+
+.input-error {
+  border-color: #d32f2f !important;
+  background-color: rgba(211, 47, 47, 0.05) !important;
+}
+
+.error-text {
+  color: #d32f2f;
+  font-size: 0.75rem;
+  margin-top: 4px;
+}
+
+.error-summary {
+  background-color: #ffe6e6;
+  border-left: 4px solid #d32f2f;
+}
+
+.error-summary ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.error-summary li {
+  color: #d32f2f;
+  margin-bottom: 4px;
+}
+
 /* Media queries para responsive */
 @media (max-width: 768px) {
   .client-profile-container {
