@@ -20,6 +20,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
   const [siteSettings, setSiteSettings] = useState({ orderTimeLimit: '18:00' });
   const [loadingSettings, setLoadingSettings] = useState(true);
   const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
+  const [showConfirmationModal, setShowConfirmationModal] = useState(false);
   const navigate = useNavigate();
 
   // Cargar configuración del sitio
@@ -146,7 +147,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       detail.product_id && detail.quantity > 0 && detail.unit_price > 0
     );
     
-    if (invalidItems.length > 0) {
+    if (!isValid) {
       showNotification('Por favor completa todos los campos correctamente. Asegúrate de que los productos tengan precios válidos.', 'error');
       return;
     }
@@ -157,8 +158,14 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       return;
     }
     
+    // Mostrar modal de confirmación en lugar de crear pedido inmediatamente
+    setShowConfirmationModal(true);
+  };
+
+  const handleConfirmCreateOrder = async () => {
     try {
       setIsSubmitting(true);
+      setShowConfirmationModal(false);
       
       // Calcular total
       const totalAmount = parseFloat(calculateTotal());
@@ -213,6 +220,10 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleCloseConfirmationModal = () => {
+    setShowConfirmationModal(false);
   };
 
   const handleCancelClick = () => {
@@ -433,6 +444,33 @@ const CreateOrderForm = ({ onOrderCreated }) => {
                 onClick={handleConfirmCancel}
               >
                 Aceptar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Modal de confirmación para crear pedido */}
+      {showConfirmationModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md mx-auto">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Confirmar pedido</h3>
+            <p className="text-gray-500 mb-2">¿Estás seguro de que deseas crear este pedido?</p>
+            <p className="text-gray-700 font-medium mb-4">Total: ${calculateTotal()}</p>
+            
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300"
+                onClick={handleCloseConfirmationModal}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+                onClick={handleConfirmCreateOrder}
+              >
+                Confirmar Pedido
               </button>
             </div>
           </div>
