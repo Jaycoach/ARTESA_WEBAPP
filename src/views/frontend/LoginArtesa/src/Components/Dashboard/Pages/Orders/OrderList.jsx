@@ -254,7 +254,7 @@ const OrderList = () => {
                     ) : (
                       <span 
                         className="text-gray-400 bg-gray-100 px-3 py-1 rounded-md flex items-center cursor-not-allowed"
-                        title={`No se puede editar este pedido (${['completado', 'completed', 'entregado', 'delivered', 'cancelado', 'canceled'].includes(order.status?.toLowerCase()) || ['3', '4', '5'].includes(order.status_id?.toString())['completado', 'completed', 'entregado', 'delivered', 'cancelado', 'canceled'].includes(order.status?.toLowerCase()) ? 'Estado: ' + order.status : 'Fuera de horario de edición'}`}
+                        title={`No se puede editar este pedido (${['completado', 'completed', 'entregado', 'delivered', 'cancelado', 'canceled'].includes(order.status?.toLowerCase()) || ['3', '4', '5'].includes(order.status_id?.toString()) ? 'Estado: ' + order.status : 'Fuera de horario de edición'}`}
                       >
                         <FaExclamationTriangle className="mr-1 text-yellow-500" />
                         <span className="hidden sm:inline">No editable</span>

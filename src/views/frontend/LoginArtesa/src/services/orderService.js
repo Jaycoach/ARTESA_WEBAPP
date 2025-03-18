@@ -111,60 +111,96 @@ export const orderService = {
   },
   
   // Verificar si un pedido puede ser editado
-  async canEditOrder(orderId, orderTimeLimit = '18:00') {
-    try {
-      const orderResult = await this.getOrderById(orderId);
-      
-      if (!orderResult.success) {
-        return {
-          canEdit: false,
-          reason: 'No se pudo obtener información del pedido'
-        };
-      }
-      
-      const order = orderResult.data;
-      
-      // Verificar si el pedido está en un estado que permite edición
-      if (['completado', 'completed', 'entregado', 'delivered', 'cancelado', 'canceled'].includes(
-        order.status?.toLowerCase()
-      )) {
-        return {
-          canEdit: false,
-          reason: `No se puede editar un pedido con estado: ${order.status}`
-        };
-      }
-      
-      // Verificar la hora límite para edición
-      const orderDate = new Date(order.order_date);
-      const now = new Date();
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const orderDay = new Date(orderDate.getFullYear(), orderDate.getMonth(), orderDate.getDate());
-      
-      // Si el pedido es de un día anterior, verificar la hora límite
-      if (orderDay.getTime() < today.getTime()) {
-        const [limitHours, limitMinutes] = orderTimeLimit.split(':').map(Number);
-        const limitTime = new Date();
-        limitTime.setHours(limitHours, limitMinutes, 0, 0);
-        
-        if (now > limitTime) {
-          return {
-            canEdit: false,
-            reason: `No se puede editar después de las ${orderTimeLimit}`
-          };
-        }
-      }
-      
-      return {
-        canEdit: true
-      };
-    } catch (error) {
-      console.error('Error checking if order can be edited:', error);
+async canEditOrder(orderId, orderTimeLimit = '18:00') {
+  try {
+    console.log(`Verificando si se puede editar la orden ${orderId} con límite ${orderTimeLimit}`);
+    const orderResult = await this.getOrderById(orderId);
+    
+    if (!orderResult.success) {
+      console.log('No se pudo obtener información del pedido');
       return {
         canEdit: false,
-        reason: error.message || 'Error al verificar si el pedido puede ser editado'
+        reason: 'No se pudo obtener información del pedido'
       };
     }
-  },
+    
+    const order = orderResult.data;
+    console.log('Datos del pedido:', order);
+    
+    // Obtener la configuración actualizada del sitio
+    let actualOrderTimeLimit = orderTimeLimit;
+    try {
+      const siteConfigResponse = await API.get('/admin/settings');
+      if (siteConfigResponse.data && siteConfigResponse.data.success) {
+        actualOrderTimeLimit = siteConfigResponse.data.data.orderTimeLimit || orderTimeLimit;
+        console.log(`Límite actualizado de configuración: ${actualOrderTimeLimit}`);
+      }
+    } catch (error) {
+      console.warn('No se pudo obtener la configuración actualizada, usando valor predeterminado');
+    }
+    
+    // Verificar si el pedido está en un estado que permite edición
+    if (['completado', 'completed', 'entregado', 'delivered', 'cancelado', 'canceled'].includes(
+      order.status?.toLowerCase()
+    )) {
+      console.log(`No se puede editar - Estado no permitido: ${order.status}`);
+      return {
+        canEdit: false,
+        reason: `No se puede editar un pedido con estado: ${order.status}`
+      };
+    }
+    
+    // Verificar la hora límite para edición
+    const orderDate = new Date(order.order_date);
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const orderDay = new Date(orderDate.getFullYear(), orderDate.getMonth(), orderDate.getDate());
+    
+    // Calcular días transcurridos
+    const diffTime = Math.abs(today - orderDay);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    console.log(`Días entre la creación y hoy: ${diffDays}`);
+    console.log(`Fecha de pedido: ${orderDate.toLocaleString()}, Hoy: ${now.toLocaleString()}`);
+    
+    // Si el pedido es de más de un día, verificar la hora límite
+    if (diffDays > 1) {
+      console.log(`Pedido de hace más de 1 día - no editable`);
+      return {
+        canEdit: false,
+        reason: 'Los pedidos solo pueden editarse el mismo día o al día siguiente'
+      };
+    }
+    
+    // Si el pedido es de un día anterior o el mismo día pero después del límite
+    if (diffDays == 1 || (diffDays == 0 && orderDay.getTime() < today.getTime())) {
+      const [limitHours, limitMinutes] = actualOrderTimeLimit.split(':').map(Number);
+      const limitTime = new Date();
+      limitTime.setHours(limitHours, limitMinutes, 0, 0);
+      
+      console.log(`Hora actual: ${now.toLocaleTimeString()}, Hora límite: ${limitTime.toLocaleTimeString()}`);
+      
+      if (now > limitTime) {
+        console.log(`Fuera de la hora límite de edición`);
+        return {
+          canEdit: false,
+          reason: `No se puede editar después de las ${actualOrderTimeLimit}`
+        };
+      }
+    }
+    
+    console.log('El pedido puede ser editado');
+    return {
+      canEdit: true
+    };
+  } catch (error) {
+    console.error('Error checking if order can be edited:', error);
+    return {
+      canEdit: false,
+      reason: error.message || 'Error al verificar si el pedido puede ser editado'
+    };
+  }
+},
   
   // Obtener configuración del sitio (incluyendo orderTimeLimit)
   async getSiteSettings() {

@@ -17,77 +17,90 @@ const DeliveryDatePicker = ({ value, onChange, orderTimeLimit = "18:00" }) => {
   }, [orderTimeLimit]);
 
   // Calcula las fechas disponibles según reglas de negocio
-  const calculateAvailableDates = () => {
-    setLoading(true);
-    try {
-      const dates = [];
-      const now = new Date();
-      const currentDay = now.getDay(); // 0 (domingo) a 6 (sábado)
-      const currentHour = now.getHours();
-      const currentMinute = now.getMinutes();
+const calculateAvailableDates = () => {
+  setLoading(true);
+  try {
+    const dates = [];
+    const now = new Date();
+    const currentDay = now.getDay(); // 0 (domingo) a 6 (sábado)
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
 
-      // Convertir orderTimeLimit a horas y minutos
-      const [limitHours, limitMinutes] = orderTimeLimit.split(':').map(Number);
-      const isPastTimeLimit = currentHour > limitHours || 
-        (currentHour === limitHours && currentMinute >= limitMinutes);
+    // Convertir orderTimeLimit a horas y minutos
+    const [limitHours, limitMinutes] = orderTimeLimit.split(':').map(Number);
+    const isPastTimeLimit = currentHour > limitHours || 
+      (currentHour === limitHours && currentMinute >= limitMinutes);
 
-      // Reglas para calcular fechas de entrega
-      let startOffset = 2; // Mínimo 2 días en el futuro para entrega
+    // Reglas para calcular fechas de entrega
+    let startOffset = 2; // Mínimo 2 días en el futuro para entrega
 
-      // Regla especial para sábados
-      if (currentDay === 6) { // Sábado
-        if (isPastTimeLimit) {
-          // Después del límite, entrega el miércoles (4 días después)
-          startOffset = 4;
-        } else {
-          // Antes del límite, entrega el martes (3 días después)
-          startOffset = 3;
-        }
-      } 
-      // Regla para domingos - siempre entrega el miércoles (3 días)
-      else if (currentDay === 0) {
+    // Regla especial para sábados
+    if (currentDay === 6) { // Sábado
+      if (currentHour >= 12) { // Después del mediodía
+        // Después del mediodía, entrega el miércoles (4 días después)
+        startOffset = 4;
+        console.log("Sábado después del mediodía: entrega miércoles (4 días)");
+      } else {
+        // Antes del mediodía, entrega el martes (3 días después)
         startOffset = 3;
+        console.log("Sábado antes del mediodía: entrega martes (3 días)");
       }
-      // Para otros días, si pasó el límite, agregar un día extra
-      else if (isPastTimeLimit) {
-        startOffset++;
-      }
-
-      // Generar fechas disponibles (5 opciones empezando desde la primera disponible)
-      for (let i = 0; i < 10; i++) {
-        const date = new Date(now);
-        date.setDate(now.getDate() + startOffset + i);
-        
-        // Omitir domingos (día no laboral)
-        if (date.getDay() === 0) {
-          continue;
-        }
-        
-        // Formatear fecha para mostrar
-        const formattedDate = date.toISOString().split('T')[0];
-        dates.push({
-          value: formattedDate,
-          label: formatDateToSpanish(date)
-        });
-        
-        // Solo incluir 5 fechas válidas
-        if (dates.length === 5) break;
-      }
-
-      setAvailableDates(dates);
-      
-      // Si no hay fecha seleccionada, seleccionar la primera disponible
-      if (!value && dates.length > 0) {
-        onChange(dates[0].value);
-      }
-      
-    } catch (error) {
-      console.error('Error calculando fechas disponibles:', error);
-      setErrorMessage('Error al calcular fechas de entrega disponibles');
-    } finally {
-      setLoading(false);
+    } 
+    // Regla para domingos - siempre entrega el miércoles (3 días)
+    else if (currentDay === 0) {
+      startOffset = 3;
+      console.log("Domingo: entrega miércoles (3 días)");
     }
-  };
+    // Para otros días, mínimo 2 días de entrega
+    else {
+      startOffset = 2;
+      console.log(`Día regular (${currentDay}): entrega en 2 días mínimo`);
+      
+      // Si pasó el límite de tiempo, agregar un día extra
+      if (isPastTimeLimit) {
+        startOffset++;
+        console.log(`Pasado el límite de ${orderTimeLimit}, se agrega 1 día más`);
+      }
+    }
+
+    console.log(`Fecha actual: ${now.toLocaleString()}, Offset de días: ${startOffset}`);
+
+    // Generar fechas disponibles (5 opciones empezando desde la primera disponible)
+    for (let i = 0; i < 10; i++) {
+      const date = new Date(now);
+      date.setDate(now.getDate() + startOffset + i);
+      
+      // Omitir domingos (día no laboral)
+      if (date.getDay() === 0) {
+        continue;
+      }
+      
+      // Formatear fecha para mostrar
+      const formattedDate = date.toISOString().split('T')[0];
+      dates.push({
+        value: formattedDate,
+        label: formatDateToSpanish(date)
+      });
+      
+      // Solo incluir 5 fechas válidas
+      if (dates.length === 5) break;
+    }
+
+    setAvailableDates(dates);
+    console.log("Fechas disponibles:", dates);
+    
+    // Si no hay fecha seleccionada, seleccionar la primera disponible
+    if (!value && dates.length > 0) {
+      onChange(dates[0].value);
+    }
+    
+  } catch (error) {
+    console.error('Error calculando fechas disponibles:', error);
+    setErrorMessage('Error al calcular fechas de entrega disponibles');
+  } finally {
+    setLoading(false);
+  }
+};
 
   // Formatea la fecha a español: "Lunes, 18 de Marzo de 2025"
   const formatDateToSpanish = (date) => {

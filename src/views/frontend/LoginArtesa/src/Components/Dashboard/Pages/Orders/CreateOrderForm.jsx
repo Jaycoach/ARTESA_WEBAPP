@@ -114,12 +114,6 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       if (selectedProduct) {
         // Usar price_list1 como precio unitario
         newDetails[index].unit_price = selectedProduct.price_list1;
-        
-        // Validar que no supere el stock disponible
-        if (selectedProduct.stock && selectedProduct.stock < newDetails[index].quantity) {
-          newDetails[index].quantity = selectedProduct.stock;
-          showNotification(`Solo hay ${selectedProduct.stock} unidades disponibles de este producto`, 'warning');
-        }
       }
     }
     
@@ -307,9 +301,12 @@ const CreateOrderForm = ({ onOrderCreated }) => {
                       required
                     >
                       <option value="">Seleccionar producto</option>
-                      {products.map(product => (
-                        <option key={product.product_id} value={product.product_id}>
-                          {product.name} {product.stock > 0 ? `(${product.stock} disponibles)` : '(Agotado)'}
+                        {products.map(product => (
+                        <option 
+                          key={product.product_id} 
+                          value={product.product_id}
+                        >
+                          {product.name}
                         </option>
                       ))}
                     </select>

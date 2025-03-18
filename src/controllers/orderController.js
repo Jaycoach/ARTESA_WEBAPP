@@ -837,40 +837,43 @@ const updatePendingOrders = async (req, res) => {
     
     // Obtener opciones de la solicitud
     const ignoreTimeLimit = req.body.ignoreTimeLimit === true;
-    const ignoreCreationDate = req.body.ignoreCreationDate === true;
+    const ignoreDeliveryDate = req.body.ignoreDeliveryDate === true;
     
-    logger.info('Iniciando actualización manual de órdenes pendientes', {
+    logger.info('Iniciando actualización manual de órdenes', {
       userId: req.user.id,
       orderTimeLimit,
       ignoreTimeLimit,
-      ignoreCreationDate
+      ignoreDeliveryDate
     });
 
     // Llamar al método del modelo que actualiza las órdenes
-    const updatedCount = await Order.updatePendingOrdersStatus(orderTimeLimit, {
+    const result = await Order.updatePendingOrdersStatus(orderTimeLimit, {
       ignoreTimeLimit,
-      ignoreCreationDate
+      ignoreDeliveryDate
     });
     
     res.status(200).json({
       success: true,
-      message: `${updatedCount} órdenes actualizadas a estado 'En Producción'`,
+      message: `${result.updatedCount} órdenes actualizadas a 'En Producción' y ${result.cancelledCount} órdenes vencidas canceladas`,
       data: {
         orderTimeLimit,
-        updatedCount,
+        updatedToProduction: result.updatedCount,
+        updatedToCancelled: result.cancelledCount,
+        updatedIds: result.updatedIds,
+        cancelledIds: result.cancelledIds,
         ignoreTimeLimit,
-        ignoreCreationDate
+        ignoreDeliveryDate
       }
     });
   } catch (error) {
-    logger.error('Error al actualizar estado de órdenes pendientes', {
+    logger.error('Error al actualizar estado de órdenes', {
       error: error.message,
       stack: error.stack
     });
     
     res.status(500).json({
       success: false,
-      message: 'Error al actualizar estado de órdenes pendientes',
+      message: 'Error al actualizar estado de órdenes',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }

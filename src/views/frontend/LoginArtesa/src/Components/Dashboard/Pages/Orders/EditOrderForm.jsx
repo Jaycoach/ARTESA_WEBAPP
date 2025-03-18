@@ -30,9 +30,14 @@ const EditOrderForm = ({ onOrderUpdated }) => {
   useEffect(() => {
     const fetchSettings = async () => {
       try {
+        console.log("Obteniendo configuración del sitio...");
         const response = await API.get('/admin/settings');
+        console.log("Respuesta de configuración:", response.data);
+        
         if (response.data && response.data.success) {
-          setSiteSettings(response.data.data);
+          const settingsData = response.data.data || { orderTimeLimit: '18:00' };
+          console.log("Configuración cargada:", settingsData);
+          setSiteSettings(settingsData);
         }
       } catch (error) {
         console.error('Error fetching site settings:', error);
@@ -462,7 +467,7 @@ const EditOrderForm = ({ onOrderUpdated }) => {
                             item => item !== detail && item.product_id === product.product_id.toString()
                           )}
                         >
-                          {product.name} {product.stock > 0 ? `(${product.stock} disponibles)` : '(Agotado)'}
+                          {product.name}
                         </option>
                       ))}
                     </select>
