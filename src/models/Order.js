@@ -425,13 +425,20 @@ class Order {
    * @param {string} [orderTimeLimit="18:00"] - Hora límite para pedidos del día (formato HH:MM)
    * @returns {Date} Fecha de entrega calculada
    */
-  static calculateDeliveryDate(orderDate = new Date(), orderTimeLimit = "18:00") {
+  static calculateDeliveryDate(orderDate = new Date(), orderTimeLimit) {
     const date = new Date(orderDate);
-    const [limitHours, limitMinutes] = orderTimeLimit.split(':').map(Number);
     
+    // Si no se proporcionó hora límite, obtenerla de la configuración (esto no debería ocurrir)
+    if (!orderTimeLimit) {
+      orderTimeLimit = "12:00"; // Valor seguro por defecto
+      logger.warn('No se proporcionó hora límite en calculateDeliveryDate, usando valor por defecto');
+    }
+
+    const [limitHours, limitMinutes] = orderTimeLimit.split(':').map(Number);
+
     // Verificar si ya pasó la hora límite
     const isPastTimeLimit = date.getHours() > limitHours || 
-      (date.getHours() === limitHours && date.getMinutes() >= limitMinutes);
+    (date.getHours() === limitHours && date.getMinutes() >= limitMinutes);
     
     // Determinar día de la semana (0 = domingo, 6 = sábado)
     const dayOfWeek = date.getDay();

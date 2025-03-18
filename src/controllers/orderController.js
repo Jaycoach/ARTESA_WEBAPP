@@ -145,8 +145,17 @@ const createOrder = async (req, res) => {
       }
       
       // Obtener configuración de hora límite
+      // Obtener configuración de hora límite
       const adminSettings = await require('../models/AdminSettings').getSettings();
-      const orderTimeLimit = adminSettings.orderTimeLimit || "18:00";
+      const orderTimeLimit = adminSettings.orderTimeLimit;
+
+      if (!orderTimeLimit) {
+        logger.warn('No se encontró configuración de hora límite en AdminSettings');
+        return res.status(500).json({
+          success: false,
+          message: 'Error en la configuración del sistema'
+        });
+      }
       
       // Calcular fecha mínima permitida
       const minDeliveryDate = Order.calculateDeliveryDate(new Date(), orderTimeLimit);
@@ -167,7 +176,15 @@ const createOrder = async (req, res) => {
     if (!delivery_date) {
       // Obtener configuración de hora límite
       const adminSettings = await require('../models/AdminSettings').getSettings();
-      const orderTimeLimit = adminSettings.orderTimeLimit || "18:00";
+      const orderTimeLimit = adminSettings.orderTimeLimit;
+
+      if (!orderTimeLimit) {
+        logger.warn('No se encontró configuración de hora límite en AdminSettings');
+        return res.status(500).json({
+          success: false,
+          message: 'Error en la configuración del sistema'
+        });
+      }
       
       // Calcular fecha de entrega automáticamente
       parsedDeliveryDate = Order.calculateDeliveryDate(new Date(), orderTimeLimit);
@@ -511,7 +528,15 @@ const updateOrder = async (req, res) => {
       
       // Obtener configuración de hora límite
       const adminSettings = await require('../models/AdminSettings').getSettings();
-      const orderTimeLimit = adminSettings.orderTimeLimit || "18:00";
+      const orderTimeLimit = adminSettings.orderTimeLimit;
+
+      if (!orderTimeLimit) {
+        logger.warn('No se encontró configuración de hora límite en AdminSettings');
+        return res.status(500).json({
+          success: false,
+          message: 'Error en la configuración del sistema'
+        });
+      }
       
       // Calcular fecha mínima permitida
       const minDeliveryDate = Order.calculateDeliveryDate(new Date(), orderTimeLimit);
@@ -742,7 +767,15 @@ const calculateDeliveryDate = async (req, res) => {
 
     // Obtener configuración de hora límite
     const adminSettings = await require('../models/AdminSettings').getSettings();
-    const orderTimeLimit = adminSettings.orderTimeLimit || "18:00";
+    const orderTimeLimit = adminSettings.orderTimeLimit;
+
+    if (!orderTimeLimit) {
+      logger.warn('No se encontró configuración de hora límite en AdminSettings');
+      return res.status(500).json({
+        success: false,
+        message: 'Error en la configuración del sistema'
+      });
+    }
     
     // Calcular fecha de entrega
     const deliveryDate = Order.calculateDeliveryDate(new Date(), orderTimeLimit);
@@ -833,7 +866,15 @@ const updatePendingOrders = async (req, res) => {
   try {
     // Obtener configuración de hora límite
     const adminSettings = await require('../models/AdminSettings').getSettings();
-    const orderTimeLimit = adminSettings.orderTimeLimit || "18:00";
+    const orderTimeLimit = adminSettings.orderTimeLimit;
+
+    if (!orderTimeLimit) {
+      logger.warn('No se encontró configuración de hora límite en AdminSettings');
+      return res.status(500).json({
+        success: false,
+        message: 'Error en la configuración del sistema'
+      });
+    }
     
     // Obtener opciones de la solicitud
     const ignoreTimeLimit = req.body.ignoreTimeLimit === true;
