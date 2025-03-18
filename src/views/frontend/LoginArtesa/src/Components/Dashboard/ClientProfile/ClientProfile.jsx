@@ -76,6 +76,10 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
         
         // Extraer los datos - pueden estar en response.data.data o directamente en response.data
         const profileData = response.data?.data || response.data;
+
+        if (profileData.verification_digit) {
+          formDataUpdate.digitoVerificacion = profileData.verification_digit;
+        }
         
         if (profileData) {
           console.log("Perfil encontrado:", profileData);
@@ -215,16 +219,29 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
     }
 
     // Validar que digitoVerificacion sea un número entero de un solo dígito
-    const digitoVerif = parseInt(formData.digitoVerificacion);
-    if (isNaN(digitoVerif) || digitoVerif < 0 || digitoVerif > 9 || formData.digitoVerificacion.length > 1) {
+    if (formData.digitoVerificacion && (!/^[0-9]$/.test(formData.digitoVerificacion))) {
       setError('El dígito de verificación debe ser un número entre 0 y 9');
       setLoading(false);
       return;
     }
     
+    // Crear el tax_id combinando NIT y dígito de verificación
+    let taxId = '';
+    if (formData.nit) {
+      taxId = formData.nit;
+      if (formData.digitoVerificacion) {
+        taxId += '-' + formData.digitoVerificacion;
+      }
+    }
+
     try {
       // Crear FormData para enviar archivos
       const formDataToSend = new FormData();
+
+      // Agregar nit_number y verification_digit como campos separados
+      formDataToSend.append('nit_number', formData.nit || '');
+      formDataToSend.append('verification_digit', formData.digitoVerificacion || '');
+      formDataToSend.append('tax_id', taxId);
       
       // Agregar todos los campos del formulario
       Object.keys(formData).forEach(key => {
@@ -467,16 +484,22 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
                 </div>
 
                 <div className="form-group">
-                  <label htmlFor="digitoVerificacion">Dígito de Verificación</label>
-                  <input 
-                    type="number" 
-                    id="digitoVerificacion" 
-                    name="digitoVerificacion" 
-                    value={formData.digitoVerificacion} 
-                    onChange={handleChange} 
-                    min="0"
-                    max="9"
-                  />
+                <label htmlFor="digitoVerificacion">Dígito de Verificación</label>
+                <input 
+                  type="text" 
+                  id="digitoVerificacion" 
+                  name="digitoVerificacion" 
+                  value={formData.digitoVerificacion} 
+                  onChange={(e) => {
+                    // Solo permitir un dígito numérico
+                    const value = e.target.value;
+                    if (value === '' || /^[0-9]$/.test(value)) {
+                      handleChange(e);
+                    }
+                  }}
+                  maxLength="1"
+                  pattern="[0-9]"
+                />
                 </div>
               </div>
               
