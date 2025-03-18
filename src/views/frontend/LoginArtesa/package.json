@@ -9,7 +9,9 @@
     "sass:build": "node --no-warnings scripts/generate-css.js",
     "sass:watch": "sass --watch src:src",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "purge": "purgecss --config purgecss.config.js --output dist/css/",
+    "build:prod": "npm run build && npm run purge"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.0.12",
@@ -37,4 +39,5 @@
     "tailwindcss": "^3.4.17",
     "vite": "^6.1.1"
   }
+  
 }

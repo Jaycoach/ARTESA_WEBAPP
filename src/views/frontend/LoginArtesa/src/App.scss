@@ -1,5 +1,6 @@
 @use 'sass:map';
 @use 'sass:meta';
+@use './styles/variables.scss' as *;
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -394,23 +395,23 @@ img, video {
 
 // Sidebar
 .sidebar {
-  width: 60px;
-  min-height: calc(100vh - 60px);
+  width: 200px;
+  min-width: 200px;
   background-color: var(--bg-color);
   color: var(--white);
-  transition: width var(--transition-default);
+  transition: width var(--transition-default) ease;
   position: fixed;
   left: 0;
   top: 60px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  box-shadow: var(--shadow-md);
-  overflow: visible; /* Mantener visible para mostrar el botón */
-  z-index: 1000;
+  box-shadow: var(--shadow-md, 0 4px 12px rgba(0,0,0,0.05));
+  overflow: hidden; /* Mantener visible para mostrar el botón */
   
-  &:hover {
-    width: 200px;
+  &.collapsed {
+    width: 60px;
+    min-width: 60px;
   }
   
   .menuTitle, .settingsTitle, .smallText {
@@ -429,21 +430,19 @@ img, video {
   
   .toggle-btn {
     position: absolute;
-    top: 20px;
+    top: 10px;
     right: -15px;
+    background-color: var(--primary, #fbbf24);
+    color: white;
+    border-radius: 50%;
     width: 30px;
     height: 30px;
-    background-color: var(--bg-color);
-    border: 2px solid var(--white);
-    color: var(--white);
-    cursor: pointer;
-    padding: 5px;
-    border-radius: 50%;
-    transition: all var(--transition-default);
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 1010;
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
     
     &:hover {
       background-color: var(--hover-color);
@@ -528,14 +527,43 @@ img, video {
 // Dashboard
 .dashboard {
   display: flex;
-  flex-direction: column;
   height: 100vh;
+  width: 100%;
+  overflow: hidden;
+  background-color: #f4f7fa;
   
-  .dashboard-page {
-    width: 100%;
-    padding: 20px;
-    overflow-y: auto;
+
+  .dashboard-content{
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+
+    .main-content {
+      flex: 1;
+      padding: 2rem;
+      overflow-y: auto;
+      overflow-x: hidden;
+      background-color: #f9fbfd;
+      
+      .sidebar-expanded & {
+        margin-left: 60px;
+      }
+      > div {
+        margin-bottom: 1rem;
+    }
   }
+    
+    .sidebar-container {
+      width: 60px; /* Ancho inicial del sidebar */
+      transition: width var(--transition-default) ease;
+      
+      &.expanded {
+        width: var(--transition-default) ease;
+      }
+    }
+    
+
   
   /* User profile section */
   .user-profile-section {
@@ -616,7 +644,9 @@ img, video {
     }
     
     .dashboard-sections {
+      display: grid;
       grid-template-columns: 1fr;
+      gap: var(--spacing-md);
     }
   }
   
@@ -655,19 +685,63 @@ img, video {
   }
   
   .summary-card {
-    padding: var(--spacing-sm);
-    border-radius: var(--border-radius-sm);
+    background-color: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+    border-left-width: 4px;
+    border-left-style: solid;
+    padding: 1rem;
     width: 100%;
-    
-    @include breakpoint(md) {
-      width: auto;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  
+    &:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 6px 12px rgba(0,0,0,0.1);
     }
-    
-    &.pending { background: #f9c74f; }
-    &.completed { background: #90be6d; }
-    &.canceled { background: #f94144; }
+  
+    .card-content {
+      h3 {
+        font-size: 1rem;
+        color: #444;
+        margin-bottom: 0.3rem;
+      }
+      
+      .card-value {
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: #222;
+      }
+  
+      .additional-info {
+        margin-top: 0.6rem;
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+  
+        .info-tag {
+          background-color: rgba(255, 193, 7, 0.15);
+          color: #d17c00;
+          border-radius: 12px;
+          padding: 0.25rem 0.75rem;
+          font-size: 0.75rem;
+        }
+      }
+    }
+  }
+  ::-webkit-scrollbar {
+    width: 8px;
   }
   
-.sidebar:hover ~ .dashboard-layout .dashboard-content {
-  margin-left: 200px;
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    background-color: rgba(148, 163, 184, 0.6);
+    border-radius: 4px;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(148, 163, 184, 0.9);
+  }
 }
