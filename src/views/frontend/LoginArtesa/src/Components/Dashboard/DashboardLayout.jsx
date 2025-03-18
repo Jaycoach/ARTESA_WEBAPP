@@ -31,18 +31,15 @@ const DashboardLayout = () => {
   }
 
   return (
-    <div className={`dashboard`}>
-  <Sidebar 
-    collapsed={sidebarCollapsed} 
-    onToggle={toggleSidebar}
-  />
-  <div className="dashboard-content">
-    <Top user={user} onToggleSidebar={toggleSidebar} />
-    <main className="main-content">
-      <Outlet />
-    </main>
+    <div className="dashboard">
+    <Sidebar collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
+    <div className="dashboard-content">
+      <Top user={user} onToggleSidebar={toggleSidebar} />
+      <main className="main-content">
+        <Outlet />
+      </main>
+    </div>
   </div>
-</div>
   );
 };
 

@@ -303,19 +303,14 @@ img, video {
 }
 
 .sidebar {
-  width: 200px;
-  min-width: 200px;
-  background-color: var(--bg-color);
-  color: var(--white);
-  transition: width var(--transition-default) ease;
-  position: fixed;
-  left: 0;
+  width: 250px;
+  min-width: 250px;
+  height: 100vh; /* Importante para ocupar todo el alto */
+  background-color: #1e3a56;
+  color: #fff;
+  transition: width 0.3s ease;
   top: 60px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  box-shadow: var(--shadow-md, 0 4px 12px rgba(0, 0, 0, 0.05));
-  overflow: hidden; /* Mantener visible para mostrar el botón */
+  overflow-y: auto; /* Mantener visible para mostrar el botón */
   /* Estilos para los elementos del menú */
   /* Separador opcional para el menú */
 }
@@ -416,15 +411,17 @@ img, video {
 .dashboard {
   display: flex;
   height: 100vh;
-  width: 100%;
+  width: 100vw;
   overflow: hidden;
-  background-color: #f4f7fa;
+  padding-top: 60px;
 }
 .dashboard .dashboard-content {
+  flex: 1;
+  height: 100vh;
+  overflow-y: auto;
+  background-color: #f4f7fa;
   display: flex;
   flex-direction: column;
-  flex: 1;
-  overflow: hidden;
   /* User profile section */
   /* Banner container */
   /* Welcome container */
@@ -433,22 +430,22 @@ img, video {
 }
 .dashboard .dashboard-content .main-content {
   flex: 1;
-  padding: 2rem;
-  overflow-y: auto;
+  padding: 2rem 4rem; /* más padding lateral para centrar mejor el contenido */
   overflow-x: hidden;
-  background-color: #f9fbfd;
-}
-.sidebar-expanded .dashboard .dashboard-content .main-content {
-  margin-left: 60px;
+  overflow-y: auto;
+  margin-top: 50px;
+  position: relative;
 }
 .dashboard .dashboard-content .main-content > div {
+  max-width: 1400px;
+  margin: 0 auto;
   margin-bottom: 1rem;
 }
-.dashboard .dashboard-content .sidebar-container {
+.dashboard .dashboard-content .main-content .sidebar-container {
   width: 60px; /* Ancho inicial del sidebar */
   transition: width var(--transition-default) ease;
 }
-.dashboard .dashboard-content .sidebar-container.expanded {
+.dashboard .dashboard-content .main-content .sidebar-container.expanded {
   width: var(--transition-default) ease;
 }
 .dashboard .dashboard-content .user-profile-section {
