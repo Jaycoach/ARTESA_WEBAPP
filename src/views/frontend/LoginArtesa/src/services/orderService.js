@@ -172,21 +172,28 @@ async canEditOrder(orderId, orderTimeLimit = '18:00') {
       };
     }
     
-    // Si el pedido es de un día anterior o el mismo día pero después del límite
-    if (diffDays == 1 || (diffDays == 0 && orderDay.getTime() < today.getTime())) {
-      const [limitHours, limitMinutes] = actualOrderTimeLimit.split(':').map(Number);
-      const limitTime = new Date();
-      limitTime.setHours(limitHours, limitMinutes, 0, 0);
-      
-      console.log(`Hora actual: ${now.toLocaleTimeString()}, Hora límite: ${limitTime.toLocaleTimeString()}`);
-      
-      if (now > limitTime) {
-        console.log(`Fuera de la hora límite de edición`);
-        return {
-          canEdit: false,
-          reason: `No se puede editar después de las ${actualOrderTimeLimit}`
-        };
-      }
+    // Si el pedido es de un día diferente al actual, no se puede editar
+    if (diffDays > 0) {
+      console.log(`Pedido de un día diferente al actual - no editable`);
+      return {
+        canEdit: false,
+        reason: `Solo puedes editar pedidos el mismo día de su creación`
+      };
+    }
+
+    // Si es el mismo día, verificar la hora límite
+    const [limitHours, limitMinutes] = actualOrderTimeLimit.split(':').map(Number);
+    const limitTime = new Date();
+    limitTime.setHours(limitHours, limitMinutes, 0, 0);
+
+    console.log(`Hora actual: ${now.toLocaleTimeString()}, Hora límite: ${limitTime.toLocaleTimeString()}`);
+
+    if (now > limitTime) {
+      console.log(`Fuera de la hora límite de edición`);
+      return {
+        canEdit: false,
+        reason: `No se puede editar después de las ${actualOrderTimeLimit}`
+      };
     }
     
     console.log('El pedido puede ser editado');

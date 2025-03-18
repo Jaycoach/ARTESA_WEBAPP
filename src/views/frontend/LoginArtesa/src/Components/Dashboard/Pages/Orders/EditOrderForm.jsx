@@ -398,15 +398,15 @@ const EditOrderForm = ({ onOrderUpdated }) => {
               <FaExclamationTriangle className="h-5 w-5 text-amber-400" />
             </div>
             <div className="ml-3">
-              <p className="text-sm text-amber-700">
-                <span className="font-medium">Recuerda: </span> 
-                Solo puedes editar este pedido hasta las {siteSettings.orderTimeLimit} del día siguiente a su creación.
-                {order && (
-                  <span>
-                    {' '}El pedido fue creado el {new Date(order.order_date).toLocaleDateString('es-ES')}.
-                  </span>
-                )}
-              </p>
+            <p className="text-sm text-amber-700">
+              <span className="font-medium">Recuerda: </span> 
+              Solo puedes editar este pedido hasta las {siteSettings.orderTimeLimit} del mismo día de su creación.
+              {order && (
+                <span>
+                  {' '}El pedido fue creado el {new Date(order.order_date).toLocaleDateString('es-ES')}.
+                </span>
+              )}
+            </p>
             </div>
           </div>
         </div>
