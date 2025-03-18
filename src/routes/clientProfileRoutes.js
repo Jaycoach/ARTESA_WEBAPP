@@ -416,6 +416,14 @@ router.post('/',
  *               nit:
  *                 type: string
  *                 description: NIT de la empresa
+ *               nit_number:
+ *               type: string
+ *                 description: Número de NIT sin dígito de verificación
+ *                 example: "901234567"
+ *               verification_digit:
+ *                 type: string
+ *                description: Dígito de verificación del NIT
+ *                  example: "8"
  *               representanteLegal:
  *                 type: string
  *                 description: Representante legal

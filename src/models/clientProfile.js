@@ -371,7 +371,9 @@ static async create(clientData) {
         anexosAdicionales,
         // Otros campos específicos que quizás queramos extraer
         tipoDocumento,
-        numeroDocumento
+        numeroDocumento,
+        nit_number,
+        verification_digit
       } = updateData;
       
       // Extraer campos adicionales para almacenar en notes
@@ -379,7 +381,7 @@ static async create(clientData) {
       
       // Eliminar campos que ya están mapeados a columnas de la base de datos
       ['nombre', 'email', 'telefono', 'direccion', 'ciudad', 'pais', 
-       'razonSocial', 'nit', 'fotocopiaCedula', 'fotocopiaRut', 'anexosAdicionales'].forEach(key => {
+       'razonSocial', 'nit', 'nit_number', 'verification_digit', 'fotocopiaCedula', 'fotocopiaRut', 'anexosAdicionales'].forEach(key => {
         delete additionalFields[key];
       });
       
@@ -388,39 +390,43 @@ static async create(clientData) {
       
       // Construir la consulta de actualización
       const query = `
-        UPDATE client_profiles
-        SET 
-          company_name = COALESCE($1, company_name),
-          contact_name = COALESCE($2, contact_name),
-          contact_phone = COALESCE($3, contact_phone),
-          contact_email = COALESCE($4, contact_email),
-          address = COALESCE($5, address),
-          city = COALESCE($6, city),
-          country = COALESCE($7, country),
-          tax_id = COALESCE($8, tax_id),
-          notes = $9,
-          fotocopia_cedula = COALESCE($10, fotocopia_cedula),
-          fotocopia_rut = COALESCE($11, fotocopia_rut),
-          anexos_adicionales = COALESCE($12, anexos_adicionales),
-          updated_at = CURRENT_TIMESTAMP
-        WHERE user_id = $13
-        RETURNING *;
+      UPDATE client_profiles
+      SET 
+        company_name = COALESCE($1, company_name),
+        contact_name = COALESCE($2, contact_name),
+        contact_phone = COALESCE($3, contact_phone),
+        contact_email = COALESCE($4, contact_email),
+        address = COALESCE($5, address),
+        city = COALESCE($6, city),
+        country = COALESCE($7, country),
+        tax_id = COALESCE($8, tax_id),
+        nit_number = COALESCE($9, nit_number),
+        verification_digit = COALESCE($10, verification_digit),
+        notes = $11,
+        fotocopia_cedula = COALESCE($12, fotocopia_cedula),
+        fotocopia_rut = COALESCE($13, fotocopia_rut),
+        anexos_adicionales = COALESCE($14, anexos_adicionales),
+        updated_at = CURRENT_TIMESTAMP
+      WHERE user_id = $15
+      RETURNING *;
       `;
-      
+
       const values = [
-        razonSocial,          // company_name
-        nombre,               // contact_name
-        telefono,             // contact_phone
-        email,                // contact_email
-        direccion,            // address
-        ciudad,               // city
-        pais,                 // country
-        nit,                  // tax_id
-        notesJSON,            // notes
-        fotocopiaCedula,      // fotocopia_cedula
-        fotocopiaRut,         // fotocopia_rut
-        anexosAdicionales,    // anexos_adicionales
-        userId               // user_id para WHERE
+      razonSocial,          // company_name
+      nombre,               // contact_name
+      telefono,             // contact_phone
+      email,                // contact_email
+      direccion,            // address
+      ciudad,               // city
+      pais,                 // country
+      nit,                  // tax_id
+      nit_number,           // nit_number (nuevo)
+      verification_digit,   // verification_digit (nuevo)
+      notesJSON,            // notes
+      fotocopiaCedula,      // fotocopia_cedula
+      fotocopiaRut,         // fotocopia_rut
+      anexosAdicionales,    // anexos_adicionales
+      userId                // user_id para WHERE
       ];
       
       const { rows } = await pool.query(query, values);
