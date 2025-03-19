@@ -846,6 +846,8 @@ class ClientProfileController {
         'city': 'ciudad',
         'country': 'pais',
         'tax_id': 'nit',
+        'nit_number': 'nit_number',
+        'verification_digit': 'verification_digit',  
         'price_list': 'listaPrecios',
         'notes': 'notas'
       };
