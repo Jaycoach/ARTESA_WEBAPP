@@ -498,11 +498,11 @@ static incrementLoginAttempts(mail) {
                 throw new Error('Error en la configuración de roles');
             }
 
-            // 4. Insertar nuevo usuario
+            // 4. Insertar nuevo usuario - is_active = false requiere activación posterior
             const result = await pool.query(
                 `INSERT INTO users 
                 (name, mail, password, rol_id, is_active) 
-                VALUES ($1, $2, $3, $4, true)
+                VALUES ($1, $2, $3, $4, false)
                 RETURNING id, name, mail, rol_id`,
                 [name, mail, hashedPassword, userRoleId]
             );
