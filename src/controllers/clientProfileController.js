@@ -693,8 +693,28 @@ class ClientProfileController {
       // Verificar si se debe sincronizar con SAP
       if (profile.nit_number && profile.verification_digit) {
         try {
+          logger.debug('Intentando sincronizar perfil con SAP', {
+            nit_number: profile.nit_number,
+            verification_digit: profile.verification_digit,
+            client_id: profile.client_id,
+            user_id: profile.user_id
+          });
+          
+          // Verificar que el servicio de SAP esté inicializado
+          if (!sapIntegrationService.initialized) {
+            logger.debug('Inicializando servicio de SAP antes de sincronizar');
+            await sapIntegrationService.initialize();
+          }
+          
           // Intentar crear en SAP
           const sapResult = await sapIntegrationService.createOrUpdateBusinessPartnerLead(profile);
+          
+          logger.debug('Resultado de sincronización con SAP', {
+            success: sapResult.success,
+            cardCode: sapResult.cardCode,
+            isNew: sapResult.isNew,
+            client_id: profile.client_id
+          });
           
           // Actualizar el perfil con la información de SAP
           if (sapResult.success) {
@@ -719,6 +739,7 @@ class ClientProfileController {
           // No fallamos la creación del perfil si falla SAP, solo logueamos el error
           logger.error('Error al sincronizar perfil con SAP', {
             error: sapError.message,
+            stack: sapError.stack,
             clientId: profile.client_id
           });
         }
@@ -852,12 +873,12 @@ class ClientProfileController {
       }
 
       // Validar que si se proporciona NIT o dígito de verificación, ambos sean proporcionados
-      if ((updateData.nit_number && !updateData.verification_digit) || 
-      (!updateData.nit_number && updateData.verification_digit)) {
-      return res.status(400).json({
-      success: false,
-      message: 'Si proporciona el NIT, debe incluir también el dígito de verificación y viceversa'
-      });
+      if ((req.body.nit_number && !req.body.verification_digit) || 
+      (!req.body.nit_number && req.body.verification_digit)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Si proporciona el NIT, debe incluir también el dígito de verificación y viceversa'
+        });
       }
       
       // Extraer datos de la solicitud
@@ -1043,11 +1064,36 @@ class ClientProfileController {
           updateData.telefono || updateData.email ||
           updateData.direccion || updateData.nit_number;
           
+        logger.debug('Evaluando criterios para sincronización con SAP', {
+          shouldSync,
+          hasChangedSapRelevantData,
+          nit_number: updatedProfile.nit_number,
+          verification_digit: updatedProfile.verification_digit,
+          client_id: updatedProfile.client_id
+        });
+          
         // Si debe sincronizarse (primera vez o se modificaron datos)
         if (shouldSync || hasChangedSapRelevantData) {
           try {
+            // Verificar que el servicio de SAP esté inicializado
+            if (!sapIntegrationService.initialized) {
+              logger.debug('Inicializando servicio de SAP antes de sincronizar');
+              await sapIntegrationService.initialize();
+            }
+            
+            logger.info('Intentando sincronizar perfil con SAP', {
+              client_id: updatedProfile.client_id,
+              nit: updatedProfile.nit_number
+            });
+            
             // Intentar crear/actualizar en SAP
             const sapResult = await sapIntegrationService.createOrUpdateBusinessPartnerLead(updatedProfile);
+            
+            logger.debug('Resultado de sincronización con SAP', {
+              success: sapResult.success,
+              cardCode: sapResult.cardCode,
+              client_id: updatedProfile.client_id
+            });
             
             // Actualizar el perfil con la información de SAP
             if (sapResult.success) {
@@ -1072,6 +1118,7 @@ class ClientProfileController {
             // No fallamos la actualización del perfil si falla SAP, solo logueamos el error
             logger.error('Error al sincronizar perfil con SAP', {
               error: sapError.message,
+              stack: sapError.stack,
               clientId: updatedProfile.client_id
             });
           }
