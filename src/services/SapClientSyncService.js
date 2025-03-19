@@ -133,8 +133,8 @@ class SapClientSyncService {
             continue;
           }
           
-          // Verificar si ya no es Lead (CardType != 'L')
-          if (sapClient.CardType !== 'L') {
+          // Verificar si ya no es Lead (CardType != 'cLid')
+          if (sapClient.CardType !== 'cLid') {
             // Activar al usuario
             await pool.query('UPDATE users SET is_active = true WHERE id = $1', [client.user_id]);
             
