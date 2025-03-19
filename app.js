@@ -15,6 +15,8 @@ const sapSyncRoutes = require('./src/routes/sapSyncRoutes');
 const { logger, createContextLogger } = require('./src/config/logger');
 const S3Service = require('./src/services/S3Service');
 const orderScheduler = require('./src/services/OrderScheduler');
+const clientSyncRoutes = require('./src/routes/clientSyncRoutes');
+const sapClientSyncService = require('./src/services/SapClientSyncService');
 
 // Importaciones de middlewares
 const { errorHandler, notFound } = require('./src/middleware/errorMiddleware');
@@ -294,6 +296,7 @@ app.use(API_PREFIX, orderRoutes);
 // Nueva ruta para SAP
 app.use(`${API_PREFIX}/sap`, sapSyncRoutes);
 app.use(`${API_PREFIX}/admin`, adminRoutes);
+app.use(`${API_PREFIX}/client-sync`, clientSyncRoutes);
 
 // Aplicamos fileUpload sólo a las rutas específicas que lo necesitan
 app.use(`${API_PREFIX}/upload`, fileUpload(fileUploadOptions), uploadRoutes);
@@ -342,6 +345,17 @@ if (process.env.SAP_SERVICE_LAYER_URL) {
 } else {
   appLogger.info('Integración con SAP B1 no configurada');
 }
+
+sapClientSyncService.initialize()
+  .then(() => {
+    logger.info('Servicio de sincronización de clientes inicializado correctamente');
+  })
+  .catch(error => {
+    logger.error('Error al inicializar servicio de sincronización de clientes', {
+      error: error.message,
+      stack: error.stack
+    });
+  });
 
 // Inicializar servicio S3
 if (process.env.STORAGE_MODE === 's3') {

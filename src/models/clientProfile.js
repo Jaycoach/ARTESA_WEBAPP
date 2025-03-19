@@ -315,6 +315,10 @@ static async create(clientData) {
       clientData.CardCode_sap, // CardCode_sap
       clientProfileCode        // ClientProfileCode_SAP
     ];
+
+    // También actualizar is_active en la tabla de usuarios
+    await pool.query('UPDATE users SET is_active = false WHERE id = $1', [userId]);
+    logger.debug('Usuario marcado como inactivo hasta aprobación por SAP', { userId });
     
     const { rows } = await pool.query(query, values);
     
@@ -461,7 +465,11 @@ static async create(clientData) {
       anexosAdicionales,    // anexos_adicionales
       userId                // user_id para WHERE
       ];
-      
+
+      // También actualizar is_active en la tabla de usuarios
+      await pool.query('UPDATE users SET is_active = false WHERE id = $1', [userId]);
+      logger.debug('Usuario marcado como inactivo hasta aprobación por SAP', { userId });
+            
       const { rows } = await pool.query(query, values);
       
       if (rows.length === 0) {

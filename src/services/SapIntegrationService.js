@@ -1038,6 +1038,54 @@ class SapIntegrationService {
   }
 
   /**
+   * Consulta un Business Partner por su código de artesa (U_AR_ArtesaCode)
+   * @param {string} artesaCode - Código Artesa del cliente
+   * @returns {Promise<Object|null>} - Datos del Business Partner o null si no existe
+   */
+  async getBusinessPartnerByArtesaCode(artesaCode) {
+    try {
+      // Verificar que hay un código válido
+      if (!artesaCode) {
+        logger.warn('Se intentó consultar un BP sin proporcionar código Artesa');
+        return null;
+      }
+      
+      logger.debug('Consultando Business Partner por código Artesa', { artesaCode });
+      
+      // Construir la consulta con filtro para el campo personalizado U_AR_ArtesaCode
+      const endpoint = `BusinessPartners?$filter=U_AR_ArtesaCode eq '${artesaCode}'`;
+      
+      // Realizar la consulta a SAP
+      const result = await this.request('GET', endpoint);
+      
+      // Verificar si se encontraron resultados
+      if (!result || !result.value || result.value.length === 0) {
+        logger.debug('No se encontró Business Partner con el código Artesa proporcionado', { artesaCode });
+        return null;
+      }
+      
+      // Devolver el primer resultado (debería ser único)
+      const businessPartner = result.value[0];
+      
+      logger.info('Business Partner encontrado por código Artesa', {
+        artesaCode,
+        cardCode: businessPartner.CardCode,
+        cardType: businessPartner.CardType,
+        cardName: businessPartner.CardName
+      });
+      
+      return businessPartner;
+    } catch (error) {
+      logger.error('Error al consultar Business Partner por código Artesa', {
+        artesaCode,
+        error: error.message,
+        stack: error.stack
+      });
+      throw error;
+    }
+  }
+
+  /**
    * Cierra la sesión con SAP B1
    */
   async logout() {
