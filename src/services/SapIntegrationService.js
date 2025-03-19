@@ -979,6 +979,7 @@ class SapIntegrationService {
       
       // Preparar datos para SAP
       const businessPartnerData = {
+        CardCode: profile.cardcode_sap || `C${profile.nit_number}`,
         CardName: clientProfile.company_name || clientProfile.contact_name || '',
         CardType: 'L',  // Lead
         PriceListNum: 1,
@@ -988,6 +989,15 @@ class SapIntegrationService {
         EmailAddress: clientProfile.contact_email || '',
         Address: clientProfile.address || ''
       };
+
+      logger.debug('Objeto BusinessPartner a enviar a SAP', {
+        CardCode: businessPartnerData.CardCode,
+        CardName: businessPartnerData.CardName,
+        FederalTaxID: businessPartnerData.FederalTaxID,
+        EmailAddress: businessPartnerData.EmailAddress,
+        Address: businessPartnerData.Address,
+        isNew: !profile.cardcode_sap
+      });
 
       // Si es actualización, usamos PATCH, si es creación usamos POST
       const method = isUpdate ? 'PATCH' : 'POST';
