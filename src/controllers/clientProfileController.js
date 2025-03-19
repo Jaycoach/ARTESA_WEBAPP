@@ -559,6 +559,8 @@ class ClientProfileController {
         'ciudad': 'ciudad',
         'pais': 'pais',
         'nit': 'nit',
+        'nit_number': 'nit_number',
+        'verification_digit': 'verification_digit',
         
         // Campos adicionales
         'tipoDocumento': 'tipoDocumento',
@@ -976,7 +978,7 @@ class ClientProfileController {
           message: 'Error al actualizar perfil'
         });
       }
-      
+
       // Agregar URLs para archivos en la respuesta
       const baseUrl = `${req.protocol}://${req.get('host')}`;
       
