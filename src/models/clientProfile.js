@@ -36,6 +36,10 @@ class ClientProfile {
           city AS "ciudad",
           country AS "pais",
           tax_id AS "nit",
+          nit_number,
+          verification_digit,
+          CardCode_sap,
+          ClientProfileCode_SAP,
           price_list,
           notes,
           fotocopia_cedula AS "fotocopiaCedula",
@@ -104,6 +108,10 @@ class ClientProfile {
           city AS "ciudad",
           country AS "pais",
           tax_id AS "nit",
+          nit_number,
+          verification_digit,
+          CardCode_sap,
+          ClientProfileCode_SAP,
           price_list,
           notes,
           fotocopia_cedula AS "fotocopiaCedula",
@@ -171,6 +179,10 @@ class ClientProfile {
           city AS "ciudad",
           country AS "pais",
           tax_id AS "nit",
+          nit_number,
+          verification_digit,
+          CardCode_sap,
+          ClientProfileCode_SAP,
           price_list,
           notes,
           fotocopia_cedula AS "fotocopiaCedula",
@@ -253,6 +265,12 @@ static async create(clientData) {
       throw new Error('Se requiere el ID de usuario para crear el perfil');
     }
     
+    // Generar ClientProfileCode_SAP si tenemos nit_number
+    let clientProfileCode = null;
+    if (clientData.nit_number) {
+      clientProfileCode = `C${clientData.nit_number}`;
+    }
+
     // Extraer todos los demás campos para almacenarlos como JSON en notes
     const additionalFields = { ...clientData };
     
@@ -267,8 +285,9 @@ static async create(clientData) {
       INSERT INTO client_profiles
       (user_id, company_name, contact_name, contact_phone, contact_email, 
        address, city, country, tax_id, notes,
-       fotocopia_cedula, fotocopia_rut, anexos_adicionales, price_list)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+       fotocopia_cedula, fotocopia_rut, anexos_adicionales, price_list, 
+       nit_number, verification_digit, CardCode_sap, ClientProfileCode_SAP)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18 )
       RETURNING *;
     `;
     
@@ -290,8 +309,16 @@ static async create(clientData) {
       fotocopiaCedula,         // fotocopia_cedula
       fotocopiaRut,            // fotocopia_rut
       anexosAdicionales,       // anexos_adicionales
-      clientData.listaPrecios || 1 // price_list (valor por defecto: 1)
+      clientData.listaPrecios || 1, // price_list (valor por defecto: 1)
+      clientData.nit_number,   // nit_number
+      clientData.verification_digit, // verification_digit
+      clientData.CardCode_sap, // CardCode_sap
+      clientProfileCode        // ClientProfileCode_SAP
     ];
+
+    // También actualizar is_active en la tabla de usuarios
+    await pool.query('UPDATE users SET is_active = false WHERE id = $1', [userId]);
+    logger.debug('Usuario marcado como inactivo hasta aprobación por SAP', { userId });
     
     const { rows } = await pool.query(query, values);
     
@@ -378,6 +405,12 @@ static async create(clientData) {
       
       // Extraer campos adicionales para almacenar en notes
       const additionalFields = { ...updateData };
+
+      // Generar ClientProfileCode_SAP si tenemos nit_number
+      let clientProfileCode = null;
+      if (nit_number) {
+        clientProfileCode = `C${nit_number}`;
+      }
       
       // Eliminar campos que ya están mapeados a columnas de la base de datos
       ['nombre', 'email', 'telefono', 'direccion', 'ciudad', 'pais', 
@@ -402,12 +435,14 @@ static async create(clientData) {
         tax_id = COALESCE($8, tax_id),
         nit_number = COALESCE($9, nit_number),
         verification_digit = COALESCE($10, verification_digit),
-        notes = $11,
-        fotocopia_cedula = COALESCE($12, fotocopia_cedula),
-        fotocopia_rut = COALESCE($13, fotocopia_rut),
-        anexos_adicionales = COALESCE($14, anexos_adicionales),
+        CardCode_sap = COALESCE($11, CardCode_sap),
+        ClientProfileCode_SAP = COALESCE($12, CASE WHEN $9 IS NOT NULL THEN CONCAT('C', $9) ELSE ClientProfileCode_SAP END),
+        notes = $13,
+        fotocopia_cedula = COALESCE($14, fotocopia_cedula),
+        fotocopia_rut = COALESCE($15, fotocopia_rut),
+        anexos_adicionales = COALESCE($16, anexos_adicionales),
         updated_at = CURRENT_TIMESTAMP
-      WHERE user_id = $15
+      WHERE user_id = $17
       RETURNING *;
       `;
 
@@ -421,14 +456,20 @@ static async create(clientData) {
       pais,                 // country
       nit,                  // tax_id
       nit_number,           // nit_number (nuevo)
-      verification_digit,   // verification_digit (nuevo)
+      verification_digit,   // verification_digit
+      updateData.CardCode_sap, // CardCode_sap
+      clientProfileCode,    // Para generar ClientProfileCode_SAP
       notesJSON,            // notes
       fotocopiaCedula,      // fotocopia_cedula
       fotocopiaRut,         // fotocopia_rut
       anexosAdicionales,    // anexos_adicionales
       userId                // user_id para WHERE
       ];
-      
+
+      // También actualizar is_active en la tabla de usuarios
+      await pool.query('UPDATE users SET is_active = false WHERE id = $1', [userId]);
+      logger.debug('Usuario marcado como inactivo hasta aprobación por SAP', { userId });
+            
       const { rows } = await pool.query(query, values);
       
       if (rows.length === 0) {

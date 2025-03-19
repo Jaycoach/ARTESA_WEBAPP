@@ -952,6 +952,140 @@ class SapIntegrationService {
   }
 
   /**
+   * Crea o actualiza un socio de negocios tipo Lead en SAP B1
+   * @param {Object} clientProfile - Datos del perfil de cliente
+   * @returns {Promise<Object>} - Resultado de la operación en SAP
+   */
+  async createOrUpdateBusinessPartnerLead(clientProfile) {
+    try {
+      if (!clientProfile.nit_number || !clientProfile.verification_digit) {
+        throw new Error('El NIT y dígito de verificación son requeridos para crear un Lead en SAP');
+      }
+
+      logger.debug('Creando/actualizando socio de negocios tipo Lead en SAP B1', {
+        clientId: clientProfile.client_id,
+        nit: clientProfile.nit_number
+      });
+
+      // Determinar si es creación o actualización
+      const isUpdate = !!clientProfile.cardcode_sap;
+      const endpoint = isUpdate 
+        ? `BusinessPartners('${clientProfile.cardcode_sap}')` 
+        : 'BusinessPartners';
+      
+      // Formatear teléfono (asegurar que solo tenga 10 dígitos numéricos)
+      let phone = clientProfile.contact_phone || '';
+      phone = phone.replace(/\D/g, '').substring(0, 10);
+      
+      const cardCode = clientProfile.cardcode_sap || `C${clientProfile.nit_number}`;
+      // Preparar datos para SAP
+      const businessPartnerData = {
+        CardCode: cardCode,
+        CardName: clientProfile.razonSocial || clientProfile.company_name || clientProfile.nombre || clientProfile.contact_name || '',
+        CardType: 'L',  // Lead
+        PriceListNum: 1,
+        GroupCode: 102,
+        FederalTaxID: clientProfile.nit,
+        Phone1: clientProfile.telefono || clientProfile.contact_phone || phone,
+        EmailAddress: clientProfile.email || clientProfile.contact_email || '',
+        Address: clientProfile.address || '',
+        U_AR_ArtesaCode: cardCode  // Añadir campo personalizado
+      };
+
+      logger.debug('Objeto BusinessPartner a enviar a SAP', {
+        CardCode: businessPartnerData.CardCode,
+        CardName: businessPartnerData.CardName,
+        FederalTaxID: businessPartnerData.FederalTaxID,
+        EmailAddress: businessPartnerData.EmailAddress,
+        Address: businessPartnerData.Address,
+        isNew: !clientProfile.cardcode_sap
+      });
+
+      // Si es actualización, usamos PATCH, si es creación usamos POST
+      const method = isUpdate ? 'PATCH' : 'POST';
+      
+      // Realizar petición a SAP
+      const result = await this.request(method, endpoint, businessPartnerData);
+      
+      // Si es creación, extraer el CardCode generado
+      let resultCardCode = clientProfile.cardcode_sap;
+      if (!isUpdate && result && result.CardCode) {
+        resultCardCode = result.CardCode;
+        logger.info('Nuevo socio de negocios Lead creado en SAP', {
+          cardCode: resultCardCode,
+          clientId: clientProfile.client_id
+        });
+      } else if (isUpdate) {
+        logger.info('Socio de negocios Lead actualizado en SAP', {
+          cardCode: clientProfile.cardcode_sap,
+          clientId: clientProfile.client_id
+        });
+      }
+      
+      return {
+        success: true,
+        cardCode: resultCardCode,
+        isNew: !isUpdate
+      };
+    } catch (error) {
+      logger.error('Error al crear/actualizar socio de negocios Lead en SAP', {
+        error: error.message,
+        stack: error.stack,
+        clientId: clientProfile.client_id
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Consulta un Business Partner por su código de artesa (U_AR_ArtesaCode)
+   * @param {string} artesaCode - Código Artesa del cliente
+   * @returns {Promise<Object|null>} - Datos del Business Partner o null si no existe
+   */
+  async getBusinessPartnerByArtesaCode(artesaCode) {
+    try {
+      // Verificar que hay un código válido
+      if (!artesaCode) {
+        logger.warn('Se intentó consultar un BP sin proporcionar código Artesa');
+        return null;
+      }
+      
+      logger.debug('Consultando Business Partner por código Artesa', { artesaCode });
+      
+      // Construir la consulta con filtro para el campo personalizado U_AR_ArtesaCode
+      const endpoint = `BusinessPartners?$filter=U_AR_ArtesaCode eq '${artesaCode}'`;
+      
+      // Realizar la consulta a SAP
+      const result = await this.request('GET', endpoint);
+      
+      // Verificar si se encontraron resultados
+      if (!result || !result.value || result.value.length === 0) {
+        logger.debug('No se encontró Business Partner con el código Artesa proporcionado', { artesaCode });
+        return null;
+      }
+      
+      // Devolver el primer resultado (debería ser único)
+      const businessPartner = result.value[0];
+      
+      logger.info('Business Partner encontrado por código Artesa', {
+        artesaCode,
+        cardCode: businessPartner.CardCode,
+        cardType: businessPartner.CardType,
+        cardName: businessPartner.CardName
+      });
+      
+      return businessPartner;
+    } catch (error) {
+      logger.error('Error al consultar Business Partner por código Artesa', {
+        artesaCode,
+        error: error.message,
+        stack: error.stack
+      });
+      throw error;
+    }
+  }
+
+  /**
    * Cierra la sesión con SAP B1
    */
   async logout() {
