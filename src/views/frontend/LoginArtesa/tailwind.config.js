@@ -9,10 +9,10 @@ export default {
   theme: {
     extend: {
       colors: {
-        primary: 'var(--primary-color)',
-        secondary: 'var(--secondary-color)',
-        accent: 'var(--accent-color)',
-        hover: 'var(--hover-color)',
+        primary: '#687e8d',
+        accent: '#f6db8e',
+        secondary: '#f6754e',
+        base: '#ffffff',
       },
       fontSize: {
         biggest: 'var(--biggestFontSize)',

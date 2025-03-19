@@ -1,7 +1,5 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import "./Login.css";
-import "../../App.css";
 import { useAuth } from "../../hooks/useAuth"; // Importar el hook de autenticación
 
 // Import Assets
@@ -9,14 +7,13 @@ import img from "../../LoginsAssets/principal_img.gif";
 import logo from "../../LoginsAssets/logo_artesa_alt.png";
 
 // Import Icons
-import { FaUserShield } from "react-icons/fa";
 import { BsFillShieldLockFill } from "react-icons/bs";
 import { TiArrowRightOutline } from "react-icons/ti";
 import { MdEmail } from "react-icons/md";
 
 const Login = () => {
     const navigate = useNavigate();
-    const { login, updateUserInfo } = useAuth(); // Usar el contexto de autenticación
+    const { login, requestPasswordReset } = useAuth(); // Usar el contexto de autenticación
     const [forgotPassword, setForgotPassword] = useState(false);
     const [formData, setFormData] = useState({
         mail: '', 
@@ -74,7 +71,6 @@ const Login = () => {
         setLoading(true);
 
         try {
-            const { requestPasswordReset } = useAuth();
             const response = await requestPasswordReset(resetEmail);
             setResetMessage(response.message || "Revisa tu correo para continuar con la recuperación.");
         } catch (error) {

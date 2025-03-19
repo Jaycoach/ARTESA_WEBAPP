@@ -185,7 +185,8 @@ export const AuthProvider = ({ children }) => {
     setError(null);
     
     try {
-      const response = await API.post("/password/request-reset", { email });
+      const response = await API.post("/password/request-reset", { mail: email });
+      console.log("Respuesta del backend:", response.data);
       return response.data;
     } catch (error) {
       setError(error.response?.data?.message || "Error al solicitar recuperación");
