@@ -120,7 +120,17 @@ class AuthController {
                 user_agent: req?.headers?.['user-agent'] || null,
                 timestamp: new Date()
             };
-
+    
+            // Si no hay userId, solo loguea pero no guarda en la base de datos
+            if (!userId) {
+                logger.warn('Intento de login sin usuario identificado', {
+                    ip: ipAddress,
+                    status,
+                    details
+                });
+                return;
+            }
+    
             await pool.query(
                 `INSERT INTO login_history 
                 (user_id, ip_address, status, attempt_details, user_agent) 
@@ -309,7 +319,7 @@ static incrementLoginAttempts(mail) {
                     r.nombre as role_name
                 FROM users u
                 JOIN roles r ON u.rol_id = r.id
-                WHERE u.mail = $1 AND u.is_active = true
+                WHERE u.mail = $1
             `;
             
             const result = await pool.query(query, [mail]);
