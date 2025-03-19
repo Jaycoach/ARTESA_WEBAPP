@@ -952,6 +952,80 @@ class SapIntegrationService {
   }
 
   /**
+   * Crea o actualiza un socio de negocios tipo Lead en SAP B1
+   * @param {Object} clientProfile - Datos del perfil de cliente
+   * @returns {Promise<Object>} - Resultado de la operación en SAP
+   */
+  async createOrUpdateBusinessPartnerLead(clientProfile) {
+    try {
+      if (!clientProfile.nit_number || !clientProfile.verification_digit) {
+        throw new Error('El NIT y dígito de verificación son requeridos para crear un Lead en SAP');
+      }
+
+      logger.debug('Creando/actualizando socio de negocios tipo Lead en SAP B1', {
+        clientId: clientProfile.client_id,
+        nit: clientProfile.nit_number
+      });
+
+      // Determinar si es creación o actualización
+      const isUpdate = !!clientProfile.cardcode_sap;
+      const endpoint = isUpdate 
+        ? `BusinessPartners('${clientProfile.cardcode_sap}')` 
+        : 'BusinessPartners';
+      
+      // Formatear teléfono (asegurar que solo tenga 10 dígitos numéricos)
+      let phone = clientProfile.contact_phone || '';
+      phone = phone.replace(/\D/g, '').substring(0, 10);
+      
+      // Preparar datos para SAP
+      const businessPartnerData = {
+        CardName: clientProfile.company_name || clientProfile.contact_name || '',
+        CardType: 'L',  // Lead
+        PriceListNum: 1,
+        GroupCode: 102,
+        FederalTaxID: clientProfile.nit_number,
+        Phone1: phone,
+        EmailAddress: clientProfile.contact_email || '',
+        Address: clientProfile.address || ''
+      };
+
+      // Si es actualización, usamos PATCH, si es creación usamos POST
+      const method = isUpdate ? 'PATCH' : 'POST';
+      
+      // Realizar petición a SAP
+      const result = await this.request(method, endpoint, businessPartnerData);
+      
+      // Si es creación, extraer el CardCode generado
+      let cardCode = clientProfile.cardcode_sap;
+      if (!isUpdate && result && result.CardCode) {
+        cardCode = result.CardCode;
+        logger.info('Nuevo socio de negocios Lead creado en SAP', {
+          cardCode,
+          clientId: clientProfile.client_id
+        });
+      } else if (isUpdate) {
+        logger.info('Socio de negocios Lead actualizado en SAP', {
+          cardCode: clientProfile.cardcode_sap,
+          clientId: clientProfile.client_id
+        });
+      }
+      
+      return {
+        success: true,
+        cardCode,
+        isNew: !isUpdate
+      };
+    } catch (error) {
+      logger.error('Error al crear/actualizar socio de negocios Lead en SAP', {
+        error: error.message,
+        stack: error.stack,
+        clientId: clientProfile.client_id
+      });
+      throw error;
+    }
+  }
+
+  /**
    * Cierra la sesión con SAP B1
    */
   async logout() {

@@ -6,6 +6,7 @@ const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const ClientProfile = require('../models/clientProfile');
 const S3Service = require('../services/S3Service');
+const sapIntegrationService = require('../services/SapIntegrationService');
 
 // Crear una instancia del logger con contexto
 const logger = createContextLogger('ClientProfileController');
@@ -661,6 +662,15 @@ class ClientProfileController {
       });
       // Continuamos sin archivos
     }
+
+    // Validar que si se proporciona NIT o dígito de verificación, ambos sean proporcionados
+    if ((clientData.nit_number && !clientData.verification_digit) || 
+    (!clientData.nit_number && clientData.verification_digit)) {
+    return res.status(400).json({
+    success: false,
+    message: 'Si proporciona el NIT, debe incluir también el dígito de verificación y viceversa'
+    });
+    }
       
       // Crear el perfil
       const profile = await ClientProfile.create(clientData);
@@ -678,6 +688,40 @@ class ClientProfileController {
       
       if (profile.anexosAdicionales) {
         profile.anexosAdicionalesUrl = `${baseUrl}/api/client-profiles/${profile.user_id}/file/anexos`;
+      }
+
+      // Verificar si se debe sincronizar con SAP
+      if (profile.nit_number && profile.verification_digit) {
+        try {
+          // Intentar crear en SAP
+          const sapResult = await sapIntegrationService.createOrUpdateBusinessPartnerLead(profile);
+          
+          // Actualizar el perfil con la información de SAP
+          if (sapResult.success) {
+            await pool.query(
+              `UPDATE client_profiles 
+              SET cardcode_sap = $1, sap_lead_synced = true, updated_at = CURRENT_TIMESTAMP
+              WHERE client_id = $2`,
+              [sapResult.cardCode, profile.client_id]
+            );
+            
+            // Actualizar objeto para la respuesta
+            profile.cardcode_sap = sapResult.cardCode;
+            profile.sap_lead_synced = true;
+            
+            logger.info('Perfil de cliente sincronizado con SAP como Lead', {
+              clientId: profile.client_id,
+              cardcodeSap: sapResult.cardCode,
+              isNew: sapResult.isNew
+            });
+          }
+        } catch (sapError) {
+          // No fallamos la creación del perfil si falla SAP, solo logueamos el error
+          logger.error('Error al sincronizar perfil con SAP', {
+            error: sapError.message,
+            clientId: profile.client_id
+          });
+        }
       }
       
       logger.info('Perfil de cliente creado exitosamente', {
@@ -805,6 +849,15 @@ class ClientProfileController {
           success: false,
           message: 'No se proporcionaron datos para actualizar'
         });
+      }
+
+      // Validar que si se proporciona NIT o dígito de verificación, ambos sean proporcionados
+      if ((updateData.nit_number && !updateData.verification_digit) || 
+      (!updateData.nit_number && updateData.verification_digit)) {
+      return res.status(400).json({
+      success: false,
+      message: 'Si proporciona el NIT, debe incluir también el dígito de verificación y viceversa'
+      });
       }
       
       // Extraer datos de la solicitud
@@ -977,6 +1030,52 @@ class ClientProfileController {
           success: false,
           message: 'Error al actualizar perfil'
         });
+      }
+
+      // Verificar si se añadió/modificó NIT y dígito de verificación
+      if (updatedProfile.nit_number && updatedProfile.verification_digit) {
+        // Comprobar si ya estaba sincronizado con SAP
+        const shouldSync = !updatedProfile.sap_lead_synced || !updatedProfile.cardcode_sap;
+        
+        // Definir si hay cambios en datos relevantes para SAP
+        const hasChangedSapRelevantData = 
+          updateData.razonSocial || updateData.nombre || 
+          updateData.telefono || updateData.email ||
+          updateData.direccion || updateData.nit_number;
+          
+        // Si debe sincronizarse (primera vez o se modificaron datos)
+        if (shouldSync || hasChangedSapRelevantData) {
+          try {
+            // Intentar crear/actualizar en SAP
+            const sapResult = await sapIntegrationService.createOrUpdateBusinessPartnerLead(updatedProfile);
+            
+            // Actualizar el perfil con la información de SAP
+            if (sapResult.success) {
+              await pool.query(
+                `UPDATE client_profiles 
+                SET cardcode_sap = $1, sap_lead_synced = true, updated_at = CURRENT_TIMESTAMP
+                WHERE client_id = $2`,
+                [sapResult.cardCode, updatedProfile.client_id]
+              );
+              
+              // Actualizar objeto para la respuesta
+              updatedProfile.cardcode_sap = sapResult.cardCode;
+              updatedProfile.sap_lead_synced = true;
+              
+              logger.info('Perfil de cliente sincronizado con SAP como Lead', {
+                clientId: updatedProfile.client_id,
+                cardcodeSap: sapResult.cardCode,
+                isNew: sapResult.isNew
+              });
+            }
+          } catch (sapError) {
+            // No fallamos la actualización del perfil si falla SAP, solo logueamos el error
+            logger.error('Error al sincronizar perfil con SAP', {
+              error: sapError.message,
+              clientId: updatedProfile.client_id
+            });
+          }
+        }
       }
 
       // Agregar URLs para archivos en la respuesta
