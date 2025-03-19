@@ -977,9 +977,10 @@ class SapIntegrationService {
       let phone = clientProfile.contact_phone || '';
       phone = phone.replace(/\D/g, '').substring(0, 10);
       
+      const cardCode = clientProfile.cardcode_sap || `C${clientProfile.nit_number}`;
       // Preparar datos para SAP
       const businessPartnerData = {
-        CardCode: clientProfile.cardcode_sap || `C${clientProfile.nit_number}`,
+        CardCode: cardCode,
         CardName: clientProfile.razonSocial || clientProfile.company_name || clientProfile.nombre || clientProfile.contact_name || '',
         CardType: 'L',  // Lead
         PriceListNum: 1,
@@ -987,7 +988,8 @@ class SapIntegrationService {
         FederalTaxID: clientProfile.nit,
         Phone1: clientProfile.telefono || clientProfile.contact_phone || phone,
         EmailAddress: clientProfile.email || clientProfile.contact_email || '',
-        Address: clientProfile.address || ''
+        Address: clientProfile.address || '',
+        U_AR_ArtesaCode: cardCode  // Añadir campo personalizado
       };
 
       logger.debug('Objeto BusinessPartner a enviar a SAP', {
@@ -1006,11 +1008,11 @@ class SapIntegrationService {
       const result = await this.request(method, endpoint, businessPartnerData);
       
       // Si es creación, extraer el CardCode generado
-      let cardCode = clientProfile.cardcode_sap;
+      let resultCardCode = clientProfile.cardcode_sap;
       if (!isUpdate && result && result.CardCode) {
-        cardCode = result.CardCode;
+        resultCardCode = result.CardCode;
         logger.info('Nuevo socio de negocios Lead creado en SAP', {
-          cardCode,
+          cardCode: resultCardCode,
           clientId: clientProfile.client_id
         });
       } else if (isUpdate) {
@@ -1022,7 +1024,7 @@ class SapIntegrationService {
       
       return {
         success: true,
-        cardCode,
+        cardCode: resultCardCode,
         isNew: !isUpdate
       };
     } catch (error) {

@@ -890,16 +890,6 @@ class ClientProfileController {
           message: 'Si proporciona el NIT, debe incluir también el dígito de verificación y viceversa'
         });
       }
-
-      // Calcular tax_id a partir de nit_number y verification_digit si ambos están presentes
-      if (updateData.nit_number && updateData.verification_digit) {
-        updateData.nit = `${updateData.nit_number}-${updateData.verification_digit}`;
-        logger.debug('tax_id actualizado a partir de NIT', {
-          nit_number: updateData.nit_number,
-          verification_digit: updateData.verification_digit,
-          tax_id: updateData.nit
-        });
-      }
       
       // Extraer datos de la solicitud
       const updateData = {};
@@ -954,6 +944,16 @@ class ClientProfileController {
           updateData[fieldMap[key]] = req.body[key];
         }
       });
+      
+      // Calcular tax_id a partir de nit_number y verification_digit si ambos están presentes
+      if (updateData.nit_number && updateData.verification_digit) {
+        updateData.nit = `${updateData.nit_number}-${updateData.verification_digit}`;
+        logger.debug('tax_id actualizado a partir de NIT', {
+          nit_number: updateData.nit_number,
+          verification_digit: updateData.verification_digit,
+          tax_id: updateData.nit
+        });
+      }
       
       logger.debug('Datos para actualización de perfil de cliente', { 
         userId,
