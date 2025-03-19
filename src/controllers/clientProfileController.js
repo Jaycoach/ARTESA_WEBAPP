@@ -666,10 +666,20 @@ class ClientProfileController {
     // Validar que si se proporciona NIT o dígito de verificación, ambos sean proporcionados
     if ((clientData.nit_number && !clientData.verification_digit) || 
     (!clientData.nit_number && clientData.verification_digit)) {
-    return res.status(400).json({
-    success: false,
-    message: 'Si proporciona el NIT, debe incluir también el dígito de verificación y viceversa'
-    });
+      return res.status(400).json({
+      success: false,
+      message: 'Si proporciona el NIT, debe incluir también el dígito de verificación y viceversa'
+      });
+    }
+
+    // Calcular tax_id a partir de nit_number y verification_digit
+    if (clientData.nit_number && clientData.verification_digit) {
+      clientData.nit = `${clientData.nit_number}-${clientData.verification_digit}`;
+      logger.debug('tax_id calculado a partir de NIT', {
+        nit_number: clientData.nit_number,
+        verification_digit: clientData.verification_digit,
+        tax_id: clientData.nit
+      });
     }
       
       // Crear el perfil
@@ -878,6 +888,16 @@ class ClientProfileController {
         return res.status(400).json({
           success: false,
           message: 'Si proporciona el NIT, debe incluir también el dígito de verificación y viceversa'
+        });
+      }
+
+      // Calcular tax_id a partir de nit_number y verification_digit si ambos están presentes
+      if (updateData.nit_number && updateData.verification_digit) {
+        updateData.nit = `${updateData.nit_number}-${updateData.verification_digit}`;
+        logger.debug('tax_id actualizado a partir de NIT', {
+          nit_number: updateData.nit_number,
+          verification_digit: updateData.verification_digit,
+          tax_id: updateData.nit
         });
       }
       
