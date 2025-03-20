@@ -133,24 +133,109 @@ class SapClientSyncService {
             continue;
           }
           
-          // Verificar si ya no es Lead (CardType != 'cLid')
           if (sapClient.CardType !== 'cLid') {
-            // Activar al usuario
-            await pool.query('UPDATE users SET is_active = true WHERE id = $1', [client.user_id]);
-            
-            logger.info('Usuario activado exitosamente', {
-              userId: client.user_id,
-              cardCode,
-              cardType: sapClient.CardType
-            });
-            
-            stats.activated++;
+            // Iniciar transacción para actualizar datos y activar usuario
+            const dbClient = await pool.connect();
+            try {
+              await dbClient.query('BEGIN');
+          
+              // Procesar el FederalTaxID para extraer nit_number y verification_digit
+              const taxInfo = this.processFederalTaxID(sapClient.FederalTaxID);
+
+              // Primero actualizar datos del cliente con la información de SAP
+              const updateClientQuery = `
+                UPDATE client_profiles
+                SET 
+                  cardcode_sap = $1,
+                  tax_id = $2,
+                  nit_number = $3,
+                  verification_digit = $4,
+                  company_name = $5,
+                  updated_at = CURRENT_TIMESTAMP
+                WHERE client_id = $6
+              `;
+
+              await dbClient.query(updateClientQuery, [
+                sapClient.CardCode, // Actualiza el cardcode_sap con el CardCode de SAP
+                taxInfo.tax_id || client.tax_id, // Actualiza el tax_id con FederalTaxID procesado
+                taxInfo.nit_number || client.nit_number, // Actualiza nit_number
+                taxInfo.verification_digit || client.verification_digit, // Actualiza verification_digit
+                sapClient.CardName || client.company_name, // Actualiza el company_name con CardName de SAP
+                client.client_id
+              ]);
+          
+              // Luego activar al usuario
+              await dbClient.query('UPDATE users SET is_active = true WHERE id = $1', [client.user_id]);
+              
+              await dbClient.query('COMMIT');
+              
+              logger.info('Cliente sincronizado y usuario activado exitosamente', {
+                userId: client.user_id,
+                clientId: client.client_id,
+                cardCode: sapClient.CardCode,
+                cardType: sapClient.CardType,
+                oldTaxId: client.tax_id,
+                newTaxId: taxInfo.tax_id,
+                dataUpdated: true
+              });
+              
+              stats.activated++;
+            } catch (updateError) {
+              await dbClient.query('ROLLBACK');
+              logger.error('Error al actualizar y activar cliente', {
+                error: updateError.message,
+                stack: updateError.stack,
+                clientId: client.client_id,
+                userId: client.user_id
+              });
+              stats.errors++;
+            } finally {
+              dbClient.release();
+            }
           } else {
-            logger.debug('Cliente sigue siendo Lead, no se activa', {
-              userId: client.user_id,
-              cardCode
-            });
-            stats.skipped++;
+            // Actualizar datos del cliente aunque siga siendo Lead
+            try {
+              // Procesar el FederalTaxID para extraer nit_number y verification_digit
+              const taxInfo = this.processFederalTaxID(sapClient.FederalTaxID);
+
+              // Solo actualizamos los datos para mantener sincronización, sin activar el usuario
+              await pool.query(`
+                UPDATE client_profiles
+                SET 
+                  cardcode_sap = $1,
+                  tax_id = $2,
+                  nit_number = $3, 
+                  verification_digit = $4,
+                  company_name = $5,
+                  updated_at = CURRENT_TIMESTAMP
+                WHERE client_id = $6
+              `, [
+                sapClient.CardCode,
+                taxInfo.tax_id || client.tax_id,
+                taxInfo.nit_number || client.nit_number,
+                taxInfo.verification_digit || client.verification_digit,
+                sapClient.CardName || client.company_name,
+                client.client_id
+              ]);
+          
+              logger.debug('Cliente actualizado pero sigue siendo Lead, no se activa', {
+                userId: client.user_id,
+                clientId: client.client_id,
+                cardCode: sapClient.CardCode,
+                oldTaxId: client.tax_id,
+                newTaxId: taxInfo.tax_id,
+                dataUpdated: true
+              });
+              
+              stats.skipped++;
+            } catch (updateLeadError) {
+              logger.error('Error al actualizar datos de cliente Lead', {
+                error: updateLeadError.message,
+                clientId: client.client_id,
+                userId: client.user_id
+              });
+              stats.errors++;
+            }
           }
         } catch (clientError) {
           logger.error('Error al procesar cliente', {
@@ -184,66 +269,107 @@ class SapClientSyncService {
   }
 
   /**
- * Obtiene información de un Business Partner por su CardCode
- * @param {string} cardCode - Código del cliente en SAP
- * @returns {Promise<Object>} - Información del cliente en SAP
- */
-async getBusinessPartnerBySapCode(cardCode) {
-    try {
-      // Verificar que el servicio SAP esté inicializado
-      if (!sapIntegrationService.initialized) {
-        await sapIntegrationService.initialize();
-      }
-      
-      // Iniciar sesión si es necesario
-      if (!sapIntegrationService.sessionId) {
-        await sapIntegrationService.login();
-      }
-      
-      logger.debug('Consultando Business Partner en SAP por CardCode', { cardCode });
-      
-      // Primero intentar buscar por U_AR_ArtesaCode (campo personalizado de Artesa)
-      let data = await sapIntegrationService.getBusinessPartnerByArtesaCode(cardCode);
-      
-      // Si no se encuentra por ArtesaCode, intentar directamente por CardCode
-      if (!data) {
-        logger.debug('No se encontró por código Artesa, intentando por CardCode', { cardCode });
+   * Procesa el FederalTaxID para extraer nit_number y verification_digit
+   * @param {string} federalTaxID - Valor de FederalTaxID desde SAP (formato: "123456789-0")
+   * @returns {Object} - Objeto con tax_id, nit_number y verification_digit
+   */
+  processFederalTaxID(federalTaxID) {
+    if (!federalTaxID) {
+      return { tax_id: null, nit_number: null, verification_digit: null };
+    }
+    
+    // Verificar si ya tiene el formato con guión
+    if (federalTaxID.includes('-')) {
+      const [nitNumber, verificationDigit] = federalTaxID.split('-');
+      return {
+        tax_id: federalTaxID,
+        nit_number: nitNumber,
+        verification_digit: verificationDigit
+      };
+    } 
+    
+    // Si no tiene guión, intentar extraer el último dígito como dígito de verificación
+    const nitLength = federalTaxID.length;
+    if (nitLength > 1) {
+      const nitNumber = federalTaxID.substring(0, nitLength - 1);
+      const verificationDigit = federalTaxID.substring(nitLength - 1);
+      const formattedTaxId = `${nitNumber}-${verificationDigit}`;
+      return {
+        tax_id: formattedTaxId,
+        nit_number: nitNumber,
+        verification_digit: verificationDigit
+      };
+    }
+    
+    // Si no se puede parsear, devolver el valor original como tax_id
+    return {
+      tax_id: federalTaxID,
+      nit_number: federalTaxID,
+      verification_digit: null
+    };
+  }
+
+  /**
+   * Obtiene información de un Business Partner por su CardCode
+   * @param {string} cardCode - Código del cliente en SAP
+   * @returns {Promise<Object>} - Información del cliente en SAP
+   */
+  async getBusinessPartnerBySapCode(cardCode) {
+      try {
+        // Verificar que el servicio SAP esté inicializado
+        if (!sapIntegrationService.initialized) {
+          await sapIntegrationService.initialize();
+        }
         
-        // Construir endpoint para obtener un Business Partner específico
-        const endpoint = `BusinessPartners('${cardCode}')`;
+        // Iniciar sesión si es necesario
+        if (!sapIntegrationService.sessionId) {
+          await sapIntegrationService.login();
+        }
         
-        // Realizar petición a SAP
-        data = await sapIntegrationService.request('GET', endpoint);
+        logger.debug('Consultando Business Partner en SAP por CardCode', { cardCode });
         
-        if (!data || !data.CardCode) {
-          logger.warn('Business Partner no encontrado o formato inválido', { cardCode });
+        // Primero intentar buscar por U_AR_ArtesaCode (campo personalizado de Artesa)
+        let data = await sapIntegrationService.getBusinessPartnerByArtesaCode(cardCode);
+        
+        // Si no se encuentra por ArtesaCode, intentar directamente por CardCode
+        if (!data) {
+          logger.debug('No se encontró por código Artesa, intentando por CardCode', { cardCode });
+          
+          // Construir endpoint para obtener un Business Partner específico con todos los campos relevantes
+          const endpoint = `BusinessPartners('${cardCode}')?$select=CardCode,CardName,CardType,FederalTaxID,U_AR_ArtesaCode,Phone1,EmailAddress,Address`;
+          
+          // Realizar petición a SAP
+          data = await sapIntegrationService.request('GET', endpoint);
+          
+          if (!data || !data.CardCode) {
+            logger.warn('Business Partner no encontrado o formato inválido', { cardCode });
+            return null;
+          }
+        }
+        
+        logger.debug('Business Partner obtenido exitosamente', {
+          cardCode,
+          cardType: data.CardType,
+          cardName: data.CardName
+        });
+        
+        return data;
+      } catch (error) {
+        // Si el error es 404, significa que el BP no existe
+        if (error.response && error.response.status === 404) {
+          logger.warn('Business Partner no encontrado en SAP', { cardCode });
           return null;
         }
+        
+        logger.error('Error al obtener Business Partner de SAP', {
+          cardCode,
+          error: error.message,
+          stack: error.stack
+        });
+        throw error;
       }
-      
-      logger.debug('Business Partner obtenido exitosamente', {
-        cardCode,
-        cardType: data.CardType,
-        cardName: data.CardName
-      });
-      
-      return data;
-    } catch (error) {
-      // Si el error es 404, significa que el BP no existe
-      if (error.response && error.response.status === 404) {
-        logger.warn('Business Partner no encontrado en SAP', { cardCode });
-        return null;
-      }
-      
-      logger.error('Error al obtener Business Partner de SAP', {
-        cardCode,
-        error: error.message,
-        stack: error.stack
-      });
-      throw error;
     }
   }
-}
 
 // Exportar instancia única (singleton)
 const sapClientSyncService = new SapClientSyncService();

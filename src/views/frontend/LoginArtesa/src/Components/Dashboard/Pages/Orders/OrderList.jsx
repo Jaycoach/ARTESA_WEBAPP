@@ -12,7 +12,7 @@ const OrderList = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [orderTimeLimit, setOrderTimeLimit] = useState('18:00');
+  const [orderTimeLimit, setOrderTimeLimit] = useState(null);
   const [editableOrders, setEditableOrders] = useState({});
   const ordersPerPage = 10;
   const [orderStatuses, setOrderStatuses] = useState({});
