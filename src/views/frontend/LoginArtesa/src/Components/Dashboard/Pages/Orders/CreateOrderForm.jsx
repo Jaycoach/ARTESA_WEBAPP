@@ -23,8 +23,18 @@ const CreateOrderForm = ({ onOrderCreated }) => {
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
   const navigate = useNavigate();
 
+  useEffect(() => {
+    // Comprobar si el usuario está inactivo
+    if (user && user.is_active === false) {
+      showNotification('No tienes permisos para crear órdenes', 'error');
+      navigate('/dashboard/orders');
+    }
+  }, [user, navigate]);
+  
+
   // Cargar configuración del sitio
   useEffect(() => {
+    
     const fetchSettings = async () => {
       try {
         const response = await API.get('/admin/settings');

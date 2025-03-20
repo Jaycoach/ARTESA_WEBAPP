@@ -21,6 +21,16 @@ export const AuthProvider = ({ children }) => {
         try {
           // Parsear el usuario almacenado
           let userData = JSON.parse(storedUser);
+
+          // Normalizar is_active como booleano
+          if (userData.is_active !== undefined) {
+            userData.is_active = typeof userData.is_active === 'string' ? 
+              userData.is_active.toLowerCase() === 'true' : 
+              Boolean(userData.is_active);
+          } else {
+            userData.is_active = true; // Valor predeterminado si no existe
+          }
+
           console.log("Usuario recuperado del localStorage:", userData);
           
           // Asegurarnos de que el rol sea un número (manejar estructura anidada)
@@ -127,8 +137,12 @@ export const AuthProvider = ({ children }) => {
       const storedProfile = localStorage.getItem("clientProfile");
       let userWithProfile = userObject;
 
-      // Asegurarse de preservar el campo is_active
-      const isActive = userObject.is_active !== undefined ? userObject.is_active : true;
+      // Asegurarse de que is_active sea un booleano
+      const isActive = userObject.is_active !== undefined ? 
+      (typeof userObject.is_active === 'string' ? 
+        userObject.is_active.toLowerCase() === 'true' : 
+        Boolean(userObject.is_active)) : 
+      true;
       userWithProfile.is_active = isActive;
 
       if (storedProfile) {

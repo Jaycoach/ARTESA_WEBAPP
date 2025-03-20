@@ -11,7 +11,30 @@ import API from '../../../../api/config';
 const Orders = () => {
   const { user, isAuthenticated } = useAuth();
   const [isUserActive, setIsUserActive] = useState(true);
-  const [userStatusMessage] = useState('El usuario no puede crear órdenes');
+  const [userStatusMessage] = useState('El usuario no puede crear órdenes');  
+  const { orderId } = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const showNotification = (message, type = 'success') => {
+    setNotification({
+      show: true,
+      message,
+      type
+    });
+    
+    setTimeout(() => {
+      setNotification({ show: false, message: '', type: '' });
+    }, 5000);
+  };
+
+  useEffect(() => {
+    if (user && user.is_active === false && location.pathname.includes('/orders/new')) {
+      // Si el usuario está inactivo y está intentando acceder a la página de nuevo pedido
+      showNotification(userStatusMessage || 'El usuario no puede crear órdenes', 'error');
+      navigate('/dashboard/orders');
+    }
+  }, [user, location.pathname, navigate, userStatusMessage]);
 
   useEffect(() => {
     // Verificar estado del usuario directamente del objeto user
@@ -22,10 +45,6 @@ const Orders = () => {
       console.log("Estado de activación del usuario:", isActive);
     }
   }, [user]);
-  
-  const { orderId } = useParams();
-  const navigate = useNavigate();
-  const location = useLocation();
   
   const [activeTab, setActiveTab] = useState('list');
   const [notification, setNotification] = useState({ show: false, message: '', type: '' });
@@ -58,17 +77,6 @@ const Orders = () => {
     refreshOrders();
   };
   
-  const showNotification = (message, type = 'success') => {
-    setNotification({
-      show: true,
-      message,
-      type
-    });
-    
-    setTimeout(() => {
-      setNotification({ show: false, message: '', type: '' });
-    }, 5000);
-  };
   
   const handleConfirmCancel = () => {
     setShowCancelConfirmation(false);
@@ -174,8 +182,9 @@ const Orders = () => {
             className={`${
               activeTab === 'new'
                 ? 'border-indigo-500 text-indigo-600'
-                : 'hidden border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                : (isUserActive ? 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' : 'hidden')
             } w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm`}
+            disabled={!isUserActive}
           >
             Nuevo Pedido
           </button>
