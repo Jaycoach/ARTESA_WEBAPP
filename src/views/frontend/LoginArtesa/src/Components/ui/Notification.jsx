@@ -82,10 +82,10 @@ const Notification = ({
 
   return (
     <div 
-      className={`fixed z-50 ${positionClasses} max-w-md w-full shadow-lg rounded-lg overflow-hidden transition-all duration-300 transform translate-y-0 opacity-100`}
+      className={`fixed z-[9999] top-20 right-4 max-w-md w-full shadow-xl rounded-lg overflow-hidden transition-all duration-300 transform translate-y-0 opacity-100`}
       role="alert"
     >
-      <div className={`${background} ${text} p-4 flex items-start border-l-4 ${border}`}>
+      <div className={`${background} ${text} p-5 flex items-start border-l-4 ${border}`}>
         <div className="flex-shrink-0 mr-3 mt-0.5">
           {icon}
         </div>
