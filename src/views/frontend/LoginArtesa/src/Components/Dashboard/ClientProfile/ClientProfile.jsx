@@ -77,6 +77,18 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
         // Extraer los datos - pueden estar en response.data.data o directamente en response.data
         const profileData = response.data?.data || response.data;
 
+        // Preparar datos para el formulario (adicionar los campos que hagan falta del Response en el API)
+        const formDataUpdate = {
+          nombre: profileData.nombre || '',
+          direccion: profileData.direccion || '',
+          ciudad: profileData.ciudad || '',
+          pais: profileData.pais || 'Colombia',
+          telefono: profileData.telefono || '',
+          email: profileData.email || user?.email || user?.mail || '',
+          razonSocial: profileData.razonSocial || '',
+          nit: profileData.nit || '',
+        };
+
         if (profileData.verification_digit) {
           formDataUpdate.digitoVerificacion = profileData.verification_digit;
         }
@@ -84,18 +96,6 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
         if (profileData) {
           console.log("Perfil encontrado:", profileData);
           setExistingProfile(profileData);
-          
-          // Preparar datos para el formulario
-          const formDataUpdate = {
-            nombre: profileData.nombre || '',
-            direccion: profileData.direccion || '',
-            ciudad: profileData.ciudad || '',
-            pais: profileData.pais || 'Colombia',
-            telefono: profileData.telefono || '',
-            email: profileData.email || user?.email || user?.mail || '',
-            razonSocial: profileData.razonSocial || '',
-            nit: profileData.nit || '',
-          };
           
           // Si hay un campo notes, puede contener datos adicionales en formato JSON
           if (profileData.notes) {
