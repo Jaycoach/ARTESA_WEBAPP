@@ -58,6 +58,9 @@ const logger = createContextLogger('AuthController');
  *                 mail:
  *                   type: string
  *                   example: john@example.com
+ *                 is_active:
+ *                   type: boolean
+ *                   example: true
  *                 role:
  *                   type: object
  *                   properties:
@@ -415,6 +418,7 @@ static incrementLoginAttempts(mail) {
                         id: user.id,
                         name: user.name,
                         mail: user.mail,
+                        is_active: user.is_active,
                         role: {
                           id: user.rol_id,
                           name: user.role_name

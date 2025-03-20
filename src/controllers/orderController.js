@@ -1,6 +1,7 @@
 // src/controllers/orderController.js
 const Order = require('../models/Order');
 const { createContextLogger } = require('../config/logger');
+const pool = require('../config/db');
 
 // Crear una instancia del logger con contexto
 const logger = createContextLogger('OrderController');
