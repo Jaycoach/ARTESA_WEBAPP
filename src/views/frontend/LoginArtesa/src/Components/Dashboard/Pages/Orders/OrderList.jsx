@@ -335,7 +335,7 @@ const OrderList = () => {
             <h3 className="text-sm font-medium text-blue-800">Información sobre edición de pedidos</h3>
             <div className="mt-2 text-sm text-blue-700">
               <p>
-                Solo puedes editar pedidos en estado "Pendiente" y antes de las {orderTimeLimit} horas del día siguiente a la creación.
+                Solo puedes editar pedidos en estado "Abierto" y antes de las {orderTimeLimit} dos días antes de la fecha de entrega.
                 <br />
                 Si necesitas modificar un pedido fuera de este tiempo, contacta con nuestro servicio de atención al cliente.
               </p>

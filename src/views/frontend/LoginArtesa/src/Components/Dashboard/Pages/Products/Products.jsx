@@ -188,11 +188,11 @@ const Products = () => {
       
       // Regla especial para sábados
       if (currentDay === 6) { // Sábado
-        if (isPastTimeLimit) {
-          // Después del límite, entrega el miércoles (4 días después)
+        if (currentHour >= 12) { // Después del mediodía
+          // Después del mediodía en sábado, entrega el miércoles (4 días después)
           deliveryOffset = 4;
         } else {
-          // Antes del límite, entrega el martes (3 días después)
+          // Antes del mediodía en sábado, entrega el martes (3 días después)
           deliveryOffset = 3;
         }
       } 
@@ -200,14 +200,20 @@ const Products = () => {
       else if (currentDay === 0) {
         deliveryOffset = 3;
       }
-      // Para otros días, si pasó el límite, agregar un día extra
+      // Para otros días, mínimo 2 días de entrega
       else if (isPastTimeLimit) {
-        deliveryOffset++;
+        // Si pasó el límite de tiempo, agregar un día extra
+        deliveryOffset = 3; // 3 días en lugar de 2
       }
       
       // Calcular fecha de entrega
       const deliveryDate = new Date(now);
       deliveryDate.setDate(now.getDate() + deliveryOffset);
+
+      // Si cae en domingo, mover al lunes
+      if (deliveryDate.getDay() === 0) {
+        deliveryDate.setDate(deliveryDate.getDate() + 1);
+      }
       
       // Formato YYYY-MM-DD para la API
       const formattedDeliveryDate = deliveryDate.toISOString().split('T')[0];
