@@ -6,34 +6,21 @@ import CreateOrderForm from './CreateOrderForm';
 import OrderList from './OrderList';
 import EditOrderForm from './EditOrderForm';
 import Notification from '../../../../Components/ui/Notification';
+import API from '../../../../api/config';
 
 const Orders = () => {
   const { user, isAuthenticated } = useAuth();
   const [isUserActive, setIsUserActive] = useState(true);
-  const [userStatusMessage, setUserStatusMessage] = useState('');
-  
+  const [userStatusMessage] = useState('El usuario no puede crear órdenes');
+
   useEffect(() => {
-    // Verificar estado del usuario cuando cambia el objeto user
-    const checkUserStatus = async () => {
-      if (!user || !user.id) return;
-      
-      try {
-        const response = await API.get(`/users/${user.id}/status`);
-        
-        if (response.data && response.data.success) {
-          setIsUserActive(response.data.data.isActive || false);
-          if (!response.data.data.isActive) {
-            setUserStatusMessage('El usuario no puede crear órdenes');
-          }
-        }
-      } catch (error) {
-        console.error('Error al verificar estado del usuario:', error);
-        // Asumimos activo por defecto en caso de error para no bloquear al usuario
-        setIsUserActive(true);
-      }
-    };
-    
-    checkUserStatus();
+    // Verificar estado del usuario directamente del objeto user
+    if (user) {
+      // Verificar si el usuario tiene el atributo is_active
+      const isActive = user.is_active !== undefined ? user.is_active : true;
+      setIsUserActive(isActive);
+      console.log("Estado de activación del usuario:", isActive);
+    }
   }, [user]);
   
   const { orderId } = useParams();

@@ -39,7 +39,9 @@ export const AuthProvider = ({ children }) => {
           // Si existe un perfil guardado, combinar su información con userData
           if (storedProfile) {
             const profileData = JSON.parse(storedProfile);
-            userData = { ...userData, ...profileData };
+            // Asegurarse de preservar el campo is_active
+            const isActive = userData.is_active !== undefined ? userData.is_active : true;
+            userData = { ...userData, ...profileData, is_active: isActive };
           }
           
           // Establecer el usuario combinado
@@ -65,8 +67,11 @@ export const AuthProvider = ({ children }) => {
   const updateUserInfo = (updatedUserData) => {
     if (!user) return;
     
-    // Combinar datos existentes con los actualizados
-    const newUserData = { ...user, ...updatedUserData };
+    // Preservar el estado de activación del usuario
+    const isActive = user.is_active !== undefined ? user.is_active : true;
+    
+    // Combinar datos existentes con los actualizados, preservando is_active
+    const newUserData = { ...user, ...updatedUserData, is_active: isActive };
     
     // Actualizar el estado
     setUser(newUserData);
@@ -121,12 +126,16 @@ export const AuthProvider = ({ children }) => {
       // Verificar si hay un perfil guardado previamente
       const storedProfile = localStorage.getItem("clientProfile");
       let userWithProfile = userObject;
-      
+
+      // Asegurarse de preservar el campo is_active
+      const isActive = userObject.is_active !== undefined ? userObject.is_active : true;
+      userWithProfile.is_active = isActive;
+
       if (storedProfile) {
         // Combinar información del perfil con la del usuario
         const profileData = JSON.parse(storedProfile);
         if (profileData.nombre && profileData.email === (userObject.email || userObject.mail)) {
-          userWithProfile = { ...userObject, ...profileData };
+          userWithProfile = { ...userObject, ...profileData, is_active: isActive };
         }
       }
       

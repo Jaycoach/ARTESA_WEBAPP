@@ -176,10 +176,16 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       // Calcular total
       const totalAmount = parseFloat(calculateTotal());
       
-      // Validar que tenemos ID de usuario
+      // Validar que tenemos ID de usuario y usuario activo
       if (!user || !user.id) {
         showNotification('Error: No se pudo identificar el ID de usuario', 'error');
         console.error('Error: ID de usuario no disponible al crear orden', user);
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (user.is_active === false) {
+        showNotification('Tu usuario no está activo. No puedes crear pedidos', 'error');
         setIsSubmitting(false);
         return;
       }
@@ -199,7 +205,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
 
       console.log('Datos de orden a enviar:', {
         userId: user.id,
-        user: user,
+        userActive: user.is_active,
         orderData: orderData
       });
       
