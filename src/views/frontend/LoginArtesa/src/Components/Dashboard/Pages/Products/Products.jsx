@@ -1,9 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { FiSearch, FiEye, FiClipboard, FiPlus, FiMinus, FiList, FiGrid, FiCheck } from 'react-icons/fi';
+import { FiShoppingCart, FiSearch, FiEye, FiClipboard, FiPlus, FiMinus, FiList, FiGrid, FiCheck, FiMoon, FiSun } from 'react-icons/fi';
 import API from '../../../../api/config';
 import Notification from '../../../../Components/ui/Notification';
-
-// Importación de componentes personalizados
 import Modal from '../../../../Components/ui/Modal';
 import Input from '../../../../Components/ui/Input';
 import Card from '../../../../Components/ui/Card';
@@ -34,6 +32,7 @@ const Products = () => {
 
   // Efecto para cargar la configuración del sitio
   const [siteSettings, setSiteSettings] = useState({ orderTimeLimit: '18:00' });
+  const [darkMode, setDarkMode] = useState(false);
 
   // Función para mostrar notificaciones
   const showNotification = useCallback((message, type = 'success') => {
@@ -64,6 +63,7 @@ const Products = () => {
       setLoading(false);
     }
   }, [search, showNotification]);
+
 
   // Funcionalidades de producto
   const openProductDetails = useCallback((product) => {
@@ -214,10 +214,10 @@ const Products = () => {
       
       // Preparar datos para la API según la estructura de orderController
       const orderData = {
-        user_id: getCurrentUserId(),
-        total_amount: orderTotal,
-        delivery_date: formattedDeliveryDate, // Añadir fecha de entrega
-        details: orderItems.map(item => ({
+          user_id: getCurrentUserId(),
+          total_amount: orderTotal,
+          delivery_date: formattedDeliveryDate, // Añadir fecha de entrega
+          details: orderItems.map(item => ({
           product_id: item.product_id,
           quantity: item.quantity,
           unit_price: item.unit_price
@@ -308,397 +308,419 @@ useEffect(() => {
   }, [orderItems, calculateOrderTotal]);
 
   return (
-    <div className="bg-gray-100 h-full w-full overflow-hidden">
+    <div className={`min-h-screen transition-colors duration-300 ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`}>
       {notification.show && (
-        <Notification 
-          message={notification.message}
-          type={notification.type}
-          onClose={() => setNotification({ show: false, message: '', type: '' })}
-        />
+        <Notification message={notification.message} type={notification.type} onClose={() => setNotification({ show: false, message: '', type: '' })} />
       )}
 
-      <div className="h-full w-full flex flex-col">
-        {/* Encabezado */}
-        <div className="mb-4">
-          <h1 className="text-2xl font-bold text-gray-800 mb-2">Catálogo de Productos</h1>
-          <p className="text-gray-600">Selecciona los productos para tu pedido SAP</p>
+      <div className="container mx-auto px-4 py-6">
+        {/* Header with dark mode toggle */}
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h1 className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+              Selecciona los productos para tu pedido SAP
+            </h1>
+            <p className={`mt-2 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+              Explora el catálogo y añade productos a tu orden
+            </p>
+          </div>
+          <Button 
+            variant="outline" 
+            className={`rounded-full p-3 ${darkMode ? 'bg-gray-800 text-gray-200' : 'bg-white text-gray-800'}`}
+            onClick={() => setDarkMode(!darkMode)}
+          >
+            {darkMode ? <FiSun size={20} /> : <FiMoon size={20} />}
+          </Button>
         </div>
-
-        {/* Resumen del pedido */}
-        <Card className="mb-6 p-4 bg-blue-50 border border-blue-200">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <div>
-              <h2 className="font-bold text-lg text-blue-800">Resumen de Pedido</h2>
-              <p className="text-blue-600">
-                Productos: {orderItems.length} | 
-                Unidades: {orderItems.reduce((sum, item) => sum + item.quantity, 0)}
-              </p>
-            </div>
-            <div className="flex items-center gap-4">
-              <span className="text-xl font-bold text-blue-800">{formatCurrency(orderTotal)}</span>
-              <Button 
-                variant="primary"
-                className="bg-blue-700 hover:bg-blue-800 flex items-center gap-2"
-                onClick={submitOrder}
-                disabled={orderItems.length === 0 || submittingOrder}
-              >
-                {submittingOrder ? 'Procesando...' : 'Finalizar Pedido'} {!submittingOrder && <FiCheck />}
-              </Button>
-            </div>
-          </div>
-        </Card>
-
-        {/* Filtros y controles */}
-        <Card className="mb-6 p-4">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="md:w-2/3">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Buscar</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <FiSearch className="text-gray-400" />
+        
+        {/* Order summary card with animation */}
+        <div className={`mb-8 transform transition-all duration-300 hover:scale-[1.01] ${orderItems.length > 0 ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-90'}`}>
+          <Card className={`overflow-hidden ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+            <div className={`p-1 ${darkMode ? 'bg-indigo-900' : 'bg-indigo-100'}`}></div>
+            <div className="p-5">
+              <div className="flex flex-wrap justify-between items-center gap-4">
+                <div className="flex items-center gap-3">
+                  <div className={`p-3 rounded-full ${darkMode ? 'bg-indigo-900' : 'bg-indigo-100'}`}>
+                    <FiShoppingCart size={20} className={darkMode ? 'text-indigo-300' : 'text-indigo-600'} />
+                  </div>
+                  <div>
+                    <h2 className={`font-bold text-lg ${darkMode ? 'text-white' : 'text-gray-800'}`}>Tu Pedido Actual</h2>
+                    <p className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
+                      {orderItems.length} productos | {orderItems.reduce((sum, item) => sum + item.quantity, 0)} unidades
+                    </p>
+                  </div>
                 </div>
-                <Input
-                  type="text"
-                  placeholder="Buscar productos..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="pl-10 w-full"
-                />
+                <div className="flex items-center gap-4 ml-auto">
+                  <span className={`text-xl font-bold ${darkMode ? 'text-indigo-300' : 'text-indigo-600'}`}>
+                    {formatCurrency(orderTotal)}
+                  </span>
+                  <Button
+                    variant="primary"
+                    className={`transition-all duration-200 transform active:scale-95 ${
+                      submittingOrder ? 'opacity-75' : ''
+                    } ${darkMode ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}
+                    onClick={submitOrder}
+                    disabled={orderItems.length === 0 || submittingOrder}
+                  >
+                    <span className="flex items-center gap-2">
+                      {submittingOrder ? 'Procesando...' : 'Finalizar Pedido'} 
+                      {!submittingOrder && <FiCheck />}
+                    </span>
+                  </Button>
+                </div>
               </div>
             </div>
-            
-            <div className="md:w-1/3 flex items-end">
-              <div className="ml-auto flex items-center gap-2">
-                <Button 
-                  variant={viewMode === 'table' ? 'primary' : 'outline'} 
-                  onClick={() => setViewMode('table')}
-                  className="flex items-center gap-1"
-                >
-                  <FiList /> Tabla
-                </Button>
-                <Button 
-                  variant={viewMode === 'cards' ? 'primary' : 'outline'} 
-                  onClick={() => setViewMode('cards')}
-                  className="flex items-center gap-1"
-                >
-                  <FiGrid /> Tarjetas
-                </Button>
+          </Card>
+        </div>
+        
+        {/* Search and view controls */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
+          <div className="lg:col-span-3">
+            <div className={`relative flex items-center ${darkMode ? 'bg-gray-800 text-gray-200' : 'bg-white text-gray-700'} rounded-lg overflow-hidden shadow-sm`}>
+              <div className="px-3">
+                <FiSearch className="text-gray-400" />
               </div>
+              <Input
+                placeholder="Busca por nombre, código o descripción..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className={`border-0 shadow-none focus:ring-0 ${darkMode ? 'bg-gray-800 text-white placeholder-gray-500' : 'bg-white text-gray-900'} py-3 px-0 w-full`}
+              />
+              {search && (
+                <button
+                  className={`px-3 text-gray-400 hover:${darkMode ? 'text-gray-200' : 'text-gray-600'}`}
+                  onClick={() => setSearch('')}
+                >
+                  ×
+                </button>
+              )}
             </div>
           </div>
-        </Card>
-
-        {/* Contenedor con scroll para el contenido principal */}
-        <div className="h-[calc(100vh-320px)] overflow-y-auto pb-6">
-          {/* Loader */}
-          {loading && (
-            <div className="flex justify-center items-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-            </div>
-          )}
-
-          {/* Vista de tabla */}
-          {!loading && viewMode === 'table' && (
-            <div className="bg-white rounded-lg shadow-md overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Imagen
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Nombre
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Precio Normal
-                      </th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Cantidad
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Acciones
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {currentItems.length > 0 ? (
-                      currentItems.map((product) => (
-                        <tr key={product.product_id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <img
-                              src={product.image}
-                              alt={product.name}
-                              className="h-16 w-16 object-contain rounded-md border border-gray-200"
-                            />
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm font-medium text-gray-900">{product.name}</div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm font-bold text-blue-600">{formatCurrency(product.price_list1)}</div>
-                          </td>
-                          {/* En la vista de tabla */}
-                          <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center border rounded-md bg-white shadow-sm">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const currentQty = productQuantities[product.product_id] || 1;
-                                if (currentQty > 1) {
-                                  handleQuantityChange(product.product_id, currentQty - 1);
-                                }
-                              }}
-                              className="p-1 text-gray-600 hover:text-gray-800 disabled:opacity-50 bg-gray-50 hover:bg-gray-100 px-2"
-                              disabled={(productQuantities[product.product_id] || 1) <= 1}
-                            >
-                              <FiMinus size={16} />
-                            </button>
-                            <input
-                              type="number"
-                              min="1"
-                              value={productQuantities[product.product_id] || 1}
-                              onChange={(e) => handleQuantityChange(product.product_id, parseInt(e.target.value, 10))}
-                              className="w-14 text-center text-sm border-0 focus:ring-0 focus:outline-none"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const currentQty = productQuantities[product.product_id] || 1;
-                                handleQuantityChange(product.product_id, currentQty + 1);
-                              }}
-                              className="p-1 text-gray-600 hover:text-gray-800 bg-gray-50 hover:bg-gray-100 px-2"
-                            >
-                              <FiPlus size={16} />
-                            </button>
-                          </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <div className="flex space-x-2">
-                            <Button
-                              variant="outline"
-                              className="flex items-center gap-1 py-1 px-2 text-blue-600 border border-blue-600 hover:bg-blue-50"
-                              onClick={() => openProductDetails(product)}
-                            >
-                              <FiEye /> Ver
-                            </Button>
-                            <Button
-                              variant="primary"
-                              className="flex items-center gap-1 py-1 px-2 bg-blue-600 text-white hover:bg-blue-700"
-                              onClick={() => addToOrder(product, productQuantities[product.product_id] || 1)}
-                            >
-                              <FiClipboard /> Agregar a Pedido
-                            </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan="4" className="px-6 py-4 text-center text-sm text-gray-500">
-                          No se encontraron productos.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+          <div className="flex justify-between lg:justify-end gap-2">
+            <Button 
+              variant={viewMode === 'table' ? 'primary' : 'outline'} 
+              onClick={() => setViewMode('table')}
+              className={`flex-1 lg:flex-none ${viewMode === 'table' ? (darkMode ? 'bg-indigo-600' : 'bg-indigo-600') : (darkMode ? 'bg-gray-800 text-gray-200 border-gray-700' : 'bg-white border-gray-300')}`}
+            >
+              <FiList className="mr-1" /> Lista
+            </Button>
+            <Button 
+              variant={viewMode === 'cards' ? 'primary' : 'outline'} 
+              onClick={() => setViewMode('cards')}
+              className={`flex-1 lg:flex-none ${viewMode === 'cards' ? (darkMode ? 'bg-indigo-600' : 'bg-indigo-600') : (darkMode ? 'bg-gray-800 text-gray-200 border-gray-700' : 'bg-white border-gray-300')}`}
+            >
+              <FiGrid className="mr-1" /> Tarjetas
+            </Button>
+          </div>
+        </div>
+        
+        {/* Products display - Table view */}
+        {viewMode === 'table' && (
+          <div className={`overflow-x-auto rounded-lg shadow ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+            {loading ? (
+              <div className="text-center py-12 animate-fadeIn">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                <p className="mt-2">Cargando productos...</p>
               </div>
-            </div>
-          )}
-
-          {/* Vista de tarjetas */}
-          {!loading && viewMode === 'cards' && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-              {currentItems.length > 0 ? (
-                currentItems.map((product) => (
-                  <Card key={product.product_id} className="flex flex-col h-full transition-transform hover:-translate-y-1">
-                    <div className="h-44 p-3 flex items-center justify-center bg-gray-50 rounded-t-lg">
-                      <img
-                        src={product.image}
-                        alt={product.name}
-                        className="max-h-full max-w-full object-contain"
-                      />
-                    </div>
-                    <div className="p-4 flex-1 flex flex-col">
-                      <h3 className="font-medium text-gray-900 text-sm md:text-base mb-2 line-clamp-2 h-10">{product.name}</h3>
-                      <p className="text-lg font-bold text-blue-600 mb-2">{formatCurrency(product.price_list1)}</p>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm text-gray-600">Cantidad:</span>
-                        <div className="flex items-center border rounded-md">
-                          <button
-                            type="button"
+            ) : products.length > 0 ? (
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className={darkMode ? 'bg-gray-700' : 'bg-gray-50'}>
+                  <tr>
+                    <th scope="col" className={`px-6 py-3 text-left text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>Producto</th>
+                    <th scope="col" className={`px-6 py-3 text-left text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>Precio</th>
+                    <th scope="col" className={`px-6 py-3 text-left text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>Cantidad</th>
+                    <th scope="col" className={`px-6 py-3 text-left text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className={`divide-y ${darkMode ? 'divide-gray-700' : 'divide-gray-200'}`}>
+                  {products.map((product) => (
+                    <tr key={product.product_id} className={`transition-colors ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`}>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          {product.image && (
+                            <div className="flex-shrink-0 h-10 w-10 mr-3">
+                              <img className="h-10 w-10 rounded-md object-cover" src={product.image} alt={product.name} />
+                            </div>
+                          )}
+                          <div>
+                            <div className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>{product.name}</div>
+                            <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{product.code}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>{formatCurrency(product.price_list1)}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center border rounded-md w-32 overflow-hidden">
+                          <button 
                             onClick={() => {
                               const currentQty = productQuantities[product.product_id] || 1;
                               if (currentQty > 1) {
-                                handleQuantityChange(product.product_id, currentQty - 1);
+                                updateQuantity(product.product_id, currentQty - 1);
                               }
-                            }}
-                            className="p-1 text-gray-600 hover:text-gray-800 disabled:opacity-50"
-                            disabled={(productQuantities[product.product_id] || 1) <= 1}
+                            }} 
+                            className={`px-2 py-1 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
                           >
-                            <FiMinus size={16} />
+                            <FiMinus size={14} />
                           </button>
                           <input
                             type="number"
                             min="1"
                             value={productQuantities[product.product_id] || 1}
-                            onChange={(e) => handleQuantityChange(product.product_id, parseInt(e.target.value))}
-                            className="w-12 text-center text-sm border-0 focus:ring-0"
+                            onChange={(e) => handleQuantityChange(product.product_id, parseInt(e.target.value, 10))}
+                            className={`w-12 text-center text-sm border-0 focus:ring-0 focus:outline-none ${darkMode ? 'bg-gray-800 text-white' : 'bg-white'}`}
                           />
-                          <button
-                            type="button"
+                          <button 
                             onClick={() => {
                               const currentQty = productQuantities[product.product_id] || 1;
-                              handleQuantityChange(product.product_id, currentQty + 1);
-                            }}
-                            className="p-1 text-gray-600 hover:text-gray-800"
+                              updateQuantity(product.product_id, currentQty + 1);
+                            }} 
+                            className={`px-2 py-1 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
                           >
-                            <FiPlus size={16} />
+                            <FiPlus size={14} />
+                          </button>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <div className="flex space-x-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className={`transition-transform active:scale-95 ${darkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-600 text-gray-200' : 'bg-white'}`}
+                            onClick={() => openProductDetails(product)}
+                          >
+                            <FiEye className="mr-1" /> Ver
+                          </Button>
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            className="transition-transform active:scale-95 bg-indigo-600 hover:bg-indigo-700"
+                            onClick={() => addToOrder(product, productQuantities[product.product_id] || 1)}
+                          >
+                            <FiPlus className="mr-1" /> Añadir
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <div className="text-center py-12">
+                <p className={darkMode ? 'text-gray-300' : 'text-gray-600'}>No se encontraron productos.</p>
+              </div>
+            )}
+          </div>
+        )}
+        
+        {/* Products display - Cards view */}
+        {viewMode === 'cards' && (
+          <div className={`${loading ? 'flex justify-center items-center min-h-[300px]' : ''}`}>
+            {loading ? (
+              <div className="text-center">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                <p className="mt-2">Cargando productos...</p>
+              </div>
+            ) : products.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {products.map((product) => (
+                  <div 
+                    key={product.product_id} 
+                    className={`rounded-lg overflow-hidden shadow-md transition-all duration-300 hover:shadow-lg transform hover:-translate-y-1 ${
+                      darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white'
+                    }`}
+                  >
+                    {product.image ? (
+                      <img 
+                        src={product.image} 
+                        alt={product.name} 
+                        className="w-full h-48 object-cover"
+                      />
+                    ) : (
+                      <div className={`w-full h-48 flex items-center justify-center ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                        <span className={`text-4xl ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>📦</span>
+                      </div>
+                    )}
+                    <div className="p-4">
+                      <h3 className={`font-semibold text-lg mb-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{product.name}</h3>
+                      <p className={`text-sm mb-3 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {product.description ? 
+                          (product.description.length > 80 ? 
+                            `${product.description.substring(0, 80)}...` : product.description
+                          ) : 'Sin descripción'
+                        }
+                      </p>
+                      <div className={`flex justify-between items-center mb-3 pb-3 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                        <span className={`font-bold text-lg ${darkMode ? 'text-indigo-300' : 'text-indigo-600'}`}>
+                          {formatCurrency(product.price_list1)}
+                        </span>
+                        <div className="flex items-center">
+                          <button 
+                            onClick={() => {
+                              const currentQty = productQuantities[product.product_id] || 1;
+                              if (currentQty > 1) {
+                                updateQuantity(product.product_id, currentQty - 1);
+                              }
+                            }} 
+                            className={`p-1 rounded-md ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
+                          >
+                            <FiMinus size={14} />
+                          </button>
+                          <input
+                            type="number"
+                            min="1"
+                            value={productQuantities[product.product_id] || 1}
+                            onChange={(e) => handleQuantityChange(product.product_id, parseInt(e.target.value, 10))}
+                            className={`w-12 text-center text-sm mx-1 border rounded-md ${
+                              darkMode ? 'bg-gray-700 text-white border-gray-600' : 'bg-white border-gray-300'
+                            }`}
+                          />
+                          <button 
+                            onClick={() => {
+                              const currentQty = productQuantities[product.product_id] || 1;
+                              updateQuantity(product.product_id, currentQty + 1);
+                            }} 
+                            className={`p-1 rounded-md ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
+                          >
+                            <FiPlus size={14} />
                           </button>
                         </div>
                       </div>
-
-                      <div className="flex gap-2 mt-auto">
+                      <div className="flex space-x-2">
                         <Button
                           variant="outline"
-                          className="flex-1 flex items-center justify-center gap-1 text-xs"
+                          size="sm"
+                          className={`flex-1 transition-transform active:scale-95 ${
+                            darkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-600 text-gray-200' : ''
+                          }`}
                           onClick={() => openProductDetails(product)}
                         >
-                          <FiEye /> Ver
+                          <FiEye className="mr-1" /> Ver
                         </Button>
                         <Button
                           variant="primary"
-                          className="flex-1 flex items-center justify-center gap-1 text-xs"
-                          onClick={() => addToOrder(product)}
+                          size="sm"
+                          className="flex-1 transition-transform active:scale-95 bg-indigo-600 hover:bg-indigo-700"
+                          onClick={() => addToOrder(product, productQuantities[product.product_id] || 1)}
                         >
-                          <FiClipboard /> Agregar
+                          <FiPlus className="mr-1" /> Añadir
                         </Button>
                       </div>
                     </div>
-                  </Card>
-                ))
-              ) : (
-                <div className="col-span-full text-center py-12 text-gray-500">
-                  No se encontraron productos.
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Paginación */}
-        {products.length > itemsPerPage && (
-          <div className="flex justify-center mt-6">
-            <nav className="inline-flex rounded-md shadow-sm">
-              <button
-                onClick={() => paginate(currentPage - 1)}
-                disabled={currentPage === 1}
-                className="px-3 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-              >
-                Anterior
-              </button>
-              {Array.from({ length: Math.min(5, Math.ceil(products.length / itemsPerPage)) }).map((_, index) => {
-                const pageNumber = index + 1;
-                return (
-                  <button
-                    key={index}
-                    onClick={() => paginate(pageNumber)}
-                    className={`px-3 py-2 border border-gray-300 text-sm font-medium ${
-                      currentPage === pageNumber
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-white text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    {pageNumber}
-                  </button>
-                );
-              })}
-              <button
-                onClick={() => paginate(currentPage + 1)}
-                disabled={currentPage === Math.ceil(products.length / itemsPerPage)}
-                className="px-3 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-              >
-                Siguiente
-              </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className={`text-center py-12 ${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow`}>
+                <p className={darkMode ? 'text-gray-300' : 'text-gray-600'}>No se encontraron productos que coincidan con tu búsqueda.</p>
+              </div>
+            )}
+          </div>
+        )}
+        
+        {/* Pagination */}
+        {!loading && products.length > itemsPerPage && (
+          <div className="mt-6 flex justify-center">
+            <nav className="flex items-center">
+              {Array.from({ length: Math.ceil(products.length / itemsPerPage) }).map((_, index) => (
+                <button
+                  key={index}
+                  onClick={() => paginate(index + 1)}
+                  className={`mx-1 px-3 py-1 rounded ${
+                    currentPage === index + 1
+                      ? darkMode
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-indigo-600 text-white'
+                      : darkMode
+                      ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {index + 1}
+                </button>
+              ))}
             </nav>
           </div>
         )}
       </div>
-
-      {/* Modal de detalles del producto */}
-      <Modal isOpen={modalVisible} onClose={closeModal} title="Detalles del Producto">
+      
+      {/* Product Detail Modal */}
+      <Modal 
+        isOpen={modalVisible} 
+        onClose={closeModal} 
+        title={selectedProduct?.name || 'Detalle del Producto'}
+        className={darkMode ? 'bg-gray-800 text-white' : ''}
+      >
         {selectedProduct && (
-          <div className="max-h-[calc(100vh-200px)] overflow-y-auto">
-            <div className="md:flex gap-6">
-              <div className="md:w-1/2 mb-4 md:mb-0">
-                <div className="bg-gray-50 p-4 rounded-lg flex items-center justify-center h-64">
-                  <img 
-                    src={selectedProduct.image} 
-                    alt={selectedProduct.name} 
-                    className="max-h-full max-w-full object-contain" 
-                  />
+          <div className="flex flex-col md:flex-row gap-6">
+            <div className="w-full md:w-1/2">
+              {selectedProduct.image ? (
+                <img 
+                  src={selectedProduct.image} 
+                  alt={selectedProduct.name} 
+                  className="w-full h-auto rounded-lg object-cover shadow-md"
+                />
+              ) : (
+                <div className={`w-full h-64 flex items-center justify-center rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                  <span className="text-6xl">📦</span>
                 </div>
+              )}
+            </div>
+            <div className="w-full md:w-1/2">
+              <h2 className={`text-2xl font-bold mb-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{selectedProduct.name}</h2>
+              <div className={`mb-4 pb-4 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                <span className={`inline-block px-2 py-1 rounded-md text-xs font-semibold ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+                  Código: {selectedProduct.code || 'N/A'}
+                </span>
               </div>
-              
-              <div className="md:w-1/2">
-                <h2 className="text-xl font-bold text-gray-900 mb-2">{selectedProduct.name}</h2>
-                
-                {selectedProduct.description && (
-                  <p className="text-gray-600 mb-4">{selectedProduct.description}</p>
-                )}
-                
-                <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                  <h3 className="font-semibold text-gray-700 mb-2">Precios</h3>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Normal:</span>
-                      <span className="font-bold text-blue-600">{formatCurrency(selectedProduct.price_list1)}</span>
-                    </div>
-                    
-                    {selectedProduct.price_list2 && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Mayorista:</span>
-                        <span className="font-bold text-blue-600">{formatCurrency(selectedProduct.price_list2)}</span>
-                      </div>
-                    )}
-                    
-                    {selectedProduct.price_list3 && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Especial:</span>
-                        <span className="font-bold text-blue-600">{formatCurrency(selectedProduct.price_list3)}</span>
-                      </div>
-                    )}
+              <p className={`mb-6 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                {selectedProduct.description || 'Sin descripción disponible para este producto.'}
+              </p>
+              <div className={`mb-6 p-4 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                <div className="flex justify-between items-center mb-4">
+                  <span className={darkMode ? 'text-gray-300' : 'text-gray-600'}>Precio:</span>
+                  <span className={`text-xl font-bold ${darkMode ? 'text-indigo-300' : 'text-indigo-600'}`}>
+                    {formatCurrency(selectedProduct.price_list1)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between mb-6">
+                  <span className={darkMode ? 'text-gray-300' : 'text-gray-600'}>Cantidad:</span>
+                  <div className="flex items-center">
+                    <button 
+                      onClick={decrementQuantity} 
+                      className={`p-2 rounded-l-md ${
+                        darkMode ? 'bg-gray-600 hover:bg-gray-500 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                      }`}
+                    >
+                      <FiMinus size={16} />
+                    </button>
+                    <input
+                      type="number"
+                      min="1"
+                      value={quantity}
+                      onChange={(e) => handleQuantityChange(selectedProduct.product_id, parseInt(e.target.value, 10))}
+                      className={`w-16 py-2 text-center border-y ${
+                        darkMode ? 'bg-gray-700 text-white border-gray-600' : 'bg-white text-gray-700 border-gray-200'
+                      }`}
+                    />
+                    <button 
+                      onClick={incrementQuantity} 
+                      className={`p-2 rounded-r-md ${
+                        darkMode ? 'bg-gray-600 hover:bg-gray-500 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                      }`}
+                    >
+                      <FiPlus size={16} />
+                    </button>
                   </div>
                 </div>
-                  <div className="border-t pt-4">
-                    <div className="flex items-center justify-between mb-4">
-                      <span className="text-gray-800 font-medium">Cantidad:</span>
-                      <div className="flex items-center border rounded-md">
-                        <button
-                          onClick={decrementQuantity}
-                          className="p-2 text-gray-600 hover:text-gray-800 disabled:opacity-50"
-                          disabled={quantity <= 1}
-                        >
-                          <FiMinus />
-                        </button>
-                        <span className="w-10 text-center">{quantity}</span>
-                        <button
-                          onClick={incrementQuantity}
-                          className="p-2 text-gray-600 hover:text-gray-800"
-                        >
-                          <FiPlus />
-                        </button>
-                      </div>
-                    </div>
-                    
-                    <Button
-                      variant="primary"
-                      className="w-full flex items-center justify-center gap-2"
-                      onClick={() => addToOrder(selectedProduct, quantity)}
-                    >
-                      <FiClipboard /> Agregar a Pedido
-                    </Button>
-                  </div>
+                <Button
+                  variant="primary"
+                  className="w-full transition-transform active:scale-95 bg-indigo-600 hover:bg-indigo-700"
+                  onClick={() => addToOrder(selectedProduct, quantity)}
+                >
+                  <FiShoppingCart className="mr-2" /> Añadir al Pedido
+                </Button>
               </div>
             </div>
           </div>

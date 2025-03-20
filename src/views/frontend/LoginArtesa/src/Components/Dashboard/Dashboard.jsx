@@ -100,11 +100,14 @@ const Dashboard = () => {
     setShowFilters(!showFilters);
   };
 
+  
+
   // Filtrar órdenes basado en la búsqueda
   const filteredOrders = recentOrders.filter(order => 
     order.cliente.toLowerCase().includes(searchTerm.toLowerCase()) ||
     order.productos.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
 
   return (
     <div className="w-full p-5 overflow-y-auto">
