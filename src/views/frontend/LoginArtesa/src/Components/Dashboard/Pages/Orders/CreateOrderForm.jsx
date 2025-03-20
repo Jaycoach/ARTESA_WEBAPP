@@ -136,9 +136,15 @@ const CreateOrderForm = ({ onOrderCreated }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Validaciones
-    if (!user || !user.id) {
+    // Validaciones de usuario
+    if (!user) {
       showNotification('Debes iniciar sesión para crear un pedido', 'error');
+      return;
+    }
+
+    if (!user.id) {
+      showNotification('No se puede identificar tu usuario. Por favor, cierra sesión y vuelve a ingresar', 'error');
+      console.error('Error: user.id no disponible', user);
       return;
     }
     
@@ -170,6 +176,14 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       // Calcular total
       const totalAmount = parseFloat(calculateTotal());
       
+      // Validar que tenemos ID de usuario
+      if (!user || !user.id) {
+        showNotification('Error: No se pudo identificar el ID de usuario', 'error');
+        console.error('Error: ID de usuario no disponible al crear orden', user);
+        setIsSubmitting(false);
+        return;
+      }
+
       // Preparar datos para la API
       const orderData = {
         user_id: user.id,
@@ -182,6 +196,12 @@ const CreateOrderForm = ({ onOrderCreated }) => {
           unit_price: parseFloat(detail.unit_price || 0)
         }))
       };
+
+      console.log('Datos de orden a enviar:', {
+        userId: user.id,
+        user: user,
+        orderData: orderData
+      });
       
       // Si hay un archivo adjunto, crear FormData para envío multipart
       let formData = null;
@@ -191,6 +211,9 @@ const CreateOrderForm = ({ onOrderCreated }) => {
         // Agregar el archivo
         formData.append('orderFile', orderFile);
         
+        // Agregar el ID de usuario explícitamente
+        formData.append('user_id', user.id.toString());
+        
         // Agregar los demás datos como JSON
         formData.append('orderData', JSON.stringify(orderData));
       }
@@ -198,7 +221,18 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       console.log('Enviando pedido:', orderData);
       
       // Enviar a la API (usando formData si hay archivo)
-      const result = await orderService.createOrder(formData || orderData, !!formData);
+      let result;
+      if (formData) {
+        // Si usamos formData, asegúrate de que el ID de usuario está incluido
+        result = await orderService.createOrder(formData, true);
+      } else {
+        // Si enviamos JSON, asegúrate de que el ID de usuario está incluido
+        const orderWithUserId = {
+          ...orderData,
+          user_id: user.id // Garantizar que user_id siempre está presente
+        };
+        result = await orderService.createOrder(orderWithUserId, false);
+      }
       
       if (result.success) {
         showNotification('Pedido creado exitosamente', 'success');

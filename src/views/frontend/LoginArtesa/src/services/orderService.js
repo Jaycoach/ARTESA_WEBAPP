@@ -2,16 +2,36 @@ import API from '../api/config';
 
 export const orderService = {
   // Crear una nueva orden
-  async createOrder(orderData, isMultipart = false) {
-    try {
-      // Determinar el método de envío según si hay archivos adjuntos
-      const headers = isMultipart 
-        ? { 'Content-Type': 'multipart/form-data' }
-        : { 'Content-Type': 'application/json' };
+async createOrder(orderData, isMultipart = false) {
+  try {
+    // Verificar si tenemos user_id en los datos
+    if (!isMultipart && (!orderData.user_id || orderData.user_id === undefined)) {
+      console.error('Error: user_id no encontrado en los datos de la orden', orderData);
+      throw new Error('ID de usuario requerido');
+    }
+    
+    // Si es multipart, verificar que el FormData contiene user_id o está en orderData
+    if (isMultipart && orderData instanceof FormData) {
+      const hasUserId = orderData.has('user_id');
+      const orderDataJson = orderData.get('orderData');
       
-        const response = await API.post('/orders', orderData, {
-          headers
-        });
+      if (!hasUserId && (!orderDataJson || !JSON.parse(orderDataJson).user_id)) {
+        console.error('Error: user_id no encontrado en FormData', orderData);
+        throw new Error('ID de usuario requerido');
+      }
+    }
+    
+    // Determinar el método de envío según si hay archivos adjuntos
+    const headers = isMultipart 
+      ? { 'Content-Type': 'multipart/form-data' }
+      : { 'Content-Type': 'application/json' };
+    
+    console.log(`Enviando orden a API${isMultipart ? ' (multipart)' : ' (JSON)'}:`, 
+      isMultipart ? 'FormData (contenido no visible)' : orderData);
+    
+    const response = await API.post('/orders', orderData, {
+      headers
+    });
       
       if (response.data.success) {
         return {

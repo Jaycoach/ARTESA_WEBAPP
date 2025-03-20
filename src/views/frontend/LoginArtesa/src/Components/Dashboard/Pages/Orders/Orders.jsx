@@ -9,6 +9,33 @@ import Notification from '../../../../Components/ui/Notification';
 
 const Orders = () => {
   const { user, isAuthenticated } = useAuth();
+  const [isUserActive, setIsUserActive] = useState(true);
+  const [userStatusMessage, setUserStatusMessage] = useState('');
+  
+  useEffect(() => {
+    // Verificar estado del usuario cuando cambia el objeto user
+    const checkUserStatus = async () => {
+      if (!user || !user.id) return;
+      
+      try {
+        const response = await API.get(`/users/${user.id}/status`);
+        
+        if (response.data && response.data.success) {
+          setIsUserActive(response.data.data.isActive || false);
+          if (!response.data.data.isActive) {
+            setUserStatusMessage('El usuario no puede crear órdenes');
+          }
+        }
+      } catch (error) {
+        console.error('Error al verificar estado del usuario:', error);
+        // Asumimos activo por defecto en caso de error para no bloquear al usuario
+        setIsUserActive(true);
+      }
+    };
+    
+    checkUserStatus();
+  }, [user]);
+  
   const { orderId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -149,16 +176,22 @@ const Orders = () => {
           >
             Mis Pedidos
           </button>
-            <button
-              onClick={() => navigate('/dashboard/orders/new')}
-              className={`${
-                activeTab === 'new'
-                  ? 'border-indigo-500 text-indigo-600'
-                  : 'hidden border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              } w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm`}
-            >
-              Nuevo Pedido
-            </button>
+          <button
+            onClick={() => {
+              if (!isUserActive) {
+                showNotification(userStatusMessage || 'El usuario no puede crear órdenes', 'error');
+              } else {
+                navigate('/dashboard/orders/new');
+              }
+            }}
+            className={`${
+              activeTab === 'new'
+                ? 'border-indigo-500 text-indigo-600'
+                : 'hidden border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            } w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm`}
+          >
+            Nuevo Pedido
+          </button>
           </nav>
         </div>
       </div>
