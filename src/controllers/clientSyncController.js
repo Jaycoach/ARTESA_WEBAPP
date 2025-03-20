@@ -1,5 +1,5 @@
 const { createContextLogger } = require('../config/logger');
-const sapClientSyncService = require('../services/SapClientSyncService');
+const sapServiceManager = require('../services/SapServiceManager');
 const pool = require('../config/db');
 
 // Crear una instancia del logger con contexto
@@ -77,12 +77,13 @@ class ClientSyncController {
       
       const pendingResult = await pool.query(pendingQuery);
 
+      const syncStatus = sapServiceManager.getSyncStatus();
       res.status(200).json({
         success: true,
         data: {
-          lastSyncTime: sapClientSyncService.lastSyncTime,
-          initialized: sapClientSyncService.initialized,
-          syncSchedule: sapClientSyncService.syncSchedule,
+          lastSyncTime: syncStatus.clients.lastSyncTime,
+          initialized: syncStatus.initialized,
+          syncSchedule: syncStatus.clients.syncSchedule,
           stats: {
             totalClients: parseInt(rows[0].total_clients),
             activeClients: parseInt(rows[0].active_clients),
@@ -164,7 +165,7 @@ class ClientSyncController {
       }
       
       // Ejecutar sincronización
-      const results = await sapClientSyncService.syncClientsWithSAP();
+      const results = await sapServiceManager.syncClients();
       
       res.status(200).json({
         success: true,

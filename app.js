@@ -10,13 +10,12 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const fileUpload = require('express-fileupload');
 const ensureJsonResponse = require('./src/middleware/ensureJsonResponse');
-const sapIntegrationService = require('./src/services/SapIntegrationService');
+const sapServiceManager = require('./src/services/SapServiceManager');
 const sapSyncRoutes = require('./src/routes/sapSyncRoutes');
 const { logger, createContextLogger } = require('./src/config/logger');
 const S3Service = require('./src/services/S3Service');
 const orderScheduler = require('./src/services/OrderScheduler');
 const clientSyncRoutes = require('./src/routes/clientSyncRoutes');
-const sapClientSyncService = require('./src/services/SapClientSyncService');
 
 // Importaciones de middlewares
 const { errorHandler, notFound } = require('./src/middleware/errorMiddleware');
@@ -328,30 +327,14 @@ app.use(errorHandler);
 // =========================================================================
 // INICIALIZACIÓN DE SERVICIOS
 // =========================================================================
-// Inicializar servicio de integración con SAP B1 (si está configurado)
-if (process.env.SAP_SERVICE_LAYER_URL) {
-  appLogger.info('Iniciando servicio de integración con SAP B1');
-  
-  sapIntegrationService.initialize()
-    .then(() => {
-      appLogger.info('Servicio de integración con SAP B1 iniciado exitosamente');
-    })
-    .catch(error => {
-      logger.error('Error al iniciar servicio de integración con SAP B1', {
-        error: error.message,
-        stack: error.stack
-      });
-    });
-} else {
-  appLogger.info('Integración con SAP B1 no configurada');
-}
-
-sapClientSyncService.initialize()
+// Inicializar gestor de servicios SAP
+appLogger.info('Iniciando gestor de servicios SAP');
+sapServiceManager.initialize()
   .then(() => {
-    logger.info('Servicio de sincronización de clientes inicializado correctamente');
+    appLogger.info('Gestor de servicios SAP iniciado exitosamente');
   })
   .catch(error => {
-    logger.error('Error al inicializar servicio de sincronización de clientes', {
+    logger.error('Error al iniciar gestor de servicios SAP', {
       error: error.message,
       stack: error.stack
     });

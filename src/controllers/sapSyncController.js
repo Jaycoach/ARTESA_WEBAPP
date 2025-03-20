@@ -1,7 +1,7 @@
 const pool = require('../config/db');
 const Product = require('../models/Product');
 const AuditService = require('../services/AuditService');
-const sapIntegrationService = require('../services/SapIntegrationService');
+const sapServiceManager = require('../services/SapServiceManager');
 const { createContextLogger } = require('../config/logger');
 const cron = require('node-cron');
 
@@ -61,7 +61,7 @@ class SapSyncController {
       Promise.resolve().then(async () => {
         try {
           // Siempre hacemos sincronización completa (true)
-          await sapIntegrationService.syncProductsFromSAP(true);
+          await sapServiceManager.syncProducts(true);
           logger.info('Sincronización manual completada', { jobId });
         } catch (error) {
           logger.error('Error en sincronización manual', {
@@ -157,13 +157,14 @@ class SapSyncController {
         });
       }
 
+      const syncStatus = sapServiceManager.getSyncStatus();
       res.status(200).json({
         success: true,
         data: {
-          lastSyncTime: sapIntegrationService.lastSyncTime,
+          lastSyncTime: syncStatus.products.lastSyncTime,
           nextSyncTime,
-          initialized: sapIntegrationService.initialized,
-          syncSchedule: sapIntegrationService.syncSchedule
+          initialized: syncStatus.initialized,
+          syncSchedule: syncStatus.products.syncSchedule
         }
       });
     } catch (error) {
@@ -205,11 +206,11 @@ class SapSyncController {
       logger.info('Probando conexión con SAP B1');
       
       // Iniciar sesión y verificar
-      await sapIntegrationService.login();
-      
-      // Intentar obtener datos de la vista personalizada en lugar de Items
+      // Utilizamos directamente el servicio de productos para la prueba
+      const productService = sapServiceManager.productService;
+      await productService.login();
       const endpoint = 'view.svc/B1_ProductsB1SLQuery?$top=2';
-      const result = await sapIntegrationService.request('GET', endpoint);
+      const result = await productService.request('GET', endpoint);
         
       res.status(200).json({
         success: true,
@@ -265,7 +266,7 @@ class SapSyncController {
       // Iniciar sincronización en segundo plano
       Promise.resolve().then(async () => {
         try {
-          await sapIntegrationService.syncProductsByGroupCode(groupCodeInt);
+          await sapServiceManager.syncProductsByGroup(groupCodeInt);
           logger.info('Sincronización por grupo completada', { groupCode: groupCodeInt });
         } catch (error) {
           logger.error('Error en sincronización por grupo', {
@@ -320,13 +321,14 @@ class SapSyncController {
         groupCode: groupCodeInt
       });
 
+      const syncStatus = sapServiceManager.getSyncStatus();
+      const groupInfo = syncStatus.products.groupSchedules.find(g => parseInt(g.groupCode) === groupCodeInt) || {};
       res.status(200).json({
         success: true,
         data: {
           groupCode: groupCodeInt,
-          lastSyncTime: sapIntegrationService.lastGroupSyncTime?.[groupCodeInt] || null,
-          schedule: sapIntegrationService.groupSyncTasks?.[groupCodeInt] ? 
-            'Activa' : 'No configurada'
+          lastSyncTime: groupInfo.lastSyncTime || null,
+          schedule: groupInfo.lastSyncTime ? 'Activa' : 'No configurada'
         }
       });
     } catch (error) {
@@ -382,7 +384,7 @@ class SapSyncController {
         }
         
         // Configurar tarea de sincronización
-        sapIntegrationService.scheduleGroupSyncTask(groupCodeInt, schedule);
+        sapServiceManager.productService.scheduleGroupSyncTask(groupCodeInt, schedule);
         
         res.status(200).json({
           success: true,
@@ -441,12 +443,14 @@ class SapSyncController {
       await sapIntegrationService.login();
       
       // Obtener metadatos de la vista
+      const productService = sapServiceManager.productService;
+      await productService.login();
       const metadataEndpoint = 'view.svc/$metadata';
-      const metadataResult = await sapIntegrationService.request('GET', metadataEndpoint);
+      const metadataResult = await productService.request('GET', metadataEndpoint);
       
       // Obtener una muestra de datos
       const sampleEndpoint = 'view.svc/B1_ProductsB1SLQuery?$top=1';
-      const sampleResult = await sapIntegrationService.request('GET', sampleEndpoint);
+      const sampleResult = await productService.request('GET', sampleEndpoint);
       
       // Analizar las propiedades disponibles
       let propertyNames = [];
@@ -604,7 +608,7 @@ class SapSyncController {
       
       try {
         // 3. Intentar actualizar en SAP (FrgnName en tabla OITM)
-        await sapIntegrationService.updateProductDescriptionInSAP(product.sap_code, description);
+        await sapServiceManager.updateProductDescription(product.sap_code, description);
   
         // Marcar como sincronizado si todo es exitoso (eliminamos la operación redundante)
         await client.query(
