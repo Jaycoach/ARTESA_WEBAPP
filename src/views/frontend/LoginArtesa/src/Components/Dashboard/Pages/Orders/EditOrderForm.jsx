@@ -35,7 +35,12 @@ const EditOrderForm = ({ onOrderUpdated }) => {
         console.log("Respuesta de configuración:", response.data);
         
         if (response.data && response.data.success) {
-          const settingsData = response.data.data || { orderTimeLimit: '18:00' };
+          const settingsData = response.data.data || {};
+        if (!settingsData.orderTimeLimit) {
+          // Si no hay valor, usar la hora de trabajo estándar como predeterminada pero emitir advertencia
+          console.warn('No se encontró orderTimeLimit en la configuración, usando hora predeterminada');
+          settingsData.orderTimeLimit = '17:00'; // Un valor diferente para mostrar que es por defecto
+        }
           console.log("Configuración cargada:", settingsData);
           setSiteSettings(settingsData);
         }

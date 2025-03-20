@@ -31,17 +31,17 @@ const calculateAvailableDates = () => {
     const isPastTimeLimit = currentHour > limitHours || 
       (currentHour === limitHours && currentMinute >= limitMinutes);
 
-    // Reglas para calcular fechas de entrega
-    let startOffset = 2; // Mínimo 2 días en el futuro para entrega
+    // Reglas para calcular días de entrega mínimos basados en el día actual
+    let startOffset = 2; // Mínimo 2 días en el futuro para entrega normalmente
 
     // Regla especial para sábados
     if (currentDay === 6) { // Sábado
       if (currentHour >= 12) { // Después del mediodía
-        // Después del mediodía, entrega el miércoles (4 días después)
+        // Después del mediodía en sábado, entrega el miércoles (4 días después)
         startOffset = 4;
         console.log("Sábado después del mediodía: entrega miércoles (4 días)");
       } else {
-        // Antes del mediodía, entrega el martes (3 días después)
+        // Antes del mediodía en sábado, entrega el martes (3 días después)
         startOffset = 3;
         console.log("Sábado antes del mediodía: entrega martes (3 días)");
       }
@@ -53,17 +53,12 @@ const calculateAvailableDates = () => {
     }
     // Para otros días, mínimo 2 días de entrega
     else {
-      startOffset = 2;
-      console.log(`Día regular (${currentDay}): entrega en 2 días mínimo`);
-      
       // Si pasó el límite de tiempo, agregar un día extra
       if (isPastTimeLimit) {
         startOffset++;
-        console.log(`Pasado el límite de ${orderTimeLimit}, se agrega 1 día más`);
+        console.log(`Pasado el límite de tiempo de ${orderTimeLimit}, se agrega 1 día más`);
       }
     }
-
-    console.log(`Fecha actual: ${now.toLocaleString()}, Offset de días: ${startOffset}`);
 
     // Generar fechas disponibles (5 opciones empezando desde la primera disponible)
     for (let i = 0; i < 10; i++) {

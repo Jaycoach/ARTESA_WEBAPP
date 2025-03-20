@@ -319,7 +319,14 @@ const CreateOrderForm = ({ onOrderCreated }) => {
           <p className="text-sm text-gray-600 mb-3">
             Selecciona la fecha en que necesitas recibir tu pedido.
             <br/>
-            Pedidos realizados después de las {siteSettings.orderTimeLimit} requieren al menos 2 días para entrega.
+            <strong>Reglas de entrega:</strong>
+            <ul className="mt-1 list-disc pl-5">
+              <li>Pedidos normales: mínimo 2 días para entrega</li>
+              <li>Pedidos después de las {siteSettings.orderTimeLimit}: +1 día adicional</li>
+              <li>Sábados antes del mediodía: entrega el martes</li>
+              <li>Sábados después del mediodía: entrega el miércoles</li>
+              <li>Domingos: entrega el miércoles</li>
+            </ul>
           </p>
           
           <DeliveryDatePicker 

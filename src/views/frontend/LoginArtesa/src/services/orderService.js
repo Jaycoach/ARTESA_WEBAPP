@@ -131,10 +131,24 @@ async createOrder(orderData, isMultipart = false) {
   },
   
   // Verificar si un pedido puede ser editado
-async canEditOrder(orderId, orderTimeLimit = '18:00') {
+  async canEditOrder(orderId, orderTimeLimit = null) {
   try {
     console.log(`Verificando si se puede editar la orden ${orderId} con límite ${orderTimeLimit}`);
     const orderResult = await this.getOrderById(orderId);
+
+    // Obtener la configuración actualizada del sitio si no se proporcionó
+    if (!orderTimeLimit) {
+      try {
+        const siteConfigResponse = await API.get('/admin/settings');
+        if (siteConfigResponse.data && siteConfigResponse.data.success) {
+          orderTimeLimit = siteConfigResponse.data.data.orderTimeLimit || '18:00';
+          console.log(`Límite obtenido de configuración: ${orderTimeLimit}`);
+        }
+      } catch (error) {
+        console.warn('No se pudo obtener la configuración, usando valor predeterminado');
+        orderTimeLimit = '18:00';
+      }
+    }
     
     if (!orderResult.success) {
       console.log('No se pudo obtener información del pedido');
