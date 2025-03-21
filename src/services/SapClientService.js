@@ -165,13 +165,14 @@ class SapClientService extends SapBaseService {
    */
   async createOrUpdateBusinessPartnerLead(clientProfile) {
     try {
-      if (!clientProfile.nit_number || !clientProfile.verification_digit) {
+      if (!clientProfile.nit_number || clientProfile.verification_digit === undefined) {
         throw new Error('El NIT y dígito de verificación son requeridos para crear un Lead en SAP');
       }
 
       this.logger.debug('Creando/actualizando socio de negocios tipo Lead en SAP B1', {
         clientId: clientProfile.client_id,
-        nit: clientProfile.nit_number
+        nit: clientProfile.nit_number,
+        verification_digit: clientProfile.verification_digit
       });
 
       // Determinar si es creación o actualización
@@ -183,20 +184,22 @@ class SapClientService extends SapBaseService {
       // Formatear teléfono (asegurar que solo tenga 10 dígitos numéricos)
       let phone = clientProfile.contact_phone || '';
       phone = phone.replace(/\D/g, '').substring(0, 10);
-      
+
+      // Crear CardCode único con formato requerido
       const cardCode = clientProfile.cardcode_sap || `C${clientProfile.nit_number}`;
+      
       // Preparar datos para SAP
       const businessPartnerData = {
         CardCode: cardCode,
         CardName: clientProfile.razonSocial || clientProfile.company_name || clientProfile.nombre || clientProfile.contact_name || '',
-        CardType: 'L',  // Lead
-        PriceListNum: 1,
-        GroupCode: 102,
-        FederalTaxID: clientProfile.nit,
-        Phone1: clientProfile.telefono || clientProfile.contact_phone || phone,
+        CardType: 'L',  // Lead - siempre L
+        PriceListNum: 1, // Siempre 1
+        GroupCode: 102, // Grupo Por defecto
+        FederalTaxID: `${clientProfile.nit_number}-${clientProfile.verification_digit}`,
+        Phone1: phone,
         EmailAddress: clientProfile.email || clientProfile.contact_email || '',
-        Address: clientProfile.address || '',
-        U_AR_ArtesaCode: cardCode  // Añadir campo personalizado
+        Address: clientProfile.direccion || clientProfile.address || '',
+        U_AR_ArtesaCode: cardCode // Añadir campo personalizado
       };
 
       this.logger.debug('Objeto BusinessPartner a enviar a SAP', {

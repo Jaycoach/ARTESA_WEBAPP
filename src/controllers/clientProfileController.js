@@ -771,10 +771,10 @@ class ClientProfileController {
       if (profile.nit_number && profile.verification_digit) {
         try {
           logger.debug('Intentando sincronizar perfil con SAP', {
-            nit_number: profile.nit_number,
-            verification_digit: profile.verification_digit,
             client_id: profile.client_id,
-            user_id: profile.user_id
+            user_id: profile.user_id,
+            nit_number: profile.nit_number,
+            verification_digit: profile.verification_digit
           });
           
           // Verificar que el servicio de SAP esté inicializado
@@ -782,6 +782,18 @@ class ClientProfileController {
             logger.debug('Inicializando servicio de SAP antes de sincronizar');
             await sapServiceManager.initialize();
           }
+
+          // Preparar datos para SAP en formato requerido
+          const sapFormattedProfile = ClientProfile.toSapBusinessPartner(profile);
+          
+          logger.debug('Datos formateados para envío a SAP B1', {
+            CardCode: sapFormattedProfile.CardCode,
+            CardName: sapFormattedProfile.CardName,
+            CardType: sapFormattedProfile.CardType,
+            FederalTaxID: sapFormattedProfile.FederalTaxID,
+            PriceListNum: sapFormattedProfile.PriceListNum,
+            GroupCode: sapFormattedProfile.GroupCode
+          });
           
           logger.debug('Datos para sincronización con SAP', {
             nit_number: profile.nit_number,
@@ -791,7 +803,6 @@ class ClientProfileController {
             user_id: profile.user_id
           });
 
-          // Justo antes de intentar sincronizar con SAP, agrega:
           try {
             // Prepare the profile data for SAP B1 format
             const sapFormattedProfile = ClientProfile.toSapBusinessPartner(profile);
@@ -805,7 +816,7 @@ class ClientProfileController {
             });
             
             // Intentar crear en SAP
-          const sapResult = await sapServiceManager.createOrUpdateBusinessPartnerLead(profile)
+          const sapResult = await sapServiceManager.createOrUpdateLead(profile);
           
           logger.debug('Resultado de sincronización con SAP', {
             success: sapResult.success,
@@ -814,13 +825,12 @@ class ClientProfileController {
             client_id: profile.client_id
           });
             
-            // Resto del código para manejar la respuesta...
           } catch (sapError) {
             // Manejo de errores...
           } 
           
           // Actualizar el perfil con la información de SAP
-          if (sapResult.success) {
+          if (sapResult && sapResult.success && sapResult.cardCode) {
             await pool.query(
               `UPDATE client_profiles 
               SET cardcode_sap = $1, sap_lead_synced = true, updated_at = CURRENT_TIMESTAMP
@@ -837,8 +847,14 @@ class ClientProfileController {
               cardcodeSap: sapResult.cardCode,
               isNew: sapResult.isNew
             });
+          } else {
+            logger.warn('No se pudo sincronizar el perfil con SAP correctamente', {
+              clientId: profile.client_id,
+              success: sapResult?.success,
+              cardCode: sapResult?.cardCode
+            });
           }
-        } catch (sapError) {
+        }  catch (sapError) {
           // No fallamos la creación del perfil si falla SAP, solo logueamos el error
           logger.error('Error al sincronizar perfil con SAP', {
             error: sapError.message,

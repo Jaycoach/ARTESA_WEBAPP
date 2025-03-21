@@ -641,7 +641,7 @@ static async create(clientData) {
                              (profile.extraInfo && profile.extraInfo.verification_digit);
     
     // Verificar que tengamos los datos críticos
-    if (!nit_number || !verification_digit) {
+    if (!nit_number || verification_digit === undefined) {
       throw new Error('NIT y dígito de verificación son requeridos para crear BusinessPartner en SAP');
     }
     
@@ -650,8 +650,10 @@ static async create(clientData) {
                       (profile.additionalData && profile.additionalData.razonSocial) || 
                       profile.nombre || profile.contact_name || 'Sin nombre';
     
-    const phone = profile.telefono || profile.contact_phone || 
+    // Formatear teléfono (asegurar que solo tenga 10 dígitos numéricos)
+    let phone = profile.telefono || profile.contact_phone || 
                 (profile.additionalData && profile.additionalData.telefono) || '';
+    phone = phone.replace(/\D/g, '').substring(0, 10);
                 
     const email = profile.email || profile.contact_email || 
                 (profile.additionalData && profile.additionalData.email) || '';
@@ -659,26 +661,17 @@ static async create(clientData) {
     const address = profile.direccion || profile.address || 
                   (profile.additionalData && profile.additionalData.direccion) || '';
                   
-    const city = profile.ciudad || profile.city || 
-               (profile.additionalData && profile.additionalData.ciudad) || '';
-               
-    const country = profile.pais || profile.country || 
-                  (profile.additionalData && profile.additionalData.pais) || 'Colombia';
-    
-    // Construcción del objeto para SAP con los datos extraídos
+    // Construcción del objeto para SAP con exactamente el formato requerido
     const businessPartner = {
       CardCode: `C${nit_number}`, // Prefijo 'C' seguido del NIT sin DV
       CardName: companyName,
-      CardType: "L", // Lead por defecto
-      GroupCode: 102, // Grupo fijo
+      CardType: "L", // Lead por defecto (siempre L)
+      PriceListNum: 1, // Siempre 1
+      GroupCode: 102, // Siempre 102
       FederalTaxID: `${nit_number}-${verification_digit}`,
       Phone1: phone,
       EmailAddress: email,
       Address: address,
-      U_HBT_City: city,
-      U_HBT_Country: country,
-      Notes: profile.notas || profile.notes || '',
-      PriceListNum: profile.listaPrecios || profile.price_list || 1,
       // Campo adicional para facilitar referencia interna
       U_AR_ArtesaCode: `C${nit_number}`
     };
