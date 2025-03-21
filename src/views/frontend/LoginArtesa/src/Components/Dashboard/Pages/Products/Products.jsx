@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { FiShoppingCart, FiSearch, FiEye, FiClipboard, FiPlus, FiMinus, FiList, FiGrid, FiCheck, FiMoon, FiSun } from 'react-icons/fi';
 import API from '../../../../api/config';
 import Notification from '../../../../Components/ui/Notification';
@@ -24,11 +24,50 @@ const Products = () => {
   // Estado para la paginación
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
-
+  const paginate = (pageNumber) => setCurrentPage(pageNumber);
   // Estado para el pedido actual
   const [orderItems, setOrderItems] = useState([]);
   const [orderTotal, setOrderTotal] = useState(0);
   const [submittingOrder, setSubmittingOrder] = useState(false);
+
+
+
+  // Función para cambiar de página
+  const getPaginationRange = (currentPage, totalPages, siblingCount = 1) => {
+    const totalPageNumbers = siblingCount * 2 + 5;
+    
+    if (totalPageNumbers >= totalPages) {
+      return Array.from({ length: totalPages }, (_, index) => index + 1);
+    }
+  
+    const leftSiblingIndex = Math.max(currentPage - siblingCount, 1);
+    const rightSiblingIndex = Math.min(currentPage + siblingCount, totalPages);
+  
+    const shouldShowLeftDots = leftSiblingIndex > 2;
+    const shouldShowRightDots = rightSiblingIndex < totalPages - 2;
+  
+    const firstPageIndex = 1;
+    const lastPageIndex = totalPages;
+  
+    if (!shouldShowLeftDots && shouldShowRightDots) {
+      let leftItemCount = 3 + 2 * siblingCount;
+      let leftRange = Array.from({ length: leftItemCount }, (_, i) => i + 1);
+  
+      return [...leftRange, '...', totalPages];
+    }
+  
+    if (shouldShowLeftDots && !shouldShowRightDots) {
+      let rightItemCount = 3 + 2 * siblingCount;
+      let rightRange = Array.from({ length: rightItemCount }, (_, i) => totalPages - rightItemCount + 1 + i);
+      
+      return [firstPageIndex, '...', ...rightRange];
+    }
+  
+    if (shouldShowLeftDots && shouldShowRightDots) {
+      let middleRange = Array.from({ length: (siblingCount * 2) + 1 }, (_, i) => leftSiblingIndex + i);
+      return [firstPageIndex, '...', ...middleRange, '...', lastPageIndex];
+    }
+  };
 
   // Efecto para cargar la configuración del sitio
   const [siteSettings, setSiteSettings] = useState({ orderTimeLimit: '18:00' });
@@ -44,15 +83,12 @@ const Products = () => {
   const fetchProducts = useCallback(async () => {
     setLoading(true);
     try {
-      let url = '/products';
-      const params = new URLSearchParams();
-      if (search) params.append('search', search);
-      
-      if (params.toString()) url += `?${params.toString()}`;
-      
-      const response = await API.get(url);
+      const response = await API.get(`/products${search ? `?search=${search}` : ''}`);
       if (response.data.success) {
         setProducts(response.data.data || []);
+        setProductQuantities(
+          response.data.data.reduce((acc, product) => ({ ...acc, [product.product_id]: 1 }), {})
+        );
       } else {
         showNotification(response.data.message || 'Error al cargar productos', 'error');
       }
@@ -81,10 +117,10 @@ const Products = () => {
   const updateQuantity = useCallback((productId, quantity) => {
     setProductQuantities(prev => ({
       ...prev,
-      [productId]: quantity
-    }));
-    console.log("Product quantities updated:", productId, quantity);
-  }, []);
+      [productId]: Math.max(1, quantity) // Evita cantidades negativas o cero
+  }));
+  console.log("Product quantities updated:", productId, Math.max(1, quantity));
+}, []);
 
   const incrementQuantity = useCallback(() => {
     if (selectedProduct) {
@@ -265,11 +301,11 @@ const Products = () => {
     setOrderTotal(total);
   }, [orderItems]);
 
-  // Paginación
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentItems = products.slice(indexOfFirstItem, indexOfLastItem);
-  const paginate = useCallback((pageNumber) => setCurrentPage(pageNumber), []);
+  // Modificar la lógica de paginación
+  const paginatedProducts = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return products.slice(startIndex, startIndex + itemsPerPage);
+  }, [products, currentPage, itemsPerPage]);
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -314,7 +350,7 @@ useEffect(() => {
   }, [orderItems, calculateOrderTotal]);
 
   return (
-    <div className={`min-h-screen transition-colors duration-300 ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`}>
+    <div className={`min-h-screen ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`}>
       {notification.show && (
         <Notification message={notification.message} type={notification.type} onClose={() => setNotification({ show: false, message: '', type: '' })} />
       )}
@@ -338,6 +374,10 @@ useEffect(() => {
             {darkMode ? <FiSun size={20} /> : <FiMoon size={20} />}
           </Button>
         </div>
+        <div className="mb-4 text-sm">
+        Mostrando {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, products.length)} de {products.length} productos
+        </div>
+
         
         {/* Order summary card with animation */}
         <div className={`mb-8 transform transition-all duration-300 hover:scale-[1.01] ${orderItems.length > 0 ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-90'}`}>
@@ -429,7 +469,7 @@ useEffect(() => {
                 <p className="mt-2">Cargando productos...</p>
               </div>
             ) : products.length > 0 ? (
-              <table className="min-w-full divide-y divide-gray-200">
+              <table className="min-w-full divide-y divide-gray-200 bg-white rounded-lg shadow-md overflow-hidden">
                 <thead className={darkMode ? 'bg-gray-700' : 'bg-gray-50'}>
                   <tr>
                     <th scope="col" className={`px-6 py-3 text-left text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>Producto</th>
@@ -439,7 +479,7 @@ useEffect(() => {
                   </tr>
                 </thead>
                 <tbody className={`divide-y ${darkMode ? 'divide-gray-700' : 'divide-gray-200'}`}>
-                  {products.map((product) => (
+                  {paginatedProducts.map((product) => (
                     <tr key={product.product_id} className={`transition-colors ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`}>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
@@ -530,7 +570,7 @@ useEffect(() => {
               </div>
             ) : products.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {products.map((product) => (
+                {paginatedProducts.map((product) => (
                   <div 
                     key={product.product_id} 
                     className={`rounded-lg overflow-hidden shadow-md transition-all duration-300 hover:shadow-lg transform hover:-translate-y-1 ${
@@ -626,29 +666,46 @@ useEffect(() => {
         )}
         
         {/* Pagination */}
+        {/* Nueva paginación */}
+        <button onClick={() => paginate(Math.max(currentPage - 1, 1))}
+          disabled={currentPage === 1}
+          className="px-3 py-1 rounded bg-gray-100 text-gray-700"
+        >
+          {'<'}
+        </button>
         {!loading && products.length > itemsPerPage && (
           <div className="mt-6 flex justify-center">
-            <nav className="flex items-center">
-              {Array.from({ length: Math.ceil(products.length / itemsPerPage) }).map((_, index) => (
-                <button
-                  key={index}
-                  onClick={() => paginate(index + 1)}
-                  className={`mx-1 px-3 py-1 rounded ${
-                    currentPage === index + 1
-                      ? darkMode
+            <nav className="flex items-center gap-1">
+              {getPaginationRange(currentPage, Math.ceil(products.length / itemsPerPage)).map((pageNumber, index) =>
+                pageNumber === '...' ? (
+                  <span key={index} className="px-2">...</span>
+                ) : (
+                  <button
+                    key={index}
+                    onClick={() => paginate(pageNumber)}
+                    className={`mx-1 px-3 py-1 rounded ${
+                      currentPage === pageNumber
                         ? 'bg-indigo-600 text-white'
-                        : 'bg-indigo-600 text-white'
-                      : darkMode
-                      ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  {index + 1}
-                </button>
-              ))}
+                        : 'bg-gray-200 text-gray-700 Shover:bg-gray-300'
+                    }`}
+                  >
+                    {pageNumber}
+                  </button>
+                )
+              )}
             </nav>
           </div>
         )}
+        <button
+          onClick={() => paginate(Math.min(currentPage + 1, Math.ceil(products.length / itemsPerPage)))}
+          disabled={currentPage === Math.ceil(products.length / itemsPerPage)}
+          className="px-3 py-1 rounded bg-gray-100 text-gray-700"
+        >
+          {'>'}
+        </button>
+        <div className="text-center mt-2 font-bold">
+          Página actual: {currentPage}
+        </div>
       </div>
       
       {/* Product Detail Modal */}

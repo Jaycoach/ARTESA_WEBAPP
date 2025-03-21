@@ -73,7 +73,7 @@ const router = createBrowserRouter([
     element: <Home />,
   },
   {
-    path: '/original-home', // o cualquier ruta que prefieras
+    path: '/original-home', 
     element: (
       <Suspense fallback={<LoadingScreen />}>
         <OriginalHome />
