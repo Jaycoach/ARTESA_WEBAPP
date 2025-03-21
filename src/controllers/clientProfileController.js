@@ -1221,7 +1221,7 @@ class ClientProfileController {
             });
             
             // Intentar crear/actualizar en SAP
-            const sapResult = await sapServiceManager.createOrUpdateBusinessPartnerLead(updatedProfile);
+            const sapResult = await sapServiceManager.createOrUpdateLead(profile);
             
             logger.debug('Resultado de sincronización con SAP', {
               success: sapResult.success,
