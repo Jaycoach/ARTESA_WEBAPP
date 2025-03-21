@@ -68,6 +68,24 @@ class SapBaseService {
     try {
       this.logger.debug('Iniciando autenticación con SAP B1 Service Layer');
 
+      // Verificar que las credenciales estén configuradas
+      if (!this.baseUrl || !this.username || !this.password || !this.companyDB) {
+        const errorMsg = 'Configuración incompleta para la conexión con SAP B1';
+        this.logger.error(errorMsg, {
+          baseUrlConfigured: !!this.baseUrl,
+          usernameConfigured: !!this.username,
+          passwordConfigured: !!this.password,
+          companyDBConfigured: !!this.companyDB
+        });
+        throw new Error(errorMsg);
+      }
+
+      this.logger.debug('Intentando conexión con SAP B1', {
+        baseUrl: this.baseUrl,
+        username: this.username,
+        companyDB: this.companyDB
+      });
+
       // Crear una instancia de axios con el agente HTTPS
       const axiosInstance = axios.create({
         httpsAgent: this.httpsAgent

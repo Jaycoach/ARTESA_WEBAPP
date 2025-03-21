@@ -186,22 +186,38 @@ class SapClientService extends SapBaseService {
       let phone = clientProfile.telefono || clientProfile.contact_phone || '';
       phone = phone.replace(/\D/g, '').substring(0, 20); // SAP puede aceptar más dígitos
 
+      // Obtener el nombre correcto para SAP
+      const businessPartnerName = clientProfile.razonSocial || 
+      clientProfile.company_name || 
+      clientProfile.nombre || 
+      clientProfile.contact_name || 
+      'Sin nombre';
+
+      this.logger.info('Datos para crear BusinessPartner en SAP', {
+      cardCode,
+      businessPartnerName,
+      nit: `${clientProfile.nit_number}-${clientProfile.verification_digit}`,
+      phone,
+      email: clientProfile.email || clientProfile.contact_email || '',
+      address: clientProfile.direccion || clientProfile.address || '',
+      isUpdate
+      });
+
       // Crear CardCode único con formato requerido
       const cardCode = clientProfile.cardcode_sap || `C${clientProfile.nit_number}`;
       
       // Preparar datos para SAP
       const businessPartnerData = {
         CardCode: cardCode,
-        CardName: clientProfile.razonSocial || clientProfile.company_name || clientProfile.nombre || clientProfile.contact_name || '',
-        CardType: 'L',  // Lead - siempre L para nuevos
+        CardName: businessPartnerName,
+        CardType: 'L',  // Lead - siempre L
         PriceListNum: 1, // Siempre 1
         GroupCode: 102, // Grupo Por defecto
         FederalTaxID: `${clientProfile.nit_number}-${clientProfile.verification_digit}`,
         Phone1: phone,
         EmailAddress: clientProfile.email || clientProfile.contact_email || '',
         Address: clientProfile.direccion || clientProfile.address || '',
-        // Campo personalizado para referencia interna
-        U_AR_ArtesaCode: clientProfile.clientprofilecode_sap || cardCode
+        U_AR_ArtesaCode: cardCode // Añadir campo personalizado
       };
 
       this.logger.debug('Objeto BusinessPartner a enviar a SAP', {
@@ -220,6 +236,14 @@ class SapClientService extends SapBaseService {
       // Si es actualización, usamos PATCH, si es creación usamos POST
       const method = isUpdate ? 'PATCH' : 'POST';
       
+      this.logger.info('Enviando datos a SAP B1', {
+        endpoint,
+        method,
+        cardCode: businessPartnerData.CardCode,
+        cardName: businessPartnerData.CardName,
+        federalTaxID: businessPartnerData.FederalTaxID
+      });
+
       try {
         // Realizar petición a SAP
         const result = await this.request(method, endpoint, businessPartnerData);
@@ -230,7 +254,8 @@ class SapClientService extends SapBaseService {
           resultCardCode = result.CardCode;
           this.logger.info('Nuevo socio de negocios Lead creado en SAP', {
             cardCode: resultCardCode,
-            clientId: clientProfile.client_id
+            clientId: clientProfile.client_id,
+            resultData: JSON.stringify(result).substring(0, 500) // Log de los primeros 500 caracteres
           });
         } else if (isUpdate) {
           this.logger.info('Socio de negocios Lead actualizado en SAP', {
@@ -244,17 +269,19 @@ class SapClientService extends SapBaseService {
           cardCode: resultCardCode,
           isNew: !isUpdate
         };
-      } catch (requestError) {
-        this.logger.error('Error en petición a SAP', {
-          error: requestError.message,
-          statusCode: requestError.response?.status,
-          responseData: requestError.response?.data,
-          cardCode,
-          clientId: clientProfile.client_id
+      } catch (error) {
+        this.logger.error('Error al crear/actualizar socio de negocios Lead en SAP', {
+          error: error.message,
+          stack: error.stack,
+          clientId: clientProfile.client_id,
+          requestData: JSON.stringify(businessPartnerData)
         });
+
+        // Reenviar el error para que se maneje en el nivel superior
+        throw error;
         
         // Intentar reautenticar y reintentar una vez si el error es de autenticación
-        if (requestError.response && requestError.response.status === 401) {
+        /*if (requestError.response && requestError.response.status === 401) {
           this.logger.info('Reintentando después de reautenticar', { cardCode });
           this.sessionId = null;
           await this.login();
@@ -278,7 +305,7 @@ class SapClientService extends SapBaseService {
           };
         }
         
-        throw requestError;
+        throw requestError;*/
       }
     } catch (error) {
       this.logger.error('Error al crear/actualizar socio de negocios Lead en SAP', {

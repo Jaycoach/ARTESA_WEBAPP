@@ -770,27 +770,32 @@ class ClientProfileController {
       // Verificar si se debe sincronizar con SAP
       if (profile.nit_number && profile.verification_digit) {
         try {
-          logger.debug('Intentando sincronizar perfil con SAP', {
+          logger.info('Intentando sincronizar perfil con SAP', {
             client_id: profile.client_id,
             user_id: profile.user_id,
             nit_number: profile.nit_number,
-            verification_digit: profile.verification_digit
+            verification_digit: profile.verification_digit,
+            razonSocial: profile.razonSocial || profile.company_name,
+            nombre: profile.nombre || profile.contact_name,
+            telefono: profile.telefono || profile.contact_phone,
+            email: profile.email || profile.contact_email,
+            direccion: profile.direccion || profile.address
           });
           
           // Verificar que el servicio de SAP esté inicializado
           if (!sapServiceManager.initialized) {
-            logger.debug('Inicializando servicio de SAP antes de sincronizar');
+            logger.info('Inicializando servicio de SAP antes de sincronizar');
             await sapServiceManager.initialize();
           }
-
-          // Intentar crear o actualizar en SAP
+        
+          // Intentar crear en SAP usando el método correcto
           const sapResult = await sapServiceManager.createOrUpdateLead(profile);
           
-          logger.debug('Resultado de sincronización con SAP', {
-            success: sapResult.success,
-            cardCode: sapResult.cardCode,
-            isNew: sapResult.isNew,
-            client_id: profile.client_id
+          logger.info('Resultado de sincronización SAP', {
+            success: sapResult?.success,
+            cardCode: sapResult?.cardCode,
+            isNew: sapResult?.isNew,
+            error: sapResult?.error
           });
           
           // Actualizar el perfil con la información de SAP
