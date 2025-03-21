@@ -6,7 +6,7 @@ const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const ClientProfile = require('../models/clientProfile');
 const S3Service = require('../services/S3Service');
-const sapIntegrationService = require('../services/SapIntegrationService');
+const sapServiceManager = require('../services/SapServiceManager');
 
 // Crear una instancia del logger con contexto
 const logger = createContextLogger('ClientProfileController');
