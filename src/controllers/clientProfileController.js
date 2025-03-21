@@ -377,6 +377,29 @@ class ClientProfileController {
       if (profile.anexosAdicionales) {
         profile.anexosAdicionalesUrl = `${baseUrl}/api/client-profiles/${userId}/file/anexos`;
       }
+
+      // Procesar correctamente los datos adicionales en el campo notes
+      if (profile.notes && typeof profile.notes === 'string' && profile.notes.startsWith('{')) {
+        try {
+          // Crear un objeto para almacenar los datos adicionales
+          const notesData = JSON.parse(profile.notes);
+          profile.additionalInfo = notesData;
+
+          // Eliminar campos duplicados que ya existen en el objeto principal
+          Object.keys(notesData).forEach(key => {
+            // Si ya existe en el objeto principal con un valor, no sobrescribir
+            if (profile[key] !== undefined && profile[key] !== null && profile[key] !== '') {
+              delete profile[key];
+            }
+          });
+        } catch (e) {
+          logger.warn('Error al parsear campo notes JSON', { 
+            error: e.message, 
+            userId,
+            notes: profile.notes.substring(0, 100) // Log primeros 100 caracteres 
+          });
+        }
+      }
       
       res.status(200).json({
         success: true,

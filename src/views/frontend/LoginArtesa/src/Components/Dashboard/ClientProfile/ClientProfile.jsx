@@ -86,7 +86,7 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
           telefono: profileData.telefono || '',
           email: profileData.email || user?.email || user?.mail || '',
           razonSocial: profileData.razonSocial || '',
-          nit: profileData.nit || '',
+          nit: profileData.nit_number || profileData.nit || '',
         };
 
         if (profileData.verification_digit) {
@@ -241,6 +241,16 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
       // Agregar nit_number y verification_digit como campos separados
       formDataToSend.append('nit_number', formData.nit || '');
       formDataToSend.append('verification_digit', formData.digitoVerificacion || '');
+      formDataToSend.append('tax_id', taxId);
+
+      // Crear el tax_id combinado para mostrar
+      let taxId = '';
+      if (formData.nit) {
+        taxId = formData.nit;
+        if (formData.digitoVerificacion) {
+          taxId += '-' + formData.digitoVerificacion;
+        }
+      }
       formDataToSend.append('tax_id', taxId);
       
       // Agregar todos los campos del formulario
