@@ -717,7 +717,7 @@ class ClientProfileController {
           }
           
           // Intentar crear en SAP
-          sapServiceManager.createOrUpdateLead(clientProfile)
+          const sapResult = await sapServiceManager.createOrUpdateLead(profile)
           
           logger.debug('Resultado de sincronización con SAP', {
             success: sapResult.success,
