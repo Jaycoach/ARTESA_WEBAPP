@@ -26,29 +26,30 @@ class ClientProfile {
       
       const query = `
         SELECT 
-          client_id,
-          user_id,
-          company_name AS "razonSocial",
-          contact_name AS "nombre",
-          contact_phone AS "telefono",
-          contact_email AS "email",
-          address AS "direccion",
-          city AS "ciudad",
-          country AS "pais",
-          tax_id AS "nit",
-          nit_number,
-          verification_digit,
-          CardCode_sap,
-          ClientProfileCode_SAP,
-          price_list,
-          notes,
-          fotocopia_cedula AS "fotocopiaCedula",
-          fotocopia_rut AS "fotocopiaRut",
-          anexos_adicionales AS "anexosAdicionales",
-          created_at,
-          updated_at,
-          (SELECT name FROM users WHERE id = cp.user_id) AS user_name
+          cp.client_id,
+          cp.user_id,
+          cp.company_name AS "razonSocial",
+          u.name AS "nombre",
+          cp.contact_phone AS "telefono",
+          u.mail AS "email",
+          cp.address AS "direccion",
+          cp.city AS "ciudad",
+          cp.country AS "pais",
+          cp.tax_id AS "nit",
+          cp.nit_number,
+          cp.verification_digit,
+          cp.cardcode_sap,
+          cp.clientprofilecode_sap,
+          cp.price_list,
+          cp.notes,
+          cp.fotocopia_cedula AS "fotocopiaCedula",
+          cp.fotocopia_rut AS "fotocopiaRut",
+          cp.anexos_adicionales AS "anexosAdicionales",
+          cp.created_at,
+          cp.updated_at,
+          u.name AS user_name
         FROM client_profiles cp
+		    JOIN users u ON cp.user_id = u.id
         WHERE user_id = $1;
       `;
       
@@ -62,10 +63,12 @@ class ClientProfile {
       // Extraer campos adicionales del campo notes si está en formato JSON
       const profile = rows[0];
       try {
-        if (profile.notes) {
+        if (profile.notes && typeof profile.notes === 'string') {
+          // Intentar parsear como JSON
           const extraData = JSON.parse(profile.notes);
-          // Combinar el perfil base con los datos extra
-          Object.assign(profile, extraData);
+          
+          // Almacenar los datos adicionales en extraInfo para que estén disponibles
+          profile.extraInfo = { ...extraData };
         }
       } catch (e) {
         logger.warn('No se pudo parsear los datos adicionales del perfil', {
@@ -98,29 +101,30 @@ class ClientProfile {
       
       const query = `
         SELECT 
-          client_id,
-          user_id,
-          company_name AS "razonSocial",
-          contact_name AS "nombre",
-          contact_phone AS "telefono",
-          contact_email AS "email",
-          address AS "direccion",
-          city AS "ciudad",
-          country AS "pais",
-          tax_id AS "nit",
-          nit_number,
-          verification_digit,
-          CardCode_sap,
-          ClientProfileCode_SAP,
-          price_list,
-          notes,
-          fotocopia_cedula AS "fotocopiaCedula",
-          fotocopia_rut AS "fotocopiaRut",
-          anexos_adicionales AS "anexosAdicionales",
-          created_at,
-          updated_at,
-          (SELECT name FROM users WHERE id = cp.user_id) AS user_name
+          cp.client_id,
+          cp.user_id,
+          cp.company_name AS "razonSocial",
+          u.name AS "nombre",
+          cp.contact_phone AS "telefono",
+          u.mail AS "email",
+          cp.address AS "direccion",
+          cp.city AS "ciudad",
+          cp.country AS "pais",
+          cp.tax_id AS "nit",
+          cp.nit_number,
+          cp.verification_digit,
+          cp.cardcode_sap,
+          cp.clientprofilecode_sap,
+          cp.price_list,
+          cp.notes,
+          cp.fotocopia_cedula AS "fotocopiaCedula",
+          cp.fotocopia_rut AS "fotocopiaRut",
+          cp.anexos_adicionales AS "anexosAdicionales",
+          cp.created_at,
+          cp.updated_at,
+          u.name AS user_name
         FROM client_profiles cp
+		    JOIN users u ON cp.user_id = u.id
         WHERE user_id = $1;
       `;
       
@@ -134,10 +138,12 @@ class ClientProfile {
       // Extraer campos adicionales del campo notes si está en formato JSON
       const profile = rows[0];
       try {
-        if (profile.notes) {
+        if (profile.notes && typeof profile.notes === 'string') {
+        // Intentar parsear como JSON
           const extraData = JSON.parse(profile.notes);
-          // Combinar el perfil base con los datos extra
-          Object.assign(profile, extraData);
+          
+          // Almacenar los datos adicionales en extraInfo para que estén disponibles
+          profile.extraInfo = { ...extraData };
         }
       } catch (e) {
         logger.warn('No se pudo parsear los datos adicionales del perfil', {
@@ -169,29 +175,30 @@ class ClientProfile {
       
       const query = `
         SELECT 
-          client_id,
-          user_id,
-          company_name AS "razonSocial",
-          contact_name AS "nombre",
-          contact_phone AS "telefono",
-          contact_email AS "email",
-          address AS "direccion",
-          city AS "ciudad",
-          country AS "pais",
-          tax_id AS "nit",
-          nit_number,
-          verification_digit,
-          CardCode_sap,
-          ClientProfileCode_SAP,
-          price_list,
-          notes,
-          fotocopia_cedula AS "fotocopiaCedula",
-          fotocopia_rut AS "fotocopiaRut",
-          anexos_adicionales AS "anexosAdicionales",
-          created_at,
-          updated_at,
-          (SELECT name FROM users WHERE id = cp.user_id) AS user_name
+          cp.client_id,
+          cp.user_id,
+          cp.company_name AS "razonSocial",
+          u.name AS "nombre",
+          cp.contact_phone AS "telefono",
+          u.mail AS "email",
+          cp.address AS "direccion",
+          cp.city AS "ciudad",
+          cp.country AS "pais",
+          cp.tax_id AS "nit",
+          cp.nit_number,
+          cp.verification_digit,
+          cp.cardcode_sap,
+          cp.clientprofilecode_sap,
+          cp.price_list,
+          cp.notes,
+          cp.fotocopia_cedula AS "fotocopiaCedula",
+          cp.fotocopia_rut AS "fotocopiaRut",
+          cp.anexos_adicionales AS "anexosAdicionales",
+          cp.created_at,
+          cp.updated_at,
+          u.name AS user_name
         FROM client_profiles cp
+		    JOIN users u ON cp.user_id = u.id
         ORDER BY company_name;
       `;
       
@@ -200,9 +207,12 @@ class ClientProfile {
       // Procesar cada perfil para extraer datos adicionales
       const profiles = rows.map(profile => {
         try {
-          if (profile.notes) {
+          if (profile.notes && typeof profile.notes === 'string') {
+            // Intentar parsear como JSON
             const extraData = JSON.parse(profile.notes);
-            return { ...profile, ...extraData };
+            
+            // Almacenar los datos adicionales en extraInfo para que estén disponibles
+            profile.additionalInfo = { ...extraData };
           }
         } catch (e) {
           logger.warn('No se pudo parsear los datos adicionales de un perfil', {
@@ -265,7 +275,7 @@ static async create(clientData) {
       throw new Error('Se requiere el ID de usuario para crear el perfil');
     }
     
-    // Generar ClientProfileCode_SAP si tenemos nit_number
+    // Generar clientprofilecode_sap si tenemos nit_number
     let clientProfileCode = null;
     if (clientData.nit_number) {
       clientProfileCode = `C${clientData.nit_number}`;
@@ -276,7 +286,8 @@ static async create(clientData) {
     
     // Eliminar campos que ya están mapeados a columnas de la base de datos
     ['userId', 'nombre', 'email', 'telefono', 'direccion', 'ciudad', 'pais', 
-     'razonSocial', 'nit', 'fotocopiaCedula', 'fotocopiaRut', 'anexosAdicionales'].forEach(key => {
+      'razonSocial', 'nit', 'fotocopiaCedula', 'fotocopiaRut', 'anexosAdicionales',
+      'nit_number', 'verification_digit', 'cardcode_sap', 'clientprofilecode_sap', 'listaPrecios'].forEach(key => {
       delete additionalFields[key];
     });
     
@@ -286,7 +297,7 @@ static async create(clientData) {
       (user_id, company_name, contact_name, contact_phone, contact_email, 
        address, city, country, tax_id, notes,
        fotocopia_cedula, fotocopia_rut, anexos_adicionales, price_list, 
-       nit_number, verification_digit, CardCode_sap, ClientProfileCode_SAP)
+       nit_number, verification_digit, cardcode_sap, clientprofilecode_sap)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18 )
       RETURNING *;
     `;
@@ -312,8 +323,8 @@ static async create(clientData) {
       clientData.listaPrecios || 1, // price_list (valor por defecto: 1)
       clientData.nit_number,   // nit_number
       clientData.verification_digit, // verification_digit
-      clientData.CardCode_sap, // CardCode_sap
-      clientProfileCode        // ClientProfileCode_SAP
+      clientData.cardcode_sap, // cardcode_sap
+      clientProfileCode        // clientprofilecode_sap
     ];
 
     // También actualizar is_active en la tabla de usuarios
@@ -406,7 +417,7 @@ static async create(clientData) {
       // Extraer campos adicionales para almacenar en notes
       const additionalFields = { ...updateData };
 
-      // Generar ClientProfileCode_SAP si tenemos nit_number
+      // Generar clientprofilecode_sap si tenemos nit_number
       let clientProfileCode = null;
       if (nit_number) {
         clientProfileCode = `C${nit_number}`;
@@ -414,12 +425,11 @@ static async create(clientData) {
       
       // Eliminar campos que ya están mapeados a columnas de la base de datos
       ['nombre', 'email', 'telefono', 'direccion', 'ciudad', 'pais', 
-       'razonSocial', 'nit', 'nit_number', 'verification_digit', 'fotocopiaCedula', 'fotocopiaRut', 'anexosAdicionales'].forEach(key => {
+        'razonSocial', 'nit', 'nit_number', 'verification_digit', 'fotocopiaCedula', 'fotocopiaRut', 'anexosAdicionales',
+        'cardcode_sap', 'clientprofilecode_sap', 'sap_lead_synced'].forEach(key => {
         delete additionalFields[key];
       });
       
-      // Crear JSON con campos adicionales
-      const notesJSON = JSON.stringify(additionalFields);
       
       // Construir la consulta de actualización
       const query = `
@@ -435,8 +445,8 @@ static async create(clientData) {
         tax_id = COALESCE($8, tax_id),
         nit_number = COALESCE($9, nit_number),
         verification_digit = COALESCE($10, verification_digit),
-        CardCode_sap = COALESCE($11, CardCode_sap),
-        ClientProfileCode_SAP = COALESCE($12, CASE WHEN $9 IS NOT NULL THEN CONCAT('C', $9) ELSE ClientProfileCode_SAP END),
+        cardcode_sap = COALESCE($11, cardcode_sap),
+        clientprofilecode_sap = COALESCE($12, CASE WHEN $9 IS NOT NULL THEN CONCAT('C', $9) ELSE clientprofilecode_sap END),
         notes = $13,
         fotocopia_cedula = COALESCE($14, fotocopia_cedula),
         fotocopia_rut = COALESCE($15, fotocopia_rut),
@@ -445,6 +455,26 @@ static async create(clientData) {
       WHERE user_id = $17
       RETURNING *;
       `;
+
+      // Obtener perfil actual para preservar datos adicionales
+      const currentProfile = await this.getByUserId(userId);
+      let existingAdditionalData = {};
+
+      // Extraer datos adicionales existentes si hay
+      if (currentProfile && currentProfile.notes) {
+        try {
+          existingAdditionalData = JSON.parse(currentProfile.notes);
+        } catch (e) {
+          logger.warn('Error al parsear notes existente', { error: e.message });
+        }
+      }
+
+      // Fusionar datos adicionales existentes con nuevos
+      const mergedAdditionalData = { ...existingAdditionalData, ...additionalFields };
+
+      // Crear JSON con campos adicionales
+      const notesJSON = Object.keys(mergedAdditionalData).length > 0 ? 
+        JSON.stringify(mergedAdditionalData) : null;
 
       const values = [
       razonSocial,          // company_name
@@ -457,8 +487,8 @@ static async create(clientData) {
       nit,                  // tax_id
       nit_number,           // nit_number (nuevo)
       verification_digit,   // verification_digit
-      updateData.CardCode_sap, // CardCode_sap
-      clientProfileCode,    // Para generar ClientProfileCode_SAP
+      updateData.cardcode_sap, // cardcode_sap
+      clientProfileCode,    // Para generar clientprofilecode_sap
       notesJSON,            // notes
       fotocopiaCedula,      // fotocopia_cedula
       fotocopiaRut,         // fotocopia_rut
@@ -507,6 +537,11 @@ static async create(clientData) {
         userId,
         razonSocial: updatedProfile.company_name
       });
+
+      // Agregar extraInfo si existe
+      if (additionalFields && Object.keys(additionalFields).length > 0) {
+        profile.extraInfo = additionalFields;
+      }
       
       return profile;
     } catch (error) {

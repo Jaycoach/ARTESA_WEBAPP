@@ -377,19 +377,23 @@ class ClientProfileController {
       if (profile.anexosAdicionales) {
         profile.anexosAdicionalesUrl = `${baseUrl}/api/client-profiles/${userId}/file/anexos`;
       }
-
+      
       // Procesar correctamente los datos adicionales en el campo notes
       if (profile.notes && typeof profile.notes === 'string' && profile.notes.startsWith('{')) {
         try {
           // Crear un objeto para almacenar los datos adicionales
           const notesData = JSON.parse(profile.notes);
-          profile.additionalInfo = notesData;
-
-          // Eliminar campos duplicados que ya existen en el objeto principal
-          Object.keys(notesData).forEach(key => {
-            // Si ya existe en el objeto principal con un valor, no sobrescribir
-            if (profile[key] !== undefined && profile[key] !== null && profile[key] !== '') {
-              delete profile[key];
+          
+          // Almacenar todos los datos adicionales en additionalInfo
+          profile.additionalInfo = { ...notesData };
+          
+          // IMPORTANTE: No permitir que campos críticos se sobrescriban
+          // Los campos críticos de la base de datos tienen prioridad
+          const criticalFields = ['nit_number', 'verification_digit', 'cardcode_sap', 'clientprofilecode_sap'];
+          criticalFields.forEach(field => {
+            // Si existe en los datos adicionales pero ya está en el perfil, eliminar del objeto adicional
+            if (field in notesData && profile[field] !== undefined && profile[field] !== null) {
+              delete profile.additionalInfo[field]; // Eliminar del additionalInfo
             }
           });
         } catch (e) {
@@ -618,6 +622,16 @@ class ClientProfileController {
         'fotocopia_rut': 'fotocopiaRut',
         'anexos_adicionales': 'anexosAdicionales'
       };
+
+      // Extraer campos adicionales (que no son parte del modelo pero se quieren almacenar)
+      const additionalFields = {};
+        
+      // Iterar sobre req.body para encontrar campos que no están en el mapeo estándar
+      Object.keys(req.body).forEach(key => {
+        if (!fieldMap[key] && req.body[key] !== undefined && req.body[key] !== '') {
+          additionalFields[key] = req.body[key];
+        }
+      });
       
       // Asignar solo los campos que nos interesan
       Object.keys(req.body).forEach(key => {
@@ -704,7 +718,37 @@ class ClientProfileController {
         tax_id: clientData.nit
       });
     }
-      
+      // Verificar que los valores críticos se mantengan intactos
+      logger.debug('Valores críticos antes de crear perfil', {
+        nit_number: clientData.nit_number,
+        verification_digit: clientData.verification_digit,
+        nit: clientData.nit
+      });
+        
+      // Iterar sobre req.body para encontrar campos que no están en el mapeo estándar
+      Object.keys(req.body).forEach(key => {
+        if (!fieldMap[key] && req.body[key] !== undefined && req.body[key] !== '') {
+          additionalFields[key] = req.body[key];
+        }
+      });
+
+      // Asegurar que no hay campos críticos duplicados en notes
+      const criticalFields = ['nit_number', 'verification_digit', 'cardcode_sap', 'clientprofilecode_sap'];
+      criticalFields.forEach(field => {
+        if (field in additionalFields) {
+          logger.warn(`Campo crítico "${field}" encontrado en datos adicionales, se usará valor principal`, {
+            inAdditional: additionalFields[field],
+            inMain: clientData[field]
+          });
+          delete additionalFields[field];
+        }
+      });
+
+      // Crear el perfil con datos adicionales almacenados como JSON en notes
+      if (Object.keys(additionalFields).length > 0) {
+        clientData.notes = JSON.stringify(additionalFields);
+      }
+
       // Crear el perfil
       const profile = await ClientProfile.create(clientData);
       
@@ -960,6 +1004,16 @@ class ClientProfileController {
         'price_list': 'listaPrecios',
         'notes': 'notas'
       };
+
+      // Extraer campos adicionales que no son parte del modelo estándar
+      const additionalFields = {};
+
+      // Iterar sobre req.body para encontrar campos adicionales
+      Object.keys(req.body).forEach(key => {
+        if (!fieldMap[key] && req.body[key] !== undefined && req.body[key] !== '') {
+          additionalFields[key] = req.body[key];
+        }
+      });
       
       // Asignar solo los campos que tienen valor
       Object.keys(req.body).forEach(key => {
@@ -977,6 +1031,20 @@ class ClientProfileController {
           tax_id: updateData.nit
         });
       }
+
+      // Iterar sobre req.body para encontrar campos adicionales
+      Object.keys(req.body).forEach(key => {
+        if (!fieldMap[key] && req.body[key] !== undefined && req.body[key] !== '') {
+          additionalFields[key] = req.body[key];
+        }
+      });
+
+      // Verificar que los campos críticos se mantengan para la actualización
+      logger.debug('Valores críticos antes de actualizar perfil', {
+        nit_number: updateData.nit_number,
+        verification_digit: updateData.verification_digit,
+        nit: updateData.nit
+      });
       
       logger.debug('Datos para actualización de perfil de cliente', { 
         userId,
@@ -985,6 +1053,30 @@ class ClientProfileController {
       
       // Obtener el perfil actual para verificar si existe
       const existingProfile = await ClientProfile.getByUserId(userId);
+
+      // Obtener datos adicionales existentes
+      let existingAdditionalData = {};
+      if (existingProfile.notes) {
+        try {
+          existingAdditionalData = JSON.parse(existingProfile.notes);
+        } catch (e) {
+          logger.warn('Error al parsear datos adicionales existentes', {
+            error: e.message,
+            notes: existingProfile.notes.substring(0, 100)
+          });
+        }
+      }
+
+      // Fusionar con nuevos datos adicionales
+      const mergedAdditionalData = { ...existingAdditionalData, ...additionalFields };
+
+      // Guardar datos adicionales como JSON en campo notes
+      if (Object.keys(mergedAdditionalData).length > 0) {
+        updateData.notes = JSON.stringify(mergedAdditionalData);
+      }
+
+      // Actualizar clientData con datos fusionados para campos adicionales
+      updateData.additionalData = mergedAdditionalData;
       
       if (!existingProfile) {
         logger.warn('Perfil de cliente no encontrado al actualizar', { userId });

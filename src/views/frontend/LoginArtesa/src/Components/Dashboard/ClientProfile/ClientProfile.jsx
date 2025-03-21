@@ -242,16 +242,6 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
       formDataToSend.append('nit_number', formData.nit || '');
       formDataToSend.append('verification_digit', formData.digitoVerificacion || '');
       formDataToSend.append('tax_id', taxId);
-
-      // Crear el tax_id combinado para mostrar
-      let taxId = '';
-      if (formData.nit) {
-        taxId = formData.nit;
-        if (formData.digitoVerificacion) {
-          taxId += '-' + formData.digitoVerificacion;
-        }
-      }
-      formDataToSend.append('tax_id', taxId);
       
       // Agregar todos los campos del formulario
       Object.keys(formData).forEach(key => {
