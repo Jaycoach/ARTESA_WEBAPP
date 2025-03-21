@@ -160,6 +160,10 @@ class SapServiceManager {
     if (!this.initialized) {
       await this.initialize();
     }
+    // Asegúrate de que el servicio de clientes esté inicializado
+    if (!this.clientService.initialized) {
+      await this.clientService.initialize();
+    }
     return this.clientService.createOrUpdateBusinessPartnerLead(clientProfile);
   }
 

@@ -637,8 +637,8 @@ static async create(clientData) {
                       (profile.extraInfo && profile.extraInfo.nit_number);
                       
     const verification_digit = profile.verification_digit || 
-                             (profile.additionalData && profile.additionalData.verification_digit) || 
-                             (profile.extraInfo && profile.extraInfo.verification_digit);
+                            (profile.additionalData && profile.additionalData.verification_digit) || 
+                            (profile.extraInfo && profile.extraInfo.verification_digit);
     
     // Verificar que tengamos los datos críticos
     if (!nit_number || verification_digit === undefined) {
@@ -650,10 +650,10 @@ static async create(clientData) {
                       (profile.additionalData && profile.additionalData.razonSocial) || 
                       profile.nombre || profile.contact_name || 'Sin nombre';
     
-    // Formatear teléfono (asegurar que solo tenga 10 dígitos numéricos)
+    // Formatear teléfono (asegurar que solo tenga dígitos numéricos)
     let phone = profile.telefono || profile.contact_phone || 
                 (profile.additionalData && profile.additionalData.telefono) || '';
-    phone = phone.replace(/\D/g, '').substring(0, 10);
+    phone = phone.replace(/\D/g, '').substring(0, 20);
                 
     const email = profile.email || profile.contact_email || 
                 (profile.additionalData && profile.additionalData.email) || '';

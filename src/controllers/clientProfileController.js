@@ -782,12 +782,19 @@ class ClientProfileController {
             logger.debug('Inicializando servicio de SAP antes de sincronizar');
             await sapServiceManager.initialize();
           }
-        
-          // Intentar crear en SAP usando el método correcto
+
+          // Intentar crear o actualizar en SAP
           const sapResult = await sapServiceManager.createOrUpdateLead(profile);
           
+          logger.debug('Resultado de sincronización con SAP', {
+            success: sapResult.success,
+            cardCode: sapResult.cardCode,
+            isNew: sapResult.isNew,
+            client_id: profile.client_id
+          });
+          
           // Actualizar el perfil con la información de SAP
-          if (sapResult && sapResult.success && sapResult.cardCode) {
+          if (sapResult.success && sapResult.cardCode) {
             await pool.query(
               `UPDATE client_profiles 
               SET cardcode_sap = $1, sap_lead_synced = true, updated_at = CURRENT_TIMESTAMP

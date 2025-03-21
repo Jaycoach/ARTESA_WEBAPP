@@ -165,6 +165,7 @@ class SapClientService extends SapBaseService {
    */
   async createOrUpdateBusinessPartnerLead(clientProfile) {
     try {
+      // Validar requisitos mínimos
       if (!clientProfile.nit_number || clientProfile.verification_digit === undefined) {
         throw new Error('El NIT y dígito de verificación son requeridos para crear un Lead en SAP');
       }
@@ -181,9 +182,9 @@ class SapClientService extends SapBaseService {
         ? `BusinessPartners('${clientProfile.cardcode_sap}')` 
         : 'BusinessPartners';
       
-      // Formatear teléfono (asegurar que solo tenga 10 dígitos numéricos)
-      let phone = clientProfile.contact_phone || '';
-      phone = phone.replace(/\D/g, '').substring(0, 10);
+      // Formatear teléfono (asegurar que solo tenga dígitos numéricos)
+      let phone = clientProfile.telefono || clientProfile.contact_phone || '';
+      phone = phone.replace(/\D/g, '').substring(0, 20); // SAP puede aceptar más dígitos
 
       // Crear CardCode único con formato requerido
       const cardCode = clientProfile.cardcode_sap || `C${clientProfile.nit_number}`;
@@ -192,58 +193,108 @@ class SapClientService extends SapBaseService {
       const businessPartnerData = {
         CardCode: cardCode,
         CardName: clientProfile.razonSocial || clientProfile.company_name || clientProfile.nombre || clientProfile.contact_name || '',
-        CardType: 'L',  // Lead - siempre L
+        CardType: 'L',  // Lead - siempre L para nuevos
         PriceListNum: 1, // Siempre 1
         GroupCode: 102, // Grupo Por defecto
         FederalTaxID: `${clientProfile.nit_number}-${clientProfile.verification_digit}`,
         Phone1: phone,
         EmailAddress: clientProfile.email || clientProfile.contact_email || '',
         Address: clientProfile.direccion || clientProfile.address || '',
-        U_AR_ArtesaCode: cardCode // Añadir campo personalizado
+        // Campo personalizado para referencia interna
+        U_AR_ArtesaCode: clientProfile.clientprofilecode_sap || cardCode
       };
 
       this.logger.debug('Objeto BusinessPartner a enviar a SAP', {
         CardCode: businessPartnerData.CardCode,
         CardName: businessPartnerData.CardName,
+        CardType: businessPartnerData.CardType,
         FederalTaxID: businessPartnerData.FederalTaxID,
-        EmailAddress: businessPartnerData.EmailAddress,
-        Address: businessPartnerData.Address,
-        isNew: !clientProfile.cardcode_sap
+        isUpdate
       });
+
+      // Si no estamos ya autenticados, hacerlo
+      if (!this.sessionId) {
+        await this.login();
+      }
 
       // Si es actualización, usamos PATCH, si es creación usamos POST
       const method = isUpdate ? 'PATCH' : 'POST';
       
-      // Realizar petición a SAP
-      const result = await this.request(method, endpoint, businessPartnerData);
-      
-      // Si es creación, extraer el CardCode generado
-      let resultCardCode = clientProfile.cardcode_sap;
-      if (!isUpdate && result && result.CardCode) {
-        resultCardCode = result.CardCode;
-        this.logger.info('Nuevo socio de negocios Lead creado en SAP', {
+      try {
+        // Realizar petición a SAP
+        const result = await this.request(method, endpoint, businessPartnerData);
+        
+        // Si es creación, extraer el CardCode generado
+        let resultCardCode = clientProfile.cardcode_sap;
+        if (!isUpdate && result && result.CardCode) {
+          resultCardCode = result.CardCode;
+          this.logger.info('Nuevo socio de negocios Lead creado en SAP', {
+            cardCode: resultCardCode,
+            clientId: clientProfile.client_id
+          });
+        } else if (isUpdate) {
+          this.logger.info('Socio de negocios Lead actualizado en SAP', {
+            cardCode: clientProfile.cardcode_sap,
+            clientId: clientProfile.client_id
+          });
+        }
+        
+        return {
+          success: true,
           cardCode: resultCardCode,
+          isNew: !isUpdate
+        };
+      } catch (requestError) {
+        this.logger.error('Error en petición a SAP', {
+          error: requestError.message,
+          statusCode: requestError.response?.status,
+          responseData: requestError.response?.data,
+          cardCode,
           clientId: clientProfile.client_id
         });
-      } else if (isUpdate) {
-        this.logger.info('Socio de negocios Lead actualizado en SAP', {
-          cardCode: clientProfile.cardcode_sap,
-          clientId: clientProfile.client_id
-        });
+        
+        // Intentar reautenticar y reintentar una vez si el error es de autenticación
+        if (requestError.response && requestError.response.status === 401) {
+          this.logger.info('Reintentando después de reautenticar', { cardCode });
+          this.sessionId = null;
+          await this.login();
+          
+          const retryResult = await this.request(method, endpoint, businessPartnerData);
+          
+          let resultCardCode = clientProfile.cardcode_sap;
+          if (!isUpdate && retryResult && retryResult.CardCode) {
+            resultCardCode = retryResult.CardCode;
+          }
+          
+          this.logger.info('Reintento exitoso después de reautenticar', {
+            cardCode: resultCardCode,
+            clientId: clientProfile.client_id
+          });
+          
+          return {
+            success: true,
+            cardCode: resultCardCode,
+            isNew: !isUpdate
+          };
+        }
+        
+        throw requestError;
       }
-      
-      return {
-        success: true,
-        cardCode: resultCardCode,
-        isNew: !isUpdate
-      };
     } catch (error) {
       this.logger.error('Error al crear/actualizar socio de negocios Lead en SAP', {
         error: error.message,
         stack: error.stack,
-        clientId: clientProfile.client_id
+        clientId: clientProfile.client_id,
+        nit: clientProfile.nit_number,
+        verification_digit: clientProfile.verification_digit
       });
-      throw error;
+      
+      // Devolvemos un objeto con success: false en lugar de lanzar el error
+      // para que el controlador pueda manejarlo mejor
+      return {
+        success: false,
+        error: error.message
+      };
     }
   }
 
