@@ -336,6 +336,8 @@ static async create(clientData) {
     if (rows.length === 0) {
       throw new Error('No se pudo crear el perfil de cliente');
     }
+
+    const createdProfile = rows[0];
     
     // Asegurar que los campos críticos estén presentes en el perfil resultante
     if (clientData.nit_number) createdProfile.nit_number = clientData.nit_number;
