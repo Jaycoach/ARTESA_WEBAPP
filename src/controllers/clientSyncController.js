@@ -159,11 +159,11 @@ class ClientSyncController {
       });
 
       // Verificar que el servicio esté inicializado
-      if (!sapClientSyncService.initialized) {
+      if (!sapServiceManager.initialized) {
         logger.debug('Inicializando servicio de SAP antes de sincronización manual');
-        await sapClientSyncService.initialize();
+        await sapServiceManager.initialize();
       }
-      
+
       // Ejecutar sincronización
       const results = await sapServiceManager.syncClients();
       
