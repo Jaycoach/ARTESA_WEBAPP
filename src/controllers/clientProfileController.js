@@ -782,52 +782,9 @@ class ClientProfileController {
             logger.debug('Inicializando servicio de SAP antes de sincronizar');
             await sapServiceManager.initialize();
           }
-
-          // Preparar datos para SAP en formato requerido
-          const sapFormattedProfile = ClientProfile.toSapBusinessPartner(profile);
-          
-          logger.debug('Datos formateados para envío a SAP B1', {
-            CardCode: sapFormattedProfile.CardCode,
-            CardName: sapFormattedProfile.CardName,
-            CardType: sapFormattedProfile.CardType,
-            FederalTaxID: sapFormattedProfile.FederalTaxID,
-            PriceListNum: sapFormattedProfile.PriceListNum,
-            GroupCode: sapFormattedProfile.GroupCode
-          });
-          
-          logger.debug('Datos para sincronización con SAP', {
-            nit_number: profile.nit_number,
-            verification_digit: profile.verification_digit,
-            razonSocial: profile.razonSocial,
-            client_id: profile.client_id,
-            user_id: profile.user_id
-          });
-
-          try {
-            // Prepare the profile data for SAP B1 format
-            const sapFormattedProfile = ClientProfile.toSapBusinessPartner(profile);
-            
-            logger.debug('Datos formateados para SAP B1', {
-              CardCode: sapFormattedProfile.CardCode,
-              CardName: sapFormattedProfile.CardName,
-              FederalTaxID: sapFormattedProfile.FederalTaxID,
-              nit_number: profile.nit_number,
-              verification_digit: profile.verification_digit
-            });
-            
-            // Intentar crear en SAP
+        
+          // Intentar crear en SAP usando el método correcto
           const sapResult = await sapServiceManager.createOrUpdateLead(profile);
-          
-          logger.debug('Resultado de sincronización con SAP', {
-            success: sapResult.success,
-            cardCode: sapResult.cardCode,
-            isNew: sapResult.isNew,
-            client_id: profile.client_id
-          });
-            
-          } catch (sapError) {
-            // Manejo de errores...
-          } 
           
           // Actualizar el perfil con la información de SAP
           if (sapResult && sapResult.success && sapResult.cardCode) {
@@ -854,7 +811,7 @@ class ClientProfileController {
               cardCode: sapResult?.cardCode
             });
           }
-        }  catch (sapError) {
+        } catch (sapError) {
           // No fallamos la creación del perfil si falla SAP, solo logueamos el error
           logger.error('Error al sincronizar perfil con SAP', {
             error: sapError.message,

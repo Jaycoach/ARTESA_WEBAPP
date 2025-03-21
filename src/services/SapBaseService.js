@@ -1,3 +1,4 @@
+require('dotenv').config();
 const axios = require('axios');
 const { createContextLogger } = require('../config/logger');
 
@@ -67,8 +68,8 @@ class SapBaseService {
     try {
       this.logger.debug('Iniciando autenticación con SAP B1 Service Layer');
 
-      // Crear una instancia local de axios con el agente HTTPS
-      const axiosInstance = require('axios').create({
+      // Crear una instancia de axios con el agente HTTPS
+      const axiosInstance = axios.create({
         httpsAgent: this.httpsAgent
       });
 
@@ -121,8 +122,8 @@ class SapBaseService {
         await this.login();
       }
 
-      // Crear una instancia local de axios con el agente HTTPS
-      const axiosInstance = require('axios').create({
+      // Crear una instancia de axios con el agente HTTPS
+      const axiosInstance = axios.create({
         httpsAgent: this.httpsAgent
       });
 
@@ -191,7 +192,7 @@ class SapBaseService {
     if (!this.sessionId) return;
     
     try {
-      const axiosInstance = require('axios').create({
+      const axiosInstance = axios.create({
         httpsAgent: this.httpsAgent
       });
       
