@@ -711,13 +711,13 @@ class ClientProfileController {
           });
           
           // Verificar que el servicio de SAP esté inicializado
-          if (!sapIntegrationService.initialized) {
+          if (!sapServiceManager.initialized) {
             logger.debug('Inicializando servicio de SAP antes de sincronizar');
-            await sapIntegrationService.initialize();
+            await sapServiceManager.initialize();
           }
           
           // Intentar crear en SAP
-          const sapResult = await sapIntegrationService.createOrUpdateBusinessPartnerLead(profile);
+          sapServiceManager.createOrUpdateLead(clientProfile)
           
           logger.debug('Resultado de sincronización con SAP', {
             success: sapResult.success,
@@ -1096,9 +1096,9 @@ class ClientProfileController {
         if (shouldSync || hasChangedSapRelevantData) {
           try {
             // Verificar que el servicio de SAP esté inicializado
-            if (!sapIntegrationService.initialized) {
+            if (!sapServiceManager.initialized) {
               logger.debug('Inicializando servicio de SAP antes de sincronizar');
-              await sapIntegrationService.initialize();
+              await sapServiceManager.initialize();
             }
             
             logger.info('Intentando sincronizar perfil con SAP', {
@@ -1107,7 +1107,7 @@ class ClientProfileController {
             });
             
             // Intentar crear/actualizar en SAP
-            const sapResult = await sapIntegrationService.createOrUpdateBusinessPartnerLead(updatedProfile);
+            const sapResult = await sapServiceManager.createOrUpdateBusinessPartnerLead(updatedProfile);
             
             logger.debug('Resultado de sincronización con SAP', {
               success: sapResult.success,
