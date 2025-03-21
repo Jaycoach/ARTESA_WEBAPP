@@ -148,11 +148,12 @@ class SapSyncController {
       let nextSyncTime = null;
       try {
         const cronParser = require('cron-parser');
-        const interval = cronParser.parseExpression(sapIntegrationService.syncSchedule);
+        const schedule = sapServiceManager.productService.syncSchedule;
+        const interval = cronParser.parseExpression(schedule);
         nextSyncTime = interval.next().toDate();
       } catch (cronError) {
         logger.warn('Error al calcular próxima sincronización', {
-          schedule: sapIntegrationService.syncSchedule,
+          schedule: sapServiceManager.productService.syncSchedule,
           error: cronError.message
         });
       }
@@ -215,7 +216,7 @@ class SapSyncController {
       res.status(200).json({
         success: true,
         message: 'Conexión exitosa con SAP B1',
-        sessionId: sapIntegrationService.sessionId ? 'Válido' : 'No disponible',
+        sessionId: productService.sessionId ? 'Válido' : 'No disponible',
         endpoint: endpoint,
         data: {
           value: result.value,
@@ -397,9 +398,9 @@ class SapSyncController {
         });
       } else {
         // Desactivar tarea si existe
-        if (sapIntegrationService.groupSyncTasks?.[groupCodeInt]) {
-          sapIntegrationService.groupSyncTasks[groupCodeInt].stop();
-          delete sapIntegrationService.groupSyncTasks[groupCodeInt];
+        if (sapServiceManager.productService.groupSyncTasks?.[groupCodeInt]) {
+          sapServiceManager.productService.groupSyncTasks[groupCodeInt].stop();
+          delete sapServiceManager.productService.groupSyncTasks[groupCodeInt];
           
           res.status(200).json({
             success: true,
@@ -439,8 +440,6 @@ class SapSyncController {
   async analyzeView(req, res) {
     try {
       logger.info('Analizando estructura de vista SAP');
-      
-      await sapIntegrationService.login();
       
       // Obtener metadatos de la vista
       const productService = sapServiceManager.productService;
