@@ -627,24 +627,60 @@ static async create(clientData) {
    */
   static toSapBusinessPartner(profile) {
     // Asegurarse que tenemos los datos mínimos necesarios
-    if (!profile || !profile.nit_number || !profile.verification_digit) {
-      throw new Error('Datos insuficientes para crear BusinessPartner en SAP');
+    if (!profile) {
+      throw new Error('Perfil no proporcionado para crear BusinessPartner en SAP');
     }
     
-    // Construcción del objeto para SAP
+    // Intenta extraer nit_number y verification_digit de varias posibles fuentes
+    const nit_number = profile.nit_number || 
+                      (profile.additionalData && profile.additionalData.nit_number) || 
+                      (profile.extraInfo && profile.extraInfo.nit_number);
+                      
+    const verification_digit = profile.verification_digit || 
+                             (profile.additionalData && profile.additionalData.verification_digit) || 
+                             (profile.extraInfo && profile.extraInfo.verification_digit);
+    
+    // Verificar que tengamos los datos críticos
+    if (!nit_number || !verification_digit) {
+      throw new Error('NIT y dígito de verificación son requeridos para crear BusinessPartner en SAP');
+    }
+    
+    // Extraer otros campos con múltiples fallbacks para mayor robustez
+    const companyName = profile.razonSocial || profile.company_name || 
+                      (profile.additionalData && profile.additionalData.razonSocial) || 
+                      profile.nombre || profile.contact_name || 'Sin nombre';
+    
+    const phone = profile.telefono || profile.contact_phone || 
+                (profile.additionalData && profile.additionalData.telefono) || '';
+                
+    const email = profile.email || profile.contact_email || 
+                (profile.additionalData && profile.additionalData.email) || '';
+                
+    const address = profile.direccion || profile.address || 
+                  (profile.additionalData && profile.additionalData.direccion) || '';
+                  
+    const city = profile.ciudad || profile.city || 
+               (profile.additionalData && profile.additionalData.ciudad) || '';
+               
+    const country = profile.pais || profile.country || 
+                  (profile.additionalData && profile.additionalData.pais) || 'Colombia';
+    
+    // Construcción del objeto para SAP con los datos extraídos
     const businessPartner = {
-      CardCode: `C${profile.nit_number}`, // Prefijo 'C' seguido del NIT sin DV
-      CardName: profile.razonSocial || profile.nombre || profile.company_name || profile.contact_name || 'Sin nombre',
+      CardCode: `C${nit_number}`, // Prefijo 'C' seguido del NIT sin DV
+      CardName: companyName,
       CardType: "L", // Lead por defecto
       GroupCode: 102, // Grupo fijo
-      FederalTaxID: `${profile.nit_number}-${profile.verification_digit}`,
-      Phone1: profile.telefono || profile.contact_phone || "",
-      EmailAddress: profile.email || profile.contact_email || "",
-      Address: profile.direccion || profile.address || "",
-      U_HBT_City: profile.ciudad || profile.city || "",
-      U_HBT_Country: profile.pais || profile.country || "Colombia",
-      Notes: profile.notas || profile.notes || "",
-      PriceListNum: profile.listaPrecios || profile.price_list || 1
+      FederalTaxID: `${nit_number}-${verification_digit}`,
+      Phone1: phone,
+      EmailAddress: email,
+      Address: address,
+      U_HBT_City: city,
+      U_HBT_Country: country,
+      Notes: profile.notas || profile.notes || '',
+      PriceListNum: profile.listaPrecios || profile.price_list || 1,
+      // Campo adicional para facilitar referencia interna
+      U_AR_ArtesaCode: `C${nit_number}`
     };
     
     return businessPartner;

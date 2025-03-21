@@ -783,8 +783,29 @@ class ClientProfileController {
             await sapServiceManager.initialize();
           }
           
-          // Intentar crear en SAP
-          const sapResult = await sapServiceManager.createOrUpdateLead(profile)
+          logger.debug('Datos para sincronización con SAP', {
+            nit_number: profile.nit_number,
+            verification_digit: profile.verification_digit,
+            razonSocial: profile.razonSocial,
+            client_id: profile.client_id,
+            user_id: profile.user_id
+          });
+
+          // Justo antes de intentar sincronizar con SAP, agrega:
+          try {
+            // Prepare the profile data for SAP B1 format
+            const sapFormattedProfile = ClientProfile.toSapBusinessPartner(profile);
+            
+            logger.debug('Datos formateados para SAP B1', {
+              CardCode: sapFormattedProfile.CardCode,
+              CardName: sapFormattedProfile.CardName,
+              FederalTaxID: sapFormattedProfile.FederalTaxID,
+              nit_number: profile.nit_number,
+              verification_digit: profile.verification_digit
+            });
+            
+            // Intentar crear en SAP
+          const sapResult = await sapServiceManager.createOrUpdateBusinessPartnerLead(profile)
           
           logger.debug('Resultado de sincronización con SAP', {
             success: sapResult.success,
@@ -792,6 +813,11 @@ class ClientProfileController {
             isNew: sapResult.isNew,
             client_id: profile.client_id
           });
+            
+            // Resto del código para manejar la respuesta...
+          } catch (sapError) {
+            // Manejo de errores...
+          } 
           
           // Actualizar el perfil con la información de SAP
           if (sapResult.success) {
