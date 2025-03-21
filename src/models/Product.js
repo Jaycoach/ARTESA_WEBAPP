@@ -38,7 +38,7 @@
 
 const pool = require('../config/db');
 const { createContextLogger } = require('../config/logger');
-const sapIntegrationService = require('../services/SapIntegrationService');
+const sapServiceManager = require('../services/SapServiceManager');
 
 // Crear una instancia del logger con contexto
 const logger = createContextLogger('ProductModel');
@@ -567,35 +567,6 @@ class Product {
         needsSapSync,
         isSapProduct
       });
-      
-      // Si necesita sincronización con SAP y estamos en modo autoSync, intentar sincronizar ahora
-      // Solo si no estamos dentro de una transacción (client es null)
-      /*if (needsSapSync && autoSync && isSapProduct && !client) {
-        try {
-          // Lanzar sincronización asíncrona para no bloquear
-          Promise.resolve().then(async () => {
-            try {
-              await sapIntegrationService.syncProductToSAP(productId);
-              logger.info('Sincronización automática completada', { 
-                productId,
-                sapCode: currentProduct.sap_code
-              });
-            } catch (syncError) {
-              logger.error('Error en sincronización automática', {
-                error: syncError.message,
-                productId,
-                sapCode: currentProduct.sap_code
-              });
-            }
-          });
-        } catch (asyncError) {
-          logger.error('Error al iniciar sincronización automática', {
-            error: asyncError.message,
-            productId
-          });
-          // No fallamos la actualización por errores en la sincronización
-        }
-      }*/
       
       return updatedProduct;
     } catch (error) {

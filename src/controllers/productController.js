@@ -1,7 +1,7 @@
 // src/controllers/productController.js
 const Product = require('../models/Product');
 const { createContextLogger } = require('../config/logger');
-const sapIntegrationService = require('../services/SapIntegrationService');
+const sapServiceManager = require('../services/SapServiceManager');
 const S3Service = require('../services/S3Service');
 
 // Crear una instancia del logger con contexto
