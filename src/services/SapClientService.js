@@ -174,6 +174,10 @@ class SapClientService extends SapBaseService {
           nombre: clientProfile.nombre || clientProfile.contact_name
         })
       });
+      
+      // Crear CardCode único con formato requerido
+      const cardCode = clientProfile.cardcode_sap || `C${clientProfile.nit_number}`;
+
       // Validar requisitos mínimos
       if (!clientProfile.nit_number || clientProfile.verification_digit === undefined) {
         const errorMsg = 'El NIT y dígito de verificación son requeridos para crear un Lead en SAP';
@@ -216,9 +220,6 @@ class SapClientService extends SapBaseService {
       address: clientProfile.direccion || clientProfile.address || '',
       isUpdate
       });
-
-      // Crear CardCode único con formato requerido
-      const cardCode = clientProfile.cardcode_sap || `C${clientProfile.nit_number}`;
       
       // Preparar datos para SAP
       const businessPartnerData = {
