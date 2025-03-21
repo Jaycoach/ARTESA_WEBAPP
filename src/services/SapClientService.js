@@ -165,9 +165,23 @@ class SapClientService extends SapBaseService {
    */
   async createOrUpdateBusinessPartnerLead(clientProfile) {
     try {
+      this.logger.info('Inicio de createOrUpdateBusinessPartnerLead', {
+        clientProfile: JSON.stringify({
+          client_id: clientProfile.client_id,
+          nit_number: clientProfile.nit_number,
+          verification_digit: clientProfile.verification_digit,
+          razonSocial: clientProfile.razonSocial || clientProfile.company_name,
+          nombre: clientProfile.nombre || clientProfile.contact_name
+        })
+      });
       // Validar requisitos mínimos
       if (!clientProfile.nit_number || clientProfile.verification_digit === undefined) {
-        throw new Error('El NIT y dígito de verificación son requeridos para crear un Lead en SAP');
+        const errorMsg = 'El NIT y dígito de verificación son requeridos para crear un Lead en SAP';
+        this.logger.error(errorMsg, {
+          nit_number: clientProfile.nit_number,
+          verification_digit: clientProfile.verification_digit
+        });
+        throw new Error(errorMsg);
       }
 
       this.logger.debug('Creando/actualizando socio de negocios tipo Lead en SAP B1', {

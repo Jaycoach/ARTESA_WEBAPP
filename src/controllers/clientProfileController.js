@@ -639,6 +639,34 @@ class ClientProfileController {
           clientData[fieldMap[key]] = req.body[key];
         }
       });
+
+      // Asegurar explícitamente que los campos críticos para SAP se extraen correctamente
+      if (req.body.nit_number) clientData.nit_number = req.body.nit_number;
+      if (req.body.verification_digit) clientData.verification_digit = req.body.verification_digit;
+
+      // Si tenemos digitoVerificacion pero no verification_digit, usarlo
+      if (!clientData.verification_digit && req.body.digitoVerificacion) {
+        clientData.verification_digit = req.body.digitoVerificacion;
+      }
+
+      // Si tenemos nit pero no nit_number, intentar extraerlo del nit
+      if (!clientData.nit_number && req.body.nit) {
+        const parts = req.body.nit.split('-');
+        if (parts.length > 0) {
+          clientData.nit_number = parts[0];
+          if (parts.length > 1 && !clientData.verification_digit) {
+            clientData.verification_digit = parts[1];
+          }
+        }
+      }
+
+      logger.info('Datos críticos para SAP extraídos del formulario:', {
+        nit_number: clientData.nit_number,
+        verification_digit: clientData.verification_digit,
+        nit: req.body.nit,
+        digitoVerificacion: req.body.digitoVerificacion,
+        tax_id: clientData.nit
+      });
       
       // Asegurar que userId sea un entero
       if (clientData.userId) {
@@ -752,6 +780,107 @@ class ClientProfileController {
       // Crear el perfil
       const profile = await ClientProfile.create(clientData);
       
+      // Intentar sincronizar con SAP de manera forzada
+      try {
+        logger.info('FORZANDO SINCRONIZACIÓN CON SAP: Inicio del proceso', {
+          cliente_id: profile.client_id,
+          nit_number: profile.nit_number,
+          verification_digit: profile.verification_digit,
+          nombre: profile.nombre,
+          razonSocial: profile.razonSocial
+        });
+
+        // Verificar manualmente que tengamos los datos necesarios
+        // Intentar extraer nit_number y verification_digit si no están disponibles directamente
+        if (!profile.nit_number && profile.nit) {
+          const parts = profile.nit.split('-');
+          if (parts.length > 0) {
+            profile.nit_number = parts[0];
+            if (parts.length > 1 && profile.verification_digit === undefined) {
+              profile.verification_digit = parts[1];
+            }
+          }
+        }
+
+        logger.info('Datos finales para sincronización SAP:', {
+          nit_number: profile.nit_number,
+          verification_digit: profile.verification_digit,
+          nit: profile.nit,
+          tax_id: profile.tax_id
+        });
+
+        // Verificar manualmente que tengamos los datos necesarios
+        if (!profile.nit_number || profile.verification_digit === undefined) {
+          logger.warn('No se puede sincronizar con SAP: falta NIT o dígito de verificación', {
+            nit_number: profile.nit_number,
+            verification_digit: profile.verification_digit
+          });
+        } else {
+          // Verificar que el servicio de SAP esté inicializado
+          if (!sapServiceManager.initialized) {
+            logger.info('Inicializando servicio SAP antes de sincronizar');
+            await sapServiceManager.initialize();
+          }
+
+          // Crear un objeto con el formato necesario para SAP
+          const sapProfileData = {
+            client_id: profile.client_id,
+            user_id: profile.user_id,
+            razonSocial: profile.razonSocial || profile.company_name,
+            nombre: profile.nombre || profile.contact_name,
+            telefono: profile.telefono || profile.contact_phone,
+            email: profile.email || profile.contact_email,
+            direccion: profile.direccion || profile.address,
+            nit_number: profile.nit_number,
+            verification_digit: profile.verification_digit
+          };
+          
+          logger.info('Datos preparados para SAP:', sapProfileData);
+          
+          // Llamar directamente al servicio de SAP Client
+          const sapResult = await sapServiceManager.clientService.createOrUpdateBusinessPartnerLead(sapProfileData);
+          
+          logger.info('RESULTADO DE SINCRONIZACIÓN SAP:', {
+            success: sapResult?.success,
+            cardCode: sapResult?.cardCode,
+            isNew: sapResult?.isNew
+          });
+          
+          // Si la sincronización fue exitosa, actualizar el perfil con la información de SAP
+          if (sapResult && sapResult.success && sapResult.cardCode) {
+            await pool.query(
+              `UPDATE client_profiles 
+              SET cardcode_sap = $1, sap_lead_synced = true, updated_at = CURRENT_TIMESTAMP
+              WHERE client_id = $2`,
+              [sapResult.cardCode, profile.client_id]
+            );
+            
+            // Actualizar objeto para la respuesta
+            profile.cardcode_sap = sapResult.cardCode;
+            profile.sap_lead_synced = true;
+            
+            logger.info('Perfil sincronizado exitosamente con SAP', {
+              clientId: profile.client_id,
+              cardCode: sapResult.cardCode,
+              isNew: sapResult.isNew
+            });
+          } else {
+            logger.warn('Sincronización con SAP no completada o sin resultados válidos', {
+              success: sapResult?.success,
+              cardCode: sapResult?.cardCode
+            });
+          }
+        }
+      } catch (sapError) {
+        logger.error('ERROR CRÍTICO en sincronización con SAP:', {
+          error: sapError.message,
+          stack: sapError.stack,
+          clientId: profile.client_id
+        });
+        
+        // A pesar del error, continuamos para al menos crear el perfil localmente
+      }
+
       // Agregar URLs para archivos en la respuesta
       const baseUrl = `${req.protocol}://${req.get('host')}`;
       

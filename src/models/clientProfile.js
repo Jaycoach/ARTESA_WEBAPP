@@ -337,11 +337,14 @@ static async create(clientData) {
       throw new Error('No se pudo crear el perfil de cliente');
     }
     
-    // Crear un objeto que combine los campos de la base de datos con los adicionales
-    const createdProfile = {
-      ...rows[0],
-      ...additionalFields
-    };
+    // Asegurar que los campos críticos estén presentes en el perfil resultante
+    if (clientData.nit_number) createdProfile.nit_number = clientData.nit_number;
+    if (clientData.verification_digit !== undefined) createdProfile.verification_digit = clientData.verification_digit;
+    logger.debug('Campos críticos en el perfil creado:', {
+      nit_number: createdProfile.nit_number,
+      verification_digit: createdProfile.verification_digit,
+      tax_id: createdProfile.tax_id || clientData.nit
+    });
     
     // Renombrar campos para coincidir con el formulario
     const profile = {
