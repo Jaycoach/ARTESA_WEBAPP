@@ -119,14 +119,6 @@ const createOrder = async (req, res) => {
       });
     }
 
-    if (userResult.rows.length === 0 || !userResult.rows[0].is_active) {
-      logger.warn('Usuario inactivo intentando crear orden', { userId: user_id });
-      return res.status(403).json({
-        success: false,
-        message: 'Usuario inactivo no puede crear órdenes'
-      });
-    }
-
     if (!total_amount || total_amount <= 0) {
       return res.status(400).json({
         success: false,
