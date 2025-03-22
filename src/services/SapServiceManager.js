@@ -230,6 +230,16 @@ class SapServiceManager {
       }
     };
   }
+  /**
+   * Sincroniza completamente todos los perfiles de cliente con SAP
+   * @returns {Promise<object>} - Resultado de la sincronización completa
+   */
+  async syncAllClients() {
+    if (!this.initialized) {
+      await this.initialize();
+    }
+    return this.clientService.syncAllClientsWithSAP();
+  }
 }
 
 // Exportar instancia única (singleton)
