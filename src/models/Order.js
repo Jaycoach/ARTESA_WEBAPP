@@ -426,6 +426,7 @@ class Order {
    * @returns {Date} Fecha de entrega calculada
    */
   static calculateDeliveryDate(orderDate = new Date(), orderTimeLimit) {
+    const colombianHolidays = require('../utils/colombianHolidays');
     const date = new Date(orderDate);
     
     // Si no se proporcionó hora límite, obtenerla de la configuración (esto no debería ocurrir)
@@ -443,126 +444,132 @@ class Order {
     // Determinar día de la semana (0 = domingo, 6 = sábado)
     const dayOfWeek = date.getDay();
     
-    // Calcular días adicionales según el día de la semana y hora
-    let additionalDays = 2; // Por defecto, 2 días hábiles
+    // Número de días hábiles de entrega (regla de negocio: 2 días hábiles)
+    let workingDaysToAdd = 2;
     
-    if (dayOfWeek === 5) { // Viernes
-      additionalDays = isPastTimeLimit ? 4 : 3; // Lunes o martes
+    // Caso especial para sábados
+    if (dayOfWeek === 6) { // Sábado
+      if (isPastTimeLimit) {
+        // Si ya pasó la hora límite, se entrega el miércoles (3 días hábiles)
+        workingDaysToAdd = 3;
+      } else {
+        // Si no pasó la hora límite, se entrega el martes (2 días hábiles)
+        workingDaysToAdd = 2;
+      }
     } 
-    else if (dayOfWeek === 6) { // Sábado
-      additionalDays = isPastTimeLimit ? 3 : 2; // Miércoles o martes
-    }
-    else if (dayOfWeek === 0) { // Domingo
-      additionalDays = 2; // Martes
-    }
-    else { // Lunes a jueves
-      additionalDays = isPastTimeLimit ? 3 : 2; // +3 o +2 días
-    }
-    
-    // Añadir los días calculados
-    date.setDate(date.getDate() + additionalDays);
-    
-    // Asegurar que no caiga en fin de semana
-    const newDayOfWeek = date.getDay();
-    if (newDayOfWeek === 0) { // domingo
-      date.setDate(date.getDate() + 1); // mover al lunes
-    } else if (newDayOfWeek === 6) { // sábado
-      date.setDate(date.getDate() + 2); // mover al lunes
+    // Para cualquier otro día, añadir 2 días hábiles
+    else {
+      // Si ya pasó la hora límite, añadir un día más
+      if (isPastTimeLimit) {
+        workingDaysToAdd = 3;
+      } else {
+        workingDaysToAdd = 2;
+      }
     }
     
-    return date;
+    // Calcular la fecha de entrega añadiendo días hábiles
+    const deliveryDate = colombianHolidays.addWorkingDays(date, workingDaysToAdd);
+    
+    // Verificar que la fecha resultante no sea un día festivo o fin de semana
+    // (esto no debería ocurrir con addWorkingDays, pero por seguridad lo verificamos)
+    if (!colombianHolidays.isWorkingDay(deliveryDate)) {
+      // Si por alguna razón cae en día no hábil, añadir días hasta llegar al próximo día hábil
+      return colombianHolidays.getNextWorkingDay(deliveryDate);
+    }
+    
+    return deliveryDate;
   }
 
   /**
- * Actualiza el estado de las órdenes pendientes a "En Producción" y cancela órdenes con fecha de entrega vencida
- * @async
- * @param {string} orderTimeLimit - Hora límite para pedidos (formato HH:MM)
- * @param {Object} [options] - Opciones adicionales
- * @param {boolean} [options.ignoreTimeLimit=false] - Si es true, ignora la restricción de hora límite
- * @param {boolean} [options.ignoreDeliveryDate=false] - Si es true, ignora la restricción de fecha de entrega
- * @returns {Promise<Object>} - Estadísticas de órdenes actualizadas y canceladas
- */
-static async updatePendingOrdersStatus(orderTimeLimit = "18:00", options = {}) {
-  try {
-    const { ignoreTimeLimit = false, ignoreDeliveryDate = false } = options;
-    
-    logger.debug('Actualizando órdenes pendientes y vencidas', { 
-      orderTimeLimit,
-      ignoreTimeLimit,
-      ignoreDeliveryDate
-    });
-    
-    // Actualizar órdenes pendientes a "En Producción"
-    let pendingWhereConditions = [`status_id = 1`]; // Ordenes en estado Abierto
-    
-    // Agregar condición de hora límite si no se ignora
-    if (!ignoreTimeLimit) {
-      pendingWhereConditions.push(`TO_CHAR(NOW(), 'HH24:MI') >= $1`);
-    }
-    
-    // Agregar condición de fecha de entrega si no se ignora
-    if (!ignoreDeliveryDate) {
-      pendingWhereConditions.push(`(delivery_date IS NOT NULL AND delivery_date >= CURRENT_DATE)`);
-    }
-    
-    // Construir consulta para actualización a "En Producción"
-    const pendingQuery = `
-      UPDATE orders
-      SET status_id = 3, -- En Producción
-          last_status_update = CURRENT_TIMESTAMP
-      WHERE ${pendingWhereConditions.join(' AND ')}
-      RETURNING order_id
-    `;
-    
-    // Arreglo de parámetros para la consulta de pendientes
-    const pendingParams = ignoreTimeLimit ? [] : [orderTimeLimit];
-    
-    const pendingResult = await pool.query(pendingQuery, pendingParams);
-    
-    const updatedCount = pendingResult.rowCount;
-    
-    // Cancelar órdenes con fecha de entrega vencida
-    // Solo afecta a órdenes en estado Abierto (1) o Pendiente (2)
-    const cancelQuery = `
-      UPDATE orders
-      SET status_id = 6, -- Cancelado
-          last_status_update = CURRENT_TIMESTAMP
-      WHERE status_id IN (1, 2)
-      AND ((delivery_date IS NOT NULL AND delivery_date < CURRENT_DATE) OR delivery_date IS NULL)
-      RETURNING order_id
-    `;
-    
-    const cancelResult = await pool.query(cancelQuery);
-    
-    const cancelledCount = cancelResult.rowCount;
-    
-    if (updatedCount > 0 || cancelledCount > 0) {
-      logger.info('Actualización de estados de órdenes completada', { 
-        updatedToProduction: updatedCount,
-        updatedToCancelled: cancelledCount,
-        updatedIds: pendingResult.rows.map(row => row.order_id),
-        cancelledIds: cancelResult.rows.map(row => row.order_id),
+   * Actualiza el estado de las órdenes pendientes a "En Producción" y cancela órdenes con fecha de entrega vencida
+   * @async
+   * @param {string} orderTimeLimit - Hora límite para pedidos (formato HH:MM)
+   * @param {Object} [options] - Opciones adicionales
+   * @param {boolean} [options.ignoreTimeLimit=false] - Si es true, ignora la restricción de hora límite
+   * @param {boolean} [options.ignoreDeliveryDate=false] - Si es true, ignora la restricción de fecha de entrega
+   * @returns {Promise<Object>} - Estadísticas de órdenes actualizadas y canceladas
+   */
+  static async updatePendingOrdersStatus(orderTimeLimit = "18:00", options = {}) {
+    try {
+      const { ignoreTimeLimit = false, ignoreDeliveryDate = false } = options;
+      
+      logger.debug('Actualizando órdenes pendientes y vencidas', { 
+        orderTimeLimit,
         ignoreTimeLimit,
         ignoreDeliveryDate
       });
-    } else {
-      logger.debug('No hay órdenes para actualizar');
+      
+      // Actualizar órdenes pendientes a "En Producción"
+      let pendingWhereConditions = [`status_id = 1`]; // Ordenes en estado Abierto
+      
+      // Agregar condición de hora límite si no se ignora
+      if (!ignoreTimeLimit) {
+        pendingWhereConditions.push(`TO_CHAR(NOW(), 'HH24:MI') >= $1`);
+      }
+      
+      // Agregar condición de fecha de entrega si no se ignora
+      if (!ignoreDeliveryDate) {
+        pendingWhereConditions.push(`(delivery_date IS NOT NULL AND delivery_date >= CURRENT_DATE)`);
+      }
+      
+      // Construir consulta para actualización a "En Producción"
+      const pendingQuery = `
+        UPDATE orders
+        SET status_id = 3, -- En Producción
+            last_status_update = CURRENT_TIMESTAMP
+        WHERE ${pendingWhereConditions.join(' AND ')}
+        RETURNING order_id
+      `;
+      
+      // Arreglo de parámetros para la consulta de pendientes
+      const pendingParams = ignoreTimeLimit ? [] : [orderTimeLimit];
+      
+      const pendingResult = await pool.query(pendingQuery, pendingParams);
+      
+      const updatedCount = pendingResult.rowCount;
+      
+      // Cancelar órdenes con fecha de entrega vencida
+      // Solo afecta a órdenes en estado Abierto (1) o Pendiente (2)
+      const cancelQuery = `
+        UPDATE orders
+        SET status_id = 6, -- Cancelado
+            last_status_update = CURRENT_TIMESTAMP
+        WHERE status_id IN (1, 2)
+        AND ((delivery_date IS NOT NULL AND delivery_date < CURRENT_DATE) OR delivery_date IS NULL)
+        RETURNING order_id
+      `;
+      
+      const cancelResult = await pool.query(cancelQuery);
+      
+      const cancelledCount = cancelResult.rowCount;
+      
+      if (updatedCount > 0 || cancelledCount > 0) {
+        logger.info('Actualización de estados de órdenes completada', { 
+          updatedToProduction: updatedCount,
+          updatedToCancelled: cancelledCount,
+          updatedIds: pendingResult.rows.map(row => row.order_id),
+          cancelledIds: cancelResult.rows.map(row => row.order_id),
+          ignoreTimeLimit,
+          ignoreDeliveryDate
+        });
+      } else {
+        logger.debug('No hay órdenes para actualizar');
+      }
+      
+      return {
+        updatedCount,
+        cancelledCount,
+        updatedIds: pendingResult.rows.map(row => row.order_id),
+        cancelledIds: cancelResult.rows.map(row => row.order_id)
+      };
+    } catch (error) {
+      logger.error('Error al actualizar estado de órdenes', { 
+        error: error.message, 
+        stack: error.stack
+      });
+      throw error;
     }
-    
-    return {
-      updatedCount,
-      cancelledCount,
-      updatedIds: pendingResult.rows.map(row => row.order_id),
-      cancelledIds: cancelResult.rows.map(row => row.order_id)
-    };
-  } catch (error) {
-    logger.error('Error al actualizar estado de órdenes', { 
-      error: error.message, 
-      stack: error.stack
-    });
-    throw error;
   }
-}
 
   /**
    * Cancela una orden existente cambiando su estado a Cancelado (7)

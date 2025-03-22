@@ -154,7 +154,6 @@ const createOrder = async (req, res) => {
       }
       
       // Obtener configuración de hora límite
-      // Obtener configuración de hora límite
       const adminSettings = await require('../models/AdminSettings').getSettings();
       const orderTimeLimit = adminSettings.orderTimeLimit;
 
@@ -166,12 +165,23 @@ const createOrder = async (req, res) => {
         });
       }
       
-      // Calcular fecha mínima permitida
+      // Calcular fecha mínima permitida usando el nuevo método
       const minDeliveryDate = Order.calculateDeliveryDate(new Date(), orderTimeLimit);
       
       // Comparar solo las fechas (sin la hora)
       const deliveryDateOnly = new Date(parsedDeliveryDate.toDateString());
       const minDeliveryDateOnly = new Date(minDeliveryDate.toDateString());
+
+      // Validar que sea un día hábil
+      const colombianHolidays = require('../utils/colombianHolidays');
+      
+      if (!colombianHolidays.isWorkingDay(deliveryDateOnly)) {
+        return res.status(400).json({
+          success: false,
+          message: 'La fecha de entrega debe ser un día hábil (no festivo ni fin de semana)',
+          suggestedDate: colombianHolidays.getNextWorkingDay(deliveryDateOnly).toISOString().split('T')[0]
+        });
+      }
 
       if (deliveryDateOnly < minDeliveryDateOnly) {
         return res.status(400).json({
@@ -581,6 +591,17 @@ const updateOrder = async (req, res) => {
         });
       }
       
+      // Validar que sea un día hábil
+      const colombianHolidays = require('../utils/colombianHolidays');
+      
+      if (!colombianHolidays.isWorkingDay(deliveryDate)) {
+        return res.status(400).json({
+          success: false,
+          message: 'La fecha de entrega debe ser un día hábil (no festivo ni fin de semana)',
+          suggestedDate: colombianHolidays.getNextWorkingDay(deliveryDate).toISOString().split('T')[0]
+        });
+      }
+      
       // Comparar solo las fechas (sin la hora)
       const deliveryDateOnly = new Date(deliveryDate.toDateString());
       const minDeliveryDateOnly = new Date(minDeliveryDate.toDateString());
@@ -812,11 +833,35 @@ const calculateDeliveryDate = async (req, res) => {
     // Calcular fecha de entrega
     const deliveryDate = Order.calculateDeliveryDate(new Date(), orderTimeLimit);
     
+    // Importar utilidad de días festivos
+    const colombianHolidays = require('../utils/colombianHolidays');
+    
+    // Calcular algunas fechas hábiles para sugerir en el frontend
+    const today = new Date();
+    const nextFiveDays = [];
+    let currentDate = new Date(today);
+    
+    // Generar próximos 7 días hábiles para el frontend
+    for (let i = 0; i < 10; i++) {
+      currentDate.setDate(currentDate.getDate() + 1);
+      if (colombianHolidays.isWorkingDay(currentDate)) {
+        nextFiveDays.push({
+          date: new Date(currentDate).toISOString().split('T')[0],
+          isAvailable: currentDate >= deliveryDate
+        });
+        
+        // Si ya tenemos 7 días hábiles, terminamos
+        if (nextFiveDays.length >= 7) break;
+      }
+    }
+    
     res.status(200).json({
       success: true,
       data: {
         deliveryDate: deliveryDate.toISOString().split('T')[0],
-        orderTimeLimit
+        orderTimeLimit,
+        nextAvailableDates: nextFiveDays,
+        isPastTimeLimit: new Date().getHours() >= parseInt(orderTimeLimit.split(':')[0])
       }
     });
   } catch (error) {

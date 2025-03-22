@@ -9,7 +9,7 @@ const pool = require('../config/db');
 class SapClientService extends SapBaseService {
   constructor() {
     super('SapClientService');
-    this.syncSchedule = '0 */2 6-20 * * *'; // Cada 2 horas desde las 6AM hasta las 8PM
+    this.syncSchedule = '0 */2 6-20 * *'; // Cada 2 horas desde las 6AM hasta las 8PM
     this.syncTasks = {};
   }
 
