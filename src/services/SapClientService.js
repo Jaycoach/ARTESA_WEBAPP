@@ -114,7 +114,7 @@ class SapClientService extends SapBaseService {
       this.logger.debug('Consultando Business Partner en SAP por CardCode', { cardCode });
       
       // Construir endpoint para obtener un Business Partner específico con todos los campos relevantes
-      const endpoint = `BusinessPartners('${cardCode}')?$select=CardCode,CardName,CardType,FederalTaxID,U_AR_ArtesaCode,Phone1,EmailAddress,Address,City,Country,ContactPerson,U_Web_Published`;
+      const endpoint = `BusinessPartners('${cardCode}')?$select=CardCode,CardName,CardType,FederalTaxID,U_AR_ArtesaCode,Phone1,EmailAddress,Address,City,Country,ContactPerson`;
       
       // Realizar petición a SAP
       const data = await this.request('GET', endpoint);
@@ -140,6 +140,47 @@ class SapClientService extends SapBaseService {
       
       this.logger.error('Error al obtener Business Partner de SAP', {
         cardCode,
+        error: error.message,
+        stack: error.stack
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Busca un Business Partner prioritariamente por U_AR_ArtesaCode y luego por CardCode
+   * @param {string} code - Código a buscar (puede ser CardCode o ArtesaCode)
+   * @returns {Promise<Object|null>} - Business Partner encontrado o null
+   */
+  async getBusinessPartnerByAnyCode(code) {
+    try {
+      this.logger.debug('Buscando Business Partner por cualquier código', { code });
+      
+      // Primero intentar buscar por ArtesaCode
+      const bpByArtesaCode = await this.getBusinessPartnerByArtesaCode(code);
+      if (bpByArtesaCode) {
+        this.logger.info('Business Partner encontrado por código Artesa', { 
+          code,
+          cardCode: bpByArtesaCode.CardCode
+        });
+        return bpByArtesaCode;
+      }
+      
+      // Si no se encuentra, intentar por CardCode
+      const bpByCardCode = await this.getBusinessPartnerBySapCode(code);
+      if (bpByCardCode) {
+        this.logger.info('Business Partner encontrado por CardCode', { 
+          code,
+          cardCode: bpByCardCode.CardCode
+        });
+        return bpByCardCode;
+      }
+      
+      this.logger.warn('Business Partner no encontrado con ningún código', { code });
+      return null;
+    } catch (error) {
+      this.logger.error('Error al buscar Business Partner por cualquier código', {
+        code,
         error: error.message,
         stack: error.stack
       });
@@ -648,14 +689,24 @@ class SapClientService extends SapBaseService {
       for (const profile of rows) {
         try {
           // Primero intentamos buscar por cardcode_sap si existe
+          // Buscar el cliente en SAP por cualquiera de los códigos disponibles
           let sapClient = null;
           if (profile.cardcode_sap) {
-            sapClient = await this.getBusinessPartnerBySapCode(profile.cardcode_sap);
+            // Intentar buscar por cualquier código, priorizando ArtesaCode
+            sapClient = await this.getBusinessPartnerByAnyCode(profile.cardcode_sap);
           }
-          
-          // Si no encontramos por cardcode_sap o no tiene, intentamos por clientprofilecode_sap
+
+          // Si no se encontró, intentar con clientprofilecode_sap
           if (!sapClient && profile.clientprofilecode_sap) {
-            sapClient = await this.getBusinessPartnerByArtesaCode(profile.clientprofilecode_sap);
+            sapClient = await this.getBusinessPartnerByAnyCode(profile.clientprofilecode_sap);
+          }
+
+          // Si todavía no se encontró, intentar generando un código a partir del NIT
+          if (!sapClient && profile.nit_number) {
+            const generatedCode = `C${profile.nit_number}`;
+            if (generatedCode !== profile.cardcode_sap && generatedCode !== profile.clientprofilecode_sap) {
+              sapClient = await this.getBusinessPartnerByAnyCode(generatedCode);
+            }
           }
           
           // Si no encontramos el cliente en SAP, saltamos
