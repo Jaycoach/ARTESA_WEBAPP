@@ -114,7 +114,7 @@ router.post('/client/:userId/activate', clientSyncController.activateClient);
  * /api/client-sync/sync-all:
  *   post:
  *     summary: Iniciar sincronización manual completa con SAP
- *     description: Actualiza todos los perfiles de clientes con la información más reciente de SAP
+ *     description: Actualiza todos los perfiles de clientes con la información más reciente de SAP. Esta operación se ejecuta automáticamente a las 3 AM todos los días, pero puede ser iniciada manualmente.
  *     tags: [ClientSync]
  *     security:
  *       - bearerAuth: []
@@ -129,8 +129,8 @@ router.post('/client/:userId/activate', clientSyncController.activateClient);
  *         description: Error interno del servidor
  */
 router.post('/sync-all', 
-    checkRole([1]), // Solo administradores
-    clientSyncController.syncAllClients
-  );
+  checkRole([1]), // Solo administradores
+  clientSyncController.syncAllClients
+);
 
 module.exports = router;
