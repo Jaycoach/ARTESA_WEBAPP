@@ -1,4 +1,5 @@
 const express = require('express');
+const pool = require('../config/db');
 const Order = require('../models/Order');
 const { verifyToken, checkRole } = require('../middleware/auth');
 const { 
@@ -52,64 +53,6 @@ const router = express.Router();
  */
 
 /**
- * Crear una nueva orden
- * @route POST /orders
- * @group Orders - Operaciones relacionadas con órdenes
- * @param {CreateOrderRequest} request.body.required - Datos de la orden
- * @security bearerAuth
- * @returns {CreateOrderResponse} 201 - Orden creada exitosamente
- * @returns {object} 400 - Datos inválidos
- * @returns {object} 401 - No autorizado
- * @returns {object} 500 - Error interno del servidor
- */
-// Ruta para crear una orden
-router.post('/orders', verifyToken, createOrder);
-
-/**
- * Actualizar una orden existente
- * @route PUT /orders/{orderId}
- * @group Orders - Operaciones relacionadas con órdenes
- * @param {number} orderId.path.required - ID de la orden a actualizar
- * @param {UpdateOrderRequest} request.body.required - Datos para actualizar la orden
- * @security bearerAuth
- * @returns {object} 200 - Orden actualizada exitosamente
- * @returns {object} 400 - Datos inválidos
- * @returns {object} 401 - No autorizado
- * @returns {object} 403 - No tiene permisos para actualizar esta orden
- * @returns {object} 404 - Orden no encontrada
- * @returns {object} 500 - Error interno del servidor
- */
-// Ruta para actualizar una orden
-router.put('/orders/:orderId', verifyToken, updateOrder);
-
-/**
- * Obtener órdenes por estado
- * @route GET /orders/status/{statusId}
- * @group Orders - Operaciones relacionadas con órdenes
- * @param {number} statusId.path.required - ID del estado a filtrar
- * @security bearerAuth
- * @returns {object} 200 - Lista de órdenes recuperada exitosamente
- * @returns {object} 401 - No autorizado
- * @returns {object} 403 - No tiene permisos para ver estas órdenes
- * @returns {object} 500 - Error interno del servidor
- */
-// Ruta para obtener órdenes por estado
-router.get('/orders/status/:statusId', verifyToken, getOrdersByStatus);
-
-/**
- * Verificar si un usuario puede crear órdenes
- * @route GET /orders/can-create/{userId}
- * @group Orders - Operaciones relacionadas con órdenes
- * @param {number} userId.path.required - ID del usuario
- * @security bearerAuth
- * @returns {object} 200 - Respuesta con estado de capacidad para crear órdenes
- * @returns {object} 401 - No autorizado
- * @returns {object} 404 - Usuario no encontrado
- * @returns {object} 500 - Error interno del servidor
- */
-router.get('/orders/can-create/:userId', verifyToken, checkUserCanCreateOrders);
-
-/**
  * Obtener todos los estados de órdenes
  * @route GET /orders/statuses
  * @group Orders - Operaciones relacionadas con órdenes
@@ -147,66 +90,6 @@ router.get('/orders/delivery-date', verifyToken, calculateDeliveryDate);
 router.post('/orders/process-pending', verifyToken, checkRole([1]), updatePendingOrders);
 
 /**
- * Obtener una orden específica
- * @route GET /orders/{orderId}
- * @group Orders - Operaciones relacionadas con órdenes
- * @param {number} orderId.path.required - ID de la orden
- * @security bearerAuth
- * @returns {object} 200 - Orden recuperada exitosamente
- * @returns {object} 401 - No autorizado
- * @returns {object} 403 - No tiene permisos para ver esta orden
- * @returns {object} 404 - Orden no encontrada
- * @returns {object} 500 - Error interno del servidor
- */
-// Ruta para obtener una orden específica
-router.get('/orders/:orderId', verifyToken, getOrderById);
-
-/**
- * Cancelar una orden
- * @route PUT /orders/{orderId}/cancel
- * @group Orders - Operaciones relacionadas con órdenes
- * @param {number} orderId.path.required - ID de la orden a cancelar
- * @param {object} request.body - Datos para la cancelación
- * @param {string} request.body.reason - Razón de la cancelación
- * @security bearerAuth
- * @returns {object} 200 - Orden cancelada exitosamente
- * @returns {object} 400 - Datos inválidos o la orden no se puede cancelar
- * @returns {object} 401 - No autorizado
- * @returns {object} 403 - No tiene permisos para cancelar esta orden
- * @returns {object} 404 - Orden no encontrada
- * @returns {object} 500 - Error interno del servidor
- */
-router.put('/orders/:orderId/cancel', verifyToken, cancelOrder);
-
-/**
- * Obtener órdenes por fecha de entrega
- * @route GET /orders/byDeliveryDate
- * @group Orders - Operaciones relacionadas con órdenes
- * @param {string} deliveryDate.query.required - Fecha de entrega en formato YYYY-MM-DD
- * @param {number} statusId.query - ID del estado a filtrar (opcional)
- * @security bearerAuth
- * @returns {object} 200 - Lista de órdenes recuperada exitosamente
- * @returns {object} 400 - Formato de fecha inválido
- * @returns {object} 401 - No autorizado
- * @returns {object} 500 - Error interno del servidor
- */
-router.get('/orders/byDeliveryDate', verifyToken, getOrdersByDeliveryDate);
-
-/**
- * Obtener órdenes de un usuario
- * @route GET /orders/user/{userId}
- * @group Orders - Operaciones relacionadas con órdenes
- * @param {number} userId.path.required - ID del usuario
- * @security bearerAuth
- * @returns {object} 200 - Órdenes recuperadas exitosamente
- * @returns {object} 401 - No autorizado
- * @returns {object} 403 - No tiene permisos para ver estas órdenes
- * @returns {object} 500 - Error interno del servidor
- */
-// Ruta para obtener órdenes de un usuario
-router.get('/orders/user/:userId', verifyToken, getUserOrders);
-
-/**
  * Sincronizar manualmente órdenes con SAP
  * @route POST /orders/sync-to-sap
  * @group Orders - Operaciones relacionadas con órdenes
@@ -239,6 +122,110 @@ router.post('/orders/update-status-from-sap',
 );
 
 /**
+ * Obtener órdenes por fecha de entrega
+ * @route GET /orders/byDeliveryDate
+ * @group Orders - Operaciones relacionadas con órdenes
+ * @param {string} deliveryDate.query.required - Fecha de entrega en formato YYYY-MM-DD
+ * @param {number} statusId.query - ID del estado a filtrar (opcional)
+ * @security bearerAuth
+ * @returns {object} 200 - Lista de órdenes recuperada exitosamente
+ * @returns {object} 400 - Formato de fecha inválido
+ * @returns {object} 401 - No autorizado
+ * @returns {object} 500 - Error interno del servidor
+ */
+router.get('/orders/byDeliveryDate', verifyToken, getOrdersByDeliveryDate);
+
+/**
+ * Obtener órdenes por estado
+ * @route GET /orders/status/{statusId}
+ * @group Orders - Operaciones relacionadas con órdenes
+ * @param {number} statusId.path.required - ID del estado a filtrar
+ * @security bearerAuth
+ * @returns {object} 200 - Lista de órdenes recuperada exitosamente
+ * @returns {object} 401 - No autorizado
+ * @returns {object} 403 - No tiene permisos para ver estas órdenes
+ * @returns {object} 500 - Error interno del servidor
+ */
+// Ruta para obtener órdenes por estado
+router.get('/orders/status/:statusId', verifyToken, getOrdersByStatus);
+
+/**
+ * Obtener órdenes de un usuario
+ * @route GET /orders/user/{userId}
+ * @group Orders - Operaciones relacionadas con órdenes
+ * @param {number} userId.path.required - ID del usuario
+ * @security bearerAuth
+ * @returns {object} 200 - Órdenes recuperadas exitosamente
+ * @returns {object} 401 - No autorizado
+ * @returns {object} 403 - No tiene permisos para ver estas órdenes
+ * @returns {object} 500 - Error interno del servidor
+ */
+// Ruta para obtener órdenes de un usuario
+router.get('/orders/user/:userId', verifyToken, getUserOrders);
+
+/**
+ * Verificar si un usuario puede crear órdenes
+ * @route GET /orders/can-create/{userId}
+ * @group Orders - Operaciones relacionadas con órdenes
+ * @param {number} userId.path.required - ID del usuario
+ * @security bearerAuth
+ * @returns {object} 200 - Respuesta con estado de capacidad para crear órdenes
+ * @returns {object} 401 - No autorizado
+ * @returns {object} 404 - Usuario no encontrado
+ * @returns {object} 500 - Error interno del servidor
+ */
+router.get('/orders/can-create/:userId', verifyToken, checkUserCanCreateOrders);
+
+/**
+ * Obtener una orden específica
+ * @route GET /orders/{orderId}
+ * @group Orders - Operaciones relacionadas con órdenes
+ * @param {number} orderId.path.required - ID de la orden
+ * @security bearerAuth
+ * @returns {object} 200 - Orden recuperada exitosamente
+ * @returns {object} 401 - No autorizado
+ * @returns {object} 403 - No tiene permisos para ver esta orden
+ * @returns {object} 404 - Orden no encontrada
+ * @returns {object} 500 - Error interno del servidor
+ */
+// Ruta para obtener una orden específica
+router.get('/orders/:orderId', verifyToken, getOrderById);
+
+/**
+ * Actualizar una orden existente
+ * @route PUT /orders/{orderId}
+ * @group Orders - Operaciones relacionadas con órdenes
+ * @param {number} orderId.path.required - ID de la orden a actualizar
+ * @param {UpdateOrderRequest} request.body.required - Datos para actualizar la orden
+ * @security bearerAuth
+ * @returns {object} 200 - Orden actualizada exitosamente
+ * @returns {object} 400 - Datos inválidos
+ * @returns {object} 401 - No autorizado
+ * @returns {object} 403 - No tiene permisos para actualizar esta orden
+ * @returns {object} 404 - Orden no encontrada
+ * @returns {object} 500 - Error interno del servidor
+ */
+// Ruta para actualizar una orden
+router.put('/orders/:orderId', verifyToken, updateOrder);
+
+/**
+ * Cancelar una orden
+ * @route PUT /orders/{orderId}/cancel
+ * @group Orders - Operaciones relacionadas con órdenes
+ * @param {number} orderId.path.required - ID de la orden a cancelar
+ * @param {object} request.body - Datos para la cancelación
+ * @param {string} request.body.reason - Razón de la cancelación
+ * @security bearerAuth
+ * @returns {object} 200 - Orden cancelada exitosamente
+ * @returns {object} 400 - Datos inválidos o la orden no se puede cancelar
+ * @returns {object} 401 - No autorizado
+ * @returns {object} 403 - No tiene permisos para cancelar esta orden
+ * @returns {object} 404 - Orden no encontrada
+ * @returns {object} 500 - Error interno del servidor
+ */
+router.put('/orders/:orderId/cancel', verifyToken, cancelOrder);
+
+/**
  * Enviar una orden específica a SAP
  * @route POST /orders/{orderId}/send-to-sap
  * @group Orders - Operaciones relacionadas con órdenes
@@ -255,5 +242,19 @@ router.post('/orders/:orderId/send-to-sap',
   checkRole([1]), // Solo administradores
   sendOrderToSap
 );
+
+/**
+ * Crear una nueva orden
+ * @route POST /orders
+ * @group Orders - Operaciones relacionadas con órdenes
+ * @param {CreateOrderRequest} request.body.required - Datos de la orden
+ * @security bearerAuth
+ * @returns {CreateOrderResponse} 201 - Orden creada exitosamente
+ * @returns {object} 400 - Datos inválidos
+ * @returns {object} 401 - No autorizado
+ * @returns {object} 500 - Error interno del servidor
+ */
+// Ruta para crear una orden
+router.post('/orders', verifyToken, createOrder);
 
 module.exports = router;

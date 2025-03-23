@@ -1237,6 +1237,7 @@ const cancelOrder = async (req, res) => {
  *           type: string
  *           format: date
  *         description: Fecha de entrega en formato YYYY-MM-DD
+ *         example: "2025-03-24"
  *       - in: query
  *         name: statusId
  *         required: false

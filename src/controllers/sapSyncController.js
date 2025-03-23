@@ -62,7 +62,7 @@ class SapSyncController {
         try {
           // Siempre hacemos sincronización completa (true)
           await sapServiceManager.syncProducts(true);
-          logger.info('Sincronización manual completada', { jobId });
+          logger.info('Sincronización manual de artículos de venta completada', { jobId });
         } catch (error) {
           logger.error('Error en sincronización manual', {
             error: error.message,
@@ -74,7 +74,7 @@ class SapSyncController {
 
       res.status(200).json({
         success: true,
-        message: 'Sincronización completa iniciada exitosamente',
+        message: 'Sincronización completa de artículos de venta iniciada exitosamente',
         data: {
           jobId
         }
