@@ -31,7 +31,7 @@ const OrderList = () => {
           });
           setOrderStatuses(statusMap);
         }
-        
+
         // Obtener la configuración del sitio (orderTimeLimit)
         const siteConfigResponse = await API.get('/admin/settings');
         if (siteConfigResponse.data && siteConfigResponse.data.success) {
@@ -51,15 +51,15 @@ const OrderList = () => {
       setIsLoading(false);
       return;
     }
-    
+
     try {
       setIsLoading(true);
       setError(null);
-      
+
       const data = await orderService.getUserOrders(user.id);
       // Filtrar órdenes con status_id 6 (Cancelado/Cerrado)
-      const filteredOrders = data.filter(order => 
-        order.status_id !== 6 && 
+      const filteredOrders = data.filter(order =>
+        order.status_id !== 6 &&
         order.status_id !== '6' &&
         !['cancelado', 'canceled', 'cerrado'].includes(order.status?.toLowerCase())
       );
@@ -72,7 +72,7 @@ const OrderList = () => {
         editableOrdersMap[order.order_id] = editCheck.canEdit;
       }
       setEditableOrders(editableOrdersMap);
-      
+
     } catch (err) {
       console.error('Error fetching orders:', err);
       setError(err.message || 'Error al cargar los pedidos');
@@ -90,7 +90,7 @@ const OrderList = () => {
     if (!window.confirm('¿Estás seguro que deseas cancelar este pedido?')) {
       return;
     }
-    
+
     try {
       // Corrección: Usar el método PUT y la ruta completa con /api
       const response = await API.put(`/orders/${orderId}/cancel`);
@@ -106,21 +106,19 @@ const OrderList = () => {
     }
   };
 
-    // Función para formatear la fecha
-    const formatDate = (dateString) => {
-      if (!dateString) return 'Fecha no disponible';
-      
-      const date = new Date(dateString);
-      if (isNaN(date.getTime())) return 'Fecha inválida';
-      
-      return new Intl.DateTimeFormat('es-ES', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
-      }).format(date);
-    };
+  // Función para formatear la fecha
+  const formatDate = (dateString) => {
+    if (!dateString) return 'Fecha no disponible';
+  
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return 'Fecha inválida';
+  
+    return new Intl.DateTimeFormat('es-CO', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).format(date);
+  };
 
   // Calcular el índice del último y primer pedido de la página actual
   const indexOfLastOrder = currentPage * ordersPerPage;
@@ -158,7 +156,7 @@ const OrderList = () => {
       <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
         <p className="text-gray-500 text-center p-6">No tienes pedidos registrados.</p>
         <div className="flex justify-center">
-          <Link 
+          <Link
             to="/dashboard/orders/new"
             className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
           >
@@ -182,21 +180,24 @@ const OrderList = () => {
           </Link>
         </div>
       </div>
-      
+
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                 ID
               </th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Fecha
               </th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Entrega
+              </th>
+              <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Productos
               </th>
-              <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Total
               </th>
               <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -217,6 +218,9 @@ const OrderList = () => {
                   {formatDate(order.order_date)}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {formatDate(order.delivery_date)}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   {order.item_count || 0} productos ({order.total_items || 0} unidades)
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right font-semibold">
@@ -227,23 +231,23 @@ const OrderList = () => {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
                   <div className="flex justify-center space-x-2">
-                  <Link 
-                    to={order.order_id ? `/dashboard/orders/${order.order_id}` : '#'}
-                    className={`text-indigo-600 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 px-3 py-1 rounded-md flex items-center ${!order.order_id ? 'opacity-50 pointer-events-none' : ''}`}
-                    title="Ver detalles"
-                    onClick={(e) => {
-                      if (!order.order_id) {
-                        e.preventDefault();
-                        alert('ID de orden no disponible');
-                      }
-                    }}
-                  >
-                    <FaEye className="mr-1" />
-                    <span className="hidden sm:inline">Ver</span>
-                  </Link>
-                    
+                    <Link
+                      to={order.order_id ? `/dashboard/orders/${order.order_id}` : '#'}
+                      className={`text-indigo-600 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 px-3 py-1 rounded-md flex items-center ${!order.order_id ? 'opacity-50 pointer-events-none' : ''}`}
+                      title="Ver detalles"
+                      onClick={(e) => {
+                        if (!order.order_id) {
+                          e.preventDefault();
+                          alert('ID de orden no disponible');
+                        }
+                      }}
+                    >
+                      <FaEye className="mr-1" />
+                      <span className="hidden sm:inline">Ver</span>
+                    </Link>
+
                     {editableOrders[order.order_id] ? (
-                      <Link 
+                      <Link
                         to={`/dashboard/orders/${order.order_id}/edit`}
                         className="text-blue-600 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-3 py-1 rounded-md flex items-center"
                         title="Editar pedido"
@@ -252,7 +256,7 @@ const OrderList = () => {
                         <span className="hidden sm:inline">Editar</span>
                       </Link>
                     ) : (
-                      <span 
+                      <span
                         className="text-gray-400 bg-gray-100 px-3 py-1 rounded-md flex items-center cursor-not-allowed"
                         title={`No se puede editar este pedido (${['completado', 'completed', 'entregado', 'delivered', 'cancelado', 'canceled'].includes(order.status?.toLowerCase()) || ['3', '4', '5'].includes(order.status_id?.toString()) ? 'Estado: ' + order.status : 'Fuera de horario de edición'}`}
                       >
@@ -279,7 +283,7 @@ const OrderList = () => {
           </tbody>
         </table>
       </div>
-      
+
       {/* Paginación */}
       {orders.length > ordersPerPage && (
         <div className="flex justify-center mt-4">
@@ -294,21 +298,20 @@ const OrderList = () => {
                 <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
               </svg>
             </button>
-            
+
             {[...Array(Math.ceil(orders.length / ordersPerPage)).keys()].map(number => (
               <button
                 key={number + 1}
                 onClick={() => paginate(number + 1)}
-                className={`relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium ${
-                  currentPage === number + 1 
-                    ? 'z-10 bg-indigo-50 border-indigo-500 text-indigo-600' 
-                    : 'text-gray-700 hover:bg-gray-50'
-                }`}
+                className={`relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium ${currentPage === number + 1
+                  ? 'z-10 bg-indigo-50 border-indigo-500 text-indigo-600'
+                  : 'text-gray-700 hover:bg-gray-50'
+                  }`}
               >
                 {number + 1}
               </button>
             ))}
-            
+
             <button
               onClick={() => paginate(currentPage < Math.ceil(orders.length / ordersPerPage) ? currentPage + 1 : currentPage)}
               disabled={currentPage === Math.ceil(orders.length / ordersPerPage)}
