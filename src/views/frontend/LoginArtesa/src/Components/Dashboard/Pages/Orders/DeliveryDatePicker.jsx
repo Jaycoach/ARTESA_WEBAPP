@@ -64,8 +64,11 @@ const calculateAvailableDates = () => {
     for (let i = 0; i < 10; i++) {
       const date = new Date(now);
       date.setDate(now.getDate() + startOffset + i);
+
+      // Dentro de calculateAvailableDates, justo antes de filtrar los domingos:
+      console.log(`Fecha candidata: ${date.toISOString()}, Día de la semana: ${date.getDay()} (0=domingo, 5=viernes)`);
       
-      // Omitir domingos (día no laboral)
+      // Omitir solo domingos (día no laboral)
       if (date.getDay() === 0) {
         continue;
       }
