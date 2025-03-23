@@ -17,17 +17,22 @@ class SapOrderService extends SapBaseService {
    * Inicializa el servicio y programa tareas
    */
   async initialize() {
-    // Vincularse al servicio de programación de órdenes para sincronizar después de cada actualización
-    const orderScheduler = require('../services/OrderScheduler');
-    if (orderScheduler.initialized) {
-      this.logger.info('Registrando callback para sincronización posterior a actualización automática');
-      orderScheduler.registerPostUpdateCallback(this.syncOrdersToSAP.bind(this));
-    }
     if (this.initialized) return this;
-
+    
     try {
       // Inicializar servicio base primero
       await super.initialize();
+      
+      // Vincularse al servicio de programación de órdenes para sincronizar después de cada actualización
+      const orderScheduler = require('../services/OrderScheduler');
+      
+      // Asegurar que el orderScheduler está inicializado antes de usarlo
+      if (!orderScheduler.initialized) {
+        await orderScheduler.initialize();
+      }
+      
+      this.logger.info('Registrando callback para sincronización posterior a actualización automática');
+      orderScheduler.registerPostUpdateCallback(this.syncOrdersToSAP.bind(this));
       
       // Iniciar sincronización programada de órdenes
       this.scheduleSyncTask();

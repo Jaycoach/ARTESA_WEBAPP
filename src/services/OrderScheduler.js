@@ -13,12 +13,15 @@ class OrderScheduler {
     this.tasks = [];
     this.initialized = false;
     this.postUpdateCallbacks = [];
+    this.logger = logger;
   }
 
   // Método para registrar callbacks
   registerPostUpdateCallback(callback) {
     if (typeof callback === 'function') {
-      this.logger.info('Registrando callback post-actualización');
+      if (this.logger) {
+        this.logger.info('Registrando callback post-actualización');
+      }
       this.postUpdateCallbacks.push(callback);
     }
   }
