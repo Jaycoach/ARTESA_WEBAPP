@@ -37,9 +37,16 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     
     const fetchSettings = async () => {
       try {
+        console.log("Obteniendo configuración del sitio...");
         const response = await API.get('/admin/settings');
+        console.log("Respuesta de configuración:", response.data);
+        
         if (response.data && response.data.success) {
+          // Verificar que los datos contengan orderTimeLimit
+          console.log("Configuración obtenida:", response.data.data);
           setSiteSettings(response.data.data);
+        } else {
+          console.warn("No se pudo obtener la configuración correctamente:", response.data);
         }
       } catch (error) {
         console.error('Error fetching site settings:', error);

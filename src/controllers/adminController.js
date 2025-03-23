@@ -52,6 +52,9 @@ class AdminController {
       logger.debug('Solicitando configuración del portal', { 
         userId: req.user?.id 
       });
+
+      // Determinar qué datos devolver basado en el rol del usuario
+      const isAdmin = req.user.rol_id === 1 || req.user.rol_id === 3;
       
       // Registrar en auditoría
       await AuditService.logAuditEvent(
@@ -70,10 +73,21 @@ class AdminController {
       // Obtener configuración
       const settings = await AdminSettings.getSettings();
       
-      res.status(200).json({
-        success: true,
-        data: settings
-      });
+      // Si no es administrador, devolver solo orderTimeLimit
+      if (!isAdmin) {
+        res.status(200).json({
+          success: true,
+          data: {
+            orderTimeLimit: settings.orderTimeLimit
+          }
+        });
+      } else {
+        // Los administradores obtienen todos los datos
+        res.status(200).json({
+          success: true,
+          data: settings
+        });
+      }
     } catch (error) {
       logger.error('Error al obtener configuración del portal', {
         error: error.message,

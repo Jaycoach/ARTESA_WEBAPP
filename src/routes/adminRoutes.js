@@ -26,16 +26,16 @@ const fileUploadOptions = {
 // Aplicar middleware de autenticación a todas las rutas
 router.use(verifyToken);
 
-// Aplicar middleware de autorización para administradores (roles 1 y 3)
-router.use(authorize([1, 3]));
-
 // Aplicar sanitización de datos
 router.use(sanitizeBody);
 
-// Obtener configuración del portal
+// Obtener configuración del portal - permitir a todos los usuarios autenticados
 router.get('/settings', adminController.getSettings);
 
-// Actualizar configuración del portal (con soporte para subir archivos)
-router.post('/settings', fileUpload(fileUploadOptions), adminController.updateSettings);
+// Actualizar configuración del portal - solo administradores (roles 1 y 3)
+router.post('/settings', 
+  authorize([1, 3]), // Solo administradores pueden actualizar
+  fileUpload(fileUploadOptions), 
+  adminController.updateSettings);
 
 module.exports = router;
