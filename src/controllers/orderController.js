@@ -133,6 +133,28 @@ const createOrder = async (req, res) => {
       });
     }
     
+    // Verificar si el usuario está activo
+    const userQuery = 'SELECT is_active FROM users WHERE id = $1';
+    const userResult = await pool.query(userQuery, [user_id]);
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Usuario no encontrado'
+      });
+    }
+
+    if (!userResult.rows[0].is_active) {
+      logger.warn('Intento de crear orden con usuario inactivo', { 
+        userId: user_id 
+      });
+      
+      return res.status(403).json({
+        success: false,
+        message: 'Usuario inactivo. No puede crear órdenes.'
+      });
+    }
+    
     // Validar fecha de entrega si se proporciona
     let parsedDeliveryDate = null;
     if (delivery_date) {
@@ -203,29 +225,6 @@ const createOrder = async (req, res) => {
       logger.debug('Asignando fecha de entrega automática al no proporcionarse', {
         calculatedDate: parsedDeliveryDate,
         orderTimeLimit
-      });
-    }
-
-    // Después de la validación de la fecha de entrega, añada:
-    // Verificar si el usuario está activo
-    const userQuery = 'SELECT is_active FROM users WHERE id = $1';
-    const userResult = await pool.query(userQuery, [user_id]);
-
-    if (userResult.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'Usuario no encontrado'
-      });
-    }
-
-    if (!userResult.rows[0].is_active) {
-      logger.warn('Intento de crear orden con usuario inactivo', { 
-        userId: user_id 
-      });
-      
-      return res.status(403).json({
-        success: false,
-        message: 'Usuario inactivo. No puede crear órdenes.'
       });
     }
     
