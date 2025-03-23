@@ -397,6 +397,85 @@ class ClientSyncController {
       });
     }
   }
+  /**
+ * @swagger
+ * /api/client-sync/sync-all:
+ *   post:
+ *     summary: Iniciar sincronización manual completa con SAP
+ *     description: Actualiza todos los perfiles de clientes con la información más reciente de SAP. Esta operación se ejecuta automáticamente a las 3 AM todos los días, pero puede ser iniciada manualmente.
+ *     tags: [ClientSync]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Sincronización iniciada exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Sincronización completa de clientes completada exitosamente"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     total:
+ *                       type: integer
+ *                       example: 25
+ *                     updated:
+ *                       type: integer
+ *                       example: 20
+ *                     errors:
+ *                       type: integer
+ *                       example: 2
+ *                     skipped:
+ *                       type: integer
+ *                       example: 3
+ *       401:
+ *         description: No autorizado
+ *       403:
+ *         description: No tiene permisos suficientes
+ *       500:
+ *         description: Error interno del servidor
+ */
+  async syncAllClients(req, res) {
+    try {
+      logger.info('Iniciando sincronización manual completa de clientes con SAP B1', { 
+        userId: req.user?.id
+      });
+
+      // Verificar que el servicio esté inicializado
+      if (!sapServiceManager.initialized) {
+        logger.debug('Inicializando servicio de SAP antes de sincronización manual completa');
+        await sapServiceManager.initialize();
+      }
+
+      // Ejecutar sincronización completa
+      const results = await sapServiceManager.clientService.syncAllClientsWithSAP();
+      
+      res.status(200).json({
+        success: true,
+        message: 'Sincronización completa de clientes completada exitosamente',
+        data: results
+      });
+    } catch (error) {
+      logger.error('Error al iniciar sincronización manual completa de clientes', {
+        error: error.message,
+        stack: error.stack,
+        userId: req.user?.id
+      });
+      
+      res.status(500).json({
+        success: false,
+        message: 'Error al iniciar sincronización completa de clientes',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
 }
 
 // Crear instancia del controlador
@@ -406,6 +485,7 @@ const clientSyncController = new ClientSyncController();
 module.exports = {
   getSyncStatus: clientSyncController.getSyncStatus,
   syncClients: clientSyncController.syncClients,
+  syncAllClients: clientSyncController.syncAllClients,
   getPendingClients: clientSyncController.getPendingClients,
   activateClient: clientSyncController.activateClient
 };

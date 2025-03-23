@@ -92,6 +92,57 @@ router.put('/orders/:orderId', verifyToken, updateOrder);
 router.get('/orders/status/:statusId', verifyToken, getOrdersByStatus);
 
 /**
+ * Verificar si un usuario puede crear órdenes
+ * @route GET /orders/can-create/{userId}
+ * @group Orders - Operaciones relacionadas con órdenes
+ * @param {number} userId.path.required - ID del usuario
+ * @security bearerAuth
+ * @returns {object} 200 - Respuesta con estado de capacidad para crear órdenes
+ * @returns {object} 401 - No autorizado
+ * @returns {object} 404 - Usuario no encontrado
+ * @returns {object} 500 - Error interno del servidor
+ */
+router.get('/orders/can-create/:userId', verifyToken, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    // Verificar si el usuario existe y está activo
+    const userQuery = 'SELECT is_active FROM users WHERE id = $1';
+    const userResult = await pool.query(userQuery, [userId]);
+    
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Usuario no encontrado'
+      });
+    }
+    
+    // Verificar si tiene perfil de cliente y código SAP
+    const profileQuery = 'SELECT client_id, cardcode_sap FROM client_profiles WHERE user_id = $1';
+    const profileResult = await pool.query(profileQuery, [userId]);
+    
+    const canCreate = userResult.rows[0].is_active || 
+                      (profileResult.rows.length > 0 && profileResult.rows[0].cardcode_sap);
+    
+    res.status(200).json({
+      success: true,
+      data: {
+        canCreate,
+        isActive: userResult.rows[0].is_active,
+        hasProfile: profileResult.rows.length > 0,
+        hasCardCode: profileResult.rows.length > 0 && !!profileResult.rows[0].cardcode_sap
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error al verificar capacidad para crear órdenes',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+/**
  * Obtener todos los estados de órdenes
  * @route GET /orders/statuses
  * @group Orders - Operaciones relacionadas con órdenes

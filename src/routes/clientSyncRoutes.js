@@ -109,4 +109,28 @@ router.get('/clients/pending', clientSyncController.getPendingClients);
  */
 router.post('/client/:userId/activate', clientSyncController.activateClient);
 
+/**
+ * @swagger
+ * /api/client-sync/sync-all:
+ *   post:
+ *     summary: Iniciar sincronización manual completa con SAP
+ *     description: Actualiza todos los perfiles de clientes con la información más reciente de SAP. Esta operación se ejecuta automáticamente a las 3 AM todos los días, pero puede ser iniciada manualmente.
+ *     tags: [ClientSync]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Sincronización iniciada exitosamente
+ *       401:
+ *         description: No autorizado
+ *       403:
+ *         description: No tiene permisos suficientes
+ *       500:
+ *         description: Error interno del servidor
+ */
+router.post('/sync-all', 
+  checkRole([1]), // Solo administradores
+  clientSyncController.syncAllClients
+);
+
 module.exports = router;
