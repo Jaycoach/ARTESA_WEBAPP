@@ -387,7 +387,7 @@ useEffect(() => {
               <div className="flex flex-wrap justify-between items-center gap-4">
                 <div className="flex items-center gap-3">
                   <div className={`p-3 rounded-full ${darkMode ? 'bg-primary' : 'bg-indigo-100'}`}>
-                    <FiShoppingCart size={20} className={darkMode ? 'text-indigo-300' : 'text-secondary'} />
+                    <FiShoppingCart size={20} className={darkMode ? 'text-indigo-300' : 'text-primary'} />
                   </div>
                   <div>
                     <h2 className={`font-bold text-lg ${darkMode ? 'text-white' : 'text-gray-900'}`}>Tu Pedido Actual</h2>
@@ -397,11 +397,11 @@ useEffect(() => {
                   </div>
                 </div>
                 <div className="flex items-center gap-4 ml-auto">
-                  <span className={`text-xl font-bold ${darkMode ? 'text-indigo-300' : 'text-secondary'}`}>
+                  <span className={`text-xl font-bold ${darkMode ? 'text-indigo-300' : 'text-primary-300'}`}>
                     {formatCurrency(orderTotal)}
                   </span>
                   <Button
-                    variant="primary"
+                    variant="secondary"
                     className={`transition-all duration-200 transform active:scale-95 ${
                       submittingOrder ? 'opacity-75' : ''
                     } ${darkMode ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}
@@ -443,13 +443,13 @@ useEffect(() => {
           </div>
           <div className="flex justify-between lg:justify-end gap-2">
             <Button 
-              variant={viewMode === 'table' ? 'primary' : 'outline'} 
+              variant={viewMode === 'table' ? 'secondary' : 'outline'} 
               onClick={() => setViewMode('table')}
               className={`flex-1 lg:flex-none ${viewMode === 'table' ? (darkMode ? 'bg-blue-500' : 'bg-blue-800') : (darkMode ? 'bg-gray-800 text-gray-200 border-gray-700' : 'bg-white border-gray-300')}`}>
               <FiList className="mr-1" /> Lista
             </Button>
             <Button 
-              variant={viewMode === 'cards' ? 'primary' : 'outline'} 
+              variant={viewMode === 'cards' ? 'secondary' : 'outline'} 
               onClick={() => setViewMode('cards')}
               className={`flex-1 lg:flex-none ${viewMode === 'cards' ? (darkMode ? 'bg-indigo-600' : 'bg-indigo-600') : (darkMode ? 'bg-gray-800 text-gray-200 border-gray-700' : 'bg-white border-gray-300')}`}
             >
