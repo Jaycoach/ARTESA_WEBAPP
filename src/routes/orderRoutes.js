@@ -1,4 +1,5 @@
 const express = require('express');
+const Order = require('../models/Order');
 const { verifyToken, checkRole } = require('../middleware/auth');
 const { 
   createOrder, 
@@ -10,7 +11,10 @@ const {
   calculateDeliveryDate,
   updatePendingOrders,
   cancelOrder,
-  getOrdersByDeliveryDate
+  getOrdersByDeliveryDate,
+  syncOrdersToSap,          
+  updateOrderStatusFromSap, 
+  sendOrderToSap            
 } = require('../controllers/orderController');
 
 const router = express.Router();
@@ -252,31 +256,7 @@ router.get('/orders/user/:userId', verifyToken, getUserOrders);
 router.post('/orders/sync-to-sap', 
   verifyToken, 
   checkRole([1]), // Solo administradores
-  async (req, res) => {
-    try {
-      const sapServiceManager = require('../services/SapServiceManager');
-      
-      // Asegurar que el servicio está inicializado
-      if (!sapServiceManager.initialized) {
-        await sapServiceManager.initialize();
-      }
-      
-      // Ejecutar sincronización
-      const result = await sapServiceManager.syncOrders();
-      
-      res.status(200).json({
-        success: true,
-        message: 'Sincronización de órdenes con SAP iniciada exitosamente',
-        data: result
-      });
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: 'Error al sincronizar órdenes con SAP',
-        error: process.env.NODE_ENV === 'development' ? error.message : undefined
-      });
-    }
-  }
+  syncOrdersToSap
 );
 
 /**
@@ -292,31 +272,7 @@ router.post('/orders/sync-to-sap',
 router.post('/orders/update-status-from-sap', 
   verifyToken, 
   checkRole([1]), // Solo administradores
-  async (req, res) => {
-    try {
-      const sapServiceManager = require('../services/SapServiceManager');
-      
-      // Asegurar que el servicio está inicializado
-      if (!sapServiceManager.initialized) {
-        await sapServiceManager.initialize();
-      }
-      
-      // Ejecutar actualización de estados
-      const result = await sapServiceManager.updateOrderStatus();
-      
-      res.status(200).json({
-        success: true,
-        message: 'Actualización de estados desde SAP iniciada exitosamente',
-        data: result
-      });
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: 'Error al actualizar estados desde SAP',
-        error: process.env.NODE_ENV === 'development' ? error.message : undefined
-      });
-    }
-  }
+  updateOrderStatusFromSap
 );
 
 /**
@@ -334,43 +290,7 @@ router.post('/orders/update-status-from-sap',
 router.post('/orders/:orderId/send-to-sap', 
   verifyToken, 
   checkRole([1]), // Solo administradores
-  async (req, res) => {
-    try {
-      const { orderId } = req.params;
-      
-      // Verificar que la orden existe
-      const order = await Order.getOrderById(orderId);
-      
-      if (!order) {
-        return res.status(404).json({
-          success: false,
-          message: 'Orden no encontrada'
-        });
-      }
-      
-      const sapServiceManager = require('../services/SapServiceManager');
-      
-      // Asegurar que el servicio está inicializado
-      if (!sapServiceManager.initialized) {
-        await sapServiceManager.initialize();
-      }
-      
-      // Enviar orden a SAP
-      const result = await sapServiceManager.orderService.createOrderInSAP({ order_id: orderId });
-      
-      res.status(200).json({
-        success: true,
-        message: 'Orden enviada exitosamente a SAP',
-        data: result
-      });
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: 'Error al enviar orden a SAP',
-        error: process.env.NODE_ENV === 'development' ? error.message : undefined
-      });
-    }
-  }
+  sendOrderToSap
 );
 
 module.exports = router;
