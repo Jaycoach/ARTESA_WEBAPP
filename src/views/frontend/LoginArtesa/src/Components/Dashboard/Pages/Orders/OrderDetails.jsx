@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { orderService } from '../../../../services/orderService';
 import { useAuth } from '../../../../hooks/useAuth';
 import OrderStatusBadge from './OrderStatusBadge';
+import API from '../../../../api/config';
 import { FaFileDownload, FaFileImage, FaFilePdf, FaFile, FaEdit, FaCheck, FaExclamationTriangle } from 'react-icons/fa';
 
 const OrderDetails = () => {
@@ -11,6 +12,7 @@ const OrderDetails = () => {
   const [order, setOrder] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [orderStatuses, setOrderStatuses] = useState({});
   const [canEdit, setCanEdit] = useState(false);
   const [editRestriction, setEditRestriction] = useState('');
   const [siteSettings, setSiteSettings] = useState({ orderTimeLimit: '18:00' });
@@ -85,6 +87,28 @@ const OrderDetails = () => {
 
     fetchOrderDetails();
   }, [orderId, user, siteSettings.orderTimeLimit]);
+
+  // Añadir order statuses
+  useEffect(() => {
+    const fetchOrderStatuses = async () => {
+      try {
+        // Obtener los estados de pedidos
+        const statusResponse = await API.get('/orders/statuses');
+        if (statusResponse.data.success) {
+          // Convertir el array a un objeto para fácil acceso por ID
+          const statusMap = {};
+          statusResponse.data.data.forEach(status => {
+            statusMap[status.status_id] = status.name;
+          });
+          setOrderStatuses(statusMap);
+        }
+      } catch (error) {
+        console.error('Error fetching order statuses:', error);
+      }
+    };
+
+    fetchOrderStatuses();
+  }, []);
 
   // Función para formatear la fecha
   const formatDate = (dateString) => {
@@ -218,7 +242,18 @@ const OrderDetails = () => {
               Cliente: <span className="font-medium text-gray-700">{order.user_name || user.nombre || user.name || user.email || 'Cliente'}</span>
             </span>
             <span className="flex items-center">
-              Estado: <span className="ml-2"><OrderStatusBadge status={order.status || 'pendiente'} size="lg" /></span>
+              Estado: <span className="ml-2">
+                <OrderStatusBadge 
+                  status={
+                    // Intenta varios enfoques para obtener el estado correcto
+                    orderStatuses[order.status_id] || 
+                    order.status || 
+                    orderStatuses[String(order.status_id)] || // Intentar con conversión a string
+                    'pendiente'
+                  } 
+                  size="lg" 
+                />
+              </span>
             </span>
           </div>
         </div>
