@@ -745,6 +745,101 @@ const getOrdersByStatus = async (req, res) => {
 
 /**
  * @swagger
+ * /api/orders/can-create/{userId}:
+ *   get:
+ *     summary: Verificar si un usuario puede crear órdenes
+ *     description: Verifica si un usuario está activo y tiene un perfil de cliente con código SAP
+ *     tags: [Orders]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID del usuario a verificar
+ *     responses:
+ *       200:
+ *         description: Resultado de la verificación
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     canCreate:
+ *                       type: boolean
+ *                       example: true
+ *                     isActive:
+ *                       type: boolean
+ *                       example: true
+ *                     hasProfile:
+ *                       type: boolean
+ *                       example: true
+ *                     hasCardCode:
+ *                       type: boolean
+ *                       example: true
+ *       401:
+ *         description: No autorizado - Token no proporcionado o inválido
+ *       404:
+ *         description: Usuario no encontrado
+ *       500:
+ *         description: Error interno del servidor
+ */
+const checkUserCanCreateOrders = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    // Verificar si el usuario existe y está activo
+    const userQuery = 'SELECT is_active FROM users WHERE id = $1';
+    const userResult = await pool.query(userQuery, [userId]);
+    
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Usuario no encontrado'
+      });
+    }
+    
+    // Verificar si tiene perfil de cliente y código SAP
+    const profileQuery = 'SELECT client_id, cardcode_sap FROM client_profiles WHERE user_id = $1';
+    const profileResult = await pool.query(profileQuery, [userId]);
+    
+    const canCreate = userResult.rows[0].is_active || 
+                      (profileResult.rows.length > 0 && profileResult.rows[0].cardcode_sap);
+    
+    res.status(200).json({
+      success: true,
+      data: {
+        canCreate,
+        isActive: userResult.rows[0].is_active,
+        hasProfile: profileResult.rows.length > 0,
+        hasCardCode: profileResult.rows.length > 0 && !!profileResult.rows[0].cardcode_sap
+      }
+    });
+  } catch (error) {
+    logger.error('Error al verificar capacidad para crear órdenes', {
+      error: error.message,
+      stack: error.stack,
+      userId: req.params.userId
+    });
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error al verificar capacidad para crear órdenes',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * @swagger
  * /api/orders/statuses:
  *   get:
  *     summary: Obtener todos los estados de órdenes
@@ -1536,5 +1631,6 @@ module.exports = {
   getOrdersByDeliveryDate,
   syncOrdersToSap,          
   updateOrderStatusFromSap, 
-  sendOrderToSap            
+  sendOrderToSap,
+  checkUserCanCreateOrders        
 };
