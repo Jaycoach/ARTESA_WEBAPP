@@ -147,7 +147,8 @@ class SapOrderService extends SapBaseService {
         U_WebOrderId: order.order_id.toString(),
         DocumentLines: orderItemsResult.rows.map(item => ({
           ItemCode: item.sap_code,
-          Quantity: item.quantity
+          Quantity: parseFloat(item.quantity) || 1, // Asegurar que es un número
+          Price: parseFloat(item.unit_price) || 0  // Incluir el precio unitario
         }))
       };
   
@@ -257,15 +258,17 @@ class SapOrderService extends SapBaseService {
       
       // Obtener órdenes pendientes de sincronizar
       // Se enfoca en órdenes en estado "En Producción" (3) que aún no han sido sincronizadas
+      // o que tienen menos de 3 intentos fallidos
       const query = `
-        SELECT o.order_id
-        FROM orders o
-        JOIN users u ON o.user_id = u.id
-        JOIN client_profiles cp ON u.id = cp.user_id
-        WHERE o.sap_synced = false 
-        AND o.status_id = 3  -- En Producción
-        AND cp.cardcode_sap IS NOT NULL
-        ORDER BY o.created_at ASC
+      SELECT o.order_id, o.sap_sync_attempts, o.sap_sync_error
+      FROM orders o
+      JOIN users u ON o.user_id = u.id
+      JOIN client_profiles cp ON u.id = cp.user_id
+      WHERE o.sap_synced = false 
+      AND o.status_id = 3  -- En Producción
+      AND cp.cardcode_sap IS NOT NULL
+      AND (o.sap_sync_attempts IS NULL OR o.sap_sync_attempts < 3) -- Limitar intentos
+      ORDER BY o.created_at ASC
       `;
       
       const { rows } = await pool.query(query);

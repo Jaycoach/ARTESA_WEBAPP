@@ -132,7 +132,7 @@ const createOrder = async (req, res) => {
         message: 'No se puede crear una orden sin detalles'
       });
     }
-    
+
     // Verificar si el usuario está activo
     const userQuery = 'SELECT is_active FROM users WHERE id = $1';
     const userResult = await pool.query(userQuery, [user_id]);
@@ -145,15 +145,27 @@ const createOrder = async (req, res) => {
     }
 
     if (!userResult.rows[0].is_active) {
-      logger.warn('Intento de crear orden con usuario inactivo', { 
+    // Verificar si el usuario tiene un perfil de cliente
+    const profileQuery = 'SELECT client_id, cardcode_sap FROM client_profiles WHERE user_id = $1';
+    const profileResult = await pool.query(profileQuery, [user_id]);
+
+    // Si tiene perfil y tiene un código SAP asignado, permitir la creación
+    if (profileResult.rows.length > 0 && profileResult.rows[0].cardcode_sap) {
+      logger.info('Usuario inactivo con perfil y código SAP, permitiendo creación de orden', {
+        userId: user_id,
+        cardcodeSap: profileResult.rows[0].cardcode_sap
+      });
+    } else {
+      logger.warn('Intento de crear orden con usuario inactivo sin perfil completo', { 
         userId: user_id 
       });
       
       return res.status(403).json({
         success: false,
-        message: 'Usuario inactivo. No puede crear órdenes.'
+        message: 'Usuario inactivo o perfil incompleto. No puede crear órdenes.'
       });
     }
+  }
     
     // Validar fecha de entrega si se proporciona
     let parsedDeliveryDate = null;

@@ -65,6 +65,35 @@ class Order {
       throw new Error("No se puede insertar una orden sin detalles.");
     }
 
+    // Verificar que el usuario tenga un perfil de cliente con código SAP
+    try {
+      const profileCheck = await pool.query(
+        `SELECT cp.cardcode_sap 
+        FROM client_profiles cp
+        WHERE cp.user_id = $1`,
+        [user_id]
+      );
+      
+      if (profileCheck.rows.length === 0 || !profileCheck.rows[0].cardcode_sap) {
+        logger.warn('Intento de crear orden para usuario sin perfil de cliente o sin código SAP', { user_id });
+        throw new Error("El usuario necesita un perfil de cliente completo con código SAP asignado.");
+      }
+      
+      logger.debug('Usuario tiene perfil con código SAP', { 
+        user_id, 
+        cardcode_sap: profileCheck.rows[0].cardcode_sap 
+      });
+    } catch (profileError) {
+      if (profileError.message.includes("perfil de cliente")) {
+        throw profileError;
+      }
+      logger.error('Error al verificar perfil de cliente', { 
+        error: profileError.message, 
+        user_id
+      });
+      throw new Error("Error al verificar el perfil del cliente.");
+    }
+
     const client = await pool.connect();
     try {
       logger.debug('Iniciando transacción para crear orden', { 
