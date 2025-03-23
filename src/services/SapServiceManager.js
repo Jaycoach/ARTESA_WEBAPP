@@ -168,6 +168,17 @@ class SapServiceManager {
   }
 
   /**
+   * Verifica órdenes entregadas desde SAP
+   * @returns {Promise<object>} - Resultado de la verificación
+   */
+  async checkDeliveredOrders() {
+    if (!this.initialized) {
+      await this.initialize();
+    }
+    return this.orderService.checkDeliveredOrdersFromSAP();
+  }
+
+  /**
    * Crea un lead en SAP
    * @param {object} clientProfile - Perfil del cliente
    * @returns {Promise<object>} - Resultado de la creación

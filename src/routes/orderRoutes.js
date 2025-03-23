@@ -16,7 +16,8 @@ const {
   syncOrdersToSap,          
   updateOrderStatusFromSap, 
   sendOrderToSap,
-  checkUserCanCreateOrders          
+  checkUserCanCreateOrders,
+  checkDeliveredOrders         
 } = require('../controllers/orderController');
 
 const router = express.Router();
@@ -241,6 +242,22 @@ router.post('/orders/:orderId/send-to-sap',
   verifyToken, 
   checkRole([1]), // Solo administradores
   sendOrderToSap
+);
+
+/**
+ * Verificar órdenes entregadas desde SAP
+ * @route POST /orders/check-delivered
+ * @group Orders - Operaciones relacionadas con órdenes
+ * @security bearerAuth
+ * @returns {object} 200 - Verificación iniciada exitosamente
+ * @returns {object} 401 - No autorizado
+ * @returns {object} 403 - No tiene permisos para realizar esta acción
+ * @returns {object} 500 - Error interno del servidor
+ */
+router.post('/orders/check-delivered', 
+  verifyToken, 
+  checkRole([1]), // Solo administradores
+  checkDeliveredOrders
 );
 
 /**

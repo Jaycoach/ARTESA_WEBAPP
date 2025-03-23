@@ -37,6 +37,9 @@ class SapOrderService extends SapBaseService {
       // Iniciar sincronización programada de órdenes
       this.scheduleSyncTask();
       
+      // Añadir una segunda tarea programada para consultar órdenes entregadas
+      this.scheduleDeliveryCheckTask();
+      
       return this;
     } catch (error) {
       this.logger.error('Error al inicializar servicio de órdenes SAP', {
@@ -71,6 +74,32 @@ class SapOrderService extends SapBaseService {
         this.logger.info('Sincronización programada de órdenes completada exitosamente');
       } catch (error) {
         this.logger.error('Error en sincronización programada de órdenes', {
+          error: error.message,
+          stack: error.stack
+        });
+      }
+    });
+  }
+
+  /**
+   * Programa tarea para verificar órdenes entregadas en SAP
+   */
+  scheduleDeliveryCheckTask() {
+    // Programar verificación tres veces al día: 8AM, 12PM y 4PM
+    const deliveryCheckSchedule = '0 8,12,16 * * *';
+
+    this.logger.info('Programando verificación periódica de órdenes entregadas en SAP', {
+      schedule: deliveryCheckSchedule
+    });
+
+    // Programar tarea cron
+    this.syncTasks.deliveryCheck = cron.schedule(deliveryCheckSchedule, async () => {
+      try {
+        this.logger.info('Iniciando verificación programada de órdenes entregadas');
+        await this.checkDeliveredOrdersFromSAP();
+        this.logger.info('Verificación programada de órdenes entregadas completada exitosamente');
+      } catch (error) {
+        this.logger.error('Error en verificación programada de órdenes entregadas', {
           error: error.message,
           stack: error.stack
         });
@@ -413,6 +442,124 @@ class SapOrderService extends SapBaseService {
       return stats;
     } catch (error) {
       this.logger.error('Error en actualización de estados de órdenes desde SAP', {
+        error: error.message,
+        stack: error.stack
+      });
+      throw error;
+    }
+  }
+
+  /**
+ * Verifica las órdenes entregadas consultando la vista B1_DeliveredOrdersB1SLQuery en SAP
+ * @returns {Promise<Object>} - Estadísticas de actualización
+ */
+  async checkDeliveredOrdersFromSAP() {
+    const stats = {
+      total: 0,
+      updated: 0,
+      errors: 0,
+      unchanged: 0,
+      notFound: 0
+    };
+
+    try {
+      this.logger.info('Iniciando verificación de órdenes entregadas desde SAP');
+
+      // Obtener órdenes sincronizadas con SAP que estén en estado "En Producción" (3)
+      const query = `
+        SELECT order_id, sap_doc_entry, status_id
+        FROM orders
+        WHERE sap_synced = true 
+        AND sap_doc_entry IS NOT NULL
+        AND status_id = 3  -- En Producción
+        ORDER BY updated_at ASC
+      `;
+      
+      const { rows } = await pool.query(query);
+      stats.total = rows.length;
+      
+      if (rows.length === 0) {
+        this.logger.info('No se encontraron órdenes para verificar entrega');
+        return stats;
+      }
+      
+      this.logger.info(`Encontradas ${rows.length} órdenes para verificar entrega`);
+      
+      // Consultar la vista B1_DeliveredOrdersB1SLQuery para obtener órdenes entregadas
+      try {
+        const endpoint = `B1_DeliveredOrdersB1SLQuery`;
+        const deliveredOrders = await this.request('GET', endpoint);
+        
+        if (!deliveredOrders || !deliveredOrders.value || !Array.isArray(deliveredOrders.value)) {
+          this.logger.warn('Formato de respuesta inesperado al consultar órdenes entregadas en SAP', {
+            response: typeof deliveredOrders === 'object' ? JSON.stringify(deliveredOrders).substring(0, 200) + '...' : typeof deliveredOrders
+          });
+          return stats;
+        }
+        
+        this.logger.debug(`Recibidas ${deliveredOrders.value.length} órdenes entregadas desde SAP`);
+        
+        // Crear un mapa de DocEntry -> Entregado para búsqueda eficiente
+        const deliveredMap = {};
+        deliveredOrders.value.forEach(order => {
+          if (order.DocEntry && order.Entregado === 1) {
+            deliveredMap[order.DocEntry] = true;
+          }
+        });
+        
+        // Actualizar órdenes locales basado en la información de SAP
+        for (const order of rows) {
+          try {
+            const isDelivered = deliveredMap[order.sap_doc_entry];
+            
+            if (isDelivered) {
+              // Actualizar estado a "Entregado" (4)
+              await pool.query(
+                `UPDATE orders 
+                SET status_id = 4, 
+                    last_status_update = CURRENT_TIMESTAMP, 
+                    updated_at = CURRENT_TIMESTAMP, 
+                    sap_last_sync = CURRENT_TIMESTAMP 
+                WHERE order_id = $1`,
+                [order.order_id]
+              );
+              
+              stats.updated++;
+              this.logger.info('Orden marcada como entregada desde SAP', {
+                orderId: order.order_id,
+                docEntry: order.sap_doc_entry
+              });
+            } else {
+              stats.unchanged++;
+            }
+          } catch (orderError) {
+            stats.errors++;
+            this.logger.error('Error al actualizar estado de entrega para orden', {
+              orderId: order.order_id,
+              docEntry: order.sap_doc_entry,
+              error: orderError.message
+            });
+          }
+        }
+      } catch (viewError) {
+        stats.errors += rows.length;
+        this.logger.error('Error al consultar vista de órdenes entregadas en SAP', {
+          error: viewError.message,
+          stack: viewError.stack
+        });
+        throw viewError;
+      }
+      
+      this.logger.info('Verificación de órdenes entregadas completada', {
+        total: stats.total,
+        updated: stats.updated,
+        unchanged: stats.unchanged,
+        errors: stats.errors
+      });
+      
+      return stats;
+    } catch (error) {
+      this.logger.error('Error en verificación de órdenes entregadas desde SAP', {
         error: error.message,
         stack: error.stack
       });
