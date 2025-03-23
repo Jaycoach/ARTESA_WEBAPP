@@ -171,18 +171,18 @@ class SapOrderService extends SapBaseService {
       const result = await this.request('POST', endpoint, sapOrder);
   
       if (result && result.DocEntry) {
-        // Actualizar orden en base de datos con el DocEntry de SAP
+        // Actualizar orden en base de datos con el DocEntry y DocNum de SAP
         await pool.query(
-          'UPDATE orders SET sap_doc_entry = $1, sap_synced = true, sap_sync_date = CURRENT_TIMESTAMP WHERE order_id = $2',
-          [result.DocEntry, order.order_id]
+          'UPDATE orders SET sap_doc_entry = $1, docnum_sap = $2, sap_synced = true, sap_sync_date = CURRENT_TIMESTAMP WHERE order_id = $3',
+          [result.DocEntry, result.DocNum, order.order_id]
         );
-  
+        
         this.logger.info('Orden creada exitosamente en SAP', {
           orderId: order.order_id,
           sapDocEntry: result.DocEntry,
-          docNum: result.DocNum
+          sapDocNum: result.DocNum
         });
-  
+      
         return {
           success: true,
           sapDocEntry: result.DocEntry,
