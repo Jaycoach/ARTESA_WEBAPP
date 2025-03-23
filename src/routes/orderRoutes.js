@@ -239,4 +239,138 @@ router.get('/orders/byDeliveryDate', verifyToken, getOrdersByDeliveryDate);
 // Ruta para obtener órdenes de un usuario
 router.get('/orders/user/:userId', verifyToken, getUserOrders);
 
+/**
+ * Sincronizar manualmente órdenes con SAP
+ * @route POST /orders/sync-to-sap
+ * @group Orders - Operaciones relacionadas con órdenes
+ * @security bearerAuth
+ * @returns {object} 200 - Sincronización iniciada exitosamente
+ * @returns {object} 401 - No autorizado
+ * @returns {object} 403 - No tiene permisos para realizar esta acción
+ * @returns {object} 500 - Error interno del servidor
+ */
+router.post('/orders/sync-to-sap', 
+  verifyToken, 
+  checkRole([1]), // Solo administradores
+  async (req, res) => {
+    try {
+      const sapServiceManager = require('../services/SapServiceManager');
+      
+      // Asegurar que el servicio está inicializado
+      if (!sapServiceManager.initialized) {
+        await sapServiceManager.initialize();
+      }
+      
+      // Ejecutar sincronización
+      const result = await sapServiceManager.syncOrders();
+      
+      res.status(200).json({
+        success: true,
+        message: 'Sincronización de órdenes con SAP iniciada exitosamente',
+        data: result
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Error al sincronizar órdenes con SAP',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
+);
+
+/**
+ * Actualizar estados de órdenes desde SAP
+ * @route POST /orders/update-status-from-sap
+ * @group Orders - Operaciones relacionadas con órdenes
+ * @security bearerAuth
+ * @returns {object} 200 - Actualización iniciada exitosamente
+ * @returns {object} 401 - No autorizado
+ * @returns {object} 403 - No tiene permisos para realizar esta acción
+ * @returns {object} 500 - Error interno del servidor
+ */
+router.post('/orders/update-status-from-sap', 
+  verifyToken, 
+  checkRole([1]), // Solo administradores
+  async (req, res) => {
+    try {
+      const sapServiceManager = require('../services/SapServiceManager');
+      
+      // Asegurar que el servicio está inicializado
+      if (!sapServiceManager.initialized) {
+        await sapServiceManager.initialize();
+      }
+      
+      // Ejecutar actualización de estados
+      const result = await sapServiceManager.updateOrderStatus();
+      
+      res.status(200).json({
+        success: true,
+        message: 'Actualización de estados desde SAP iniciada exitosamente',
+        data: result
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Error al actualizar estados desde SAP',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
+);
+
+/**
+ * Enviar una orden específica a SAP
+ * @route POST /orders/{orderId}/send-to-sap
+ * @group Orders - Operaciones relacionadas con órdenes
+ * @param {number} orderId.path.required - ID de la orden a enviar a SAP
+ * @security bearerAuth
+ * @returns {object} 200 - Orden enviada exitosamente
+ * @returns {object} 401 - No autorizado
+ * @returns {object} 403 - No tiene permisos para realizar esta acción
+ * @returns {object} 404 - Orden no encontrada
+ * @returns {object} 500 - Error interno del servidor
+ */
+router.post('/orders/:orderId/send-to-sap', 
+  verifyToken, 
+  checkRole([1]), // Solo administradores
+  async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      
+      // Verificar que la orden existe
+      const order = await Order.getOrderById(orderId);
+      
+      if (!order) {
+        return res.status(404).json({
+          success: false,
+          message: 'Orden no encontrada'
+        });
+      }
+      
+      const sapServiceManager = require('../services/SapServiceManager');
+      
+      // Asegurar que el servicio está inicializado
+      if (!sapServiceManager.initialized) {
+        await sapServiceManager.initialize();
+      }
+      
+      // Enviar orden a SAP
+      const result = await sapServiceManager.orderService.createOrderInSAP({ order_id: orderId });
+      
+      res.status(200).json({
+        success: true,
+        message: 'Orden enviada exitosamente a SAP',
+        data: result
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Error al enviar orden a SAP',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
+);
+
 module.exports = router;

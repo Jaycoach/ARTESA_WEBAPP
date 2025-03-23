@@ -265,14 +265,14 @@ class SapOrderService extends SapBaseService {
       // Se enfoca en órdenes en estado "En Producción" (3) que aún no han sido sincronizadas
       // o que tienen menos de 3 intentos fallidos
       const query = `
-      SELECT o.order_id, o.sap_sync_attempts, o.sap_sync_error
+      SELECT o.order_id, COALESCE(o.sap_sync_attempts, 0) as sap_sync_attempts, o.sap_sync_error
       FROM orders o
       JOIN users u ON o.user_id = u.id
       JOIN client_profiles cp ON u.id = cp.user_id
-      WHERE o.sap_synced = false 
+      WHERE (o.sap_synced = false OR o.sap_synced IS NULL)
       AND o.status_id = 3  -- En Producción
       AND cp.cardcode_sap IS NOT NULL
-      AND (o.sap_sync_attempts IS NULL OR o.sap_sync_attempts < 3) -- Limitar intentos
+      AND COALESCE(o.sap_sync_attempts, 0) < 3 -- Limitar intentos
       ORDER BY o.created_at ASC
       `;
       
@@ -297,7 +297,7 @@ class SapOrderService extends SapBaseService {
           // Actualizar el estado de error en la orden
           try {
             await pool.query(
-              'UPDATE orders SET sap_sync_error = $1, sap_sync_attempts = sap_sync_attempts + 1 WHERE order_id = $2',
+              'UPDATE orders SET sap_sync_error = $1, sap_sync_attempts = COALESCE(sap_sync_attempts, 0) + 1 WHERE order_id = $2',
               [orderError.message.substring(0, 255), orderRow.order_id]
             );
           } catch (updateError) {
