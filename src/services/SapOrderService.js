@@ -17,6 +17,12 @@ class SapOrderService extends SapBaseService {
    * Inicializa el servicio y programa tareas
    */
   async initialize() {
+    // Vincularse al servicio de programación de órdenes para sincronizar después de cada actualización
+    const orderScheduler = require('../services/OrderScheduler');
+    if (orderScheduler.initialized) {
+      this.logger.info('Registrando callback para sincronización posterior a actualización automática');
+      orderScheduler.registerPostUpdateCallback(this.syncOrdersToSAP.bind(this));
+    }
     if (this.initialized) return this;
 
     try {
@@ -74,40 +80,48 @@ class SapOrderService extends SapBaseService {
    */
   async createOrderInSAP(order) {
     try {
-      if (!order.client_id || !order.order_id) {
-        throw new Error('ID de cliente y orden son requeridos');
+      if (!order.order_id) {
+        throw new Error('ID de orden es requerido');
       }
-
+  
       this.logger.debug('Creando orden en SAP B1', {
-        orderId: order.order_id,
-        clientId: order.client_id
+        orderId: order.order_id
       });
-
-      // Primero obtener el cardCode del cliente
-      const clientResult = await pool.query(
-        'SELECT cardcode_sap FROM client_profiles WHERE client_id = $1',
-        [order.client_id]
-      );
-
-      if (clientResult.rows.length === 0 || !clientResult.rows[0].cardcode_sap) {
-        throw new Error('Cliente no tiene código SAP asociado');
-      }
-
-      const cardCode = clientResult.rows[0].cardcode_sap;
-
-      // Obtener detalles de los productos en la orden
-      const orderItemsResult = await pool.query(
-        `SELECT oi.*, p.sap_code 
-         FROM order_items oi 
-         JOIN products p ON oi.product_id = p.product_id
-         WHERE oi.order_id = $1`,
+  
+      // Consulta para obtener todos los datos necesarios para la orden
+      const orderResult = await pool.query(
+        `SELECT o.*, cp.cardcode_sap, u.name as user_name
+         FROM orders o
+         JOIN users u ON o.user_id = u.id
+         JOIN client_profiles cp ON u.id = cp.user_id
+         WHERE o.order_id = $1`,
         [order.order_id]
       );
-
+  
+      if (orderResult.rows.length === 0) {
+        throw new Error('Orden no encontrada');
+      }
+  
+      const orderData = orderResult.rows[0];
+      
+      // Verificar que el cliente tenga código SAP
+      if (!orderData.cardcode_sap) {
+        throw new Error('Cliente no tiene código SAP asociado');
+      }
+  
+      // Obtener detalles de los productos en la orden
+      const orderItemsResult = await pool.query(
+        `SELECT od.*, p.sap_code 
+         FROM order_details od 
+         JOIN products p ON od.product_id = p.product_id
+         WHERE od.order_id = $1`,
+        [order.order_id]
+      );
+  
       if (orderItemsResult.rows.length === 0) {
         throw new Error('La orden no tiene productos');
       }
-
+  
       // Verificar que todos los productos tengan código SAP
       const itemsWithoutSapCode = orderItemsResult.rows.filter(item => !item.sap_code);
       if (itemsWithoutSapCode.length > 0) {
@@ -117,40 +131,52 @@ class SapOrderService extends SapBaseService {
         });
         throw new Error('Algunos productos no tienen código SAP asociado');
       }
-
+  
+      // Formatear fecha en formato YYYY-MM-DD
+      const formatDate = (date) => {
+        if (!date) return new Date().toISOString().split('T')[0];
+        return new Date(date).toISOString().split('T')[0];
+      };
+  
       // Preparar datos para SAP
       const sapOrder = {
-        CardCode: cardCode,
-        DocDate: new Date().toISOString().split('T')[0], // Fecha actual en formato YYYY-MM-DD
-        DocDueDate: new Date().toISOString().split('T')[0], // Se puede definir otra fecha de vencimiento
-        Comments: `Orden web #${order.order_id}`,
+        CardCode: orderData.cardcode_sap,
+        DocDate: formatDate(orderData.order_date), 
+        DocDueDate: formatDate(orderData.delivery_date),
+        Comments: `Orden web #${order.order_id} - Cliente: ${orderData.user_name}`,
         U_WebOrderId: order.order_id.toString(),
         DocumentLines: orderItemsResult.rows.map(item => ({
           ItemCode: item.sap_code,
-          Quantity: item.quantity,
-          Price: item.unit_price || 0,
-          TaxCode: 'IVA19', // Código de impuesto, ajustar según configuración de SAP
-          DiscountPercent: item.discount_percent || 0
+          Quantity: item.quantity
         }))
       };
-
+  
+      // Verificar que el objeto cumpla con la estructura esperada por SAP
+      this.logger.debug('Datos de orden preparados para SAP:', {
+        CardCode: sapOrder.CardCode,
+        DocDate: sapOrder.DocDate,
+        DocDueDate: sapOrder.DocDueDate,
+        Comments: sapOrder.Comments,
+        LineItems: sapOrder.DocumentLines.length
+      });
+  
       // Enviar la orden a SAP
       const endpoint = 'Orders';
       const result = await this.request('POST', endpoint, sapOrder);
-
+  
       if (result && result.DocEntry) {
         // Actualizar orden en base de datos con el DocEntry de SAP
         await pool.query(
           'UPDATE orders SET sap_doc_entry = $1, sap_synced = true, sap_sync_date = CURRENT_TIMESTAMP WHERE order_id = $2',
           [result.DocEntry, order.order_id]
         );
-
+  
         this.logger.info('Orden creada exitosamente en SAP', {
           orderId: order.order_id,
           sapDocEntry: result.DocEntry,
           docNum: result.DocNum
         });
-
+  
         return {
           success: true,
           sapDocEntry: result.DocEntry,
@@ -222,7 +248,7 @@ class SapOrderService extends SapBaseService {
       errors: 0,
       skipped: 0
     };
-
+  
     try {
       this.logger.info('Iniciando sincronización de órdenes con SAP B1');
       
@@ -230,12 +256,14 @@ class SapOrderService extends SapBaseService {
       const syncStartTime = new Date();
       
       // Obtener órdenes pendientes de sincronizar
+      // Se enfoca en órdenes en estado "En Producción" (3) que aún no han sido sincronizadas
       const query = `
-        SELECT o.*, cp.cardcode_sap 
+        SELECT o.order_id
         FROM orders o
-        JOIN client_profiles cp ON o.client_id = cp.client_id
+        JOIN users u ON o.user_id = u.id
+        JOIN client_profiles cp ON u.id = cp.user_id
         WHERE o.sap_synced = false 
-        AND o.status IN ('confirmed', 'processing', 'completed')
+        AND o.status_id = 3  -- En Producción
         AND cp.cardcode_sap IS NOT NULL
         ORDER BY o.created_at ASC
       `;
@@ -246,27 +274,15 @@ class SapOrderService extends SapBaseService {
       this.logger.info(`Encontradas ${rows.length} órdenes para sincronizar`);
       
       // Para cada orden, intentar crearla en SAP
-      for (const order of rows) {
+      for (const orderRow of rows) {
         try {
-          // Verificar si el cliente tiene código SAP
-          if (!order.cardcode_sap) {
-            this.logger.warn('Cliente sin código SAP, saltando orden', { 
-              orderId: order.order_id,
-              clientId: order.client_id 
-            });
-            stats.skipped++;
-            continue;
-          }
-          
-          // Intentar crear la orden en SAP
-          await this.createOrderInSAP(order);
+          await this.createOrderInSAP({ order_id: orderRow.order_id });
           stats.created++;
           
         } catch (orderError) {
           stats.errors++;
           this.logger.error('Error al sincronizar orden individual', {
-            orderId: order.order_id,
-            clientId: order.client_id,
+            orderId: orderRow.order_id,
             error: orderError.message
           });
           
@@ -274,11 +290,11 @@ class SapOrderService extends SapBaseService {
           try {
             await pool.query(
               'UPDATE orders SET sap_sync_error = $1, sap_sync_attempts = sap_sync_attempts + 1 WHERE order_id = $2',
-              [orderError.message.substring(0, 255), order.order_id]
+              [orderError.message.substring(0, 255), orderRow.order_id]
             );
           } catch (updateError) {
             this.logger.error('Error al actualizar estado de error en orden', {
-              orderId: order.order_id,
+              orderId: orderRow.order_id,
               error: updateError.message
             });
           }

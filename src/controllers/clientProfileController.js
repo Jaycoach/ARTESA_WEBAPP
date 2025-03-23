@@ -1472,95 +1472,58 @@ class ClientProfileController {
     try {
       const { userId } = req.params;
       
-      logger.debug('Eliminando perfil de cliente', { userId });
+      logger.debug('Solicitando eliminación de perfil de cliente', { 
+        userId, 
+        requestingUserId: req.user.id 
+      });
+  
+      // Verificar si existen órdenes asociadas a este usuario
+      const ordersQuery = 'SELECT COUNT(*) as order_count FROM orders WHERE user_id = $1';
+      const ordersResult = await pool.query(ordersQuery, [userId]);
       
-      // Primero obtenemos el perfil para obtener las rutas de archivos
-      const profile = await ClientProfile.getByUserId(userId);
+      if (ordersResult.rows[0].order_count > 0) {
+        logger.warn('Intento de eliminar perfil de cliente con órdenes asociadas', {
+          userId,
+          orderCount: ordersResult.rows[0].order_count,
+          requestingUserId: req.user.id
+        });
+        
+        return res.status(400).json({
+          success: false,
+          message: 'No se puede eliminar el perfil porque tiene órdenes asociadas',
+          data: {
+            orderCount: ordersResult.rows[0].order_count
+          }
+        });
+      }
+  
+      // Si no hay órdenes, proceder con la eliminación
+      const deletedProfile = await ClientProfile.deleteByUserId(userId);
       
-      if (!profile) {
-        logger.warn('Perfil de cliente no encontrado al eliminar', { userId });
+      if (!deletedProfile) {
         return res.status(404).json({
           success: false,
           message: 'Perfil de cliente no encontrado'
         });
       }
       
-      // Eliminar los archivos asociados al perfil
-      if (profile.fotocopiaCedula) {
-        if (process.env.STORAGE_MODE === 's3') {
-          const key = S3Service.extractKeyFromUrl(profile.fotocopiaCedula);
-          if (key) {
-            try {
-              await S3Service.deleteFile(key);
-              logger.debug('Archivo de cédula eliminado de S3', { key });
-            } catch (error) {
-              logger.warn('Error al eliminar archivo de S3', { key, error: error.message });
-            }
-          }
-        } else {
-          const cedulaPath = path.join(uploadDir, profile.fotocopiaCedula);
-          if (fs.existsSync(cedulaPath)) {
-            fs.unlinkSync(cedulaPath);
-          }
-        }
-      }
-
-      if (profile.fotocopiaRut) {
-        if (process.env.STORAGE_MODE === 's3') {
-          const key = S3Service.extractKeyFromUrl(profile.fotocopiaRut);
-          if (key) {
-            try {
-              await S3Service.deleteFile(key);
-              logger.debug('Archivo de RUT eliminado de S3', { key });
-            } catch (error) {
-              logger.warn('Error al eliminar archivo de S3', { key, error: error.message });
-            }
-          }
-        } else {
-          const rutPath = path.join(uploadDir, profile.fotocopiaRut);
-          if (fs.existsSync(rutPath)) {
-            fs.unlinkSync(rutPath);
-          }
-        }
-      }
-
-      if (profile.anexosAdicionales) {
-        if (process.env.STORAGE_MODE === 's3') {
-          const key = S3Service.extractKeyFromUrl(profile.anexosAdicionales);
-          if (key) {
-            try {
-              await S3Service.deleteFile(key);
-              logger.debug('Archivo de anexos eliminado de S3', { key });
-            } catch (error) {
-              logger.warn('Error al eliminar archivo de S3', { key, error: error.message });
-            }
-          }
-        } else {
-          const anexosPath = path.join(uploadDir, profile.anexosAdicionales);
-          if (fs.existsSync(anexosPath)) {
-            fs.unlinkSync(anexosPath);
-          }
-        }
-      }
-      
-      // Luego eliminamos el perfil de la base de datos
-      const deletedProfile = await ClientProfile.deleteByUserId(userId);
-      
       logger.info('Perfil de cliente eliminado exitosamente', {
         userId,
-        razonSocial: profile.razonSocial
+        clientId: deletedProfile.client_id,
+        requestingUserId: req.user.id
       });
       
       res.status(200).json({
         success: true,
         message: 'Perfil de cliente eliminado exitosamente',
-        data: profile
+        data: deletedProfile
       });
     } catch (error) {
       logger.error('Error al eliminar perfil de cliente', {
         error: error.message,
         stack: error.stack,
-        profileId: req.params.id
+        userId: req.params.userId,
+        requestingUserId: req.user?.id
       });
       
       res.status(500).json({

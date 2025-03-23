@@ -12,6 +12,15 @@ class OrderScheduler {
   constructor() {
     this.tasks = [];
     this.initialized = false;
+    this.postUpdateCallbacks = [];
+  }
+
+  // Método para registrar callbacks
+  registerPostUpdateCallback(callback) {
+    if (typeof callback === 'function') {
+      this.logger.info('Registrando callback post-actualización');
+      this.postUpdateCallbacks.push(callback);
+    }
   }
 
   /**
@@ -73,6 +82,24 @@ class OrderScheduler {
           updatedCount,
           timeLimit: currentOrderTimeLimit
         });
+
+        // Ejecutar callbacks registrados después de la actualización
+        if (this.postUpdateCallbacks.length > 0) {
+          logger.info('Ejecutando callbacks post-actualización', {
+            callbackCount: this.postUpdateCallbacks.length
+          });
+          
+          for (const callback of this.postUpdateCallbacks) {
+            try {
+              await callback();
+            } catch (callbackError) {
+              logger.error('Error al ejecutar callback post-actualización', {
+                error: callbackError.message,
+                stack: callbackError.stack
+              });
+            }
+          }
+        }
       } catch (error) {
         logger.error('Error en actualización programada de estados de órdenes', {
           error: error.message,
@@ -138,6 +165,24 @@ class OrderScheduler {
         updatedCount,
         timeLimit: orderTimeLimit
       });
+
+      // Ejecutar callbacks registrados después de la actualización manual
+      if (this.postUpdateCallbacks.length > 0) {
+        logger.info('Ejecutando callbacks post-actualización después de actualización manual', {
+          callbackCount: this.postUpdateCallbacks.length
+        });
+        
+        for (const callback of this.postUpdateCallbacks) {
+          try {
+            await callback();
+          } catch (callbackError) {
+            logger.error('Error al ejecutar callback post-actualización', {
+              error: callbackError.message,
+              stack: callbackError.stack
+            });
+          }
+        }
+      }
       
       return updatedCount;
     } catch (error) {
