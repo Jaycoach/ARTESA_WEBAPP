@@ -28,6 +28,22 @@ class SapServiceManager {
 
     try {
       this.logger.info('Inicializando gestor de servicios SAP');
+
+      // Verificación explícita de la conexión con SAP
+      try {
+        const testResult = await this.productService.login();
+        if (testResult) {
+          this.logger.info('Conexión con SAP B1 verificada exitosamente');
+        } else {
+          this.logger.warn('No se pudo verificar la conexión con SAP B1, algunos servicios podrían no funcionar correctamente');
+        }
+      } catch (connError) {
+        this.logger.error('Error al verificar conexión con SAP B1', {
+          error: connError.message,
+          stack: connError.stack
+        });
+        // No lanzamos error para permitir que la aplicación funcione sin SAP
+      }
       
       // Verificar configuración SAP
       if (!process.env.SAP_SERVICE_LAYER_URL) {
@@ -229,6 +245,16 @@ class SapServiceManager {
         syncSchedule: this.orderService.syncSchedule
       }
     };
+  }
+  /**
+   * Sincroniza completamente todos los perfiles de cliente con SAP
+   * @returns {Promise<object>} - Resultado de la sincronización completa
+   */
+  async syncAllClients() {
+    if (!this.initialized) {
+      await this.initialize();
+    }
+    return this.clientService.syncAllClientsWithSAP();
   }
 }
 

@@ -9,7 +9,7 @@ const pool = require('../config/db');
 class SapClientService extends SapBaseService {
   constructor() {
     super('SapClientService');
-    this.syncSchedule = '0 */2 6-20 * * *'; // Cada 2 horas desde las 6AM hasta las 8PM
+    this.syncSchedule = '0 */2 6-20 * *'; // Cada 2 horas desde las 6AM hasta las 8PM
     this.syncTasks = {};
   }
 
@@ -18,13 +18,16 @@ class SapClientService extends SapBaseService {
    */
   async initialize() {
     if (this.initialized) return this;
-
+  
     try {
       // Inicializar servicio base primero
       await super.initialize();
       
       // Iniciar sincronización programada de clientes
       this.scheduleSyncTask();
+      
+      // Programar sincronización diaria completa
+      this.scheduleDailySyncTask();
       
       return this;
     } catch (error) {
@@ -34,6 +37,40 @@ class SapClientService extends SapBaseService {
       });
       throw error;
     }
+  }
+  
+  /**
+   * Programa tarea para sincronización diaria completa de todos los perfiles
+   */
+  scheduleDailySyncTask() {
+    // Programar para ejecutarse a las 3 AM todos los días
+    const dailySyncSchedule = '0 3 * * *';
+    
+    // Validar formato de programación cron
+    if (!cron.validate(dailySyncSchedule)) {
+      this.logger.error('Formato de programación inválido para sincronización diaria', {
+        schedule: dailySyncSchedule
+      });
+      return;
+    }
+  
+    this.logger.info('Programando sincronización diaria completa de perfiles', {
+      schedule: dailySyncSchedule
+    });
+  
+    // Programar tarea cron
+    this.syncTasks.dailyClientSync = cron.schedule(dailySyncSchedule, async () => {
+      try {
+        this.logger.info('Iniciando sincronización diaria completa de perfiles');
+        await this.syncAllClientsWithSAP();
+        this.logger.info('Sincronización diaria completa de perfiles finalizada exitosamente');
+      } catch (error) {
+        this.logger.error('Error en sincronización diaria completa de perfiles', {
+          error: error.message,
+          stack: error.stack
+        });
+      }
+    });
   }
 
   /**
@@ -77,7 +114,7 @@ class SapClientService extends SapBaseService {
       this.logger.debug('Consultando Business Partner en SAP por CardCode', { cardCode });
       
       // Construir endpoint para obtener un Business Partner específico con todos los campos relevantes
-      const endpoint = `BusinessPartners('${cardCode}')?$select=CardCode,CardName,CardType,FederalTaxID,U_AR_ArtesaCode,Phone1,EmailAddress,Address`;
+      const endpoint = `BusinessPartners('${cardCode}')?$select=CardCode,CardName,CardType,FederalTaxID,U_AR_ArtesaCode,Phone1,EmailAddress,Address,City,Country,ContactPerson`;
       
       // Realizar petición a SAP
       const data = await this.request('GET', endpoint);
@@ -103,6 +140,47 @@ class SapClientService extends SapBaseService {
       
       this.logger.error('Error al obtener Business Partner de SAP', {
         cardCode,
+        error: error.message,
+        stack: error.stack
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Busca un Business Partner prioritariamente por U_AR_ArtesaCode y luego por CardCode
+   * @param {string} code - Código a buscar (puede ser CardCode o ArtesaCode)
+   * @returns {Promise<Object|null>} - Business Partner encontrado o null
+   */
+  async getBusinessPartnerByAnyCode(code) {
+    try {
+      this.logger.debug('Buscando Business Partner por cualquier código', { code });
+      
+      // Primero intentar buscar por ArtesaCode
+      const bpByArtesaCode = await this.getBusinessPartnerByArtesaCode(code);
+      if (bpByArtesaCode) {
+        this.logger.info('Business Partner encontrado por código Artesa', { 
+          code,
+          cardCode: bpByArtesaCode.CardCode
+        });
+        return bpByArtesaCode;
+      }
+      
+      // Si no se encuentra, intentar por CardCode
+      const bpByCardCode = await this.getBusinessPartnerBySapCode(code);
+      if (bpByCardCode) {
+        this.logger.info('Business Partner encontrado por CardCode', { 
+          code,
+          cardCode: bpByCardCode.CardCode
+        });
+        return bpByCardCode;
+      }
+      
+      this.logger.warn('Business Partner no encontrado con ningún código', { code });
+      return null;
+    } catch (error) {
+      this.logger.error('Error al buscar Business Partner por cualquier código', {
+        code,
         error: error.message,
         stack: error.stack
       });
@@ -446,25 +524,31 @@ class SapClientService extends SapBaseService {
 
               // Primero actualizar datos del cliente con la información de SAP
               const updateClientQuery = `
-                UPDATE client_profiles
-                SET 
-                  cardcode_sap = $1,
-                  tax_id = $2,
-                  nit_number = $3,
-                  verification_digit = $4,
-                  company_name = $5,
-                  updated_at = CURRENT_TIMESTAMP
-                WHERE client_id = $6
-              `;
+              UPDATE client_profiles
+              SET 
+                cardcode_sap = $1,
+                tax_id = $2,
+                nit_number = $3,
+                verification_digit = $4,
+                company_name = $5,
+                contact_phone = $6,
+                contact_email = $7,
+                address = $8,
+                updated_at = CURRENT_TIMESTAMP
+              WHERE client_id = $9
+            `;
 
-              await dbClient.query(updateClientQuery, [
-                sapClient.CardCode, // Actualiza el cardcode_sap con el CardCode de SAP
-                taxInfo.tax_id || client.tax_id, // Actualiza el tax_id con FederalTaxID procesado
-                taxInfo.nit_number || client.nit_number, // Actualiza nit_number
-                taxInfo.verification_digit || client.verification_digit, // Actualiza verification_digit
-                sapClient.CardName || client.company_name, // Actualiza el company_name con CardName de SAP
-                client.client_id
-              ]);
+            await dbClient.query(updateClientQuery, [
+              sapClient.CardCode, // Actualiza el cardcode_sap con el CardCode de SAP
+              taxInfo.tax_id || client.tax_id, // Actualiza el tax_id con FederalTaxID procesado
+              taxInfo.nit_number || client.nit_number, // Actualiza nit_number
+              taxInfo.verification_digit || client.verification_digit, // Actualiza verification_digit
+              sapClient.CardName || client.company_name, // Actualiza el company_name con CardName de SAP
+              sapClient.Phone1 || client.contact_phone, // Actualiza el teléfono
+              sapClient.EmailAddress || client.contact_email, // Actualiza el email
+              sapClient.Address || client.address, // Actualiza la dirección
+              client.client_id
+            ]);
           
               // Luego activar al usuario
               await dbClient.query('UPDATE users SET is_active = true WHERE id = $1', [client.user_id]);
@@ -563,6 +647,229 @@ class SapClientService extends SapBaseService {
       return stats;
     } catch (error) {
       this.logger.error('Error en sincronización de clientes con SAP B1', {
+        error: error.message,
+        stack: error.stack
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Realiza una sincronización completa de todos los perfiles de clientes con SAP
+   * @returns {Promise<Object>} Estadísticas de la sincronización
+   */
+  async syncAllClientsWithSAP() {
+    const stats = {
+      total: 0,
+      updated: 0,
+      errors: 0,
+      skipped: 0
+    };
+
+    try {
+      this.logger.info('Iniciando sincronización completa de todos los perfiles con SAP B1');
+      
+      // Registrar inicio de sincronización
+      const syncStartTime = new Date();
+      
+      // Obtener todos los perfiles que tienen código SAP o código de perfil
+      const query = `
+        SELECT cp.*, u.id as user_id, u.is_active
+        FROM client_profiles cp
+        JOIN users u ON cp.user_id = u.id
+        WHERE (cp.cardcode_sap IS NOT NULL OR cp.clientprofilecode_sap IS NOT NULL)
+      `;
+      
+      const { rows } = await pool.query(query);
+      stats.total = rows.length;
+      
+      this.logger.info(`Encontrados ${rows.length} perfiles para sincronizar con SAP`);
+      
+      // Para cada perfil, verificar y actualizar datos desde SAP
+      for (const profile of rows) {
+        try {
+          // Primero intentamos buscar por cardcode_sap si existe
+          // Buscar el cliente en SAP por cualquiera de los códigos disponibles
+          let sapClient = null;
+          if (profile.cardcode_sap) {
+            // Intentar buscar por cualquier código, priorizando ArtesaCode
+            sapClient = await this.getBusinessPartnerByAnyCode(profile.cardcode_sap);
+          }
+
+          // Si no se encontró, intentar con clientprofilecode_sap
+          if (!sapClient && profile.clientprofilecode_sap) {
+            sapClient = await this.getBusinessPartnerByAnyCode(profile.clientprofilecode_sap);
+          }
+
+          // Si todavía no se encontró, intentar generando un código a partir del NIT
+          if (!sapClient && profile.nit_number) {
+            const generatedCode = `C${profile.nit_number}`;
+            if (generatedCode !== profile.cardcode_sap && generatedCode !== profile.clientprofilecode_sap) {
+              sapClient = await this.getBusinessPartnerByAnyCode(generatedCode);
+            }
+          }
+          
+          // Si no encontramos el cliente en SAP, saltamos
+          if (!sapClient) {
+            this.logger.warn('Cliente no encontrado en SAP, saltando', { 
+              client_id: profile.client_id,
+              cardcode_sap: profile.cardcode_sap,
+              clientprofilecode_sap: profile.clientprofilecode_sap 
+            });
+            stats.skipped++;
+            continue;
+          }
+          
+          // Procesar datos del cliente de SAP
+          const taxInfo = this.processFederalTaxID(sapClient.FederalTaxID);
+          
+          // Iniciar transacción para actualizar datos
+          const dbClient = await pool.connect();
+          try {
+            await dbClient.query('BEGIN');
+            
+            // Actualizar datos del perfil con la información de SAP
+            const updateQuery = `
+              UPDATE client_profiles
+              SET 
+                cardcode_sap = $1,
+                tax_id = $2,
+                nit_number = $3,
+                verification_digit = $4,
+                company_name = $5,
+                contact_phone = $6,
+                contact_email = $7,
+                address = $8,
+                city = $9,
+                country = $10,
+                updated_at = CURRENT_TIMESTAMP,
+                sap_lead_synced = true
+              WHERE client_id = $11
+              AND clientprofilecode_sap = $12
+            `;
+            
+            await dbClient.query(updateQuery, [
+              sapClient.CardCode,
+              taxInfo.tax_id || profile.tax_id,
+              taxInfo.nit_number || profile.nit_number,
+              taxInfo.verification_digit || profile.verification_digit,
+              sapClient.CardName || profile.company_name,
+              sapClient.Phone1 || profile.contact_phone,
+              sapClient.EmailAddress || profile.contact_email,
+              sapClient.Address || profile.address,
+              sapClient.City || profile.city,
+              sapClient.Country || profile.country,
+              profile.client_id,
+              profile.clientprofilecode_sap
+            ]);
+            
+            // Si el cliente ya no es Lead en SAP, activar el usuario si no está activo
+            if (sapClient.CardType !== 'cLid' && !profile.is_active) {
+              await dbClient.query('UPDATE users SET is_active = true WHERE id = $1', [profile.user_id]);
+              this.logger.info('Usuario activado porque ya no es Lead en SAP', {
+                userId: profile.user_id,
+                clientId: profile.client_id,
+                cardCode: sapClient.CardCode,
+                cardType: sapClient.CardType
+              });
+            }
+            
+            await dbClient.query('COMMIT');
+            
+            stats.updated++;
+            
+            this.logger.info('Datos de perfil actualizados desde SAP', {
+              clientId: profile.client_id,
+              userId: profile.user_id,
+              cardCode: sapClient.CardCode,
+              cardType: sapClient.CardType
+            });
+          } catch (updateError) {
+            await dbClient.query('ROLLBACK');
+            stats.errors++;
+            
+            this.logger.error('Error al actualizar datos de perfil desde SAP', {
+              error: updateError.message,
+              stack: updateError.stack,
+              clientId: profile.client_id,
+              userId: profile.user_id
+            });
+          } finally {
+            dbClient.release();
+          }
+        } catch (clientError) {
+          stats.errors++;
+          
+          this.logger.error('Error al procesar perfil para sincronización', {
+            error: clientError.message,
+            stack: clientError.stack,
+            clientId: profile.client_id,
+            userId: profile.user_id
+          });
+        }
+      }
+      
+      // Actualizar timestamp de última sincronización
+      this.lastSyncTime = syncStartTime;
+      
+      this.logger.info('Sincronización completa de perfiles finalizada', {
+        total: stats.total,
+        updated: stats.updated,
+        errors: stats.errors,
+        skipped: stats.skipped
+      });
+      
+      return stats;
+    } catch (error) {
+      this.logger.error('Error en sincronización completa de perfiles con SAP B1', {
+        error: error.message,
+        stack: error.stack
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Consulta un Business Partner por su código de artesa (U_AR_ArtesaCode)
+   * @param {string} artesaCode - Código Artesa del cliente
+   * @returns {Promise<Object|null>} - Datos del Business Partner o null si no existe
+   */
+  async getBusinessPartnerByArtesaCode(artesaCode) {
+    try {
+      // Verificar que hay un código válido
+      if (!artesaCode) {
+        this.logger.warn('Se intentó consultar un BP sin proporcionar código Artesa');
+        return null;
+      }
+      
+      this.logger.debug('Consultando Business Partner por código Artesa', { artesaCode });
+      
+      // Construir la consulta con filtro para el campo personalizado U_AR_ArtesaCode
+      const endpoint = `BusinessPartners?$filter=U_AR_ArtesaCode eq '${artesaCode}'`;
+      
+      // Realizar la consulta a SAP
+      const result = await this.request('GET', endpoint);
+      
+      // Verificar si se encontraron resultados
+      if (!result || !result.value || result.value.length === 0) {
+        this.logger.debug('No se encontró Business Partner con el código Artesa proporcionado', { artesaCode });
+        return null;
+      }
+      
+      // Devolver el primer resultado (debería ser único)
+      const businessPartner = result.value[0];
+      
+      this.logger.info('Business Partner encontrado por código Artesa', {
+        artesaCode,
+        cardCode: businessPartner.CardCode,
+        cardType: businessPartner.CardType,
+        cardName: businessPartner.CardName
+      });
+      
+      return businessPartner;
+    } catch (error) {
+      this.logger.error('Error al consultar Business Partner por código Artesa', {
+        artesaCode,
         error: error.message,
         stack: error.stack
       });

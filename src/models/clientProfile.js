@@ -566,30 +566,49 @@ static async create(clientData) {
    * @throws {Error} Si ocurre un error en la eliminación
    */
   static async deleteByUserId(userId) {
+    const client = await pool.connect();
     try {
       logger.debug('Eliminando perfil de cliente', { userId });
       
-      const query = 'DELETE FROM client_profiles WHERE user_id = $1 RETURNING *;';
+      // Iniciar transacción
+      await client.query('BEGIN');
       
-      const { rows } = await pool.query(query, [userId]);
+      // Primero, actualizar is_active a false en la tabla users
+      await client.query('UPDATE users SET is_active = false WHERE id = $1', [userId]);
+      
+      // Luego, eliminar el perfil
+      const query = 'DELETE FROM client_profiles WHERE user_id = $1 RETURNING *;';
+      const { rows } = await client.query(query, [userId]);
       
       if (rows.length === 0) {
+        // Si no se encontró el perfil, hacer rollback y retornar null
+        await client.query('ROLLBACK');
         logger.warn('Perfil de cliente no encontrado al eliminar', { userId });
         return null;
       }
       
-      logger.info('Perfil de cliente eliminado exitosamente', { 
+      // Confirmar transacción
+      await client.query('COMMIT');
+      
+      logger.info('Perfil de cliente eliminado exitosamente y usuario desactivado', { 
         userId,
         companyName: rows[0].company_name
       });
       
       return rows[0];
     } catch (error) {
+      // Rollback en caso de error
+      await client.query('ROLLBACK');
+      
       logger.error('Error al eliminar perfil de cliente', { 
         error: error.message,
-        userId
+        userId,
+        stack: error.stack
       });
       throw error;
+    } finally {
+      // Liberar el cliente de la conexión
+      client.release();
     }
   }
   
