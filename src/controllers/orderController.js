@@ -1180,11 +1180,19 @@ const cancelOrder = async (req, res) => {
     }
     
     // Verificar si la orden está en un estado que permite cancelación
-    const nonCancelableStates = [4, 5, 7]; // Entregado, Cerrado, ya Cancelado
+    const nonCancelableStates = [3, 4, 5, 7]; // En producción, Entregado, Cerrado, ya Cancelado
     if (nonCancelableStates.includes(order.status_id)) {
       return res.status(400).json({
         success: false,
-        message: 'No se puede cancelar esta orden debido a su estado actual'
+        message: 'No se puede cancelar esta orden porque está en estado "En Producción", "Entregado", "Cerrado" o ya está "Cancelada"'
+      });
+    }
+
+    // Verificar si la orden ya fue sincronizada con SAP
+    if (order.sap_synced) {
+      return res.status(400).json({
+        success: false,
+        message: 'No se puede cancelar esta orden porque ya fue sincronizada con SAP'
       });
     }
 

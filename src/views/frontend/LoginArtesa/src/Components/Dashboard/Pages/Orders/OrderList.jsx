@@ -266,7 +266,8 @@ const OrderList = () => {
                     )}
 
                     {/* Botón de cancelar pedido */}
-                    {!['cancelado', 'canceled'].includes(order.status?.toLowerCase()) && order.status_id !== '5' && (
+                    {!['cancelado', 'canceled'].includes(order.status?.toLowerCase()) && 
+                    !['3', '4', '5', '7'].includes(order.status_id?.toString()) && (
                       <button
                         onClick={() => handleCancelOrder(order.order_id)}
                         className="text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 px-3 py-1 rounded-md flex items-center"
