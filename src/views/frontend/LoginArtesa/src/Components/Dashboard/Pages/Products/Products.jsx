@@ -386,18 +386,18 @@ useEffect(() => {
             <div className="p-5">
               <div className="flex flex-wrap justify-between items-center gap-4">
                 <div className="flex items-center gap-3">
-                  <div className={`p-3 rounded-full ${darkMode ? 'bg-indigo-900' : 'bg-indigo-100'}`}>
-                    <FiShoppingCart size={20} className={darkMode ? 'text-indigo-300' : 'text-indigo-600'} />
+                  <div className={`p-3 rounded-full ${darkMode ? 'bg-primary' : 'bg-indigo-100'}`}>
+                    <FiShoppingCart size={20} className={darkMode ? 'text-indigo-300' : 'text-secondary'} />
                   </div>
                   <div>
-                    <h2 className={`font-bold text-lg ${darkMode ? 'text-white' : 'text-gray-800'}`}>Tu Pedido Actual</h2>
-                    <p className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
+                    <h2 className={`font-bold text-lg ${darkMode ? 'text-white' : 'text-gray-900'}`}>Tu Pedido Actual</h2>
+                    <p className={darkMode ? 'text-gray-700' : 'text-gray-700'}>
                       {orderItems.length} productos | {orderItems.reduce((sum, item) => sum + item.quantity, 0)} unidades
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-4 ml-auto">
-                  <span className={`text-xl font-bold ${darkMode ? 'text-indigo-300' : 'text-indigo-600'}`}>
+                  <span className={`text-xl font-bold ${darkMode ? 'text-indigo-300' : 'text-secondary'}`}>
                     {formatCurrency(orderTotal)}
                   </span>
                   <Button
@@ -437,7 +437,6 @@ useEffect(() => {
                   className={`px-3 text-gray-400 hover:${darkMode ? 'text-gray-200' : 'text-gray-600'}`}
                   onClick={() => setSearch('')}
                 >
-                  ×
                 </button>
               )}
             </div>
@@ -446,8 +445,7 @@ useEffect(() => {
             <Button 
               variant={viewMode === 'table' ? 'primary' : 'outline'} 
               onClick={() => setViewMode('table')}
-              className={`flex-1 lg:flex-none ${viewMode === 'table' ? (darkMode ? 'bg-indigo-600' : 'bg-indigo-600') : (darkMode ? 'bg-gray-800 text-gray-200 border-gray-700' : 'bg-white border-gray-300')}`}
-            >
+              className={`flex-1 lg:flex-none ${viewMode === 'table' ? (darkMode ? 'bg-blue-500' : 'bg-blue-800') : (darkMode ? 'bg-gray-800 text-gray-200 border-gray-700' : 'bg-white border-gray-300')}`}>
               <FiList className="mr-1" /> Lista
             </Button>
             <Button 
@@ -569,7 +567,7 @@ useEffect(() => {
                 <p className="mt-2">Cargando productos...</p>
               </div>
             ) : products.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              <div className="grid grid-cols-2 gap-6">
                 {paginatedProducts.map((product) => (
                   <div 
                     key={product.product_id} 

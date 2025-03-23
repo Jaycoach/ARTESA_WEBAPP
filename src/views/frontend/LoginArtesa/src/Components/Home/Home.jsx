@@ -12,7 +12,7 @@ const Home = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-primary to-accent p-4">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-primary to-yellow-100 p-4">
       <header className="text-center mb-10">
         <h1 className="text-4xl md:text-5xl font-bold text-white drop-shadow-lg">
           Bienvenido a ARTESA

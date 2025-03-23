@@ -19,6 +19,53 @@ const Settings = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
+    // Estado para el formulario de cambio de contraseña
+const [passwordData, setPasswordData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+  const [passwordMessage, setPasswordMessage] = useState('');
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  
+  // Manejador de cambio en inputs
+  const handlePasswordChange = (e) => {
+    const { name, value } = e.target;
+    setPasswordData(prev => ({ ...prev, [name]: value }));
+  };
+  
+  // Función para enviar la actualización
+  const handlePasswordSubmit = async (e) => {
+    e.preventDefault();
+  
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      setPasswordMessage('Las contraseñas no coinciden.');
+      return;
+    }
+  
+    try {
+      setPasswordLoading(true);
+      setPasswordMessage('');
+  
+      const response = await API.put(`/auth/change-password`, {
+        userId: user.id,
+        currentPassword: passwordData.currentPassword,
+        newPassword: passwordData.newPassword,
+      });
+  
+      if (response.data.success) {
+        setPasswordMessage('Contraseña actualizada correctamente.');
+        setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      } else {
+        setPasswordMessage(response.data.message || 'Error al actualizar la contraseña.');
+      }
+    } catch (err) {
+      setPasswordMessage('Error en la solicitud. Intenta más tarde.');
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
+
     useEffect(() => {
         const fetchUserData = async () => {
             setLoading(true);
@@ -106,6 +153,59 @@ const Settings = () => {
                     </table>
                 </div>
             </section>
+
+            <section className="bg-white shadow-lg rounded-lg p-6">
+  <h3 className="text-xl font-semibold text-gray-600 mb-4 text-center">Actualizar Contraseña</h3>
+
+  {passwordMessage && (
+    <div className="text-center mb-4 text-sm text-red-600">{passwordMessage}</div>
+  )}
+
+  <form onSubmit={handlePasswordSubmit} className="space-y-4">
+    <div>
+      <label className="block text-gray-600 font-medium">Contraseña actual</label>
+      <input
+        type="password"
+        name="currentPassword"
+        value={passwordData.currentPassword}
+        onChange={handlePasswordChange}
+        className="w-full mt-1 px-4 py-2 border rounded-lg"
+        required
+      />
+    </div>
+    <div>
+      <label className="block text-gray-600 font-medium">Nueva contraseña</label>
+      <input
+        type="password"
+        name="newPassword"
+        value={passwordData.newPassword}
+        onChange={handlePasswordChange}
+        className="w-full mt-1 px-4 py-2 border rounded-lg"
+        required
+      />
+    </div>
+    <div>
+      <label className="block text-gray-600 font-medium">Confirmar nueva contraseña</label>
+      <input
+        type="password"
+        name="confirmPassword"
+        value={passwordData.confirmPassword}
+        onChange={handlePasswordChange}
+        className="w-full mt-1 px-4 py-2 border rounded-lg"
+        required
+      />
+    </div>
+    <div className="text-center">
+      <button
+        type="submit"
+        disabled={passwordLoading}
+        className="bg-accent text-gray-50 px-6 py-2 rounded-md hover:bg-secondary transition"
+      >
+        {passwordLoading ? 'Actualizando...' : 'Actualizar Contraseña'}
+      </button>
+    </div>
+  </form>
+</section>
             
         </div>
     );

@@ -53,6 +53,10 @@ const Dashboard = () => {
   }, []);
 
   return (
+    <div className="w-full h-full">
+      <div className="mb-8 rounded-xl shadow-lg overflow-hidden">
+      <Banner imageUrl={bannerImage} altText="Banner Artesa" />
+    </div>
     <div className={`w-full px-8 py-6 ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-900'}`}>
     <div className="flex justify-between items-center mb-6">
       <h1 className="text-3xl font-bold">Bienvenido, {userName}</h1>
@@ -60,19 +64,40 @@ const Dashboard = () => {
         {darkMode ? <FaSun /> : <FaMoon />}
       </Button>
     </div>
-  
-    <div className="mb-8 rounded-xl shadow-lg overflow-hidden">
-      <Banner imageUrl={bannerImage} altText="Banner Artesa" />
-    </div>
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-        <SummaryCard title="Mis Pedidos" value={stats.totalOrders} icon={<FaClipboardList />} color="#f6754e" link="/dashboard/orders" />
-        <SummaryCard title="Productos Disponibles" value={stats.totalProducts} icon={<FaBoxOpen />} color="#4e9af6" link="/dashboard/products" />
-        <SummaryCard title="Facturas" value={stats.totalInvoices} icon={<FaFileInvoice />} color="#4ec04e" link="/dashboard/invoices" />
-        <SummaryCard title="Pendientes" value={stats.totalPendingInvoices} icon={<FaUsers />} color="#9a4ef6" link="/dashboard/invoices/pending" />
-    </div>
+    <div className="grid grid-cols-2 gap-4 mb-8">
+    <SummaryCard 
+        title="Mis Pedidos"
+        value={stats.totalOrders}
+        icon={<FaClipboardList />}
+        color="#f6754e"
+        link="/dashboard/orders"
+    />
+    <SummaryCard
+        title="Productos Disponibles"
+        value={stats.totalProducts}
+        icon={<FaBoxOpen />}
+        color="#4e9af6"
+        link="/dashboard/products"
+    />
+    <SummaryCard
+        title="Facturas"
+        value={stats.totalInvoices}
+        icon={<FaFileInvoice />}
+        color="#4ec04e"
+        link="/dashboard/invoices"
+    />
+    <SummaryCard
+        title="Pendientes"
+        value={stats.totalPendingInvoices}
+        icon={<FaUsers />}
+        color="#9a4ef6"
+        link="/dashboard/invoices/pending"
+    />
+</div>
     <QuickAccess />
   
     <StatsChart />
+    </div>
   </div>
   );
 };

@@ -9,9 +9,9 @@ export default {
   theme: {
     extend: {
       colors: {
-        primary: '#687e8d',
-        accent: '#f6db8e',
-        secondary: '#f6754e',
+        primary: '#687e8d',    // gris corporativo
+        secondary: '#f6db8e',  // amarillo claro
+        accent: '#f6754e',     // naranja
         base: '#ffffff',
       },
       fontSize: {
