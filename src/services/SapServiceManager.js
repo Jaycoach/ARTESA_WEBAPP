@@ -168,14 +168,34 @@ class SapServiceManager {
   }
 
   /**
-   * Verifica órdenes entregadas desde SAP
+   * Verifica órdenes entregadas y facturadas desde SAP
    * @returns {Promise<object>} - Resultado de la verificación
    */
   async checkDeliveredOrders() {
     if (!this.initialized) {
       await this.initialize();
     }
-    return this.orderService.checkDeliveredOrdersFromSAP();
+    
+    // Obtener órdenes entregadas completamente
+    const deliveredResult = await this.orderService.checkDeliveredOrdersFromSAP();
+    
+    // Obtener órdenes con entrega parcial
+    const partialDeliveredResult = await this.orderService.checkPartialDeliveredOrdersFromSAP();
+    
+    // Obtener órdenes facturadas
+    const invoicedResult = await this.orderService.checkInvoicedOrdersFromSAP();
+    
+    return {
+      delivered: deliveredResult,
+      partialDelivered: partialDeliveredResult,
+      invoiced: invoicedResult,
+      summary: {
+        total: deliveredResult.total + partialDeliveredResult.total + invoicedResult.total,
+        updated: deliveredResult.updated + partialDeliveredResult.updated + invoicedResult.updated,
+        errors: deliveredResult.errors + partialDeliveredResult.errors + invoicedResult.errors,
+        unchanged: deliveredResult.unchanged + partialDeliveredResult.unchanged + invoicedResult.unchanged
+      }
+    };
   }
 
   /**

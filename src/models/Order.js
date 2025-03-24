@@ -229,11 +229,14 @@ class Order {
       
       // Obtener información básica de la orden
       const orderQuery = `
-        SELECT o.*, u.name as user_name 
-        FROM Orders o
-        JOIN users u ON o.user_id = u.id
-        WHERE o.order_id = $1
-      `;
+      SELECT o.*, u.name as user_name,
+            o.delivered_quantity, o.total_quantity,
+            o.invoice_doc_entry, o.invoice_doc_num,
+            o.invoice_date, o.invoice_total, o.invoice_url
+      FROM Orders o
+      JOIN users u ON o.user_id = u.id
+      WHERE o.order_id = $1
+    `;
       
       const { rows } = await pool.query(orderQuery, [orderId]);
       
@@ -380,6 +383,50 @@ class Order {
       
       // Siempre actualizar el timestamp
       updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
+
+      // Si hay datos de entrega parcial, agregar a los campos a actualizar
+      if (updateData.delivered_quantity !== undefined) {
+        updateFields.push(`delivered_quantity = $${paramIndex}`);
+        queryParams.push(updateData.delivered_quantity);
+        paramIndex++;
+      }
+
+      if (updateData.total_quantity !== undefined) {
+        updateFields.push(`total_quantity = $${paramIndex}`);
+        queryParams.push(updateData.total_quantity);
+        paramIndex++;
+      }
+
+      // Si hay datos de factura, agregar a los campos a actualizar
+      if (updateData.invoice_doc_entry !== undefined) {
+        updateFields.push(`invoice_doc_entry = $${paramIndex}`);
+        queryParams.push(updateData.invoice_doc_entry);
+        paramIndex++;
+      }
+
+      if (updateData.invoice_doc_num !== undefined) {
+        updateFields.push(`invoice_doc_num = $${paramIndex}`);
+        queryParams.push(updateData.invoice_doc_num);
+        paramIndex++;
+      }
+
+      if (updateData.invoice_date !== undefined) {
+        updateFields.push(`invoice_date = $${paramIndex}`);
+        queryParams.push(updateData.invoice_date);
+        paramIndex++;
+      }
+
+      if (updateData.invoice_total !== undefined) {
+        updateFields.push(`invoice_total = $${paramIndex}`);
+        queryParams.push(updateData.invoice_total);
+        paramIndex++;
+      }
+
+      if (updateData.invoice_url !== undefined) {
+        updateFields.push(`invoice_url = $${paramIndex}`);
+        queryParams.push(updateData.invoice_url);
+        paramIndex++;
+      }
       
       // Si no hay campos para actualizar, terminamos
       if (updateFields.length === 0) {

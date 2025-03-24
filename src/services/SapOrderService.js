@@ -87,19 +87,28 @@ class SapOrderService extends SapBaseService {
   scheduleDeliveryCheckTask() {
     // Programar verificación tres veces al día: 8AM, 12PM y 4PM
     const deliveryCheckSchedule = '0 8,12,16 * * *';
-
-    this.logger.info('Programando verificación periódica de órdenes entregadas en SAP', {
+  
+    this.logger.info('Programando verificación periódica de órdenes entregadas y facturadas en SAP', {
       schedule: deliveryCheckSchedule
     });
-
+  
     // Programar tarea cron
     this.syncTasks.deliveryCheck = cron.schedule(deliveryCheckSchedule, async () => {
       try {
-        this.logger.info('Iniciando verificación programada de órdenes entregadas');
+        this.logger.info('Iniciando verificación programada de órdenes entregadas y facturadas');
+        
+        // Verificar órdenes entregadas completamente (método existente)
         await this.checkDeliveredOrdersFromSAP();
-        this.logger.info('Verificación programada de órdenes entregadas completada exitosamente');
+        
+        // Verificar órdenes con entrega parcial (nuevo método)
+        await this.checkPartialDeliveredOrdersFromSAP();
+        
+        // Verificar órdenes facturadas (nuevo método)
+        await this.checkInvoicedOrdersFromSAP();
+        
+        this.logger.info('Verificación programada de órdenes entregadas y facturadas completada exitosamente');
       } catch (error) {
-        this.logger.error('Error en verificación programada de órdenes entregadas', {
+        this.logger.error('Error en verificación programada de órdenes', {
           error: error.message,
           stack: error.stack
         });
@@ -576,6 +585,237 @@ class SapOrderService extends SapBaseService {
       return stats;
     } catch (error) {
       this.logger.error('Error en verificación de órdenes entregadas desde SAP', {
+        error: error.message,
+        stack: error.stack
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Verifica las órdenes con entregas parciales y actualiza su estado
+   * @returns {Promise<Object>} - Estadísticas de actualización
+   */
+  async checkPartialDeliveredOrdersFromSAP() {
+    const stats = {
+      total: 0,
+      updated: 0,
+      errors: 0,
+      unchanged: 0
+    };
+
+    try {
+      this.logger.info('Iniciando verificación de órdenes con entregas parciales desde SAP');
+
+      // Asegurar conexión con SAP
+      if (!this.sessionId) {
+        await this.login();
+      }
+
+      // Consultar vista personalizada para órdenes con entregas
+      const endpoint = 'view.svc/B1_DeliveredOrdersB1SLQuery';
+      const deliveryData = await this.request('GET', endpoint);
+      
+      if (!deliveryData || !deliveryData.value || !Array.isArray(deliveryData.value)) {
+        this.logger.warn('No se obtuvo respuesta válida de la vista de entregas');
+        return stats;
+      }
+
+      this.logger.info(`Recuperadas ${deliveryData.value.length} órdenes con información de entrega`);
+      stats.total = deliveryData.value.length;
+
+      // Procesar cada registro de entrega
+      for (const deliveryRecord of deliveryData.value) {
+        try {
+          // Buscar orden en base de datos por DocEntry de SAP
+          const { rows } = await pool.query(
+            'SELECT order_id, status_id, delivered_quantity, total_quantity FROM orders WHERE sap_doc_entry = $1',
+            [deliveryRecord.OrderDocEntry]
+          );
+
+          if (rows.length === 0) {
+            this.logger.warn('Orden no encontrada en base de datos local', { 
+              sapDocEntry: deliveryRecord.OrderDocEntry, 
+              sapDocNum: deliveryRecord.OrderDocNum 
+            });
+            continue;
+          }
+
+          const order = rows[0];
+          const currentStatus = order.status_id;
+          
+          // Determinar nuevo estado basado en el DeliveryStatus
+          let newStatusId;
+          if (deliveryRecord.DeliveryStatus === 'Completa') {
+            newStatusId = 4; // Entregado completo
+          } else if (deliveryRecord.DeliveryStatus === 'Parcial') {
+            newStatusId = 7; // Entregado parcial
+          } else {
+            // No cambiar estado si no hay entrega o está cancelada
+            newStatusId = currentStatus;
+          }
+
+          // Si hay cambio de estado o cantidades, actualizar
+          if (newStatusId !== currentStatus || 
+              order.delivered_quantity !== deliveryRecord.TotalOrderedQuantity - deliveryRecord.RemainingOpenQuantity ||
+              order.total_quantity !== deliveryRecord.TotalOrderedQuantity) {
+            
+            await pool.query(
+              `UPDATE orders 
+              SET status_id = $1, 
+                  delivered_quantity = $2,
+                  total_quantity = $3,
+                  last_status_update = CURRENT_TIMESTAMP, 
+                  updated_at = CURRENT_TIMESTAMP
+              WHERE order_id = $4`,
+              [
+                newStatusId, 
+                deliveryRecord.TotalOrderedQuantity - deliveryRecord.RemainingOpenQuantity,
+                deliveryRecord.TotalOrderedQuantity,
+                order.order_id
+              ]
+            );
+            
+            stats.updated++;
+            this.logger.info('Orden actualizada con información de entrega', {
+              orderId: order.order_id,
+              sapDocEntry: deliveryRecord.OrderDocEntry,
+              oldStatus: currentStatus,
+              newStatus: newStatusId,
+              deliveryStatus: deliveryRecord.DeliveryStatus,
+              deliveredQty: deliveryRecord.TotalOrderedQuantity - deliveryRecord.RemainingOpenQuantity,
+              totalQty: deliveryRecord.TotalOrderedQuantity
+            });
+          } else {
+            stats.unchanged++;
+          }
+        } catch (orderError) {
+          stats.errors++;
+          this.logger.error('Error al procesar información de entrega para orden', {
+            sapDocEntry: deliveryRecord.OrderDocEntry,
+            error: orderError.message,
+            stack: orderError.stack
+          });
+        }
+      }
+      
+      this.logger.info('Verificación de órdenes con entregas parciales completada', stats);
+      return stats;
+    } catch (error) {
+      this.logger.error('Error en verificación de órdenes con entregas parciales', {
+        error: error.message,
+        stack: error.stack
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Verifica las órdenes facturadas y actualiza su estado
+   * @returns {Promise<Object>} - Estadísticas de actualización
+   */
+  async checkInvoicedOrdersFromSAP() {
+    const stats = {
+      total: 0,
+      updated: 0,
+      errors: 0,
+      unchanged: 0
+    };
+
+    try {
+      this.logger.info('Iniciando verificación de órdenes facturadas desde SAP');
+
+      // Asegurar conexión con SAP
+      if (!this.sessionId) {
+        await this.login();
+      }
+
+      // Consultar vista personalizada para órdenes facturadas
+      const endpoint = 'view.svc/B1_InvoicedOrdersB1SLQuery';
+      const invoiceData = await this.request('GET', endpoint);
+      
+      if (!invoiceData || !invoiceData.value || !Array.isArray(invoiceData.value)) {
+        this.logger.warn('No se obtuvo respuesta válida de la vista de facturas');
+        return stats;
+      }
+
+      this.logger.info(`Recuperadas ${invoiceData.value.length} órdenes con información de factura`);
+      stats.total = invoiceData.value.length;
+
+      // Procesar cada registro de factura
+      for (const invoiceRecord of invoiceData.value) {
+        try {
+          // Convertir la fecha de factura a formato ISO
+          const invoiceDate = new Date(invoiceRecord.InvoiceDate);
+          
+          // Buscar orden en base de datos por DocEntry de SAP
+          const { rows } = await pool.query(
+            'SELECT order_id, status_id, invoice_doc_entry FROM orders WHERE sap_doc_entry = $1',
+            [invoiceRecord.OrderDocEntry]
+          );
+
+          if (rows.length === 0) {
+            this.logger.warn('Orden no encontrada en base de datos local', { 
+              sapDocEntry: invoiceRecord.OrderDocEntry, 
+              sapDocNum: invoiceRecord.OrderDocNum 
+            });
+            continue;
+          }
+
+          const order = rows[0];
+          
+          // Si es la misma factura que ya teníamos registrada, no hay cambios
+          if (order.invoice_doc_entry === invoiceRecord.InvoiceDocEntry) {
+            stats.unchanged++;
+            continue;
+          }
+          
+          // Actualizar información de factura y cambiar estado a "Facturado" (8)
+          await pool.query(
+            `UPDATE orders 
+            SET status_id = 8, 
+                invoice_doc_entry = $1,
+                invoice_doc_num = $2,
+                invoice_date = $3,
+                invoice_total = $4,
+                invoice_url = $5,
+                last_status_update = CURRENT_TIMESTAMP, 
+                updated_at = CURRENT_TIMESTAMP
+            WHERE order_id = $6`,
+            [
+              invoiceRecord.InvoiceDocEntry,
+              invoiceRecord.InvoiceDocNum,
+              invoiceDate,
+              invoiceRecord.InvoiceTotal,
+              invoiceRecord.InvoicePdfUrl || null,
+              order.order_id
+            ]
+          );
+          
+          stats.updated++;
+          this.logger.info('Orden actualizada con información de factura', {
+            orderId: order.order_id,
+            sapDocEntry: invoiceRecord.OrderDocEntry,
+            oldStatus: order.status_id,
+            newStatus: 8, // Facturado
+            invoiceDocEntry: invoiceRecord.InvoiceDocEntry,
+            invoiceDocNum: invoiceRecord.InvoiceDocNum,
+            invoiceDate: invoiceDate
+          });
+        } catch (orderError) {
+          stats.errors++;
+          this.logger.error('Error al procesar información de factura para orden', {
+            sapDocEntry: invoiceRecord.OrderDocEntry,
+            error: orderError.message,
+            stack: orderError.stack
+          });
+        }
+      }
+      
+      this.logger.info('Verificación de órdenes facturadas completada', stats);
+      return stats;
+    } catch (error) {
+      this.logger.error('Error en verificación de órdenes facturadas', {
         error: error.message,
         stack: error.stack
       });

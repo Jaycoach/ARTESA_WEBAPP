@@ -1567,7 +1567,7 @@ const checkDeliveredOrders = async (req, res) => {
   try {
     const sapServiceManager = require('../services/SapServiceManager');
     
-    logger.info('Iniciando verificación manual de órdenes entregadas desde SAP', { 
+    logger.info('Iniciando verificación manual de órdenes entregadas y facturadas desde SAP', { 
       userId: req.user?.id
     });
     
@@ -1576,16 +1576,34 @@ const checkDeliveredOrders = async (req, res) => {
       await sapServiceManager.initialize();
     }
     
-    // Ejecutar verificación de órdenes entregadas
-    const result = await sapServiceManager.orderService.checkDeliveredOrdersFromSAP();
+    // Ejecutar verificación de órdenes entregadas completas
+    const deliveredResult = await sapServiceManager.orderService.checkDeliveredOrdersFromSAP();
+    
+    // Ejecutar verificación de órdenes con entrega parcial
+    const partialDeliveredResult = await sapServiceManager.orderService.checkPartialDeliveredOrdersFromSAP();
+    
+    // Ejecutar verificación de órdenes facturadas
+    const invoicedResult = await sapServiceManager.orderService.checkInvoicedOrdersFromSAP();
+    
+    const combinedResult = {
+      delivered: deliveredResult,
+      partialDelivered: partialDeliveredResult,
+      invoiced: invoicedResult,
+      summary: {
+        total: deliveredResult.total + partialDeliveredResult.total + invoicedResult.total,
+        updated: deliveredResult.updated + partialDeliveredResult.updated + invoicedResult.updated,
+        errors: deliveredResult.errors + partialDeliveredResult.errors + invoicedResult.errors,
+        unchanged: deliveredResult.unchanged + partialDeliveredResult.unchanged + invoicedResult.unchanged
+      }
+    };
     
     res.status(200).json({
       success: true,
-      message: 'Verificación de órdenes entregadas completada exitosamente',
-      data: result
+      message: 'Verificación de órdenes entregadas y facturadas completada exitosamente',
+      data: combinedResult
     });
   } catch (error) {
-    logger.error('Error al verificar órdenes entregadas desde SAP', {
+    logger.error('Error al verificar órdenes entregadas y facturadas desde SAP', {
       error: error.message,
       stack: error.stack,
       userId: req.user?.id
@@ -1593,7 +1611,7 @@ const checkDeliveredOrders = async (req, res) => {
     
     res.status(500).json({
       success: false,
-      message: 'Error al verificar órdenes entregadas desde SAP',
+      message: 'Error al verificar órdenes entregadas y facturadas desde SAP',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
