@@ -1726,6 +1726,284 @@ const sendOrderToSap = async (req, res) => {
   }
 };
 
+/**
+ * @swagger
+ * /api/orders/check-invoiced:
+ *   post:
+ *     summary: Verificar órdenes facturadas desde SAP
+ *     description: Consulta la vista B1_InvoicedOrdersB1SLQuery en SAP para actualizar órdenes facturadas
+ *     tags: [Orders]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Verificación iniciada exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Verificación de órdenes facturadas completada exitosamente"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     total:
+ *                       type: integer
+ *                       example: 10
+ *                     updated:
+ *                       type: integer
+ *                       example: 5
+ *                     unchanged:
+ *                       type: integer
+ *                       example: 4
+ *                     errors:
+ *                       type: integer
+ *                       example: 1
+ *       401:
+ *         description: No autorizado
+ *       403:
+ *         description: No tiene permisos suficientes
+ *       500:
+ *         description: Error interno del servidor
+ */
+const checkInvoicedOrders = async (req, res) => {
+  try {
+    const sapServiceManager = require('../services/SapServiceManager');
+    
+    logger.info('Iniciando verificación manual de órdenes facturadas desde SAP', { 
+      userId: req.user?.id
+    });
+    
+    // Asegurar que el servicio está inicializado
+    if (!sapServiceManager.initialized) {
+      await sapServiceManager.initialize();
+    }
+    
+    // Ejecutar verificación de órdenes facturadas
+    const result = await sapServiceManager.orderService.checkInvoicedOrdersFromSAP();
+    
+    res.status(200).json({
+      success: true,
+      message: 'Verificación de órdenes facturadas completada exitosamente',
+      data: result
+    });
+  } catch (error) {
+    logger.error('Error al verificar órdenes facturadas desde SAP', {
+      error: error.message,
+      stack: error.stack,
+      userId: req.user?.id
+    });
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error al verificar órdenes facturadas desde SAP',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * @swagger
+ * /api/orders/invoices:
+ *   get:
+ *     summary: Obtener facturas sincronizadas
+ *     description: Recupera la información de facturas sincronizadas desde SAP, con opción de filtrar por usuario
+ *     tags: [Orders]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: userId
+ *         schema:
+ *           type: integer
+ *         description: Filtrar facturas por ID de usuario (opcional)
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Fecha inicial para filtrar (formato YYYY-MM-DD)
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Fecha final para filtrar (formato YYYY-MM-DD)
+ *     responses:
+ *       200:
+ *         description: Lista de facturas recuperada exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       order_id:
+ *                         type: integer
+ *                         example: 123
+ *                       user_id:
+ *                         type: integer
+ *                         example: 5
+ *                       user_name:
+ *                         type: string
+ *                         example: "Juan Pérez"
+ *                       order_date:
+ *                         type: string
+ *                         format: date-time
+ *                         example: "2025-03-20T15:30:00Z"
+ *                       invoice_doc_entry:
+ *                         type: integer
+ *                         example: 12345
+ *                       invoice_doc_num:
+ *                         type: integer
+ *                         example: 1000
+ *                       invoice_date:
+ *                         type: string
+ *                         format: date-time
+ *                         example: "2025-03-22T10:00:00Z"
+ *                       invoice_total:
+ *                         type: number
+ *                         format: float
+ *                         example: 1530.75
+ *                       invoice_url:
+ *                         type: string
+ *                         example: "https://example.com/invoices/1000.pdf"
+ *                       company_name:
+ *                         type: string
+ *                         example: "Empresa ABC S.A.S."
+ *                       cardcode_sap:
+ *                         type: string
+ *                         example: "C12345"
+ *       400:
+ *         description: Formato de fechas inválido
+ *       401:
+ *         description: No autorizado
+ *       403:
+ *         description: No tiene permisos suficientes
+ *       500:
+ *         description: Error interno del servidor
+ */
+const getInvoicesByUser = async (req, res) => {
+  try {
+    const { userId, startDate, endDate } = req.query;
+    const requestingUser = req.user;
+    
+    logger.debug('Solicitando información de facturas', { 
+      userId, 
+      startDate, 
+      endDate, 
+      requestingUserId: requestingUser.id 
+    });
+
+    // Validar fechas si se proporcionan
+    if ((startDate && isNaN(new Date(startDate).getTime())) || 
+        (endDate && isNaN(new Date(endDate).getTime()))) {
+      return res.status(400).json({
+        success: false,
+        message: 'Formato de fecha inválido. Utilice YYYY-MM-DD'
+      });
+    }
+
+    // Preparar consulta base
+    let query = `
+      SELECT 
+        o.order_id, 
+        o.user_id, 
+        u.name AS user_name,
+        o.order_date, 
+        o.invoice_doc_entry, 
+        o.invoice_doc_num, 
+        o.invoice_date, 
+        o.invoice_total, 
+        o.invoice_url,
+        cp.company_name,
+        cp.cardcode_sap
+      FROM 
+        orders o
+      JOIN 
+        users u ON o.user_id = u.id
+      LEFT JOIN 
+        client_profiles cp ON u.id = cp.user_id
+      WHERE 
+        o.invoice_doc_entry IS NOT NULL
+    `;
+
+    const queryParams = [];
+    let paramIndex = 1;
+
+    // Filtrar por usuario si no es admin o si se especifica un userId
+    if (requestingUser.rol_id !== 1) {
+      // Si no es admin, solo puede ver sus propias facturas
+      query += ` AND o.user_id = $${paramIndex}`;
+      queryParams.push(requestingUser.id);
+      paramIndex++;
+    } else if (userId) {
+      // Si es admin y se especifica userId, filtrar por ese usuario
+      query += ` AND o.user_id = $${paramIndex}`;
+      queryParams.push(userId);
+      paramIndex++;
+    }
+
+    // Filtrar por rango de fechas si se proporciona
+    if (startDate) {
+      query += ` AND o.invoice_date >= $${paramIndex}`;
+      queryParams.push(new Date(startDate));
+      paramIndex++;
+    }
+
+    if (endDate) {
+      query += ` AND o.invoice_date <= $${paramIndex}`;
+      // Establecer la hora a 23:59:59 para incluir todo el día final
+      const endDateWithTime = new Date(endDate);
+      endDateWithTime.setHours(23, 59, 59, 999);
+      queryParams.push(endDateWithTime);
+      paramIndex++;
+    }
+
+    // Ordenar por fecha de factura descendente
+    query += ` ORDER BY o.invoice_date DESC`;
+
+    const { rows } = await pool.query(query, queryParams);
+
+    logger.info('Información de facturas recuperada exitosamente', {
+      count: rows.length,
+      userId,
+      startDate,
+      endDate
+    });
+
+    res.status(200).json({
+      success: true,
+      data: rows
+    });
+  } catch (error) {
+    logger.error('Error al obtener información de facturas', {
+      error: error.message,
+      stack: error.stack,
+      userId: req.query?.userId,
+      requestingUserId: req.user?.id
+    });
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error al obtener información de facturas',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
 module.exports = { 
   createOrder,
   getOrderById,
@@ -1741,5 +2019,7 @@ module.exports = {
   updateOrderStatusFromSap, 
   sendOrderToSap,
   checkUserCanCreateOrders,
-  checkDeliveredOrders      
+  checkDeliveredOrders,      
+  checkInvoicedOrders,
+  getInvoicesByUser    
 };
