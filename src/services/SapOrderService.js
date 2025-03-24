@@ -37,6 +37,9 @@ class SapOrderService extends SapBaseService {
       // Iniciar sincronización programada de órdenes
       this.scheduleSyncTask();
       
+      // Añadir una segunda tarea programada para consultar órdenes entregadas
+      this.scheduleDeliveryCheckTask();
+      
       return this;
     } catch (error) {
       this.logger.error('Error al inicializar servicio de órdenes SAP', {
@@ -71,6 +74,32 @@ class SapOrderService extends SapBaseService {
         this.logger.info('Sincronización programada de órdenes completada exitosamente');
       } catch (error) {
         this.logger.error('Error en sincronización programada de órdenes', {
+          error: error.message,
+          stack: error.stack
+        });
+      }
+    });
+  }
+
+  /**
+   * Programa tarea para verificar órdenes entregadas en SAP
+   */
+  scheduleDeliveryCheckTask() {
+    // Programar verificación tres veces al día: 8AM, 12PM y 4PM
+    const deliveryCheckSchedule = '0 8,12,16 * * *';
+
+    this.logger.info('Programando verificación periódica de órdenes entregadas en SAP', {
+      schedule: deliveryCheckSchedule
+    });
+
+    // Programar tarea cron
+    this.syncTasks.deliveryCheck = cron.schedule(deliveryCheckSchedule, async () => {
+      try {
+        this.logger.info('Iniciando verificación programada de órdenes entregadas');
+        await this.checkDeliveredOrdersFromSAP();
+        this.logger.info('Verificación programada de órdenes entregadas completada exitosamente');
+      } catch (error) {
+        this.logger.error('Error en verificación programada de órdenes entregadas', {
           error: error.message,
           stack: error.stack
         });
@@ -413,6 +442,140 @@ class SapOrderService extends SapBaseService {
       return stats;
     } catch (error) {
       this.logger.error('Error en actualización de estados de órdenes desde SAP', {
+        error: error.message,
+        stack: error.stack
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Verifica las órdenes entregadas consultando el estado en SAP
+   * @returns {Promise<Object>} - Estadísticas de actualización
+   */
+  async checkDeliveredOrdersFromSAP() {
+    const stats = {
+      total: 0,
+      updated: 0,
+      errors: 0,
+      unchanged: 0,
+      notFound: 0
+    };
+  
+    try {
+      this.logger.info('Iniciando verificación de órdenes entregadas desde SAP');
+  
+      // Obtener órdenes sincronizadas con SAP que estén en estado "En Producción" (3)
+      const query = `
+        SELECT order_id, sap_doc_entry, status_id
+        FROM orders
+        WHERE sap_synced = true 
+        AND sap_doc_entry IS NOT NULL
+        AND status_id = 3  -- En Producción
+        ORDER BY updated_at ASC
+      `;
+      
+      const { rows } = await pool.query(query);
+      stats.total = rows.length;
+      
+      if (rows.length === 0) {
+        this.logger.info('No se encontraron órdenes para verificar entrega');
+        return stats;
+      }
+      
+      this.logger.info(`Encontradas ${rows.length} órdenes para verificar entrega`);
+      
+      // Consultar la vista de órdenes entregadas en SAP
+      const viewEndpoint = 'view.svc/B1_DeliveredOrdersB1SLQuery';
+      
+      try {
+        const deliveredOrdersData = await this.request('GET', viewEndpoint);
+        
+        this.logger.debug('Respuesta de vista de órdenes entregadas', {
+          endpoint: viewEndpoint,
+          responseSize: deliveredOrdersData ? 
+            (deliveredOrdersData.value ? deliveredOrdersData.value.length : 'sin valor') : 
+            'respuesta vacía'
+        });
+        
+        if (!deliveredOrdersData || !deliveredOrdersData.value) {
+          this.logger.warn('Respuesta inesperada de la vista de órdenes entregadas', {
+            hasData: !!deliveredOrdersData,
+            hasValue: deliveredOrdersData ? !!deliveredOrdersData.value : false
+          });
+          return {
+            ...stats,
+            error: 'Respuesta inesperada de SAP'
+          };
+        }
+        
+        // Crear un conjunto con los DocEntry de las órdenes entregadas en SAP
+        const deliveredDocEntries = new Set();
+        deliveredOrdersData.value.forEach(order => {
+          if (order.DocEntry && order.Entregado === 1) {
+            deliveredDocEntries.add(parseInt(order.DocEntry));
+          }
+        });
+        
+        this.logger.info(`Se encontraron ${deliveredDocEntries.size} órdenes entregadas en SAP`);
+        
+        // Verificar cada orden de nuestra BD contra el conjunto de órdenes entregadas
+        for (const order of rows) {
+          try {
+            const sapDocEntry = parseInt(order.sap_doc_entry);
+            
+            if (deliveredDocEntries.has(sapDocEntry)) {
+              // Actualizar estado a "Entregado" (4)
+              await pool.query(
+                `UPDATE orders 
+                SET status_id = 4, 
+                    last_status_update = CURRENT_TIMESTAMP, 
+                    updated_at = CURRENT_TIMESTAMP, 
+                    sap_last_sync = CURRENT_TIMESTAMP 
+                WHERE order_id = $1`,
+                [order.order_id]
+              );
+              
+              stats.updated++;
+              this.logger.info('Orden marcada como entregada desde SAP', {
+                orderId: order.order_id,
+                docEntry: order.sap_doc_entry
+              });
+            } else {
+              stats.unchanged++;
+              this.logger.debug('Orden no encontrada en lista de entregadas', {
+                orderId: order.order_id,
+                docEntry: order.sap_doc_entry
+              });
+            }
+          } catch (orderError) {
+            stats.errors++;
+            this.logger.error('Error al procesar orden para verificar entrega', {
+              orderId: order.order_id,
+              docEntry: order.sap_doc_entry,
+              error: orderError.message
+            });
+          }
+        }
+      } catch (viewError) {
+        this.logger.error('Error al consultar vista de órdenes entregadas en SAP', {
+          endpoint: viewEndpoint,
+          error: viewError.message,
+          stack: viewError.stack
+        });
+        throw viewError;
+      }
+      
+      this.logger.info('Verificación de órdenes entregadas completada', {
+        total: stats.total,
+        updated: stats.updated,
+        unchanged: stats.unchanged,
+        errors: stats.errors
+      });
+      
+      return stats;
+    } catch (error) {
+      this.logger.error('Error en verificación de órdenes entregadas desde SAP', {
         error: error.message,
         stack: error.stack
       });

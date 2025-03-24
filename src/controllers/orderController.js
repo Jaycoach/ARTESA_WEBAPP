@@ -1520,6 +1520,87 @@ const updateOrderStatusFromSap = async (req, res) => {
 
 /**
  * @swagger
+ * /api/orders/check-delivered:
+ *   post:
+ *     summary: Verificar órdenes entregadas desde SAP
+ *     description: Consulta la vista B1_DeliveredOrdersB1SLQuery en SAP para actualizar órdenes entregadas
+ *     tags: [Orders]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Verificación iniciada exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Verificación de órdenes entregadas completada exitosamente"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     total:
+ *                       type: integer
+ *                       example: 10
+ *                     updated:
+ *                       type: integer
+ *                       example: 5
+ *                     unchanged:
+ *                       type: integer
+ *                       example: 4
+ *                     errors:
+ *                       type: integer
+ *                       example: 1
+ *       401:
+ *         description: No autorizado
+ *       403:
+ *         description: No tiene permisos suficientes
+ *       500:
+ *         description: Error interno del servidor
+ */
+const checkDeliveredOrders = async (req, res) => {
+  try {
+    const sapServiceManager = require('../services/SapServiceManager');
+    
+    logger.info('Iniciando verificación manual de órdenes entregadas desde SAP', { 
+      userId: req.user?.id
+    });
+    
+    // Asegurar que el servicio está inicializado
+    if (!sapServiceManager.initialized) {
+      await sapServiceManager.initialize();
+    }
+    
+    // Ejecutar verificación de órdenes entregadas
+    const result = await sapServiceManager.orderService.checkDeliveredOrdersFromSAP();
+    
+    res.status(200).json({
+      success: true,
+      message: 'Verificación de órdenes entregadas completada exitosamente',
+      data: result
+    });
+  } catch (error) {
+    logger.error('Error al verificar órdenes entregadas desde SAP', {
+      error: error.message,
+      stack: error.stack,
+      userId: req.user?.id
+    });
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error al verificar órdenes entregadas desde SAP',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * @swagger
  * /api/orders/{orderId}/send-to-sap:
  *   post:
  *     summary: Enviar una orden específica a SAP
@@ -1641,5 +1722,6 @@ module.exports = {
   syncOrdersToSap,          
   updateOrderStatusFromSap, 
   sendOrderToSap,
-  checkUserCanCreateOrders        
+  checkUserCanCreateOrders,
+  checkDeliveredOrders      
 };
