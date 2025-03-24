@@ -450,9 +450,9 @@ class SapOrderService extends SapBaseService {
   }
 
   /**
- * Verifica las órdenes entregadas consultando la vista B1_DeliveredOrdersB1SLQuery en SAP
- * @returns {Promise<Object>} - Estadísticas de actualización
- */
+   * Verifica las órdenes entregadas consultando el estado en SAP
+   * @returns {Promise<Object>} - Estadísticas de actualización
+   */
   async checkDeliveredOrdersFromSAP() {
     const stats = {
       total: 0,
@@ -485,69 +485,48 @@ class SapOrderService extends SapBaseService {
       
       this.logger.info(`Encontradas ${rows.length} órdenes para verificar entrega`);
       
-      // Consultar la vista B1_DeliveredOrdersB1SLQuery para obtener órdenes entregadas
-      try {
-        const endpoint = `B1_DeliveredOrdersB1SLQuery`;
-        const deliveredOrders = await this.request('GET', endpoint);
-        
-        if (!deliveredOrders || !deliveredOrders.value || !Array.isArray(deliveredOrders.value)) {
-          this.logger.warn('Formato de respuesta inesperado al consultar órdenes entregadas en SAP', {
-            response: typeof deliveredOrders === 'object' ? JSON.stringify(deliveredOrders).substring(0, 200) + '...' : typeof deliveredOrders
-          });
-          return stats;
-        }
-        
-        this.logger.debug(`Recibidas ${deliveredOrders.value.length} órdenes entregadas desde SAP`);
-        
-        // Crear un mapa de DocEntry -> Entregado para búsqueda eficiente
-        const deliveredMap = {};
-        deliveredOrders.value.forEach(order => {
-          if (order.DocEntry && order.Entregado === 1) {
-            deliveredMap[order.DocEntry] = true;
-          }
-        });
-        
-        // Actualizar órdenes locales basado en la información de SAP
-        for (const order of rows) {
-          try {
-            const isDelivered = deliveredMap[order.sap_doc_entry];
+      // Para cada orden, consultar su estado directamente en SAP
+      for (const order of rows) {
+        try {
+          // Consultar documento en SAP
+          const sapDocEntry = order.sap_doc_entry;
+          const endpoint = `Orders(${sapDocEntry})`;
+          
+          const orderData = await this.request('GET', endpoint);
+          
+          // Verificar si la orden está entregada
+          const isDelivered = orderData && 
+                            (orderData.DocumentStatus === 'C' || // Cerrada
+                            orderData.DeliveryStatus === 'D');  // Entregada
+          
+          if (isDelivered) {
+            // Actualizar estado a "Entregado" (4)
+            await pool.query(
+              `UPDATE orders 
+              SET status_id = 4, 
+                  last_status_update = CURRENT_TIMESTAMP, 
+                  updated_at = CURRENT_TIMESTAMP, 
+                  sap_last_sync = CURRENT_TIMESTAMP 
+              WHERE order_id = $1`,
+              [order.order_id]
+            );
             
-            if (isDelivered) {
-              // Actualizar estado a "Entregado" (4)
-              await pool.query(
-                `UPDATE orders 
-                SET status_id = 4, 
-                    last_status_update = CURRENT_TIMESTAMP, 
-                    updated_at = CURRENT_TIMESTAMP, 
-                    sap_last_sync = CURRENT_TIMESTAMP 
-                WHERE order_id = $1`,
-                [order.order_id]
-              );
-              
-              stats.updated++;
-              this.logger.info('Orden marcada como entregada desde SAP', {
-                orderId: order.order_id,
-                docEntry: order.sap_doc_entry
-              });
-            } else {
-              stats.unchanged++;
-            }
-          } catch (orderError) {
-            stats.errors++;
-            this.logger.error('Error al actualizar estado de entrega para orden', {
+            stats.updated++;
+            this.logger.info('Orden marcada como entregada desde SAP', {
               orderId: order.order_id,
-              docEntry: order.sap_doc_entry,
-              error: orderError.message
+              docEntry: order.sap_doc_entry
             });
+          } else {
+            stats.unchanged++;
           }
+        } catch (orderError) {
+          stats.errors++;
+          this.logger.error('Error al verificar estado de entrega para orden', {
+            orderId: order.order_id,
+            docEntry: order.sap_doc_entry,
+            error: orderError.message
+          });
         }
-      } catch (viewError) {
-        stats.errors += rows.length;
-        this.logger.error('Error al consultar vista de órdenes entregadas en SAP', {
-          error: viewError.message,
-          stack: viewError.stack
-        });
-        throw viewError;
       }
       
       this.logger.info('Verificación de órdenes entregadas completada', {
