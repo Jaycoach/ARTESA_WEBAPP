@@ -39,6 +39,9 @@ class SapOrderService extends SapBaseService {
       
       // Añadir una segunda tarea programada para consultar órdenes entregadas
       this.scheduleDeliveryCheckTask();
+
+      // Añadir una tercera tarea programada para consultar órdenes facturadas
+      this.scheduleInvoiceCheckTask();
       
       return this;
     } catch (error) {
@@ -115,6 +118,35 @@ class SapOrderService extends SapBaseService {
       }
     });
   }
+
+  /**
+ * Programa tarea para verificar órdenes facturadas en SAP
+ */
+scheduleInvoiceCheckTask() {
+  // Programar verificación una vez al día: 23:00 hrs
+  const invoiceCheckSchedule = '0 23 * * *';  // Todos los días a las 23:00
+
+  this.logger.info('Programando verificación diaria de órdenes facturadas en SAP', {
+    schedule: invoiceCheckSchedule
+  });
+
+  // Programar tarea cron
+  this.syncTasks.invoiceCheck = cron.schedule(invoiceCheckSchedule, async () => {
+    try {
+      this.logger.info('Iniciando verificación programada de órdenes facturadas');
+      
+      // Verificar órdenes facturadas
+      await this.checkInvoicedOrdersFromSAP();
+      
+      this.logger.info('Verificación programada de órdenes facturadas completada exitosamente');
+    } catch (error) {
+      this.logger.error('Error en verificación programada de órdenes facturadas', {
+        error: error.message,
+        stack: error.stack
+      });
+    }
+  });
+}
 
   /**
    * Crea una orden de venta en SAP
@@ -384,13 +416,13 @@ class SapOrderService extends SapBaseService {
       
       // Obtener órdenes sincronizadas con SAP que no estén en estado final
       const query = `
-        SELECT order_id, sap_doc_entry, status
-        FROM orders
-        WHERE sap_synced = true 
-        AND sap_doc_entry IS NOT NULL
-        AND status NOT IN ('cancelled', 'completed', 'returned')
-        ORDER BY updated_at ASC
-      `;
+      SELECT order_id, sap_doc_entry, status_id
+      FROM orders
+      WHERE sap_synced = true 
+      AND sap_doc_entry IS NOT NULL
+      AND status_id NOT IN (5, 6) -- 5=Cerrado, 6=Cancelado
+      ORDER BY updated_at ASC
+    `;
       
       const { rows } = await pool.query(query);
       stats.total = rows.length;
@@ -403,21 +435,21 @@ class SapOrderService extends SapBaseService {
           const sapStatus = await this.getOrderStatusFromSAP(order.sap_doc_entry);
           
           // Mapear estado de SAP a estado de la WebApp
-          let webAppStatus = order.status;
-          
+          let webAppStatusId = order.status_id;
+       
           if (sapStatus.status === 'C') { // Closed
-            webAppStatus = 'completed';
+            webAppStatusId = 5; // ID para "Cerrado"
           } else if (sapStatus.status === 'O') { // Open
-            webAppStatus = 'processing';
+            webAppStatusId = 3; // ID para "En Producción"
           } else if (sapStatus.status === 'L') { // Locked
-            webAppStatus = 'processing'; // O asignar otro estado según la lógica de negocio
+            webAppStatusId = 3; // ID para "En Producción" u otro estado según la lógica
           }
           
           // Si el estado ha cambiado, actualizar en la base de datos
-          if (webAppStatus !== order.status) {
-            await pool.query(
-              'UPDATE orders SET status = $1, updated_at = CURRENT_TIMESTAMP, sap_last_sync = CURRENT_TIMESTAMP WHERE order_id = $2',
-              [webAppStatus, order.order_id]
+          if (webAppStatusId !== order.status_id) {
+            await client.query(
+              'UPDATE orders SET status_id = $1, updated_at = CURRENT_TIMESTAMP, sap_last_sync = CURRENT_TIMESTAMP WHERE order_id = $2',
+              [webAppStatusId, order.order_id]
             );
             
             stats.updated++;
