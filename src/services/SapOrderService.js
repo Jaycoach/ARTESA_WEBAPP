@@ -566,6 +566,41 @@ scheduleInvoiceCheckTask() {
             const sapDocEntry = parseInt(order.sap_doc_entry);
             
             if (deliveredDocEntries.has(sapDocEntry)) {
+              // Buscar los datos específicos de la entrega
+              const deliveryInfo = deliveredOrdersData.value.find(item => parseInt(item.DocEntry) === sapDocEntry);
+              if (deliveryInfo) {
+                // Actualizar estado y todos los campos relacionados con la entrega
+                await pool.query(
+                  `UPDATE orders 
+                  SET status_id = 4, 
+                      docnum_sap = $1,
+                      delivered_quantity = $2,
+                      total_quantity = $3,
+                      last_status_update = CURRENT_TIMESTAMP, 
+                      updated_at = CURRENT_TIMESTAMP, 
+                      sap_last_sync = CURRENT_TIMESTAMP 
+                  WHERE order_id = $4`,
+                  [
+                    deliveryInfo.DocNum,
+                    // Asumiendo que estos campos existen en la respuesta de SAP
+                    // Si los nombres de campos son diferentes, ajusta según corresponda
+                    deliveryInfo.DeliveredQuantity || deliveryInfo.Quantity || 0,
+                    deliveryInfo.TotalQuantity || deliveryInfo.Quantity || 0,
+                    order.order_id
+                  ]
+                );
+              } else {
+                // Si no encontramos la información específica, actualizar solo el estado
+                await pool.query(
+                  `UPDATE orders 
+                  SET status_id = 4, 
+                      last_status_update = CURRENT_TIMESTAMP, 
+                      updated_at = CURRENT_TIMESTAMP, 
+                      sap_last_sync = CURRENT_TIMESTAMP 
+                  WHERE order_id = $1`,
+                  [order.order_id]
+                );
+              }
               // Actualizar estado a "Entregado" (4)
               await pool.query(
                 `UPDATE orders 
@@ -698,13 +733,16 @@ scheduleInvoiceCheckTask() {
                   delivered_quantity = $2,
                   total_quantity = $3,
                   last_status_update = CURRENT_TIMESTAMP, 
-                  updated_at = CURRENT_TIMESTAMP
-              WHERE order_id = $4`,
+                  updated_at = CURRENT_TIMESTAMP,
+                  sap_last_sync = CURRENT_TIMESTAMP,
+                  docnum_sap = $5
+              WHERE order_id = $6`,
               [
                 newStatusId, 
                 deliveryRecord.TotalOrderedQuantity - deliveryRecord.RemainingOpenQuantity,
                 deliveryRecord.TotalOrderedQuantity,
-                order.order_id
+                order.order_id,
+                deliveryRecord.OrderDocNum
               ]
             );
             
@@ -812,7 +850,8 @@ scheduleInvoiceCheckTask() {
                 invoice_total = $4,
                 invoice_url = $5,
                 last_status_update = CURRENT_TIMESTAMP, 
-                updated_at = CURRENT_TIMESTAMP
+                updated_at = CURRENT_TIMESTAMP,
+                sap_last_sync = CURRENT_TIMESTAMP
             WHERE order_id = $6`,
             [
               invoiceRecord.InvoiceDocEntry,
