@@ -47,7 +47,7 @@ const [passwordData, setPasswordData] = useState({
       setPasswordLoading(true);
       setPasswordMessage('');
   
-      const response = await API.put(`/auth/change-password`, {
+      const response = await API.put(`/password/reset`, {
         userId: user.id,
         currentPassword: passwordData.currentPassword,
         newPassword: passwordData.newPassword,

@@ -13,6 +13,9 @@ export default {
         secondary: '#f6db8e',  // amarillo claro
         accent: '#f6754e',     // naranja
         base: '#ffffff',
+        footer: '#d9d4ce',
+        homePrimary: '#7b8ac0',
+        secondaryHome: '#bbc4a6',
       },
       fontSize: {
         biggest: 'var(--biggestFontSize)',

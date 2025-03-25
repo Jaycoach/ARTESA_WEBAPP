@@ -16,6 +16,9 @@ const OrderList = () => {
   const [editableOrders, setEditableOrders] = useState({});
   const ordersPerPage = 10;
   const [orderStatuses, setOrderStatuses] = useState({});
+  const [filterDates, setFilterDates] = useState({ from: '', to: '' }); // lo que se aplica al listado
+  const [tempFilterDates, setTempFilterDates] = useState({ from: '', to: '' });
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
 
   // Cargar configuración de horario límite
   useEffect(() => {
@@ -55,36 +58,51 @@ const OrderList = () => {
     try {
       setIsLoading(true);
       setError(null);
-
       const data = await orderService.getUserOrders(user.id);
+      // Creamos la fecha límite (hoy - 15 días)
+      const now = new Date();
+      const last15Days = new Date();
+      last15Days.setDate(now.getDate() - 15);
+
       // Filtrar órdenes con status_id 6 (Cancelado/Cerrado)
-      const filteredOrders = data.filter(order =>
-        order.status_id !== 6 &&
-        order.status_id !== '6' &&
-        !['cancelado', 'canceled', 'cerrado'].includes(order.status?.toLowerCase())
-      );
-      setOrders(filteredOrders);
+      const filtered = data.filter(order => {
+        const statusValid =
+          order.status_id !== 6 &&
+          !['cancelado', 'canceled', 'cerrado'].includes(order.status?.toLowerCase());
+
+        const deliveryDate = new Date(order.delivery_date);
+        if (isNaN(deliveryDate.getTime())) return false;
+
+        if (filterDates.from && filterDates.to) {
+          const from = new Date(filterDates.from);
+          const to = new Date(filterDates.to);
+          return statusValid && deliveryDate >= from && deliveryDate <= to;
+        }
+
+        return statusValid && deliveryDate >= last15Days;
+      });
+
+      setOrders(filtered);
 
       // Comprobar cuáles pedidos pueden ser editados
-      const editableOrdersMap = {};
-      for (const order of data) {
-        const editCheck = await orderService.canEditOrder(order.order_id, orderTimeLimit);
-        editableOrdersMap[order.order_id] = editCheck.canEdit;
+      const editableMap = {};
+      for (const order of filtered) {
+        const check = await orderService.canEditOrder(order.order_id, orderTimeLimit);
+        editableMap[order.order_id] = check.canEdit;
       }
-      setEditableOrders(editableOrdersMap);
-
+      setEditableOrders(editableMap);
     } catch (err) {
       console.error('Error fetching orders:', err);
       setError(err.message || 'Error al cargar los pedidos');
     } finally {
       setIsLoading(false);
     }
-  }, [user, orderTimeLimit]);
+  }, [user, orderTimeLimit, filterDates]);
 
   // Usar la función definida en el useEffect
   useEffect(() => {
     fetchOrders();
-  }, [user, orderTimeLimit]); // Incluye fetchOrders en el array de dependencias
+  }, [fetchOrders]); // Incluye fetchOrders en el array de dependencias
 
   const handleCancelOrder = async (orderId) => {
     if (!window.confirm('¿Estás seguro que deseas cancelar este pedido?')) {
@@ -109,10 +127,10 @@ const OrderList = () => {
   // Función para formatear la fecha
   const formatDate = (dateString) => {
     if (!dateString) return 'Fecha no disponible';
-  
+
     const date = new Date(dateString);
     if (isNaN(date.getTime())) return 'Fecha inválida';
-  
+
     return new Intl.DateTimeFormat('es-CO', {
       year: 'numeric',
       month: '2-digit',
@@ -120,13 +138,9 @@ const OrderList = () => {
     }).format(date);
   };
 
-  // Calcular el índice del último y primer pedido de la página actual
   const indexOfLastOrder = currentPage * ordersPerPage;
   const indexOfFirstOrder = indexOfLastOrder - ordersPerPage;
-  // Obtener los pedidos de la página actual
   const currentOrders = orders.slice(indexOfFirstOrder, indexOfLastOrder);
-
-  // Cambiar de página
   const paginate = (pageNumber) => setCurrentPage(pageNumber);
 
   // Si están cargando los pedidos, mostrar indicador
@@ -166,12 +180,30 @@ const OrderList = () => {
       </div>
     );
   }
+  const handleTempFilterChange = (e) => {
+    setTempFilterDates({ ...tempFilterDates, [e.target.name]: e.target.value });
+  };
+
+  const applyFilters = () => {
+    setFilterDates(tempFilterDates);
+  };
+
+  const handleToggleFilterPanel = () => {
+    setShowFilterPanel(!showFilterPanel);
+  };
+
 
   return (
     <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-semibold text-gray-800">Mis Pedidos</h2>
-        <div className="flex items-center">
+        <div className="flex gap-2 items-center">
+          <button
+            onClick={handleToggleFilterPanel}
+            className="px-4 py-2 bg-gray-100 text-sm rounded hover:bg-gray-200"
+          >
+            {showFilterPanel ? 'Ocultar Filtros' : 'Mostrar Filtros'}
+          </button>
           <Link
             to="/dashboard/orders/new"
             className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
@@ -180,7 +212,64 @@ const OrderList = () => {
           </Link>
         </div>
       </div>
+      {showFilterPanel && (
+        <div
+          className="fixed inset-0 z-50 bg-black bg-opacity-40 flex justify-end"
+          onClick={() => setShowFilterPanel(false)} // Cierra al hacer clic afuera
+        >
+          <div
+            className="w-full max-w-sm h-full bg-white shadow-xl p-6 pt-4 relative"
+            style={{ marginTop: '110px' }}
+            onClick={(e) => e.stopPropagation()} // Evita que el clic dentro cierre el drawer
+          >
+            {/* Botón cerrar */}
+            <button
+              onClick={() => setShowFilterPanel(false)}
+              className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 z-50"
+            >
+              ✕
+            </button>
 
+            <h2 className="text-lg font-semibold text-gray-800 mb-6">Filtros</h2>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Desde</label>
+                <input
+                  type="date"
+                  name="from"
+                  value={tempFilterDates.from}
+                  onChange={handleTempFilterChange}
+                  className="w-full border px-3 py-2 rounded-md mt-1"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Hasta</label>
+                <input
+                  type="date"
+                  name="to"
+                  value={tempFilterDates.to}
+                  onChange={handleTempFilterChange}
+                  className="w-full border px-3 py-2 rounded-md mt-1"
+                />
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end">
+              <button
+                onClick={() => {
+                  applyFilters();
+                  setShowFilterPanel(false);
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                Aplicar Filtros
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
@@ -266,17 +355,17 @@ const OrderList = () => {
                     )}
 
                     {/* Botón de cancelar pedido */}
-                    {!['cancelado', 'canceled'].includes(order.status?.toLowerCase()) && 
-                    !['3', '4', '5', '7'].includes(order.status_id?.toString()) && (
-                      <button
-                        onClick={() => handleCancelOrder(order.order_id)}
-                        className="text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 px-3 py-1 rounded-md flex items-center"
-                        title="Cancelar pedido"
-                      >
-                        <FaTrashAlt className="mr-1" />
-                        <span className="hidden sm:inline">Cancelar</span>
-                      </button>
-                    )}
+                    {!['cancelado', 'canceled'].includes(order.status?.toLowerCase()) &&
+                      !['3', '4', '5', '7', '8'].includes(order.status_id?.toString()) && (
+                        <button
+                          onClick={() => handleCancelOrder(order.order_id)}
+                          className="text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 px-3 py-1 rounded-md flex items-center"
+                          title="Cancelar pedido"
+                        >
+                          <FaTrashAlt className="mr-1" />
+                          <span className="hidden sm:inline">Cancelar</span>
+                        </button>
+                      )}
                   </div>
                 </td>
               </tr>
