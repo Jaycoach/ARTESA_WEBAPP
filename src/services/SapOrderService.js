@@ -553,83 +553,72 @@ scheduleInvoiceCheckTask() {
         // Crear un conjunto con los DocEntry de las órdenes entregadas en SAP
         const deliveredDocEntries = new Set();
         deliveredOrdersData.value.forEach(order => {
-          if (order.DocEntry && order.Entregado === 1) {
-            deliveredDocEntries.add(parseInt(order.DocEntry));
+          if (order.OrderDocEntry && order.DeliveryStatus === 'Completa') {
+            deliveredDocEntries.add(parseInt(order.OrderDocEntry));
           }
         });
         
         this.logger.info(`Se encontraron ${deliveredDocEntries.size} órdenes entregadas en SAP`);
         
-        // Verificar cada orden de nuestra BD contra el conjunto de órdenes entregadas
-        for (const order of rows) {
+        // Para cada orden en la respuesta de SAP que tenga entrega completa
+        for (const sapOrder of deliveredOrdersData.value) {
           try {
-            const sapDocEntry = parseInt(order.sap_doc_entry);
-            
-            if (deliveredDocEntries.has(sapDocEntry)) {
-              // Buscar los datos específicos de la entrega
-              const deliveryInfo = deliveredOrdersData.value.find(item => parseInt(item.DocEntry) === sapDocEntry);
-              if (deliveryInfo) {
-                // Actualizar estado y todos los campos relacionados con la entrega
-                await pool.query(
-                  `UPDATE orders 
-                  SET status_id = 4, 
-                      docnum_sap = $1,
-                      delivered_quantity = $2,
-                      total_quantity = $3,
-                      last_status_update = CURRENT_TIMESTAMP, 
-                      updated_at = CURRENT_TIMESTAMP, 
-                      sap_last_sync = CURRENT_TIMESTAMP 
-                  WHERE order_id = $4`,
-                  [
-                    deliveryInfo.DocNum,
-                    // Asumiendo que estos campos existen en la respuesta de SAP
-                    // Si los nombres de campos son diferentes, ajusta según corresponda
-                    deliveryInfo.DeliveredQuantity || deliveryInfo.Quantity || 0,
-                    deliveryInfo.TotalQuantity || deliveryInfo.Quantity || 0,
-                    order.order_id
-                  ]
-                );
-              } else {
-                // Si no encontramos la información específica, actualizar solo el estado
-                await pool.query(
-                  `UPDATE orders 
-                  SET status_id = 4, 
-                      last_status_update = CURRENT_TIMESTAMP, 
-                      updated_at = CURRENT_TIMESTAMP, 
-                      sap_last_sync = CURRENT_TIMESTAMP 
-                  WHERE order_id = $1`,
-                  [order.order_id]
-                );
-              }
-              // Actualizar estado a "Entregado" (4)
-              await pool.query(
-                `UPDATE orders 
-                SET status_id = 4, 
-                    last_status_update = CURRENT_TIMESTAMP, 
-                    updated_at = CURRENT_TIMESTAMP, 
-                    sap_last_sync = CURRENT_TIMESTAMP 
-                WHERE order_id = $1`,
-                [order.order_id]
-              );
-              
-              stats.updated++;
-              this.logger.info('Orden marcada como entregada desde SAP', {
-                orderId: order.order_id,
-                docEntry: order.sap_doc_entry
-              });
-            } else {
-              stats.unchanged++;
-              this.logger.debug('Orden no encontrada en lista de entregadas', {
-                orderId: order.order_id,
-                docEntry: order.sap_doc_entry
-              });
+            // Verificar si es una entrega completa
+            if (sapOrder.DeliveryStatus !== 'Completa') {
+              continue; // Saltar si no es completa
             }
+            
+            // Buscar la orden en nuestra base de datos
+            const orderQuery = 'SELECT order_id, status_id FROM orders WHERE sap_doc_entry = $1';
+            const orderResult = await pool.query(orderQuery, [sapOrder.OrderDocEntry]);
+            
+            if (orderResult.rows.length === 0) {
+              this.logger.warn('Orden SAP no encontrada en nuestra base de datos', {
+                sapDocEntry: sapOrder.OrderDocEntry,
+                sapDocNum: sapOrder.OrderDocNum
+              });
+              continue;
+            }
+            
+            const order = orderResult.rows[0];
+            
+            // Si ya está marcada como entregada, no hacer nada
+            if (order.status_id === 4) {
+              stats.unchanged++;
+              continue;
+            }
+            
+            // Actualizar a estado entregado
+            await pool.query(
+              `UPDATE orders 
+              SET status_id = 4, 
+                  docnum_sap = $1,
+                  delivered_quantity = $2,
+                  total_quantity = $3,
+                  last_status_update = CURRENT_TIMESTAMP, 
+                  updated_at = CURRENT_TIMESTAMP, 
+                  sap_last_sync = CURRENT_TIMESTAMP 
+              WHERE order_id = $4`,
+              [
+                sapOrder.OrderDocNum,
+                sapOrder.TotalOrderedQuantity - sapOrder.RemainingOpenQuantity,
+                sapOrder.TotalOrderedQuantity,
+                order.order_id
+              ]
+            );
+            
+            stats.updated++;
+            this.logger.info('Orden marcada como entregada desde SAP', {
+              orderId: order.order_id,
+              sapDocEntry: sapOrder.OrderDocEntry
+            });
+            
           } catch (orderError) {
             stats.errors++;
-            this.logger.error('Error al procesar orden para verificar entrega', {
-              orderId: order.order_id,
-              docEntry: order.sap_doc_entry,
-              error: orderError.message
+            this.logger.error('Error al procesar orden para marcar entrega', {
+              sapOrder: sapOrder.OrderDocEntry,
+              error: orderError.message,
+              stack: orderError.stack
             });
           }
         }
@@ -727,24 +716,24 @@ scheduleInvoiceCheckTask() {
               order.delivered_quantity !== deliveryRecord.TotalOrderedQuantity - deliveryRecord.RemainingOpenQuantity ||
               order.total_quantity !== deliveryRecord.TotalOrderedQuantity) {
             
-            await pool.query(
-              `UPDATE orders 
-              SET status_id = $1, 
-                  delivered_quantity = $2,
-                  total_quantity = $3,
-                  last_status_update = CURRENT_TIMESTAMP, 
-                  updated_at = CURRENT_TIMESTAMP,
-                  sap_last_sync = CURRENT_TIMESTAMP,
-                  docnum_sap = $5
-              WHERE order_id = $6`,
-              [
-                newStatusId, 
-                deliveryRecord.TotalOrderedQuantity - deliveryRecord.RemainingOpenQuantity,
-                deliveryRecord.TotalOrderedQuantity,
-                order.order_id,
-                deliveryRecord.OrderDocNum
-              ]
-            );
+                await pool.query(
+                  `UPDATE orders 
+                  SET status_id = $1, 
+                      delivered_quantity = $2,
+                      total_quantity = $3,
+                      last_status_update = CURRENT_TIMESTAMP, 
+                      updated_at = CURRENT_TIMESTAMP,
+                      sap_last_sync = CURRENT_TIMESTAMP,
+                      docnum_sap = $4
+                  WHERE order_id = $5`,
+                  [
+                    newStatusId, 
+                    deliveryRecord.TotalOrderedQuantity - deliveryRecord.RemainingOpenQuantity,
+                    deliveryRecord.TotalOrderedQuantity,
+                    deliveryRecord.OrderDocNum,
+                    order.order_id
+                  ]
+                );
             
             stats.updated++;
             this.logger.info('Orden actualizada con información de entrega', {
