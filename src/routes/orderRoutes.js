@@ -180,6 +180,21 @@ router.get('/orders/user/:userId', verifyToken, getUserOrders);
 router.get('/orders/can-create/:userId', verifyToken, checkUserCanCreateOrders);
 
 /**
+ * Obtener facturas sincronizadas
+ * @route GET /orders/invoices
+ * @group Orders - Operaciones relacionadas con órdenes
+ * @param {integer} userId.query - Filtrar facturas por ID de usuario (opcional)
+ * @param {string} startDate.query - Fecha inicial para filtrar (formato YYYY-MM-DD)
+ * @param {string} endDate.query - Fecha final para filtrar (formato YYYY-MM-DD)
+ * @security bearerAuth
+ * @returns {object} 200 - Lista de facturas recuperada exitosamente
+ * @returns {object} 400 - Formato de fechas inválido
+ * @returns {object} 401 - No autorizado
+ * @returns {object} 500 - Error interno del servidor
+ */
+router.get('/orders/invoices', verifyToken, getInvoicesByUser);
+
+/**
  * Obtener una orden específica
  * @route GET /orders/{orderId}
  * @group Orders - Operaciones relacionadas con órdenes
@@ -277,21 +292,6 @@ router.post('/orders/check-invoiced',
   checkRole([1]), // Solo administradores
   checkInvoicedOrders
 );
-
-/**
- * Obtener facturas sincronizadas
- * @route GET /orders/invoices
- * @group Orders - Operaciones relacionadas con órdenes
- * @param {integer} userId.query - Filtrar facturas por ID de usuario (opcional)
- * @param {string} startDate.query - Fecha inicial para filtrar (formato YYYY-MM-DD)
- * @param {string} endDate.query - Fecha final para filtrar (formato YYYY-MM-DD)
- * @security bearerAuth
- * @returns {object} 200 - Lista de facturas recuperada exitosamente
- * @returns {object} 400 - Formato de fechas inválido
- * @returns {object} 401 - No autorizado
- * @returns {object} 500 - Error interno del servidor
- */
-router.get('/orders/invoices', verifyToken, getInvoicesByUser);
 
 /**
  * Crear una nueva orden

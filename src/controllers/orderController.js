@@ -1909,10 +1909,10 @@ const getInvoicesByUser = async (req, res) => {
 
     // Validar fechas si se proporcionan
     if ((startDate && isNaN(new Date(startDate).getTime())) || 
-        (endDate && isNaN(new Date(endDate).getTime()))) {
+    (endDate && isNaN(new Date(endDate).getTime()))) {
       return res.status(400).json({
-        success: false,
-        message: 'Formato de fecha inválido. Utilice YYYY-MM-DD'
+      success: false,
+      message: 'Formato de fecha inválido. Utilice YYYY-MM-DD'
       });
     }
 
@@ -1952,7 +1952,7 @@ const getInvoicesByUser = async (req, res) => {
     } else if (userId) {
       // Si es admin y se especifica userId, filtrar por ese usuario
       query += ` AND o.user_id = $${paramIndex}`;
-      queryParams.push(userId);
+      queryParams.push(parseInt(userId, 10)); // Asegurar que es un entero
       paramIndex++;
     }
 
