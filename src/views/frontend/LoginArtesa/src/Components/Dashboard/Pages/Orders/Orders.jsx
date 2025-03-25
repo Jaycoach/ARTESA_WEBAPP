@@ -11,10 +11,13 @@ import API from '../../../../api/config';
 const Orders = () => {
   const { user, isAuthenticated } = useAuth();
   const [isUserActive, setIsUserActive] = useState(true);
-  const [userStatusMessage] = useState('El usuario no puede crear órdenes');  
+  const [userStatusMessage] = useState('El usuario no puede crear órdenes');
   const { orderId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+   // NUEVOS ESTADOS PARA FILTROS
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const [filterDates, setFilterDates] = useState({ from: '', to: '' });
 
   const showNotification = (message, type = 'success') => {
     setNotification({
@@ -22,7 +25,7 @@ const Orders = () => {
       message,
       type
     });
-    
+
     setTimeout(() => {
       setNotification({ show: false, message: '', type: '' });
     }, 5000);
@@ -45,19 +48,19 @@ const Orders = () => {
       console.log("Estado de activación del usuario:", isActive);
     }
   }, [user]);
-  
+
   const [activeTab, setActiveTab] = useState('list');
   const [notification, setNotification] = useState({ show: false, message: '', type: '' });
-  
+
   // Check if we're in edit mode based on URL path
   const isEditMode = location.pathname.includes('/edit');
-  
+
   // Check if we're in new mode based on URL path or query param
   const isNewMode = location.pathname.includes('/new') || location.search.includes('tab=new');
 
   // Modal confirmación cancelación
   const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
-  
+
   useEffect(() => {
     // Set the active tab based on URL
     if (isNewMode) {
@@ -68,7 +71,7 @@ const Orders = () => {
       setActiveTab('list');
     }
   }, [location.pathname, location.search, isNewMode, isEditMode]);
-  
+
   const handleOrderCreated = () => {
     setActiveTab('list');
     showNotification('Tu pedido ha sido creado exitosamente', 'success');
@@ -76,13 +79,13 @@ const Orders = () => {
     // Refrescar la lista de pedidos
     refreshOrders();
   };
-  
-  
+
+
   const handleConfirmCancel = () => {
     setShowCancelConfirmation(false);
     navigate('/dashboard/orders');
   };
-  
+
   const handleCancelConfirmationClose = () => {
     setShowCancelConfirmation(false);
   };
@@ -91,7 +94,7 @@ const Orders = () => {
     // Verificar si hay un parámetro "tab" en la URL
     const urlParams = new URLSearchParams(window.location.search);
     const tab = urlParams.get('tab');
-    
+
     if (tab === 'new') {
       setActiveTab('new');
     }
@@ -104,7 +107,7 @@ const Orders = () => {
     navigate('/dashboard/orders');
     // Si tienes una función para refrescar pedidos, llámala aquí
   };
-  
+
   if (!isAuthenticated) {
     return (
       <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
@@ -115,23 +118,23 @@ const Orders = () => {
       </div>
     );
   }
-  
+
   // Si estamos en modo edicion de un order ID
   if (isEditMode && orderId) {
     return (
       <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-8">Editar Pedido #{orderId}</h1>
-        
+
         {notification.show && (
-          <Notification 
+          <Notification
             message={notification.message}
             type={notification.type}
             onClose={() => setNotification({ show: false, message: '', type: '' })}
           />
         )}
-        
-        <EditOrderForm 
-          orderId={orderId} 
+
+        <EditOrderForm
+          orderId={orderId}
           onOrderUpdated={handleOrderUpdated}
         />
       </div>
@@ -141,61 +144,58 @@ const Orders = () => {
   return (
     <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
       <h1 className="text-3xl font-bold text-gray-900 mb-8">Gestión de Pedidos</h1>
-      
+
       {notification.show && (
-        <Notification 
+        <Notification
           message={notification.message}
           type={notification.type}
           onClose={() => setNotification({ show: false, message: '', type: '' })}
         />
       )}
-      
       <div className="mb-6">
         <div className="border-b border-gray-200">
           <nav className="-mb-px flex" aria-label="Tabs">
-          <button
-            onClick={() => {
-              if (activeTab === 'new') {
-                // Si estamos en "Nuevo Pedido", mostrar confirmación
-                setShowCancelConfirmation(true);
-              } else {
-                // Si no, navegar directamente
-                navigate('/dashboard/orders');
-              }
-            }}
-            className={`${
-              activeTab === 'list'
-                ? 'border-indigo-500 text-indigo-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            } w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm`}
-          >
-            Mis Pedidos
-          </button>
-          <button
-            onClick={() => {
-              if (!isUserActive) {
-                showNotification(userStatusMessage || 'El usuario no puede crear órdenes', 'error');
-              } else {
-                navigate('/dashboard/orders/new');
-              }
-            }}
-            className={`${
-              activeTab === 'new'
-                ? 'border-indigo-500 text-indigo-600'
-                : (isUserActive ? 'hidden border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' : 'hidden')
-            } w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm`}
-            disabled={!isUserActive}
-          >
-            Nuevo Pedido
-          </button>
+            <button
+              onClick={() => {
+                if (activeTab === 'new') {
+                  // Si estamos en "Nuevo Pedido", mostrar confirmación
+                  setShowCancelConfirmation(true);
+                } else {
+                  // Si no, navegar directamente
+                  navigate('/dashboard/orders');
+                }
+              }}
+              className={`${activeTab === 'list'
+                  ? 'border-indigo-500 text-indigo-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                } w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm`}
+            >
+              Mis Pedidos
+            </button>
+            <button
+              onClick={() => {
+                if (!isUserActive) {
+                  showNotification(userStatusMessage || 'El usuario no puede crear órdenes', 'error');
+                } else {
+                  navigate('/dashboard/orders/new');
+                }
+              }}
+              className={`${activeTab === 'new'
+                  ? 'border-indigo-500 text-indigo-600'
+                  : (isUserActive ? 'hidden border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' : 'hidden')
+                } w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm`}
+              disabled={!isUserActive}
+            >
+              Nuevo Pedido
+            </button>
           </nav>
         </div>
       </div>
-      
+
       <div className="mt-6">
         {activeTab === 'new' ? (
-          <CreateOrderForm 
-            onOrderCreated={handleOrderCreated} 
+          <CreateOrderForm
+            onOrderCreated={handleOrderCreated}
           />
         ) : (
           <OrderList />
@@ -208,7 +208,7 @@ const Orders = () => {
           <div className="bg-white rounded-lg p-6 max-w-sm mx-auto">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Confirmar cancelación</h3>
             <p className="text-gray-500 mb-6">¿En realidad quiere cancelar el trabajo en curso?</p>
-            
+
             <div className="flex justify-end gap-3">
               <button
                 type="button"

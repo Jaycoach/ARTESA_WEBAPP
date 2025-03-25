@@ -1,305 +1,297 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../../App.scss';
-import imgLogo1 from "../../LoginsAssets/logo_artesa_alt.png";
-import imgBanner from "../../LoginsAssets/Banner_.png";
-import imgBanBeneficios from "../../LoginsAssets/Banner_Beneficios.png";
-import imgVenta1 from "../../LoginsAssets/Compra_1.png";
-import imgVenta2 from "../../LoginsAssets/Compra_2.png";
-import imgVenta3 from "../../LoginsAssets/Compra_3.png";
+import imgLogo1 from "../../HomeAssets/logo_artesa_alt.png";
+import { FaUser, FaShoppingCart, FaStar } from 'react-icons/fa';
+import imgBanner from "../../HomeAssets/Banner_.png";
+import imgBanBeneficios from "../../HomeAssets/Banner_Beneficios.png";
+import imgVenta1 from "../../HomeAssets/Producto_1.png";
+import imgVenta2 from "../../HomeAssets/Producto_2.png";
+import imgVenta3 from "../../HomeAssets/Producto_3.png";
+import imgVenta4 from "../../HomeAssets/Producto_4.png";
+import imgFondoVenta from '../../HomeAssets/Venta_Online.gif';
+import { FaMapMarkerAlt } from "react-icons/fa";
+import Footerico from '../../HomeAssets/Icolo_footer.png';
+import { FaInstagram, FaTiktok, FaFacebook, FaLinkedin } from "react-icons/fa";
 
 const Home = () => {
 
   const navigate = useNavigate();
 
+  // Array de productos con imágenes importadas
+  const productos = [
+    {
+      titulo: "Panadería Gourmet",
+      descripcion: "Pan artesanal con ingredientes frescos y naturales.",
+      estrellas: 5,
+      estrellasAzules: 3, // (5 - 3)
+      img: imgVenta1
+    },
+    {
+      titulo: "Repostería Fina",
+      descripcion: "Recetas tradicionales.",
+      estrellas: 5,
+      estrellasAzules: 4, // 4 azules, 1 blanca
+      img: imgVenta2
+    },
+    {
+      titulo: "Pastelería Exclusiva",
+      descripcion: "Deliciosos pasteles para cada ocasión especial.",
+      estrellas: 5,
+      estrellasAzules: 5,
+      img: imgVenta3
+    },
+    {
+      titulo: "Bollería Artesanal",
+      descripcion: "Bollos y panes con recetas tradicionales de calidad.",
+      estrellas: 5,
+      estrellasAzules: 2, // 2 azules, 3 blancas
+      img: imgVenta4
+    }
+  ];
+
+  const Lugares = [
+    {
+      titulo: "Santa Paula",
+      descripcion: "Dirección: Calle 109 # 14b - 16",
+      img: '',
+      url: "https://maps.app.goo.gl/GPi4CTEDgD9hzpcP9"
+    },
+    {
+      titulo: "Cedritos",
+      descripcion: "Dirección: Av cra 19 # 139 - 06",
+      img: '',
+      url: "https://maps.app.goo.gl/M9nDQ6KFkgYwSNki7",
+
+    },
+    {
+      titulo: "Colina Campestre",
+      descripcion: "Dirección:Calle 138 # 55 - 89 | Local 5589",
+      img: '',
+      url: "https://maps.app.goo.gl/jovFzU6d126DZsM79"
+    },
+    {
+      titulo: "Punto de fabrica",
+      descripcion: "Dirección: Cra 35 # 17ª – 61",
+      img: '',
+      url: "https://maps.app.goo.gl/po8sEgErwMWuRVcu7"
+    }
+  ];
+
   return (
+
     <div className="bg-gray-100 min-h-screen font-montserrat">
 
+      {/* Botón flotante de WhatsApp */}
+      <a 
+        href="https://wa.me/573001234567" 
+        target="_blank" 
+        rel="noopener noreferrer"
+        className="fixed bottom-6 right-6 bg-green-500 text-white p-3 rounded-full shadow-lg hover:bg-green-600 transition-all flex items-center justify-center w-14 h-14"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16" width="28" height="28">
+          <path d="M13.601 2.399A7.951 7.951 0 0 0 8 0C3.588 0 0 3.588 0 8c0 1.411.37 2.772 1.061 3.979L.05 16l4.16-1.011A7.948 7.948 0 0 0 8 16c4.412 0 8-3.588 8-8 0-2.139-.833-4.148-2.399-5.601ZM8 14.396a6.41 6.41 0 0 1-3.184-.826l-.229-.132-2.469.604.526-2.444-.15-.242A6.392 6.392 0 0 1 1.604 8c0-3.534 2.862-6.396 6.396-6.396 1.71 0 3.316.666 4.525 1.875a6.356 6.356 0 0 1 1.875 4.525c0 3.534-2.862 6.396-6.396 6.396Zm3.604-4.8c-.197-.099-1.171-.577-1.352-.643-.181-.066-.313-.099-.444.1-.132.198-.506.643-.62.777-.115.132-.23.149-.427.05-.197-.1-.833-.308-1.586-.983a5.974 5.974 0 0 1-1.103-1.334c-.116-.198-.013-.304.087-.4.09-.09.198-.23.297-.345a1.34 1.34 0 0 0 .198-.33c.066-.132.033-.248-.016-.346-.05-.099-.444-1.07-.608-1.464-.16-.387-.32-.335-.444-.34l-.377-.008a.72.72 0 0 0-.524.247c-.18.198-.687.67-.687 1.634 0 .964.703 1.895.802 2.023.1.132 1.381 2.107 3.35 2.956 1.969.85 1.969.566 2.325.533.356-.033 1.17-.477 1.334-.937.165-.46.165-.854.116-.937-.05-.082-.165-.132-.345-.23Z"/>
+        </svg> </a>
 
-{/* Header */}      
-<div className="bg-sky-700 py-4 text-white text-center font-bold text-sm md:text-lg shadow-md">
-  <span className="block">PIDE TU DOMICILIO ARTESA AQUÍ</span>
-</div>
+{/* Header */}
+      <div className="bg-orange-500 py-2 text-white text-center font-bold text-sm md:text-lg shadow-md">
+        <span className="block">PIDE TU DOMICILIO ARTESA AQUÍ</span>
+      </div>
 
 <header className="bg-white py-6 px-12 md:px-24 text-black font-bold text-sm md:text-lg flex items-center justify-center shadow-md gap-2">
 
-  {/* Barra de búsqueda más compacta */}
-  <div className="w-1/3 flex justify-center">
-    <div className="flex items-center bg-white rounded-lg px-3 py-2 shadow-md w-full max-w-[300px]">
-      <input 
-        type="text" 
-        placeholder="¿Tengo antojos de...?" 
-        className="bg-transparent focus:outline-none text-gray-800 w-full text-xs"
-      />
-      <button className="ml-1 text-gray-600 hover:text-gray-800">
-        🔍
-      </button>
+{/* Barra de búsqueda */}
+        <div className="w-1/3 flex justify-center">
+          <div className="flex items-center bg-white rounded-lg px-3 py-2 shadow-md w-full max-w-[300px]">
+            <input
+              type="text"
+              placeholder="¿Tengo antojos de...?"
+              className="bg-transparent focus:outline-none text-gray-800 w-full text-xs"
+            />
+            <button className="ml-1 text-gray-600 hover:text-gray-800">
+              🔍
+            </button>
+          </div>
+        </div>
+
+        
+        <div className="w-1/3 flex justify-center"> {/* Logo */}
+          <img src={imgLogo1} alt="Panadería Logo" className="h-8 md:h-10" />
+ </div>
+
+        {/* Íconos de Usuario y Carrito de Compras */}
+        <div className="w-1/3 flex justify-center space-x-4">
+          <FaUser className="text-xl hover:text-orange-500" />
+          <FaShoppingCart className="text-xl hover:text-orange-500" />
+        </div>
+ </header>
+
+
+      <div className="bg-orange-100 p-6">
+        {/* Navegación centrada en horizontal con más separación */}
+        <nav className="flex justify-center items-center gap-16 text-lg text-white font-semibold">
+          <a href="#productos" className="hover:text-orange-500 transition-colors duration-300">Productos</a>
+          <a href="#blog" className="hover:text-orange-500 transition-colors duration-300">Quienes somos</a>
+          <a href="#contacto" className="hover:text-orange-500 transition-colors duration-300">Contáctanos</a>
+          <a href='/original-home' className="hover:text-orange-500 transition-colors duration-300">Iniciar sesión</a>
+        </nav>
+      </div>
+
+      {/* Sección publicidad */}
+      <section className="bg-orange-50 p-10 rounded-lg shadow-lg flex justify-center items-center">
+        <img
+          src={imgBanner} alt="Imagen destacada" className="max-w-full h-auto"/> </section>
+
+      {/* Sección beneficios */}
+      <section className="bg-homePrimary rounded-lg shadow-lg flex justify-center items-center">
+        <img
+          src={imgBanBeneficios} alt="Imagen destacada" className="max-w-full h-auto"/> </section>
+
+
+      <main className="container mx-auto p-6">
+        <section className="container mx-auto p-4 sm:p-6 flex flex-nowrap overflow-x-auto snap-x snap-mandatory gap-5 py-8 sm:py-6">
+          {productos.map((producto, index) => (
+            <div
+              key={index}
+              className="bg-secondaryHome shadow-lg rounded-[35px] overflow-hidden min-w-[28%] sm:min-w-[16%] md:min-w-[11%] transition transform hover:scale-105 flex-shrink-0 snap-center" >
+
+              <div className="w-full h-48 bg-orange-500 bg-cover bg-center"style={{ backgroundImage: `url(${producto.img})` }}></div>
+              {/* Contenido */}
+              <div className="p-5 sm:p-7 text-center">
+                <h3 className="text-xs sm:text-sm font-semibold text-gray-800"> {producto.titulo} </h3> <p className="text-gray-600 mt-2 text-xs line-clamp-2"> {producto.descripcion} </p>
+                {/* Estrellas de valoración con dos colores */}
+                <div className="flex items-center justify-center mt-3">
+                  <span className="mr-2 text-xs text-gray-800">Valoraciones de clientes:</span>
+                  {Array.from({ length: producto.estrellasAzules || 0 }, (_, i) => (
+                    <FaStar key={`blue-${i}`} size={16} className="text-primary mx-1" />
+                  ))}
+                  {Array.from({ length: producto.estrellas - (producto.estrellasAzules || 0) }, (_, i) => (
+                    <FaStar key={`white-${i}`} size={16} className="text-white mx-1" />
+                  ))}
+                </div>
+
+                {/* Botones */}
+                <div className="mt-6 flex justify-center gap-3">
+                  <button className="bg-white border border-gray-300 text-gray-800 px-3 sm:px- py-2 text-xs sm:text-sm rounded-lg hover:bg-gray-200 transition">
+                    Detalles
+                  </button>
+                  <button className="bg-primary text-white px-3 sm:px-4 py-2 text-xs sm:text-sm rounded-lg hover:bg-orange-600 transition">
+                    Añadir
+                  </button>
+                </div> </div> </div> ))}
+        </section>
+
+
+        {/* VENTA ONLINE Section */}
+        <section
+          className="bg-cover bg-center p-16 rounded-lg shadow-lg text-center flex flex-col items-center"
+          style={{ backgroundImage: `url(${imgFondoVenta})` }}>
+          <h2 className="text-2xl font-semibold text-white">Productos pasteleros de alta calidad</h2>
+          <p className="mt-2 text-white">Programa tu pedido en línea con pago y transporte seguro.</p>
+          <button
+            onClick={() => navigate('/original-home')}
+            className="mt-4 bg-orange-500 text-white px-6 py-3 rounded-lg shadow-md hover:bg-orange-600 transition"
+          >
+            Realizar Pedido
+          </button>
+        </section>
+
+
+        {/* SECCIÓN LUGARES */}
+        <section className="container mx-auto p-2 sm:p-4 flex flex-col items-center pt-6 sm:pt-10">
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 text-center mb-2">
+            Visítanos y disfruta un festín de sabor.
+          </h2>
+          <p className="text-center text-gray-600 mb-6">
+            Cuatro sedes, una sola pasión: brindarte la mejor experiencia.
+          </p>
+          <div className="flex flex-wrap justify-center gap-6">
+            {Lugares.map((lugar, index) => (
+              <div
+                key={index}
+                className="group relative shadow-lg rounded-lg overflow-hidden w-80 h-52 transition-colors duration-300"
+                style={{
+                  backgroundImage: `url(${lugar.img})`,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center'}}>
+                <div className="absolute inset-0 bg-primary group-hover:bg-bottonlugar transition-colors duration-300"></div>
+                <div className="relative flex flex-col items-center justify-center h-full p-2 text-center">
+                  <FaMapMarkerAlt className="text-gray-300 text-2xl mb-2 transition-colors duration-300 group-hover:text-orange-500" />
+                  <h3 className="text-lg font-bold text-white text-center group-hover:hidden">
+                    {lugar.titulo}
+                  </h3>
+                  <p className="hidden group-hover:block text-white text-sm mt-2">
+                    {lugar.descripcion}
+                  </p>
+                  <div className="mt-3">
+                    <button
+                      className="bg-secondaryHome text-white px-4 py-2 text-base rounded-md transition hover:bg-orange-500"
+                      onClick={() => window.open(lugar.url, "_blank")}>
+                      Ver Ubicación </button>
+                  </div> </div> </div>
+            ))}
+          </div>
+        </section>
+      </main>
+
+
+
+    <footer className=" text-gray-700">
+      <div className=" w-full bg-footer flex justify-center items-center">
+  
+    <div className="flex flex-col items-center">
+      <img alt="Logo Artesa" src={Footerico} width="80" className="mb-3"/>
+      <p className="text-black text-center mb-3"> Encuéntranos en nuestras redes sociales. </p>
+      <div className="flex gap-6 mt-2 pb-4">
+        <a href="https://www.instagram.com/artesapanaderia/" className="bg-white p-3 rounded-full shadow hover:bg-gray-200">
+          <FaInstagram size={24} className="text-orange-500 hover:text-primary" />
+        </a>
+        <a href="https://www.tiktok.com/@artesapanaderia" className="bg-white p-3 rounded-full shadow hover:bg-gray-200">
+          <FaTiktok size={24} className="text-orange-500 hover:text-primary" />
+        </a>
+        <a href="https://web.facebook.com/artesapanaderia" className="bg-white p-3 rounded-full shadow hover:bg-gray-200">
+          <FaFacebook size={24} className="text-orange-500 hover:text-primary  " />
+        </a>
+        <a href="https://www.linkedin.com/company/artesa-panaderia/" className="bg-white p-3 rounded-full shadow hover:bg-gray-200">
+          <FaLinkedin size={24} className="text-orange-500 hover:text-primary" />
+        </a>
+      </div>
     </div>
   </div>
 
-  {/* Logo más centrado y con padding ajustado */}
-  <div className="w-1/3 flex justify-center">
-    <img src={imgLogo1} alt="Panadería Logo" className="h-14 md:h-16" />
-  </div>
-
-  {/* Eslogan centrado con más padding lateral */}
-  <div className="w-1/3 flex justify-center">
-    <span className="text-xs md:text-sm text-center">Un mundo de PAN por descubrir</span>
-  </div>
-
-</header>
-
-
-
-
-
-<div className="bg-sky-100 p-6">
-  {/* Navegación centrada en horizontal con más separación */}
-  <nav className="flex justify-center items-center gap-16 text-lg text-white font-semibold">
-    <a href="#productos" className="hover:text-orange-500 transition-colors duration-300">Productos</a>
-    <a href="#blog" className="hover:text-orange-500 transition-colors duration-300">Blog</a>
-    <a href="#contacto" className="hover:text-orange-500 transition-colors duration-300">Contacto</a>
-    <a href='/original-home' className="hover:text-orange-500 transition-colors duration-300">Iniciar sesión</a>
-  </nav>
-</div>
-
-
-      
- {/* Sección publicidad */}
- <section className="bg-white p-10 rounded-lg shadow-lg flex justify-center items-center">
-    <img 
-      src={imgBanner}
-      alt="Imagen destacada" 
-      className="max-w-full h-auto"
-    />
-  </section>
-
-
-
- {/* Sección beneficios */}
- <section className="bg-white rounded-lg shadow-lg flex justify-center items-center">
-    <img 
-      src={imgBanBeneficios}
-      alt="Imagen destacada" 
-      className="max-w-full h-auto"
-    />
-  </section>
-  
-
-{/* Main Content */}
-      <main className="container mx-auto p-6">
-        
-
-      <section className="container mx-auto p-4 sm:p-6 flex flex-nowrap overflow-x-auto snap-x snap-mandatory gap-5 py-8 sm:py-12">
-    {[
-      { 
-        titulo: "Panadería Gourmet", 
-        descripcion: "Pan artesanal con ingredientes frescos y naturales.",
-        estrellas: 5,
-        img: "https://source.unsplash.com/400x400/?bread"
-      },
-      { 
-        titulo: "Repostería Fina", 
-        descripcion: "Postres exquisitos con recetas tradicionales.",
-        estrellas: 5,
-        img: "https://source.unsplash.com/400x400/?cake"
-      },
-      { 
-        titulo: "Pastelería Exclusiva", 
-        descripcion: "Deliciosos pasteles para cada ocasión especial.",
-        estrellas: 5,
-        img: "https://source.unsplash.com/400x400/?pastry"
-      },
-      { 
-        titulo: "Bollería Artesanal", 
-        descripcion: "Bollos y panes con recetas tradicionales de calidad.",
-        estrellas: 5,
-        img: "https://source.unsplash.com/400x400/?bakery"
-      }
-    ].map((producto, index) => (
-      <div 
-        key={index} 
-        className="bg-white shadow-lg rounded-lg overflow-hidden min-w-[28%] sm:min-w-[16%] md:min-w-[11%] transition transform hover:scale-105 flex-shrink-0 snap-center"
-      >
-        
-        {/* Primera Fila: Imagen de Fondo (más alta) */}
-        <div 
-          className="w-full h-48 bg-orange-500 bg-cover bg-center" 
-          style={{ backgroundImage: `url(${producto.img})` }}
-        ></div>
-
-        {/* Segunda Fila: Contenido con más Padding */}
-        <div className="p-5 sm:p-7 text-center">
-          <h3 className="text-xs sm:text-sm font-semibold text-gray-800">{producto.titulo}</h3>
-          <p className="text-gray-600 mt-2 text-xs line-clamp-2">{producto.descripcion}</p>
-
-          {/* Estrellas de valoración */}
-          <div className="flex justify-center mt-3">
-            {[...Array(producto.estrellas)].map((_, i) => (
-              <span key={i} className="text-yellow-500 text-xs sm:text-lg">⭐</span>
-            ))}
-          </div>
-
-          {/* Botones alineados */}
-          <div className="mt-6 flex justify-center gap-3">
-            <button className="bg-white border border-gray-300 text-gray-800 px-3 sm:px-4 py-2 text-xs sm:text-sm rounded-lg hover:bg-gray-200 transition">
-              Detalles
-            </button>
-            <button className="bg-sky-700 text-white px-3 sm:px-4 py-2 text-xs sm:text-sm rounded-lg hover:bg-blue-600 transition">
-              Añadir
-            </button>
-          </div>
-        </div>
-
+  <div className="max-w-7xl mx-auto py-4 px-6 flex flex-col md:flex-row justify-between items-center">
+    <div className="flex flex-row justify-between w-full md:w-2/3 mt-6 md:mt-0">
+      <div className="flex flex-col items-center text-center">
+        <h3 className="font-bold uppercase mb-3">Escríbenos</h3>
+        <ul className="space-y-2 text-gray-600">
+          <li><a href="#">Contacto</a></li>
+          <li><a href="#">Soporte</a></li>
+        </ul>
       </div>
-    ))}
-  </section>
-       
 
-    
-{/* VENTA ONLINE Section */}
-<section className="bg-orange-300 p-8 rounded-lg shadow-lg text-center flex flex-col items-center">
-          <h2 className="text-3xl font-semibold text-black">Productos pasteleros de alta calidad</h2>
-          <p className="mt-2 text-black">Programa tu pedido en línea con transporte seguro y pago confiable.</p>
-          <button
-          onClick={() => navigate('/original-home')} 
-          className="mt-4 bg-orange-500 text-white px-6 py-3 rounded-lg shadow-md hover:bg-orange-600 transition">
-         Realizar Pedido
-        </button>
-        </section>
+      <div className="flex flex-col items-center text-center">
+        <h3 className="font-bold uppercase mb-3">Pedidos</h3>
+        <ul className="space-y-2 text-gray-600">
+          <li><a href="#">Realizar un Pedido</a></li>
+          <li><a href="#">Seguimiento</a></li>
+        </ul>
+      </div>
 
-{/*SECCION LUGARES */}
-    <section className="container mx-auto p-6 flex gap-6 overflow-x-auto md:justify-center flex-nowrap">
-      {[
-        { 
-          titulo: "Lugar 1", 
-          descripcion: "Artesa Panadería Cedritos",
-          mapa: "https://maps.google.com/?q=Lugar+1"
-        },
-        { 
-          titulo: "Lugar 2", 
-          descripcion: "Artesa Panadería Colina",
-          mapa: "https://maps.google.com/?q=Lugar+2"
-        },
-        { 
-          titulo: "Lugar 3", 
-          descripcion: "Artesa Panadería Santa Paula",
-          mapa: "https://maps.google.com/?q=Lugar+3"
-        }
-      ].map((lugar, index) => (
-        <div 
-          key={index} 
-          className="bg-sky-700 text-white shadow-lg rounded-lg w-64 h-64 flex flex-col justify-between p-6 flex-shrink-0"
-        >
-          {/* Título */}
-          <h3 className="text-xl font-bold text-center">{lugar.titulo}</h3>
-
-          {/* Descripción */}
-          <p className="text-center text-sm">{lugar.descripcion}</p>
-
-          {/* Botón de Ver Ubicación */}
-          <div className="flex justify-center">
-            <a 
-              href={lugar.mapa} 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="bg-white text-sky-600 px-4 py-2 text-lg font-semibold rounded-lg border border-white hover:bg-gray-200 transition"
-            >
-              Ver Ubicación
-            </a>
-          </div>
-        </div>
-      ))}
-    </section>
-
-  </main>
-
-  <hr />
-      
-
-
-
-{/* Pie de Página */}
-<footer id="contacto" className="bg-gray-800 text-white p-6 text-center mt-10">
-
-
-{/* Footer */}
-
-<section className="container mx-auto p-6 text-white">
-  
-  {/* Contenedor de la tabla sin encabezado */}
-  <div className="overflow-x-auto">
-    <table className="w-full border-collapse text-left">
-      <tbody>
-        <tr className="align-top">
-          {/* Primera Columna - Color Morado SIN TEXTO */}
-          <td className="p-4 w-1/6 "></td>
-
-          {/* Segunda Columna - Color Gris */}
-          <td className="p-4 w-1/6">
-            <h3 className="text-xl font-semibold">Servicios</h3>
-            <ul className="mt-2 space-y-1">
-              <li>Envíos</li>
-              <li>Pedidos Especiales</li>
-              <li>Facturación</li>
-              <li>Atención al Cliente</li>
-            </ul>
-          </td>
-
-          {/* Columna 3 */}
-          <td className="p-4 w-1/6">
-            <h3 className="text-xl font-semibold">Nosotros</h3>
-            <ul className="mt-2 space-y-1">
-              <li>Historia</li>
-              <li>Equipo</li>
-              <li>Valores</li>
-              <li>Ubicaciones</li>
-            </ul>
-          </td>
-
-          {/* Columna 4 */}
-          <td className="p-4 w-1/6">
-            <h3 className="text-xl font-semibold">Contacto</h3>
-            <ul className="mt-2 space-y-1">
-              <li>Teléfono</li>
-              <li>Email</li>
-              <li>WhatsApp</li>
-              <li>Soporte Técnico</li>
-            </ul>
-          </td>
-
-  
-
-          {/* Columna 5 */}
-          <td className="p-4 w-1/6">
-            <h3 className="text-xl font-semibold">Ubicación</h3>
-            <ul className="mt-2 space-y-1">
-              <li>Bogotá, Colombia</li>
-              <li>Carrera 35 # 17a - 61</li>
-              <li>Código Postal 11001</li>
-              <li>Colombia</li>
-            </ul>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-
-</section>
-  
-
-
-
-  
-  <div className="flex flex-nowrap gap-4 mt-4">
-  <p>Contacto: Carrera 35 # 17a - 61 Bogotá, Colombia</p>
-    <a href="#" className="text-white hover:text-secondary-color">Facebook</a>
-    <a href="#" className="text-white hover:text-secondary-color">Instagram</a>
-    <a href="#" className="text-white hover:text-secondary-color">WhatsApp</a>
-  </div>
+      <div className="flex flex-col items-center text-center">
+        <h3 className="font-bold uppercase mb-3">Cliente</h3>
+        <ul className="space-y-2 text-gray-600">
+          <li><a href="#">Preguntas Frecuentes</a></li>
+          <li><a href="#">Política de Privacidad</a></li>
+        </ul>
+      </div> </div> </div>
+  <div className="bg-white py-4 text-center mt-6">
+    <p className="text-orange-500">© 2025 Artesa - Todos los derechos reservados.</p> </div>
 </footer>
+
+
     </div>
   );
 };
 
 export default Home;
+
