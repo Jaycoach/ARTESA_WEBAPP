@@ -15,6 +15,10 @@ const InvoiceList = ({ filterStatus = 'all' }) => {
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [filterDates, setFilterDates] = useState({ from: '', to: '' });
   const invoicesPerPage = 10;
+  const [showModal, setShowModal] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
+  const [invoiceDetails, setInvoiceDetails] = useState([]);
+  const [loadingDetails, setLoadingDetails] = useState(false);
 
   const fetchInvoices = useCallback(async () => {
     if (!user || !user.id) {
@@ -42,6 +46,29 @@ const InvoiceList = ({ filterStatus = 'all' }) => {
       setIsLoading(false);
     }
   }, [user, filterDates]);
+
+  const fetchInvoiceDetails = async (invoiceId) => {
+    try {
+      setLoadingDetails(true);
+      const response = await API.get(`/orders/invoices/${invoiceId}/details`);
+      if (response.data.success) {
+        setInvoiceDetails(response.data.data);
+      } else {
+        setInvoiceDetails([]);
+      }
+    } catch (err) {
+      console.error('Error al obtener detalles de factura:', err);
+      setInvoiceDetails([]);
+    } finally {
+      setLoadingDetails(false);
+    }
+  };
+
+  const handleViewDetails = (invoice) => {
+    setSelectedInvoice(invoice);
+    setShowModal(true);
+    fetchInvoiceDetails(invoice.invoice_doc_entry);
+  };
 
   useEffect(() => {
     fetchInvoices();
@@ -78,41 +105,41 @@ const InvoiceList = ({ filterStatus = 'all' }) => {
   };
 
   if (isLoading) {
-      return (
-        <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
-          <div className="flex justify-center items-center h-40">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-          </div>
+    return (
+      <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+        <div className="flex justify-center items-center h-40">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
         </div>
-      );
-    }
-  
-    // Si hay un error, mostrar mensaje
-    if (error) {
-      return (
-        <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md" role="alert">
-          <p className="font-medium">Error al cargar las facturas</p>
-          <p>{error}</p>
+      </div>
+    );
+  }
+
+  // Si hay un error, mostrar mensaje
+  if (error) {
+    return (
+      <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md" role="alert">
+        <p className="font-medium">Error al cargar las facturas</p>
+        <p>{error}</p>
+      </div>
+    );
+  }
+
+  // Si no hay pedidos, mostrar mensaje
+  if (invoices.length === 0) {
+    return (
+      <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+        <p className="text-gray-500 text-center p-6">No tienes Facturas registradas.</p>
+        <div className="flex justify-center">
+          <Link
+            to="/dashboard/orders/new"
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+          >
+            Realizar un nuevo pedido
+          </Link>
         </div>
-      );
-    }
-  
-    // Si no hay pedidos, mostrar mensaje
-    if (invoices.length === 0) {
-      return (
-        <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
-          <p className="text-gray-500 text-center p-6">No tienes Facturas registradas.</p>
-          <div className="flex justify-center">
-            <Link
-              to="/dashboard/orders/new"
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
-            >
-              Realizar un nuevo pedido
-            </Link>
-          </div>
-        </div>
-      );
-    }
+      </div>
+    );
+  }
 
   const indexOfLastInvoice = currentPage * invoicesPerPage;
   const indexOfFirstInvoice = indexOfLastInvoice - invoicesPerPage;
@@ -203,10 +230,126 @@ const InvoiceList = ({ filterStatus = 'all' }) => {
                     )}
                   </div>
                 </td>
+                <td className="px-4 py-3 whitespace-nowrap">
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => handleViewDetails(invoice)}
+                      className="text-blue-500 hover:text-blue-700"
+                      title="Ver detalles"
+                    >
+                      <FaEye />
+                    </button>
+                    {invoice.invoice_url ? (
+                      <button
+                        onClick={() => handleDownloadPDF(invoice.invoice_url)}
+                        className="text-red-500 hover:text-red-700"
+                        title="Ver PDF"
+                      >
+                        <FaFilePdf />
+                      </button>
+                    ) : (
+                      <span className="text-gray-400 text-sm">No disponible</span>
+                    )}
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
+        {showModal && selectedInvoice && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold">Detalles de Factura #{selectedInvoice.invoice_doc_num}</h2>
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="text-gray-500 hover:text-gray-700 text-2xl"
+                >
+                  &times;
+                </button>
+              </div>
+
+              <div className="bg-gray-50 p-4 rounded-lg mb-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-500">Cliente</p>
+                    <p className="font-medium">{selectedInvoice.user_name}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Empresa</p>
+                    <p className="font-medium">{selectedInvoice.company_name}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Fecha</p>
+                    <p className="font-medium">{formatDate(selectedInvoice.invoice_date)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Total</p>
+                    <p className="font-medium text-blue-600">${parseFloat(selectedInvoice.invoice_total).toFixed(2)}</p>
+                  </div>
+                </div>
+              </div>
+
+              <h3 className="font-bold mb-2">Líneas de factura</h3>
+
+              {loadingDetails ? (
+                <div className="flex justify-center my-4">
+                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Producto</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Descripción</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Cantidad</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Precio</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Subtotal</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {invoiceDetails.length > 0 ? (
+                        invoiceDetails.map((item, index) => (
+                          <tr key={index} className="hover:bg-gray-50">
+                            <td className="px-4 py-2">{item.item_code}</td>
+                            <td className="px-4 py-2">{item.description}</td>
+                            <td className="px-4 py-2">{item.quantity}</td>
+                            <td className="px-4 py-2">${parseFloat(item.price).toFixed(2)}</td>
+                            <td className="px-4 py-2">${parseFloat(item.line_total).toFixed(2)}</td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan="5" className="px-4 py-2 text-center text-gray-500">
+                            No hay detalles disponibles para esta factura
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <div className="mt-6 flex justify-end">
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 px-4 rounded mr-2"
+                >
+                  Cerrar
+                </button>
+                {selectedInvoice.invoice_url && (
+                  <button
+                    onClick={() => handleDownloadPDF(selectedInvoice.invoice_url)}
+                    className="bg-red-500 hover:bg-red-600 text-white font-medium py-2 px-4 rounded flex items-center"
+                  >
+                    <FaFilePdf className="mr-2" /> Ver PDF
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

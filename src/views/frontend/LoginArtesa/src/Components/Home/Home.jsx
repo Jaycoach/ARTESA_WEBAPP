@@ -27,13 +27,13 @@ const Home = () => {
           <div className="flex flex-col items-center bg-white rounded-lg shadow-lg p-6 transform transition-transform duration-300 hover:scale-105">
             <img
               src={btn_home_1}
-              className="w-32 h-auto mb-4 rounded-md"
+              className="w-[250px] h-auto mb-4 rounded-md"
               alt="Cliente Artesa"
             />
             <h2 className="text-2xl font-semibold text-primary mb-2">¿Eres Cliente?</h2>
             <p className="text-primary mb-4">Ingresa a nuestra página web</p>
             <button
-              className="w-full bg-secondary hover:bg-accent text-white font-semibold py-2 px-4 rounded"
+              className="w-full bg-homePrimary hover:bg-accent text-white hover:text-white font-semibold py-2 px-4 rounded"
               onClick={() => handleNavigation('/')}
             >
               {user ? 'Ir al Home' : 'Acceder como Cliente'}
@@ -43,13 +43,13 @@ const Home = () => {
           <div className="flex flex-col items-center bg-white rounded-lg shadow-lg p-6 transform transition-transform duration-300 hover:scale-105">
             <img
               src={btn_home_2}
-              className="w-32 h-auto mb-4 rounded-md"
+              className="w-[250px] h-auto mb-4 rounded-md"
               alt="Institución Artesa"
             />
             <h2 className="text-2xl font-semibold text-primary mb-2">¿Eres Empresa?</h2>
             <p className="text-primary mb-4">Portal Pedidos Institucional</p>
             <button
-              className="w-full bg-secondary hover:bg-accent text-white font-semibold py-2 px-4 rounded"
+              className="w-full bg-secondaryHome hover:bg-accent text-white font-semibold py-2 px-4 rounded"
               onClick={() => handleNavigation('/login')}
             >
               {user ? 'Ir al Login' : 'Acceder como Empresa'}

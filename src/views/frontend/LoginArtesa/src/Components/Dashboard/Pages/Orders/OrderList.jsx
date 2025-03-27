@@ -11,142 +11,167 @@ const OrderList = () => {
   const [orders, setOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [orderTimeLimit, setOrderTimeLimit] = useState(null);
+  
+  // Para manejar la edición y paginación
   const [editableOrders, setEditableOrders] = useState({});
+  const [currentPage, setCurrentPage] = useState(1);
   const ordersPerPage = 10;
-  const [orderStatuses, setOrderStatuses] = useState({});
-  const [filterDates, setFilterDates] = useState({ from: '', to: '' }); // lo que se aplica al listado
-  const [tempFilterDates, setTempFilterDates] = useState({ from: '', to: '' });
-  const [showFilterPanel, setShowFilterPanel] = useState(false);
 
-  // Cargar configuración de horario límite
+  // Configuración global y estados
+  const [orderTimeLimit, setOrderTimeLimit] = useState(null);
+  const [orderStatuses, setOrderStatuses] = useState({}); // Mapeo ID → Nombre
+
+  // Filtros del panel: Queremos fecha exacta y estado
+  const [filters, setFilters] = useState({ deliveryDate: '', statusId: '' });
+  const [tempFilters, setTempFilters] = useState({ deliveryDate: '', statusId: '' });
+
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const isAdmin = user?.role === 1; // Ajustar si tu backend define '1' como Admin
+
+  // 1. Cargar configuración (orderTimeLimit) y la lista de estados
   useEffect(() => {
-    const fetchSettings = async () => {
+    const fetchSettingsAndStatuses = async () => {
       try {
         // Obtener los estados de pedidos
-        const statusResponse = await API.get('/orders/statuses');
-        if (statusResponse.data.success) {
-          // Convertir el array a un objeto para fácil acceso por ID
+        const statusResp = await API.get('/orders/statuses');
+        if (statusResp.data.success) {
           const statusMap = {};
-          statusResponse.data.data.forEach(status => {
-            statusMap[status.status_id] = status.name;
+          statusResp.data.data.forEach(s => {
+            statusMap[s.status_id] = s.name;
           });
           setOrderStatuses(statusMap);
         }
 
-        // Obtener la configuración del sitio (orderTimeLimit)
-        const siteConfigResponse = await API.get('/admin/settings');
-        if (siteConfigResponse.data && siteConfigResponse.data.success) {
-          setOrderTimeLimit(siteConfigResponse.data.data.orderTimeLimit || '18:00');
+        // Configuración sitio (para orderTimeLimit)
+        const configResp = await API.get('/admin/settings');
+        if (configResp.data?.success) {
+          setOrderTimeLimit(configResp.data.data.orderTimeLimit || '18:00');
         }
-      } catch (error) {
-        console.error('Error fetching settings:', error);
+      } catch (err) {
+        console.error('Error fetching settings:', err);
       }
     };
-
-    fetchSettings();
+    fetchSettingsAndStatuses();
   }, []);
 
+  // 2. Función principal para cargar las órdenes según rol y filtros
   const fetchOrders = useCallback(async () => {
-    if (!user || !user.id) {
+    if (!user?.id) {
       setError('Usuario no identificado');
       setIsLoading(false);
       return;
     }
 
+    setIsLoading(true);
+    setError(null);
+
     try {
-      setIsLoading(true);
-      setError(null);
-      const data = await orderService.getUserOrders(user.id);
-      // Creamos la fecha límite (hoy - 15 días)
-      const now = new Date();
-      const last15Days = new Date();
-      last15Days.setDate(now.getDate() - 15);
+      let data = [];
 
-      // Filtrar órdenes con status_id 6 (Cancelado/Cerrado)
-      const filtered = data.filter(order => {
-        const statusValid =
-          order.status_id !== 6 &&
-          !['cancelado', 'canceled', 'cerrado'].includes(order.status?.toLowerCase());
+      if (isAdmin) {
+  // Órdenes del usuario admin
+  const userOrders = await orderService.getUserOrders(user.id);
 
-        const deliveryDate = new Date(order.delivery_date);
-        if (isNaN(deliveryDate.getTime())) return false;
+  // Órdenes del día actual
+  const todayISO = new Date().toISOString().split('T')[0];
+  const todayOrders = await orderService.getOrdersByDeliveryDate(todayISO);
 
-        if (filterDates.from && filterDates.to) {
-          const from = new Date(filterDates.from);
-          const to = new Date(filterDates.to);
-          return statusValid && deliveryDate >= from && deliveryDate <= to;
-        }
+  // 1) Unimos ambos arreglos
+  const combined = [...userOrders, ...todayOrders];
 
-        return statusValid && deliveryDate >= last15Days;
+  // 2) Eliminamos duplicados usando un Map
+  const uniqueMap = new Map();
+  for (const o of combined) {
+    uniqueMap.set(o.order_id, o);
+  }
+  // 3) data final sin duplicados
+  data = Array.from(uniqueMap.values());
+
+} else {
+  // Usuario normal: solo sus órdenes
+  data = await orderService.getUserOrders(user.id);
+}
+
+      // Filtramos las órdenes por estados "activos" (no canceladas ni cerradas):
+      const active = data.filter(o => {
+        const invalidStates = [6]; // 6 => Cancelado
+        if (invalidStates.includes(o.status_id)) return false;
+        if (['cancelado', 'canceled', 'cerrado'].includes(o.status?.toLowerCase())) return false;
+        return true;
       });
 
-      setOrders(filtered);
+      setOrders(active);
 
-      // Comprobar cuáles pedidos pueden ser editados
-      const editableMap = {};
-      for (const order of filtered) {
+      // Comprobamos cuáles pedidos son editables
+      const editMap = {};
+      for (const order of active) {
         const check = await orderService.canEditOrder(order.order_id, orderTimeLimit);
-        editableMap[order.order_id] = check.canEdit;
+        editMap[order.order_id] = check.canEdit;
       }
-      setEditableOrders(editableMap);
+      setEditableOrders(editMap);
+
     } catch (err) {
       console.error('Error fetching orders:', err);
       setError(err.message || 'Error al cargar los pedidos');
     } finally {
       setIsLoading(false);
     }
-  }, [user, orderTimeLimit, filterDates]);
+  }, [user, isAdmin, filters, orderTimeLimit]);
 
-  // Usar la función definida en el useEffect
+  // 3. useEffect para cargar órdenes al montar o cambiar dependencias
   useEffect(() => {
     fetchOrders();
-  }, [fetchOrders]); // Incluye fetchOrders en el array de dependencias
+  }, [fetchOrders]);
 
+  // Cancelar pedido
   const handleCancelOrder = async (orderId) => {
-    if (!window.confirm('¿Estás seguro que deseas cancelar este pedido?')) {
-      return;
-    }
-
+    if (!window.confirm('¿Estás seguro que deseas cancelar este pedido?')) return;
     try {
-      // Corrección: Usar el método PUT y la ruta completa con /api
       const response = await API.put(`/orders/${orderId}/cancel`);
       if (response.data.success) {
-        // Ahora fetchOrders está disponible aquí
         fetchOrders();
       } else {
         alert('Error al cancelar el pedido: ' + response.data.message);
       }
-    } catch (error) {
-      console.error('Error cancelando orden:', error);
+    } catch (err) {
+      console.error('Error cancelando orden:', err);
       alert('Error al cancelar el pedido');
     }
   };
 
-  // Función para formatear la fecha
-  const formatDate = (dateString) => {
-    if (!dateString) return 'Fecha no disponible';
-
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return 'Fecha inválida';
-
+  // Helpers
+  const formatDate = (dateStr) => {
+    if (!dateStr) return 'Fecha no disponible';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return 'Fecha inválida';
     return new Intl.DateTimeFormat('es-CO', {
       year: 'numeric',
       month: '2-digit',
-      day: '2-digit'
-    }).format(date);
+      day: '2-digit',
+    }).format(d);
   };
 
+  // Paginación
   const indexOfLastOrder = currentPage * ordersPerPage;
   const indexOfFirstOrder = indexOfLastOrder - ordersPerPage;
   const currentOrders = orders.slice(indexOfFirstOrder, indexOfLastOrder);
-  const paginate = (pageNumber) => setCurrentPage(pageNumber);
+  const paginate = (page) => setCurrentPage(page);
 
-  // Si están cargando los pedidos, mostrar indicador
+  // 4. Manejo del panel de filtros (fecha + estado)
+  const handleFilterChange = (e) => {
+    const { name, value } = e.target;
+    setTempFilters((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const applyFilters = () => {
+    setFilters(tempFilters);
+    setShowFilterPanel(false);
+  };
+
+  // Renderizado condicional
   if (isLoading) {
     return (
-      <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+      <div className="bg-white p-6 rounded-lg border shadow-sm">
         <div className="flex justify-center items-center h-40">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
         </div>
@@ -154,25 +179,23 @@ const OrderList = () => {
     );
   }
 
-  // Si hay un error, mostrar mensaje
   if (error) {
     return (
-      <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md" role="alert">
+      <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md">
         <p className="font-medium">Error al cargar los pedidos</p>
         <p>{error}</p>
       </div>
     );
   }
 
-  // Si no hay pedidos, mostrar mensaje
   if (orders.length === 0) {
     return (
-      <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+      <div className="bg-white p-6 rounded-lg border shadow-sm">
         <p className="text-gray-500 text-center p-6">No tienes pedidos registrados.</p>
         <div className="flex justify-center">
           <Link
             to="/dashboard/orders/new"
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+            className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
           >
             Realizar un nuevo pedido
           </Link>
@@ -180,49 +203,40 @@ const OrderList = () => {
       </div>
     );
   }
-  const handleTempFilterChange = (e) => {
-    setTempFilterDates({ ...tempFilterDates, [e.target.name]: e.target.value });
-  };
 
-  const applyFilters = () => {
-    setFilterDates(tempFilterDates);
-  };
-
-  const handleToggleFilterPanel = () => {
-    setShowFilterPanel(!showFilterPanel);
-  };
-
-
+  // 5. Render principal
   return (
-    <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+    <div className="bg-white p-6 rounded-lg border shadow-sm">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-semibold text-gray-800">Mis Pedidos</h2>
+        
         <div className="flex gap-2 items-center">
           <button
-            onClick={handleToggleFilterPanel}
+            onClick={() => setShowFilterPanel(!showFilterPanel)}
             className="px-4 py-2 bg-gray-100 text-sm rounded hover:bg-gray-200"
           >
             {showFilterPanel ? 'Ocultar Filtros' : 'Mostrar Filtros'}
           </button>
           <Link
             to="/dashboard/orders/new"
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+            className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
           >
             Nuevo Pedido
           </Link>
         </div>
       </div>
+
+      {/* Filtros: fecha y estado */}
       {showFilterPanel && (
         <div
           className="fixed inset-0 z-50 bg-black bg-opacity-40 flex justify-end"
-          onClick={() => setShowFilterPanel(false)} // Cierra al hacer clic afuera
+          onClick={() => setShowFilterPanel(false)}
         >
           <div
             className="w-full max-w-sm h-full bg-white shadow-xl p-6 pt-4 relative"
             style={{ marginTop: '110px' }}
-            onClick={(e) => e.stopPropagation()} // Evita que el clic dentro cierre el drawer
+            onClick={(e) => e.stopPropagation()}
           >
-            {/* Botón cerrar */}
             <button
               onClick={() => setShowFilterPanel(false)}
               className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 z-50"
@@ -230,106 +244,104 @@ const OrderList = () => {
               ✕
             </button>
 
-            <h2 className="text-lg font-semibold text-gray-800 mb-6">Filtros</h2>
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">Filtrar pedidos</h2>
 
             <div className="space-y-4">
+              {/* Fecha exacta */}
               <div>
-                <label className="block text-sm font-medium text-gray-700">Desde</label>
+                <label className="block text-sm font-medium text-gray-700">Fecha de entrega</label>
                 <input
                   type="date"
-                  name="from"
-                  value={tempFilterDates.from}
-                  onChange={handleTempFilterChange}
+                  name="deliveryDate"
+                  value={tempFilters.deliveryDate}
+                  onChange={handleFilterChange}
                   className="w-full border px-3 py-2 rounded-md mt-1"
                 />
               </div>
 
+              {/* Estado */}
               <div>
-                <label className="block text-sm font-medium text-gray-700">Hasta</label>
-                <input
-                  type="date"
-                  name="to"
-                  value={tempFilterDates.to}
-                  onChange={handleTempFilterChange}
+                <label className="block text-sm font-medium text-gray-700">Estado</label>
+                <select
+                  name="statusId"
+                  value={tempFilters.statusId}
+                  onChange={handleFilterChange}
                   className="w-full border px-3 py-2 rounded-md mt-1"
-                />
+                >
+                  <option value="">-- Todos --</option>
+                  {/* Mapeamos los estados disponibles */}
+                  {Object.entries(orderStatuses).map(([id, name]) => (
+                    <option key={id} value={id}>
+                      {`${id} - ${name}`}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
             <div className="mt-6 flex justify-end">
               <button
-                onClick={() => {
-                  applyFilters();
-                  setShowFilterPanel(false);
-                }}
+                onClick={applyFilters}
                 className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
               >
-                Aplicar Filtros
+                Aplicar
               </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* Tabla de pedidos */}
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                ID
-              </th>
-              <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Fecha
-              </th>
-              <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Entrega
-              </th>
-              <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Productos
-              </th>
-              <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Total
-              </th>
-              <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Estado
-              </th>
-              <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Acciones
-              </th>
+              <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase text-center">ID</th>
+              {isAdmin && (
+                <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase text-center">Usuario</th>
+              )}
+              <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase text-center">Fecha</th>
+              <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase text-center">Entrega</th>
+              <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase text-center">Productos</th>
+              <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase text-center">Total</th>
+              <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase text-center">Estado</th>
+              <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase text-center">Acciones</th>
             </tr>
           </thead>
+
           <tbody className="bg-white divide-y divide-gray-200">
             {currentOrders.map((order) => (
               <tr key={order.order_id} className="hover:bg-gray-50">
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                  #{order.order_id}
+                <td className="px-5 py-5 border-b text-sm text-blue-600 font-bold text-center">
+                  <Link to={`/dashboard/orders/${order.order_id}`}>#{order.order_id}</Link>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+
+                {isAdmin && (
+                  <td className="px-6 py-4 border-b text-sm text-gray-500 text-center">
+                    {order.user_name || order.user_email}
+                  </td>
+                )}
+
+                <td className="px-6 py-4 border-b text-sm text-gray-500 text-center">
                   {formatDate(order.order_date)}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                <td className="px-6 py-4 border-b text-sm text-gray-500 text-center">
                   {formatDate(order.delivery_date)}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                <td className="px-6 py-4 border-b text-sm text-gray-500 text-center">
                   {order.item_count || 0} productos ({order.total_items || 0} unidades)
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right font-semibold">
+                <td className="px-6 py-4 border-b text-sm text-gray-900 text-right font-semibold">
                   ${parseFloat(order.total_amount).toFixed(2)}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-center">
+                <td className="px-6 py-4 border-b text-sm text-center">
                   <OrderStatusBadge status={orderStatuses[order.status_id] || order.status || 'pendiente'} />
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
-                  <div className="flex justify-center space-x-2">
+                <td className="px-6 py-4 border-b text-sm font-medium text-center">
+                  <div className="flex justify-center items-center space-x-2">
                     <Link
-                      to={order.order_id ? `/dashboard/orders/${order.order_id}` : '#'}
-                      className={`text-indigo-600 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 px-3 py-1 rounded-md flex items-center ${!order.order_id ? 'opacity-50 pointer-events-none' : ''}`}
-                      title="Ver detalles"
-                      onClick={(e) => {
-                        if (!order.order_id) {
-                          e.preventDefault();
-                          alert('ID de orden no disponible');
-                        }
-                      }}
+                      to={`/dashboard/orders/${order.order_id}`}
+                      className="bg-indigo-50 hover:bg-indigo-100 px-3 py-1 text-indigo-600 rounded flex items-center"
                     >
                       <FaEye className="mr-1" />
                       <span className="hidden sm:inline">Ver</span>
@@ -338,29 +350,24 @@ const OrderList = () => {
                     {editableOrders[order.order_id] ? (
                       <Link
                         to={`/dashboard/orders/${order.order_id}/edit`}
-                        className="text-blue-600 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-3 py-1 rounded-md flex items-center"
-                        title="Editar pedido"
+                        className="bg-blue-50 hover:bg-blue-100 px-3 py-1 text-blue-600 rounded flex items-center"
                       >
                         <FaEdit className="mr-1" />
                         <span className="hidden sm:inline">Editar</span>
                       </Link>
                     ) : (
-                      <span
-                        className="text-gray-400 bg-gray-100 px-3 py-1 rounded-md flex items-center cursor-not-allowed"
-                        title={`No se puede editar este pedido (${['completado', 'completed', 'entregado', 'delivered', 'cancelado', 'canceled'].includes(order.status?.toLowerCase()) || ['3', '4', '5'].includes(order.status_id?.toString()) ? 'Estado: ' + order.status : 'Fuera de horario de edición'}`}
-                      >
+                      <span className="text-gray-400 bg-gray-100 px-3 py-1 rounded flex items-center cursor-not-allowed">
                         <FaExclamationTriangle className="mr-1 text-yellow-500" />
                         <span className="hidden sm:inline">No editable</span>
                       </span>
                     )}
 
-                    {/* Botón de cancelar pedido */}
+                    {/* Botón cancelar */}
                     {!['cancelado', 'canceled'].includes(order.status?.toLowerCase()) &&
                       !['3', '4', '5', '7', '8'].includes(order.status_id?.toString()) && (
                         <button
                           onClick={() => handleCancelOrder(order.order_id)}
-                          className="text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 px-3 py-1 rounded-md flex items-center"
-                          title="Cancelar pedido"
+                          className="text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 px-3 py-1 rounded flex items-center"
                         >
                           <FaTrashAlt className="mr-1" />
                           <span className="hidden sm:inline">Cancelar</span>
@@ -381,58 +388,57 @@ const OrderList = () => {
             <button
               onClick={() => paginate(currentPage > 1 ? currentPage - 1 : 1)}
               disabled={currentPage === 1}
-              className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+              className="px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 disabled:opacity-50"
             >
               <span className="sr-only">Anterior</span>
-              <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+              <svg className="h-5 w-5" fill="currentColor">
+                <path d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" />
               </svg>
             </button>
 
-            {[...Array(Math.ceil(orders.length / ordersPerPage)).keys()].map(number => (
+            {[...Array(Math.ceil(orders.length / ordersPerPage)).keys()].map(num => (
               <button
-                key={number + 1}
-                onClick={() => paginate(number + 1)}
-                className={`relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium ${currentPage === number + 1
-                  ? 'z-10 bg-indigo-50 border-indigo-500 text-indigo-600'
-                  : 'text-gray-700 hover:bg-gray-50'
-                  }`}
+                key={num + 1}
+                onClick={() => paginate(num + 1)}
+                className={`px-4 py-2 border border-gray-300 bg-white text-sm font-medium ${
+                  currentPage === num + 1
+                    ? 'z-10 bg-indigo-50 border-indigo-500 text-indigo-600'
+                    : 'text-gray-700 hover:bg-gray-50'
+                }`}
               >
-                {number + 1}
+                {num + 1}
               </button>
             ))}
 
             <button
               onClick={() => paginate(currentPage < Math.ceil(orders.length / ordersPerPage) ? currentPage + 1 : currentPage)}
               disabled={currentPage === Math.ceil(orders.length / ordersPerPage)}
-              className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+              className="px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 disabled:opacity-50"
             >
               <span className="sr-only">Siguiente</span>
-              <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+              <svg className="h-5 w-5" fill="currentColor">
+                <path d="M7.293 14.707a1 1 0 010-1.414L10.586 10l-3.293-3.293a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" />
               </svg>
             </button>
           </nav>
         </div>
       )}
 
-      {/* Mensaje informativo sobre edición de pedidos */}
+      {/* Mensaje informativo de edición */}
       <div className="mt-6 bg-blue-50 rounded-lg p-4 border border-blue-200">
         <div className="flex items-start">
           <div className="flex-shrink-0">
-            <svg className="h-5 w-5 text-blue-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+            <svg className="h-5 w-5 text-blue-400" fill="currentColor">
+              <path d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" />
             </svg>
           </div>
-          <div className="ml-3">
-            <h3 className="text-sm font-medium text-blue-800">Información sobre edición de pedidos</h3>
-            <div className="mt-2 text-sm text-blue-700">
-              <p>
-                Solo puedes editar pedidos en estado "Abierto" y antes de las {orderTimeLimit} dos días antes de la fecha de entrega.
-                <br />
-                Si necesitas modificar un pedido fuera de este tiempo, contacta con nuestro servicio de atención al cliente.
-              </p>
-            </div>
+          <div className="ml-3 text-sm text-blue-700">
+            <h3 className="font-medium text-blue-800">Información sobre edición de pedidos</h3>
+            <p className="mt-2">
+              Solo puedes editar pedidos en estado "Abierto" y antes de las {orderTimeLimit}, dos días antes de la fecha
+              de entrega.
+            </p>
+            <p className="mt-1">Si necesitas modificar un pedido fuera de este tiempo, contacta a atención al cliente.</p>
           </div>
         </div>
       </div>

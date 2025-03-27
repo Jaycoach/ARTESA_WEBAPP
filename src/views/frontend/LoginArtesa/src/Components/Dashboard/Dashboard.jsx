@@ -11,13 +11,14 @@ import Button from "../ui/Button";
 import Card from "../ui/Card";
 import QuickAccess from "./QuickAccess";
 import StatsChart from "./StatsChart";
-import API from "../../api/config"; // Asegúrate que apunta bien
+import API from "../../api/config";
 
+// Reutilizamos tu SummaryCard
 const SummaryCard = ({ title, value, icon, color, link }) => (
   <Link to={link}>
     <Card className="flex items-center justify-between p-5 rounded-xl shadow-sm border hover:shadow-md transition-shadow">
       <div className="flex items-center gap-4">
-        <div className={`p-3 rounded-full`} style={{ backgroundColor: `${color}20`, color }}>
+        <div className="p-3 rounded-full" style={{ backgroundColor: `${color}20`, color }}>
           {icon}
         </div>
         <span className="text-gray-700 font-medium">{title}</span>
@@ -32,13 +33,19 @@ const Dashboard = () => {
   const [showProfile, setShowProfile] = useState(false);
   const [userName, setUserName] = useState('');
   const [darkMode, setDarkMode] = useState(false);
+
+  // Para las tarjetas
   const [stats, setStats] = useState({
     totalOrders: 0,
     totalProducts: 0,
     totalInvoices: 0
   });
 
+  // Aquí guardamos los pedidos del usuario
+  const [userOrders, setUserOrders] = useState([]);
+
   useEffect(() => {
+    // Cargamos el usuario logueado desde localStorage
     const userInfo = JSON.parse(localStorage.getItem('user') || '{}');
     setUser(userInfo);
     setUserName(userInfo.nombre || userInfo.name || 'Usuario');
@@ -47,25 +54,37 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchStats = async () => {
       try {
+        if (!user || !user.id) return;
+        const userId = user.id;
+
+        // Obtenemos pedidos, productos y facturas del usuario
         const [ordersRes, productsRes, invoicesRes] = await Promise.all([
-          API.get('/orders/user'),         // Total pedidos del usuario
-          API.get('/products'),            // Todos los productos disponibles
-          API.get('/invoices/user')        // Facturas del usuario
+          API.get(`/orders/user/${userId}`),
+          API.get('/products'),
+          API.get(`/orders/invoices?userId=${userId}`)
         ]);
 
-        setStats({
-          totalOrders: ordersRes?.data?.data?.length || 0,
-          totalProducts: productsRes?.data?.data?.length || 0,
-          totalInvoices: invoicesRes?.data?.data?.length || 0
-        });
+        // Extraemos la data
+        const ordersData = ordersRes?.data?.data || [];
+        const productsData = productsRes?.data?.data || [];
+        const invoicesData = invoicesRes?.data?.data || [];
 
+        // Guardamos todos los pedidos en userOrders
+        setUserOrders(ordersData);
+
+        // Para las tarjetas
+        setStats({
+          totalOrders: ordersData.length,
+          totalProducts: productsData.length,
+          totalInvoices: invoicesData.length
+        });
       } catch (error) {
         console.error("Error obteniendo estadísticas del dashboard:", error);
       }
     };
 
     fetchStats();
-  }, []);
+  }, [user]);
 
   return (
     <div className="w-full h-full">
@@ -104,7 +123,7 @@ const Dashboard = () => {
             link="/dashboard/invoices"
           />
           <SummaryCard
-            title="Configuración del Sistema"
+            title="Configuración"
             value=""
             icon={<FaCog />}
             color="#6c5ce7"
@@ -113,7 +132,9 @@ const Dashboard = () => {
         </div>
 
         <QuickAccess />
-        <StatsChart />
+
+        {/* Gráfico de barras con los pedidos reales del usuario */}
+        <StatsChart orders={userOrders} />
       </div>
     </div>
   );
