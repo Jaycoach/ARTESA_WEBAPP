@@ -737,6 +737,27 @@ class ClientProfileController {
       });
     }
 
+    // Verificar si el NIT ya existe en la base de datos
+    if (clientData.nit_number) {
+      const nitCheck = await ClientProfile.nitExists(clientData.nit_number);
+      if (nitCheck.exists) {
+        logger.warn('Intento de crear perfil con NIT duplicado', {
+          nit_number: clientData.nit_number,
+          existingClientId: nitCheck.clientId,
+          existingUserId: nitCheck.userId
+        });
+        
+        return res.status(400).json({
+          success: false,
+          message: 'El NIT ya está registrado en el sistema',
+          data: {
+            duplicateNIT: true,
+            nitNumber: clientData.nit_number
+          }
+        });
+      }
+    }
+
     // Calcular tax_id a partir de nit_number y verification_digit
     if (clientData.nit_number && clientData.verification_digit) {
       clientData.nit = `${clientData.nit_number}-${clientData.verification_digit}`;
@@ -1096,6 +1117,62 @@ class ClientProfileController {
           success: false,
           message: 'Si proporciona el NIT, debe incluir también el dígito de verificación y viceversa'
         });
+      }
+
+      // Si se está actualizando el NIT, verificar que no exista duplicado
+      if (updateData.nit_number) {
+        const nitCheck = await ClientProfile.nitExists(updateData.nit_number, userId);
+        if (nitCheck.exists) {
+          logger.warn('Intento de actualizar perfil con NIT duplicado', {
+            nit_number: updateData.nit_number,
+            userId,
+            existingClientId: nitCheck.clientId,
+            existingUserId: nitCheck.userId
+          });
+          
+          return res.status(400).json({
+            success: false,
+            message: 'El NIT ya está registrado para otro usuario en el sistema',
+            data: {
+              duplicateNIT: true,
+              nitNumber: updateData.nit_number
+            }
+          });
+        }
+      }
+
+      // Verificar si el NIT ya existe en SAP
+      if (clientData.nit_number && clientData.verification_digit) {
+        try {
+          const sapServiceManager = require('../services/SapServiceManager');
+          
+          // Asegurar que el servicio está inicializado
+          if (!sapServiceManager.initialized) {
+            await sapServiceManager.initialize();
+          }
+          
+          // Verificar en SAP
+          const sapCheck = await sapServiceManager.clientService.nitExistsInSAP(
+            clientData.nit_number,
+            clientData.verification_digit
+          );
+          
+          if (sapCheck.exists) {
+            logger.info('NIT ya existe en SAP, utilizando código SAP existente', {
+              nit_number: clientData.nit_number,
+              cardCode: sapCheck.cardCode
+            });
+            
+            // Pre-asignar el código SAP existente
+            clientData.cardcode_sap = sapCheck.cardCode;
+          }
+        } catch (sapError) {
+          // No fallamos la creación si hay error en la verificación SAP, solo lo registramos
+          logger.warn('Error al verificar NIT en SAP', {
+            error: sapError.message,
+            nit_number: clientData.nit_number
+          });
+        }
       }
       
       // Extraer datos de la solicitud

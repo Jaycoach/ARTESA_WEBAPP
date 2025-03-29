@@ -254,7 +254,7 @@ class SapClientService extends SapBaseService {
       });
       
       // Crear CardCode único con formato requerido
-      const cardCode = clientProfile.cardcode_sap || `C${clientProfile.nit_number}`;
+      const cardCode = clientProfile.cardcode_sap || `CI${clientProfile.nit_number}`;
 
       // Validar requisitos mínimos
       if (!clientProfile.nit_number || clientProfile.verification_digit === undefined) {
@@ -703,7 +703,7 @@ class SapClientService extends SapBaseService {
 
           // Si todavía no se encontró, intentar generando un código a partir del NIT
           if (!sapClient && profile.nit_number) {
-            const generatedCode = `C${profile.nit_number}`;
+            const generatedCode = `CI${profile.nit_number}`;
             if (generatedCode !== profile.cardcode_sap && generatedCode !== profile.clientprofilecode_sap) {
               sapClient = await this.getBusinessPartnerByAnyCode(generatedCode);
             }
