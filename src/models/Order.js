@@ -853,6 +853,7 @@ class Order {
    * @param {number} options.limit - Número máximo de productos a retornar (por defecto 5)
    * @param {Date} options.startDate - Fecha de inicio del período
    * @param {Date} options.endDate - Fecha de fin del período
+   * @param {number} options.userId - ID del usuario para filtrar (opcional)
    * @returns {Promise<Array<Object>>} - Lista de productos más vendidos
    * @throws {Error} Si ocurre un error en la consulta
    */
@@ -861,20 +862,23 @@ class Order {
       const { 
         limit = 5, 
         startDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1), 
-        endDate = new Date() 
+        endDate = new Date(),
+        userId = null
       } = options;
       
       logger.debug('Obteniendo productos más vendidos', { 
         limit, 
         startDate, 
-        endDate 
+        endDate,
+        userId 
       });
       
       // Convertir fechas a formato ISO para la consulta
       const formattedStartDate = startDate instanceof Date ? startDate.toISOString() : startDate;
       const formattedEndDate = endDate instanceof Date ? endDate.toISOString() : endDate;
       
-      const query = `
+      // Preparar la consulta base
+      let query = `
         SELECT 
           p.product_id,
           p.name AS product_name,
@@ -889,18 +893,33 @@ class Order {
         WHERE 
           o.order_date BETWEEN $1 AND $2
           AND o.status_id NOT IN (6) -- Excluir órdenes canceladas
+      `;
+      
+      const params = [formattedStartDate, formattedEndDate];
+      
+      // Añadir filtro por usuario si se proporciona
+      if (userId) {
+        query += ` AND o.user_id = $3`;
+        params.push(userId);
+      }
+      
+      // Finalizar la consulta con agrupación, ordenación y límite
+      query += `
         GROUP BY 
           p.product_id, p.name
         ORDER BY 
           quantity DESC
-        LIMIT $3
+        LIMIT $${params.length + 1}
       `;
       
-      const { rows } = await pool.query(query, [formattedStartDate, formattedEndDate, limit]);
+      params.push(limit);
+      
+      const { rows } = await pool.query(query, params);
       
       logger.info('Productos más vendidos recuperados exitosamente', { 
         count: rows.length,
-        period: `${formattedStartDate} a ${formattedEndDate}`
+        period: `${formattedStartDate} a ${formattedEndDate}`,
+        userId: userId ? userId : 'todos'
       });
       
       return rows;

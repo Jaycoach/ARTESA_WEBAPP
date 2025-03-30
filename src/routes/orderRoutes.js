@@ -202,9 +202,11 @@ router.get('/orders/invoices', verifyToken, getInvoicesByUser);
  * @param {integer} limit.query - Número máximo de productos a retornar (por defecto 5)
  * @param {string} startDate.query - Fecha de inicio del período (formato YYYY-MM-DD)
  * @param {string} endDate.query - Fecha de fin del período (formato YYYY-MM-DD)
+ * @param {integer} userId.query - ID del usuario para filtrar (opcional)
  * @security bearerAuth
  * @returns {object} 200 - Lista de productos más vendidos recuperada exitosamente
  * @returns {object} 401 - No autorizado
+ * @returns {object} 403 - No tiene permisos para ver datos de otro usuario
  * @returns {object} 500 - Error interno del servidor
  */
 router.get('/orders/top-products', verifyToken, getTopSellingProducts);

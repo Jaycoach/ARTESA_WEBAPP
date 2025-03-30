@@ -2009,7 +2009,7 @@ const getInvoicesByUser = async (req, res) => {
  * /api/orders/top-products:
  *   get:
  *     summary: Obtener productos más vendidos
- *     description: Recupera los productos más vendidos en un período de tiempo
+ *     description: Recupera los productos más vendidos en un período de tiempo, opcionalmente filtrados por usuario
  *     tags: [Orders]
  *     security:
  *       - bearerAuth: []
@@ -2032,6 +2032,11 @@ const getInvoicesByUser = async (req, res) => {
  *           type: string
  *           format: date
  *         description: Fecha de fin del período (formato YYYY-MM-DD)
+ *       - in: query
+ *         name: userId
+ *         schema:
+ *           type: integer
+ *         description: ID del usuario para filtrar compras (opcional)
  *     responses:
  *       200:
  *         description: Lista de productos más vendidos recuperada exitosamente
@@ -2067,13 +2072,14 @@ const getInvoicesByUser = async (req, res) => {
  */
 const getTopSellingProducts = async (req, res) => {
   try {
-    const { limit, startDate, endDate } = req.query;
+    const { limit, startDate, endDate, userId } = req.query;
     
     logger.debug('Solicitando productos más vendidos', { 
       limit, 
       startDate, 
-      endDate, 
-      userId: req.user?.id 
+      endDate,
+      userId,
+      requestingUserId: req.user?.id 
     });
     
     // Convertir parámetros a los tipos correctos
@@ -2105,6 +2111,38 @@ const getTopSellingProducts = async (req, res) => {
       // Establecer la hora al final del día para incluir todas las órdenes de esa fecha
       parsedEndDate.setHours(23, 59, 59, 999);
       options.endDate = parsedEndDate;
+    }
+    
+    // Procesar userId si se proporciona
+    if (userId) {
+      const parsedUserId = parseInt(userId);
+      if (isNaN(parsedUserId)) {
+        return res.status(400).json({
+          success: false,
+          message: 'userId debe ser un número entero válido'
+        });
+      }
+      
+      // Verificar permisos - Un usuario normal solo puede ver sus propios datos
+      if (req.user.rol_id !== 1 && parsedUserId !== req.user.id) {
+        logger.warn('Intento de acceso no autorizado a datos de otro usuario', {
+          requestedUserId: parsedUserId,
+          requestingUserId: req.user.id,
+          requestingUserRole: req.user.rol_id
+        });
+        
+        return res.status(403).json({
+          success: false,
+          message: 'No tiene permisos para ver datos de otro usuario'
+        });
+      }
+      
+      options.userId = parsedUserId;
+    }
+    
+    // Si el usuario no es administrador y no se especificó un userId, usar el del usuario actual
+    if (req.user.rol_id !== 1 && !userId) {
+      options.userId = req.user.id;
     }
     
     // Obtener productos más vendidos
