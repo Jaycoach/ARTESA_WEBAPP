@@ -419,6 +419,56 @@ class SapClientService extends SapBaseService {
   }
 
   /**
+   * Verifica si un NIT ya existe en SAP
+   * @param {string} nitNumber - Número de NIT sin DV
+   * @param {string} verificationDigit - Dígito de verificación
+   * @returns {Promise<{exists: boolean, cardCode: string|null}>} - Resultado de la verificación
+   */
+  async nitExistsInSAP(nitNumber, verificationDigit) {
+    try {
+      this.logger.debug('Verificando si NIT existe en SAP', { 
+        nitNumber, 
+        verificationDigit 
+      });
+      
+      // Construir el FederalTaxID con el formato correcto
+      const federalTaxID = `${nitNumber}-${verificationDigit}`;
+      
+      // Construir la consulta para buscar por FederalTaxID
+      const endpoint = `BusinessPartners?$filter=FederalTaxID eq '${federalTaxID}'`;
+      
+      // Realizar la consulta a SAP
+      const result = await this.request('GET', endpoint);
+      
+      // Si no hay resultado o no hay valores, el NIT no existe
+      if (!result || !result.value || result.value.length === 0) {
+        return { exists: false, cardCode: null };
+      }
+      
+      // El NIT existe, devolver el CardCode del primer resultado
+      const cardCode = result.value[0].CardCode;
+      
+      this.logger.info('NIT encontrado en SAP', {
+        nitNumber,
+        verificationDigit,
+        federalTaxID,
+        cardCode
+      });
+      
+      return { exists: true, cardCode };
+    } catch (error) {
+      this.logger.error('Error al verificar NIT en SAP', {
+        error: error.message,
+        nitNumber,
+        stack: error.stack
+      });
+      
+      // Si hay un error, asumimos que no existe (mejor ser conservador)
+      return { exists: false, cardCode: null };
+    }
+  }
+
+  /**
    * Procesa el FederalTaxID para extraer nit_number y verification_digit
    * @param {string} federalTaxID - Valor de FederalTaxID desde SAP (formato: "123456789-0")
    * @returns {Object} - Objeto con tax_id, nit_number y verification_digit

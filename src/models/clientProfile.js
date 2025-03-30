@@ -278,7 +278,7 @@ static async create(clientData) {
     // Generar clientprofilecode_sap si tenemos nit_number
     let clientProfileCode = null;
     if (clientData.nit_number) {
-      clientProfileCode = `C${clientData.nit_number}`;
+      clientProfileCode = `CI${clientData.nit_number}`;
     }
 
     // Extraer todos los demás campos para almacenarlos como JSON en notes
@@ -425,7 +425,7 @@ static async create(clientData) {
       // Generar clientprofilecode_sap si tenemos nit_number
       let clientProfileCode = null;
       if (nit_number) {
-        clientProfileCode = `C${nit_number}`;
+        clientProfileCode = `CI${nit_number}`;
       }
       
       // Eliminar campos que ya están mapeados a columnas de la base de datos
@@ -645,49 +645,49 @@ static async create(clientData) {
   }
 
   /**
- * Verifica si un NIT ya existe en la base de datos
- * @async
- * @param {string} nitNumber - Número de NIT sin DV
- * @param {number} [excludeUserId] - ID de usuario a excluir de la verificación (para actualizaciones)
- * @returns {Promise<{exists: boolean, clientId: number|null, userId: number|null}>} - Resultado de la verificación
- * @throws {Error} Si ocurre un error en la consulta
- */
-static async nitExists(nitNumber, excludeUserId = null) {
-  try {
-    logger.debug('Verificando si el NIT ya existe', { 
-      nitNumber, 
-      excludeUserId 
-    });
-    
-    let query = 'SELECT client_id, user_id FROM client_profiles WHERE nit_number = $1';
-    const params = [nitNumber];
-    
-    if (excludeUserId) {
-      query += ' AND user_id != $2';
-      params.push(excludeUserId);
+   * Verifica si un NIT ya existe en la base de datos
+   * @async
+   * @param {string} nitNumber - Número de NIT sin DV
+   * @param {number} [excludeUserId] - ID de usuario a excluir de la verificación (para actualizaciones)
+   * @returns {Promise<{exists: boolean, clientId: number|null, userId: number|null}>} - Resultado de la verificación
+   * @throws {Error} Si ocurre un error en la consulta
+   */
+  static async nitExists(nitNumber, excludeUserId = null) {
+    try {
+      logger.debug('Verificando si el NIT ya existe', { 
+        nitNumber, 
+        excludeUserId 
+      });
+      
+      let query = 'SELECT client_id, user_id FROM client_profiles WHERE nit_number = $1';
+      const params = [nitNumber];
+      
+      if (excludeUserId) {
+        query += ' AND user_id != $2';
+        params.push(excludeUserId);
+      }
+      
+      const { rows } = await pool.query(query, params);
+      
+      const exists = rows.length > 0;
+      const result = {
+        exists,
+        clientId: exists ? rows[0].client_id : null,
+        userId: exists ? rows[0].user_id : null
+      };
+      
+      logger.debug('Resultado de verificación de NIT existente', result);
+      
+      return result;
+    } catch (error) {
+      logger.error('Error al verificar si el NIT existe', { 
+        error: error.message,
+        nitNumber,
+        stack: error.stack
+      });
+      throw error;
     }
-    
-    const { rows } = await pool.query(query, params);
-    
-    const exists = rows.length > 0;
-    const result = {
-      exists,
-      clientId: exists ? rows[0].client_id : null,
-      userId: exists ? rows[0].user_id : null
-    };
-    
-    logger.debug('Resultado de verificación de NIT existente', result);
-    
-    return result;
-  } catch (error) {
-    logger.error('Error al verificar si el NIT existe', { 
-      error: error.message,
-      nitNumber,
-      stack: error.stack
-    });
-    throw error;
   }
-}
 
   /**
    * Convierte un perfil de cliente al formato esperado por SAP B1

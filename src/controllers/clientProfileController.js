@@ -694,79 +694,113 @@ class ClientProfileController {
           });
         }
       }
-      
-      // Procesar archivos si existen
-    try {
-      if (req.files) {
-        // Mapeo de campos antiguos a nuevos y viceversa
-        const fileFieldMap = {
-          'fotocopiaCedula': 'fotocopiaCedula',
-          'fotocopia_cedula': 'fotocopiaCedula',
-          'fotocopiaRut': 'fotocopiaRut',
-          'fotocopia_rut': 'fotocopiaRut', 
-          'anexosAdicionales': 'anexosAdicionales',
-          'anexos_adicionales': 'anexosAdicionales'
-        };
-        
-        // Procesar cada campo de archivo soportado
-        for (const field in req.files) {
-          if (fileFieldMap[field]) {
-            const standardizedField = fileFieldMap[field];
-            // Determinar el tipo de documento para la ruta
-            const docType = standardizedField === 'fotocopiaCedula' ? 'cedula' : 
-                          standardizedField === 'fotocopiaRut' ? 'rut' : 'anexos';
-            
-            clientData[standardizedField] = await saveFile(req.files[field], clientData.userId, docType);
-          }
+
+      // Validar que si se proporciona NIT o dígito de verificación, ambos sean proporcionados
+      if ((clientData.nit_number && !clientData.verification_digit) || 
+      (!clientData.nit_number && clientData.verification_digit)) {
+        return res.status(400).json({
+        success: false,
+        message: 'Si proporciona el NIT, debe incluir también el dígito de verificación y viceversa'
+        });
+      }
+
+      // Verificar si el NIT ya existe en la base de datos
+      if (clientData.nit_number) {
+        const nitCheck = await ClientProfile.nitExists(clientData.nit_number);
+        if (nitCheck.exists) {
+          logger.warn('Intento de crear perfil con NIT duplicado', {
+            nit_number: clientData.nit_number,
+            existingClientId: nitCheck.clientId,
+            existingUserId: nitCheck.userId
+          });
+          
+          return res.status(400).json({
+            success: false,
+            message: 'El NIT ya está registrado en el sistema',
+            data: {
+              duplicateNIT: true,
+              nitNumber: clientData.nit_number
+            }
+          });
         }
       }
-    } catch (fileError) {
-      logger.error('Error procesando archivos', {
-        error: fileError.message,
-        stack: fileError.stack
-      });
-      // Continuamos sin archivos
-    }
 
-    // Validar que si se proporciona NIT o dígito de verificación, ambos sean proporcionados
-    if ((clientData.nit_number && !clientData.verification_digit) || 
-    (!clientData.nit_number && clientData.verification_digit)) {
-      return res.status(400).json({
-      success: false,
-      message: 'Si proporciona el NIT, debe incluir también el dígito de verificación y viceversa'
-      });
-    }
-
-    // Verificar si el NIT ya existe en la base de datos
-    if (clientData.nit_number) {
-      const nitCheck = await ClientProfile.nitExists(clientData.nit_number);
-      if (nitCheck.exists) {
-        logger.warn('Intento de crear perfil con NIT duplicado', {
-          nit_number: clientData.nit_number,
-          existingClientId: nitCheck.clientId,
-          existingUserId: nitCheck.userId
-        });
-        
-        return res.status(400).json({
-          success: false,
-          message: 'El NIT ya está registrado en el sistema',
-          data: {
-            duplicateNIT: true,
-            nitNumber: clientData.nit_number
+      // Verificar si el NIT ya existe en SAP
+      if (clientData.nit_number && clientData.verification_digit) {
+        try {
+          const sapServiceManager = require('../services/SapServiceManager');
+          
+          // Asegurar que el servicio está inicializado
+          if (!sapServiceManager.initialized) {
+            await sapServiceManager.initialize();
           }
+          
+          // Verificar en SAP
+          const sapCheck = await sapServiceManager.clientService.nitExistsInSAP(
+            clientData.nit_number,
+            clientData.verification_digit
+          );
+          
+          if (sapCheck.exists) {
+            logger.info('NIT ya existe en SAP, utilizando código SAP existente', {
+              nit_number: clientData.nit_number,
+              cardCode: sapCheck.cardCode
+            });
+            
+            // Pre-asignar el código SAP existente
+            clientData.cardcode_sap = sapCheck.cardCode;
+          }
+        } catch (sapError) {
+          // No fallamos la creación si hay error en la verificación SAP, solo lo registramos
+          logger.warn('Error al verificar NIT en SAP', {
+            error: sapError.message,
+            nit_number: clientData.nit_number
+          });
+        }
+      }
+      
+      // Procesar archivos si existen
+      try {
+        if (req.files) {
+          // Mapeo de campos antiguos a nuevos y viceversa
+          const fileFieldMap = {
+            'fotocopiaCedula': 'fotocopiaCedula',
+            'fotocopia_cedula': 'fotocopiaCedula',
+            'fotocopiaRut': 'fotocopiaRut',
+            'fotocopia_rut': 'fotocopiaRut', 
+            'anexosAdicionales': 'anexosAdicionales',
+            'anexos_adicionales': 'anexosAdicionales'
+          };
+          
+          // Procesar cada campo de archivo soportado
+          for (const field in req.files) {
+            if (fileFieldMap[field]) {
+              const standardizedField = fileFieldMap[field];
+              // Determinar el tipo de documento para la ruta
+              const docType = standardizedField === 'fotocopiaCedula' ? 'cedula' : 
+                            standardizedField === 'fotocopiaRut' ? 'rut' : 'anexos';
+              
+              clientData[standardizedField] = await saveFile(req.files[field], clientData.userId, docType);
+            }
+          }
+        }
+      } catch (fileError) {
+        logger.error('Error procesando archivos', {
+          error: fileError.message,
+          stack: fileError.stack
+        });
+        // Continuamos sin archivos
+      }
+
+      // Calcular tax_id a partir de nit_number y verification_digit
+      if (clientData.nit_number && clientData.verification_digit) {
+        clientData.nit = `${clientData.nit_number}-${clientData.verification_digit}`;
+        logger.debug('tax_id calculado a partir de NIT', {
+          nit_number: clientData.nit_number,
+          verification_digit: clientData.verification_digit,
+          tax_id: clientData.nit
         });
       }
-    }
-
-    // Calcular tax_id a partir de nit_number y verification_digit
-    if (clientData.nit_number && clientData.verification_digit) {
-      clientData.nit = `${clientData.nit_number}-${clientData.verification_digit}`;
-      logger.debug('tax_id calculado a partir de NIT', {
-        nit_number: clientData.nit_number,
-        verification_digit: clientData.verification_digit,
-        tax_id: clientData.nit
-      });
-    }
       // Verificar que los valores críticos se mantengan intactos
       logger.debug('Valores críticos antes de crear perfil', {
         nit_number: clientData.nit_number,
@@ -1451,8 +1485,8 @@ class ClientProfileController {
             if (sapResult.success) {
               await pool.query(
                 `UPDATE client_profiles 
-                SET cardcode_sap = $1, sap_lead_synced = true, updated_at = CURRENT_TIMESTAMP
-                WHERE client_id = $2`,
+                  SET cardcode_sap = $1, sap_lead_synced = true, updated_at = CURRENT_TIMESTAMP
+                  WHERE client_id = $2`,
                 [sapResult.cardCode, updatedProfile.client_id]
               );
               
