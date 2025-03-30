@@ -15,9 +15,12 @@
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.0.12",
+    "@types/react-datepicker": "^6.2.0",
     "axios": "^1.7.9",
     "cors": "^2.8.5",
+    "date-fns": "^4.1.0",
     "react": "^19.0.0",
+    "react-datepicker": "^8.2.1",
     "react-dom": "^19.0.0",
     "react-icons": "^5.4.0",
     "react-router-dom": "^7.1.5",
