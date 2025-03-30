@@ -30,17 +30,17 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       navigate('/dashboard/orders');
     }
   }, [user, navigate]);
-  
+
 
   // Cargar configuración del sitio
   useEffect(() => {
-    
+
     const fetchSettings = async () => {
       try {
         console.log("Obteniendo configuración del sitio...");
         const response = await API.get('/admin/settings');
         console.log("Respuesta de configuración:", response.data);
-        
+
         if (response.data && response.data.success) {
           // Verificar que los datos contengan orderTimeLimit
           console.log("Configuración obtenida:", response.data.data);
@@ -95,12 +95,12 @@ const CreateOrderForm = ({ onOrderCreated }) => {
   // Función para obtener el precio de un producto según su estructura
   const getProductPrice = (product) => {
     if (!product) return 0;
-    
+
     // Intentar obtener el precio desde diferentes propiedades posibles
-    return product.price || 
-           product.priceList1 || 
-           product.price_list1 || 
-           0;
+    return product.price ||
+      product.priceList1 ||
+      product.price_list1 ||
+      0;
   };
 
   // Formatear precio para visualización
@@ -126,7 +126,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
   const handleProductChange = (index, field, value) => {
     const newDetails = [...orderDetails];
     newDetails[index][field] = value;
-    
+
     if (field === 'product_id') {
       const selectedProduct = products.find(p => p.product_id === parseInt(value));
       if (selectedProduct) {
@@ -134,7 +134,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
         newDetails[index].unit_price = selectedProduct.price_list1;
       }
     }
-    
+
     setOrderDetails(newDetails);
   };
 
@@ -152,7 +152,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     // Validaciones de usuario
     if (!user) {
       showNotification('Debes iniciar sesión para crear un pedido', 'error');
@@ -164,23 +164,23 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       console.error('Error: user.id no disponible', user);
       return;
     }
-    
+
     // Validar productos y cantidades
-    const isValid = orderDetails.every(detail => 
+    const isValid = orderDetails.every(detail =>
       detail.product_id && detail.quantity > 0 && detail.unit_price > 0
     );
-    
+
     if (!isValid) {
       showNotification('Por favor completa todos los campos correctamente. Asegúrate de que los productos tengan precios válidos.', 'error');
       return;
     }
-    
+
     // Validar fecha de entrega
     if (!deliveryDate) {
       showNotification('Selecciona una fecha de entrega válida', 'error');
       return;
     }
-    
+
     // Mostrar modal de confirmación en lugar de crear pedido inmediatamente
     setShowConfirmationModal(true);
   };
@@ -189,10 +189,10 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     try {
       setIsSubmitting(true);
       setShowConfirmationModal(false);
-      
+
       // Calcular total
       const totalAmount = parseFloat(calculateTotal());
-      
+
       // Validar que tenemos ID de usuario y usuario activo
       if (!user || !user.id) {
         showNotification('Error: No se pudo identificar el ID de usuario', 'error');
@@ -225,24 +225,24 @@ const CreateOrderForm = ({ onOrderCreated }) => {
         userActive: user.is_active,
         orderData: orderData
       });
-      
+
       // Si hay un archivo adjunto, crear FormData para envío multipart
       let formData = null;
       if (orderFile) {
         formData = new FormData();
-        
+
         // Agregar el archivo
         formData.append('orderFile', orderFile);
-        
+
         // Agregar el ID de usuario explícitamente
         formData.append('user_id', user.id.toString());
-        
+
         // Agregar los demás datos como JSON
         formData.append('orderData', JSON.stringify(orderData));
       }
-      
+
       console.log('Enviando pedido:', orderData);
-      
+
       // Enviar a la API (usando formData si hay archivo)
       let result;
       if (formData) {
@@ -256,16 +256,16 @@ const CreateOrderForm = ({ onOrderCreated }) => {
         };
         result = await orderService.createOrder(orderWithUserId, false);
       }
-      
+
       if (result.success) {
         showNotification('Pedido creado exitosamente', 'success');
-        
+
         // Resetear formulario
         setOrderDetails([{ product_id: '', quantity: 1, unit_price: 0 }]);
         setDeliveryDate('');
         setOrderFile(null);
         setOrderNotes('');
-        
+
         // Notificar al componente padre
         if (onOrderCreated) onOrderCreated(result.data);
       } else {
@@ -286,12 +286,12 @@ const CreateOrderForm = ({ onOrderCreated }) => {
   const handleCancelClick = () => {
     setShowCancelConfirmation(true);
   };
-  
+
   const handleConfirmCancel = () => {
     // Redirigir a la página de pedidos
     navigate('/dashboard/orders');
   };
-  
+
   const handleCancelConfirmationClose = () => {
     setShowCancelConfirmation(false);
   };
@@ -311,38 +311,84 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     <div className="w-full p-6 bg-white rounded-lg border border-gray-200 shadow-sm">
       <form onSubmit={handleSubmit} className="space-y-6">
         <h2 className="text-xl font-semibold text-gray-800">Crear Nuevo Pedido</h2>
-        
+
         {notification.show && (
-          <Notification 
+          <Notification
             message={notification.message}
             type={notification.type}
             onClose={() => setNotification({ show: false, message: '', type: '' })}
           />
         )}
-        
+
         {/* Sección de Fecha de Entrega */}
-        <div className="bg-gray-50 p-4 rounded-md mb-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-3">Fecha de Entrega</h3>
-          <p className="text-sm text-gray-600 mb-3">
-            Selecciona la fecha en que necesitas recibir tu pedido.
-            <br/>
-            <strong>Reglas de entrega:</strong>
-            <ul className="mt-1 list-disc pl-5">
-              <li>Pedidos normales: mínimo 2 días para entrega</li>
-              <li>Pedidos después de las {siteSettings.orderTimeLimit}: +1 día adicional</li>
-              <li>Sábados antes del mediodía: entrega el martes</li>
-              <li>Sábados después del mediodía: entrega el miércoles</li>
-              <li>Domingos: entrega el miércoles</li>
-            </ul>
-          </p>
-          
-          <DeliveryDatePicker 
-            value={deliveryDate}
-            onChange={setDeliveryDate}
-            orderTimeLimit={siteSettings.orderTimeLimit}
-          />
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 mb-6">
+          <div className="flex items-center mb-4">
+            <span className="text-2xl mr-3">📅</span>
+            <h3 className="text-xl font-semibold text-gray-800">Fecha de Entrega</h3>
+          </div>
+
+          <div className="bg-blue-50 p-4 rounded-md mb-4 border-l-4 border-blue-400">
+            <p className="text-sm text-gray-700">
+              <span className="flex items-center mb-2">
+                <span className="text-blue-500 mr-2">ℹ️</span>
+                <span className="font-medium">Selecciona cuándo quieres recibir tu pedido</span>
+              </span>
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-6 mb-4">
+            <div className="bg-gray-50 p-4 rounded-md">
+              <h4 className="font-medium text-gray-700 mb-2 flex items-center">
+                <span className="mr-2">🚚</span>Información sobre tu entrega
+              </h4>
+              <ul className="space-y-2 text-sm text-gray-600">
+                <li className="flex items-start">
+                  <span className="text-green-500 mr-2">✨</span>
+                  <span>Los pedidos en una condicion regular llegan en <span className="font-medium">2 días</span>. ¡Queremos que tengas lo mejor!</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="text-amber-500 mr-2">⏰</span>
+                  <span>Si haces tu pedido después de las {siteSettings.orderTimeLimit}, necesitaremos <span className="font-medium">1 día extra</span> para prepararlo con cuidado.</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="text-blue-500 mr-2">📅</span>
+                  <span>Pedidos realizados el sábado por la mañana serán entregados el <span className="font-medium">martes</span>.</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="text-blue-500 mr-2">📅</span>
+                  <span>Pedidos realizados el sábado por la tarde serán entregados el <span className="font-medium">miércoles</span>.</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="text-blue-500 mr-2">📅</span>
+                  <span>Pedidos realizados el domingo serán entregados el <span className="font-medium">miércoles</span>.</span>
+                </li>
+              </ul>
+              <p className="mt-3 text-xs text-gray-500 italic flex items-center">
+                <span className="mr-2">🕒</span>
+                Entregamos de lunes a sábado en horario comercial. ¡Estamos aquí para ti!
+              </p>
+            </div>
+
+            <div className="bg-gray-50 p-4 rounded-md flex flex-col justify-center">
+              <div className="text-center mb-3">
+                <span className="inline-block bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
+                  Selecciona una fecha disponible
+                </span>
+              </div>
+              <DeliveryDatePicker
+                value={deliveryDate}
+                onChange={setDeliveryDate}
+                orderTimeLimit={siteSettings.orderTimeLimit}
+              />
+            </div>
+          </div>
+
+          <div className="text-xs text-gray-500 italic mt-2 flex items-center">
+            <span className="mr-2">🚚</span>
+            <span>Las entregas se realizan de lunes a sábado en horario comercial</span>
+          </div>
         </div>
-        
+
         {/* Productos */}
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
@@ -369,16 +415,16 @@ const CreateOrderForm = ({ onOrderCreated }) => {
               {orderDetails.map((detail, index) => (
                 <tr key={index}>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <select 
-                      value={detail.product_id} 
+                    <select
+                      value={detail.product_id}
                       onChange={(e) => handleProductChange(index, 'product_id', e.target.value)}
                       className="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                       required
                     >
                       <option value="">Seleccionar producto</option>
-                        {products.map(product => (
-                        <option 
-                          key={product.product_id} 
+                      {products.map(product => (
+                        <option
+                          key={product.product_id}
                           value={product.product_id}
                         >
                           {product.name}
@@ -387,10 +433,10 @@ const CreateOrderForm = ({ onOrderCreated }) => {
                     </select>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <input 
-                      type="number" 
-                      min="1" 
-                      value={detail.quantity} 
+                    <input
+                      type="number"
+                      min="1"
+                      value={detail.quantity}
                       onChange={(e) => handleProductChange(index, 'quantity', e.target.value)}
                       className="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                       required
@@ -419,7 +465,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
             </tbody>
           </table>
         </div>
-        
+
         <div className="flex justify-between items-center mb-6">
           <button
             type="button"
@@ -429,17 +475,17 @@ const CreateOrderForm = ({ onOrderCreated }) => {
           >
             + Agregar Producto
           </button>
-          
+
           <div className="text-xl font-bold" style={{ color: '#2c3e50' }}>
             Total: ${calculateTotal()}
           </div>
         </div>
-        
+
         {/* Notas y Adjuntos */}
         <div className="space-y-4 mt-6 border-t pt-6">
           <div>
             <label htmlFor="orderNotes" className="block text-sm font-medium text-gray-700 mb-1">
-              Notas adicionales
+              Observaciones
             </label>
             <textarea
               id="orderNotes"
@@ -450,10 +496,10 @@ const CreateOrderForm = ({ onOrderCreated }) => {
               className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
             ></textarea>
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Archivo adjunto (opcional)
+              Adjuntar Orden de Compra (opcional)
             </label>
             <OrderFileUpload
               value={orderFile}
@@ -461,17 +507,17 @@ const CreateOrderForm = ({ onOrderCreated }) => {
             />
           </div>
         </div>
-        
+
         <div className="flex gap-4">
-          <button 
-            type="button" 
+          <button
+            type="button"
             className="flex-1 py-2 px-4 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
             onClick={handleCancelClick}
           >
             Cancelar
           </button>
-          <button 
-            type="submit" 
+          <button
+            type="submit"
             className={`flex-1 py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 ${isSubmitting ? 'opacity-75 cursor-not-allowed' : ''}`}
             disabled={isSubmitting}
           >
@@ -493,7 +539,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
           <div className="bg-white rounded-lg p-6 max-w-sm mx-auto">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Confirmar cancelación</h3>
             <p className="text-gray-500 mb-6">¿En realidad quiere cancelar el trabajo en curso?</p>
-            
+
             <div className="flex justify-end gap-3">
               <button
                 type="button"
@@ -520,7 +566,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
             <h3 className="text-lg font-medium text-gray-900 mb-4">Confirmar pedido</h3>
             <p className="text-gray-500 mb-2">¿Estás seguro de que deseas crear este pedido?</p>
             <p className="text-gray-700 font-medium mb-4">Total: ${calculateTotal()}</p>
-            
+
             <div className="flex justify-end gap-3">
               <button
                 type="button"

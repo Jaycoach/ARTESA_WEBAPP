@@ -30,8 +30,8 @@ const Home = () => {
               className="w-[250px] h-auto mb-4 rounded-md"
               alt="Cliente Artesa"
             />
-            <h2 className="text-2xl font-semibold text-primary mb-2">¿Eres Cliente?</h2>
-            <p className="text-primary mb-4">Ingresa a nuestra página web</p>
+            <h2 className="text-2xl font-semibold text-primary mb-2">¿Eres Persona?</h2>
+            <p className="text-primary mb-4">Ingresa a nuestra página web!</p>
             <button
               className="w-full bg-homePrimary hover:bg-accent text-white hover:text-white font-semibold py-2 px-4 rounded"
               onClick={() => handleNavigation('/')}
