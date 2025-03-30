@@ -137,8 +137,8 @@ const Dashboard = () => {
         {/* Gráfico de barras con los pedidos reales del usuario */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           <div className="bg-white rounded-xl shadow-sm overflow-hidden h-[400px] flex flex-col">
-            <StatsChart orders={userOrders} />
-          </div>
+              <StatsChart />
+            </div>
           <div className="bg-white rounded-xl shadow-sm overflow-hidden h-[400px] flex flex-col">
             <TopProductsChart userId={user?.id} />
           </div>

@@ -14,7 +14,7 @@ import API from "../../api/config";
 /**
  * Muestra un gráfico de barras con pedidos por mes de los últimos 6 meses
  */
-const StatsChart = ({ userId }) => {
+const StatsChart = ({ orders }) => {
   const [monthlyOrders, setMonthlyOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -22,7 +22,14 @@ const StatsChart = ({ userId }) => {
   useEffect(() => {
     const fetchMonthlyOrders = async () => {
       try {
-        if (!userId) return;
+        // Obtener el ID del usuario del localStorage
+        const userInfo = JSON.parse(localStorage.getItem('user') || '{}');
+        const userId = userInfo.id;
+        
+        if (!userId) {
+          setError("Usuario no identificado");
+          return;
+        }
         
         const response = await API.get('/orders/monthly-stats', {
           params: { userId, months: 6 }
@@ -43,7 +50,7 @@ const StatsChart = ({ userId }) => {
     };
 
     fetchMonthlyOrders();
-  }, [userId]);
+  }, []);
 
   if (loading) {
     return (
