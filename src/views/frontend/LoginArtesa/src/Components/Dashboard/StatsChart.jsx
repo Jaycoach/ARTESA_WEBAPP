@@ -59,9 +59,9 @@ const StatsChart = ({ orders = [] }) => {
   }, [orders]);
 
   return (
-    <Card className="p-5 h-full">
+    <div className="p-5 w-full h-full flex flex-col">
       <h2 className="text-xl font-semibold mb-4">Pedidos de los Últimos 5 Días</h2>
-      <ResponsiveContainer width="100%" height={300}>
+      <ResponsiveContainer width="100%" height="100%">
         <BarChart data={chartData}>
           <CartesianGrid stroke="#f5f5f5" />
           <XAxis dataKey="day" />
@@ -71,7 +71,7 @@ const StatsChart = ({ orders = [] }) => {
           <Bar dataKey="Pedidos" fill="#4e73df" />
         </BarChart>
       </ResponsiveContainer>
-    </Card>
+    </div>
   );
 };
 

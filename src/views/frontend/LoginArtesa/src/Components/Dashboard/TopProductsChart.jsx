@@ -67,41 +67,41 @@ const TopProductsChart = ({ userId }) => {
 
   if (loading) {
     return (
-        <Card className="p-5 h-full">
+        <div className="p-5 w-full h-full flex flex-col">
         <h2 className="text-xl font-semibold mb-4">Top 5 Productos</h2>
         <div className="flex justify-center items-center h-[300px]">
           <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
         </div>
-      </Card>
+        </div>
     );
   }
 
   if (error) {
     return (
-        <Card className="p-5 h-full">
+        <div className="p-5 w-full h-full flex flex-col">
         <h2 className="text-xl font-semibold mb-4">Top 5 Productos</h2>
         <div className="text-red-500 text-center h-[300px] flex items-center justify-center">
           {error}
         </div>
-      </Card>
+        </div>
     );
   }
 
   if (topProducts.length === 0) {
     return (
-        <Card className="p-5 h-full">
+        <div className="p-5 w-full h-full flex flex-col">
         <h2 className="text-xl font-semibold mb-4">Top 5 Productos</h2>
         <div className="text-gray-500 text-center h-[300px] flex items-center justify-center">
           No hay datos disponibles para el período seleccionado
         </div>
-      </Card>
+        </div>
     );
   }
 
   return (
-    <Card className="p-5 h-full">
+    <div className="p-5 w-full h-full flex flex-col">
       <h2 className="text-xl font-semibold mb-4">Top 5 Productos (Últimos 30 días)</h2>
-      <ResponsiveContainer width="100%" height={300}>
+      <ResponsiveContainer width="100%" height="100%">
         <BarChart
           data={topProducts}
           layout="vertical"
@@ -126,7 +126,7 @@ const TopProductsChart = ({ userId }) => {
           <Bar dataKey="cantidad" fill="#4e9af6" name="Cantidad" />
         </BarChart>
       </ResponsiveContainer>
-    </Card>
+      </div>
   );
 };
 
