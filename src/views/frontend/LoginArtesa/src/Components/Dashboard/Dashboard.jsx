@@ -11,6 +11,7 @@ import Button from "../ui/Button";
 import Card from "../ui/Card";
 import QuickAccess from "./QuickAccess";
 import StatsChart from "./StatsChart";
+import TopProductsChart from "./TopProductsChart";
 import API from "../../api/config";
 
 // Reutilizamos tu SummaryCard
@@ -134,7 +135,14 @@ const Dashboard = () => {
         <QuickAccess />
 
         {/* Gráfico de barras con los pedidos reales del usuario */}
-        <StatsChart orders={userOrders} />
+        <div className="flex flex-col md:flex-row gap-6 mb-8">
+        <div className="w-full md:w-1/2">
+          <StatsChart orders={userOrders} />
+        </div>
+        <div className="w-full md:w-1/2">
+          <TopProductsChart userId={user?.id} />
+        </div>
+      </div>
       </div>
     </div>
   );
