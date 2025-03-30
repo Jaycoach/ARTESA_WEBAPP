@@ -19,7 +19,8 @@ const {
   checkUserCanCreateOrders,
   checkDeliveredOrders,
   checkInvoicedOrders,
-  getInvoicesByUser         
+  getInvoicesByUser,
+  getTopSellingProducts      
 } = require('../controllers/orderController');
 
 const router = express.Router();
@@ -292,6 +293,20 @@ router.post('/orders/check-invoiced',
   checkRole([1]), // Solo administradores
   checkInvoicedOrders
 );
+
+/**
+ * Obtener productos más vendidos
+ * @route GET /orders/top-products
+ * @group Orders - Operaciones relacionadas con órdenes
+ * @param {integer} limit.query - Número máximo de productos a retornar (por defecto 5)
+ * @param {string} startDate.query - Fecha de inicio del período (formato YYYY-MM-DD)
+ * @param {string} endDate.query - Fecha de fin del período (formato YYYY-MM-DD)
+ * @security bearerAuth
+ * @returns {object} 200 - Lista de productos más vendidos recuperada exitosamente
+ * @returns {object} 401 - No autorizado
+ * @returns {object} 500 - Error interno del servidor
+ */
+router.get('/orders/top-products', verifyToken, getTopSellingProducts);
 
 /**
  * Crear una nueva orden

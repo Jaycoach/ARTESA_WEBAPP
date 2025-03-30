@@ -2004,6 +2004,131 @@ const getInvoicesByUser = async (req, res) => {
   }
 };
 
+/**
+ * @swagger
+ * /api/orders/top-products:
+ *   get:
+ *     summary: Obtener productos más vendidos
+ *     description: Recupera los productos más vendidos en un período de tiempo
+ *     tags: [Orders]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 5
+ *         description: Número máximo de productos a retornar
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Fecha de inicio del período (formato YYYY-MM-DD)
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Fecha de fin del período (formato YYYY-MM-DD)
+ *     responses:
+ *       200:
+ *         description: Lista de productos más vendidos recuperada exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       product_id:
+ *                         type: integer
+ *                         example: 123
+ *                       product_name:
+ *                         type: string
+ *                         example: "Nombre del producto"
+ *                       quantity:
+ *                         type: integer
+ *                         example: 50
+ *                       total_orders:
+ *                         type: integer
+ *                         example: 10
+ *       401:
+ *         description: No autorizado
+ *       500:
+ *         description: Error interno del servidor
+ */
+const getTopSellingProducts = async (req, res) => {
+  try {
+    const { limit, startDate, endDate } = req.query;
+    
+    logger.debug('Solicitando productos más vendidos', { 
+      limit, 
+      startDate, 
+      endDate, 
+      userId: req.user?.id 
+    });
+    
+    // Convertir parámetros a los tipos correctos
+    const options = {
+      limit: limit ? parseInt(limit) : 5
+    };
+    
+    // Validar y convertir fechas si se proporcionan
+    if (startDate) {
+      const parsedStartDate = new Date(startDate);
+      if (isNaN(parsedStartDate.getTime())) {
+        return res.status(400).json({
+          success: false,
+          message: 'Formato de fecha de inicio inválido. Utilice YYYY-MM-DD'
+        });
+      }
+      options.startDate = parsedStartDate;
+    }
+    
+    if (endDate) {
+      const parsedEndDate = new Date(endDate);
+      if (isNaN(parsedEndDate.getTime())) {
+        return res.status(400).json({
+          success: false,
+          message: 'Formato de fecha de fin inválido. Utilice YYYY-MM-DD'
+        });
+      }
+      
+      // Establecer la hora al final del día para incluir todas las órdenes de esa fecha
+      parsedEndDate.setHours(23, 59, 59, 999);
+      options.endDate = parsedEndDate;
+    }
+    
+    // Obtener productos más vendidos
+    const topProducts = await Order.getTopSellingProducts(options);
+    
+    res.status(200).json({
+      success: true,
+      data: topProducts
+    });
+  } catch (error) {
+    logger.error('Error al obtener productos más vendidos', {
+      error: error.message,
+      stack: error.stack,
+      userId: req.user?.id
+    });
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error al obtener productos más vendidos',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
 module.exports = { 
   createOrder,
   getOrderById,
@@ -2021,5 +2146,6 @@ module.exports = {
   checkUserCanCreateOrders,
   checkDeliveredOrders,      
   checkInvoicedOrders,
-  getInvoicesByUser    
+  getInvoicesByUser,
+  getTopSellingProducts   
 };

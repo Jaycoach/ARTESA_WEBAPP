@@ -847,6 +847,73 @@ class Order {
   }
 
   /**
+   * Obtiene los productos más vendidos en un período de tiempo
+   * @async
+   * @param {Object} options - Opciones de filtrado
+   * @param {number} options.limit - Número máximo de productos a retornar (por defecto 5)
+   * @param {Date} options.startDate - Fecha de inicio del período
+   * @param {Date} options.endDate - Fecha de fin del período
+   * @returns {Promise<Array<Object>>} - Lista de productos más vendidos
+   * @throws {Error} Si ocurre un error en la consulta
+   */
+  static async getTopSellingProducts(options = {}) {
+    try {
+      const { 
+        limit = 5, 
+        startDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1), 
+        endDate = new Date() 
+      } = options;
+      
+      logger.debug('Obteniendo productos más vendidos', { 
+        limit, 
+        startDate, 
+        endDate 
+      });
+      
+      // Convertir fechas a formato ISO para la consulta
+      const formattedStartDate = startDate instanceof Date ? startDate.toISOString() : startDate;
+      const formattedEndDate = endDate instanceof Date ? endDate.toISOString() : endDate;
+      
+      const query = `
+        SELECT 
+          p.product_id,
+          p.name AS product_name,
+          SUM(od.quantity) AS quantity,
+          COUNT(DISTINCT o.order_id) AS total_orders
+        FROM 
+          order_details od
+        JOIN 
+          orders o ON od.order_id = o.order_id
+        JOIN 
+          products p ON od.product_id = p.product_id
+        WHERE 
+          o.order_date BETWEEN $1 AND $2
+          AND o.status_id NOT IN (6) -- Excluir órdenes canceladas
+        GROUP BY 
+          p.product_id, p.name
+        ORDER BY 
+          quantity DESC
+        LIMIT $3
+      `;
+      
+      const { rows } = await pool.query(query, [formattedStartDate, formattedEndDate, limit]);
+      
+      logger.info('Productos más vendidos recuperados exitosamente', { 
+        count: rows.length,
+        period: `${formattedStartDate} a ${formattedEndDate}`
+      });
+      
+      return rows;
+    } catch (error) {
+      logger.error('Error al obtener productos más vendidos', { 
+        error: error.message,
+        stack: error.stack
+      });
+      throw error;
+    }
+  }
+
+  /**
    * Obtiene todos los estados de órdenes
    * @async
    * @returns {Promise<Array<Object>>} - Lista de estados disponibles
