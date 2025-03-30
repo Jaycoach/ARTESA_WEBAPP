@@ -59,7 +59,7 @@ const StatsChart = ({ orders = [] }) => {
   }, [orders]);
 
   return (
-    <Card className="p-5">
+    <Card className="p-5 h-full">
       <h2 className="text-xl font-semibold mb-4">Pedidos de los Últimos 5 Días</h2>
       <ResponsiveContainer width="100%" height={300}>
         <BarChart data={chartData}>

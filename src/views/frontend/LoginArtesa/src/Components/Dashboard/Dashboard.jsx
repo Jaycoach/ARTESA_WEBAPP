@@ -135,14 +135,14 @@ const Dashboard = () => {
         <QuickAccess />
 
         {/* Gráfico de barras con los pedidos reales del usuario */}
-        <div className="flex flex-col md:flex-row gap-6 mb-8">
-        <div className="w-full md:w-1/2">
-          <StatsChart orders={userOrders} />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+          <div className="h-full">
+            <StatsChart orders={userOrders} />
+          </div>
+          <div className="h-full">
+            <TopProductsChart userId={user?.id} />
+          </div>
         </div>
-        <div className="w-full md:w-1/2">
-          <TopProductsChart userId={user?.id} />
-        </div>
-      </div>
       </div>
     </div>
   );
