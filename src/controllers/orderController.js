@@ -2167,6 +2167,125 @@ const getTopSellingProducts = async (req, res) => {
   }
 };
 
+/**
+ * @swagger
+ * /api/orders/monthly-stats:
+ *   get:
+ *     summary: Obtener estadísticas mensuales de pedidos
+ *     description: Recupera el conteo de pedidos agrupados por mes para un usuario específico
+ *     tags: [Orders]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID del usuario para filtrar pedidos
+ *       - in: query
+ *         name: months
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           default: 6
+ *         description: Número de meses hacia atrás para obtener datos
+ *     responses:
+ *       200:
+ *         description: Estadísticas mensuales recuperadas exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       month:
+ *                         type: string
+ *                         example: "Mar 2025"
+ *                       count:
+ *                         type: integer
+ *                         example: 5
+ *       400:
+ *         description: Parámetros inválidos
+ *       401:
+ *         description: No autorizado
+ *       403:
+ *         description: No tiene permisos para ver estas estadísticas
+ *       500:
+ *         description: Error interno del servidor
+ */
+const getMonthlyStats = async (req, res) => {
+  try {
+    const { userId, months } = req.query;
+    const requestingUser = req.user;
+    
+    logger.debug('Solicitando estadísticas mensuales de pedidos', { 
+      userId, 
+      months, 
+      requestingUserId: requestingUser.id 
+    });
+    
+    // Validar parámetros
+    if (!userId || isNaN(parseInt(userId))) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID de usuario inválido o no proporcionado'
+      });
+    }
+    
+    // Validar el parámetro months si se proporciona
+    const parsedMonths = months ? parseInt(months) : 6;
+    if (isNaN(parsedMonths) || parsedMonths < 1 || parsedMonths > 24) {
+      return res.status(400).json({
+        success: false,
+        message: 'El número de meses debe ser un entero entre 1 y 24'
+      });
+    }
+    
+    // Verificar permisos - solo el propio usuario o un administrador pueden ver sus estadísticas
+    if (parseInt(userId) !== requestingUser.id && requestingUser.rol_id !== 1) {
+      logger.warn('Intento de acceso no autorizado a estadísticas mensuales', {
+        targetUserId: userId,
+        requestingUserId: requestingUser.id,
+        requestingUserRole: requestingUser.rol_id
+      });
+
+      return res.status(403).json({
+        success: false,
+        message: 'No tienes permiso para ver estas estadísticas'
+      });
+    }
+    
+    // Obtener las estadísticas mensuales
+    const stats = await Order.getMonthlyStats(parseInt(userId), parsedMonths);
+    
+    res.status(200).json({
+      success: true,
+      data: stats
+    });
+  } catch (error) {
+    logger.error('Error al obtener estadísticas mensuales de pedidos', {
+      error: error.message,
+      stack: error.stack,
+      userId: req.query?.userId,
+      requestingUserId: req.user?.id
+    });
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error al obtener estadísticas mensuales de pedidos',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
 module.exports = { 
   createOrder,
   getOrderById,
@@ -2185,5 +2304,6 @@ module.exports = {
   checkDeliveredOrders,      
   checkInvoicedOrders,
   getInvoicesByUser,
-  getTopSellingProducts   
+  getTopSellingProducts,
+  getMonthlyStats
 };

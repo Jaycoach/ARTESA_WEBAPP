@@ -933,6 +933,97 @@ class Order {
   }
 
   /**
+ * Obtiene estadísticas mensuales de pedidos para un usuario específico
+ * @async
+ * @param {number} userId - ID del usuario para filtrar pedidos
+ * @param {number} months - Número de meses hacia atrás para obtener datos (por defecto 6)
+ * @returns {Promise<Array<Object>>} - Array con estadísticas mensuales
+ * @throws {Error} Si ocurre un error en la consulta
+ */
+static async getMonthlyStats(userId, months = 6) {
+  try {
+    logger.debug('Obteniendo estadísticas mensuales de pedidos', { 
+      userId, 
+      months 
+    });
+    
+    // Generar un array con los últimos X meses (incluyendo el actual)
+    const result = [];
+    const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+    
+    // Calcular fecha de inicio (primer día del mes, hace 'months' meses)
+    const startDate = new Date();
+    startDate.setDate(1); // Primer día del mes
+    startDate.setMonth(startDate.getMonth() - (months - 1)); // Retroceder 'months-1' meses
+    
+    // Consulta para obtener el conteo por mes
+    const query = `
+      SELECT 
+        DATE_TRUNC('month', order_date) as month_date,
+        COUNT(*) as count
+      FROM 
+        orders
+      WHERE 
+        user_id = $1
+        AND order_date >= $2
+      GROUP BY 
+        DATE_TRUNC('month', order_date)
+      ORDER BY 
+        month_date ASC
+    `;
+    
+    const { rows } = await pool.query(query, [userId, startDate]);
+    
+    // Convertir los resultados a un mapa para facilitar el acceso
+    const countMap = {};
+    rows.forEach(row => {
+      const date = new Date(row.month_date);
+      const key = `${date.getFullYear()}-${date.getMonth()}`;
+      countMap[key] = parseInt(row.count);
+    });
+    
+    // Generar el array con todos los meses, incluyendo los que no tienen pedidos
+    const currentDate = new Date();
+    
+    // Crear array con todos los meses en el rango
+    for (let i = 0; i < months; i++) {
+      const date = new Date(startDate);
+      date.setMonth(startDate.getMonth() + i);
+      
+      // Si la fecha calculada supera el mes actual, salir del bucle
+      if (date > currentDate) {
+        break;
+      }
+      
+      const year = date.getFullYear();
+      const month = date.getMonth();
+      const key = `${year}-${month}`;
+      
+      result.push({
+        month: `${monthNames[month]} ${year}`,
+        count: countMap[key] || 0
+      });
+    }
+    
+    logger.info('Estadísticas mensuales recuperadas exitosamente', { 
+      userId,
+      months,
+      resultCount: result.length
+    });
+    
+    return result;
+  } catch (error) {
+    logger.error('Error al obtener estadísticas mensuales', { 
+      error: error.message,
+      stack: error.stack,
+      userId,
+      months
+    });
+    throw error;
+  }
+} 
+
+  /**
    * Obtiene todos los estados de órdenes
    * @async
    * @returns {Promise<Array<Object>>} - Lista de estados disponibles

@@ -20,7 +20,8 @@ const {
   checkDeliveredOrders,
   checkInvoicedOrders,
   getInvoicesByUser,
-  getTopSellingProducts      
+  getTopSellingProducts,
+  getMonthlyStats      
 } = require('../controllers/orderController');
 
 const router = express.Router();
@@ -210,6 +211,21 @@ router.get('/orders/invoices', verifyToken, getInvoicesByUser);
  * @returns {object} 500 - Error interno del servidor
  */
 router.get('/orders/top-products', verifyToken, getTopSellingProducts);
+
+/**
+ * Obtener estadísticas mensuales de pedidos
+ * @route GET /orders/monthly-stats
+ * @group Orders - Operaciones relacionadas con órdenes
+ * @param {integer} userId.query.required - ID del usuario para filtrar pedidos
+ * @param {integer} months.query - Número de meses hacia atrás para obtener datos (por defecto 6)
+ * @security bearerAuth
+ * @returns {object} 200 - Estadísticas mensuales recuperadas exitosamente
+ * @returns {object} 400 - Parámetros inválidos
+ * @returns {object} 401 - No autorizado
+ * @returns {object} 403 - No tiene permisos para ver estas estadísticas
+ * @returns {object} 500 - Error interno del servidor
+ */
+router.get('/orders/monthly-stats', verifyToken, getMonthlyStats);
 
 /**
  * Obtener una orden específica
