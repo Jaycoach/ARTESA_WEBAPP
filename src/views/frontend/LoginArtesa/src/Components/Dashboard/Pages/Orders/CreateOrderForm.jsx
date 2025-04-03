@@ -380,7 +380,20 @@ const CreateOrderForm = ({ onOrderCreated }) => {
                 onChange={setDeliveryDate}
                 orderTimeLimit={siteSettings.orderTimeLimit}
               />
+              {deliveryDate && (
+                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                  <p className="text-blue-800 font-medium">
+                    Entrega programada para: {new Date(deliveryDate).toLocaleDateString('es-ES', {
+                      weekday: 'long',
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric'
+                    })}
+                  </p>
+                </div>
+              )}
             </div>
+
           </div>
 
           <div className="text-xs text-gray-500 italic mt-2 flex items-center">
@@ -394,7 +407,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Imagen Referencia
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -535,6 +548,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
             <OrderFileUpload
               value={orderFile}
               onChange={setOrderFile}
+              buttonLabel="Orden de compra"
             />
           </div>
         </div>

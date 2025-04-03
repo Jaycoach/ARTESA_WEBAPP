@@ -3,7 +3,7 @@ import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { registerLocale } from 'react-datepicker';
 import es from 'date-fns/locale/es';
-import { addDays, addMonths, isSameDay, isWithinInterval } from 'date-fns';
+import { addDays, addMonths, isSameDay, format } from 'date-fns';
 
 registerLocale('es', es);
 
@@ -14,11 +14,13 @@ registerLocale('es', es);
  * @param {function} props.onChange - Función para manejar cambios
  * @param {string} props.orderTimeLimit - Límite de tiempo para pedidos (formato "HH:MM")
  */
+
 const DeliveryDatePicker = ({ value, onChange, orderTimeLimit = "18:00" }) => {
   const [availableDates, setAvailableDates] = useState([]);
   const [allPossibleDates, setAllPossibleDates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
+  const [selectedDate, setSelectedDate] = useState(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
 
   useEffect(() => {
@@ -38,7 +40,7 @@ const DeliveryDatePicker = ({ value, onChange, orderTimeLimit = "18:00" }) => {
 
       // Convertir orderTimeLimit a horas y minutos
       const [limitHours, limitMinutes] = orderTimeLimit.split(':').map(Number);
-      const isPastTimeLimit = currentHour > limitHours || 
+      const isPastTimeLimit = currentHour > limitHours ||
         (currentHour === limitHours && currentMinute >= limitMinutes);
 
       // Reglas para calcular días de entrega mínimos basados en el día actual
@@ -46,66 +48,41 @@ const DeliveryDatePicker = ({ value, onChange, orderTimeLimit = "18:00" }) => {
 
       // Regla especial para sábados
       if (currentDay === 6) { // Sábado
-        if (currentHour >= 12) { // Después del mediodía
-          // Después del mediodía en sábado, entrega el miércoles (4 días después)
-          startOffset = 4;
-        } else {
-          // Antes del mediodía en sábado, entrega el martes (3 días después)
-          startOffset = 3;
-        }
-      } 
-      // Regla para domingos - siempre entrega el miércoles (3 días)
-      else if (currentDay === 0) {
+        startOffset = currentHour >= 12 ? 4 : 3;
+      } else if (currentDay === 0) {
         startOffset = 3;
-      }
-      // Para otros días, mínimo 2 días de entrega
-      else {
-        // Si pasó el límite de tiempo, agregar un día extra
-        if (isPastTimeLimit) {
-          startOffset++;
-        }
+      } else if (isPastTimeLimit) {
+        startOffset++;
       }
 
       // Fecha de inicio para entregas
       const startDate = addDays(now, startOffset);
-      
-      // Generar fechas disponibles para el próximo mes (en lugar de 3)
       const endDate = addMonths(now, 1);
-      
-      // Generar todas las fechas posibles para el próximo mes
-      for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-        // Omitir domingos (día no laboral)
-        if (d.getDay() === 0) {
-          continue;
-        }
-        
-        const dateClone = new Date(d);
-        const formattedDate = dateClone.toISOString().split('T')[0];
-        
-        // Añadir a todas las fechas posibles
-        allDates.push({
-          value: formattedDate,
-          label: formatDateToSpanish(dateClone),
-          date: new Date(dateClone)
-        });
-        
-        // Añadir a las primeras 5 fechas para el dropdown
-        if (dates.length < 5) {
-          dates.push({
+
+      let currentDate = new Date(startDate);
+      while (currentDate <= endDate) {
+        if (currentDate.getDay() !== 0) {
+          const formattedDate = format(currentDate, 'yyyy-MM-dd');
+          allDates.push({
             value: formattedDate,
-            label: formatDateToSpanish(dateClone)
+            label: formatDateToSpanish(currentDate),
+            date: new Date(currentDate)
+          });
+          if (dates.length < 5) dates.push({
+            value: formattedDate,
+            label: formatDateToSpanish(currentDate)
           });
         }
+        currentDate = addDays(currentDate, 1);
       }
 
-      setAvailableDates(dates); // Para el dropdown (5 primeras fechas)
-      setAllPossibleDates(allDates); // Para el calendario (1 mes)
-      
-      // Si no hay fecha seleccionada, seleccionar la primera disponible
+      setAvailableDates(dates);
+      setAllPossibleDates(allDates);
+
       if (!value && dates.length > 0) {
         onChange(dates[0].value);
+        setSelectedDate(new Date(dates[0].value));
       }
-      
     } catch (error) {
       console.error('Error calculando fechas disponibles:', error);
       setErrorMessage('Error al calcular fechas de entrega disponibles');
@@ -114,37 +91,17 @@ const DeliveryDatePicker = ({ value, onChange, orderTimeLimit = "18:00" }) => {
     }
   };
 
-  // Formatea la fecha a español: "Lunes, 18 de Marzo de 2025"
   const formatDateToSpanish = (date) => {
-    const options = { 
-      weekday: 'long', 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
-    };
-    return date.toLocaleDateString('es-ES', options);
+    return format(date, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es });
   };
 
-  // Función para verificar si una fecha está disponible
   const isDateAvailable = (date) => {
-    return allPossibleDates.some(d => 
-      isSameDay(new Date(d.value), date)
-    );
+    return allPossibleDates.some(d => isSameDay(d.date, date));
   };
 
-  // Función para formatear la fecha en el dropdown
-  const formatDateForDropdown = (dateString) => {
-    const date = new Date(dateString);
-    const today = new Date();
-    const tomorrow = addDays(today, 1);
-    
-    if (isSameDay(date, today)) {
-      return `Hoy, ${formatDateToSpanish(date)}`;
-    } else if (isSameDay(date, tomorrow)) {
-      return `Mañana, ${formatDateToSpanish(date)}`;
-    } else {
-      return formatDateToSpanish(date);
-    }
+  const handleDateChange = (date) => {
+    setSelectedDate(date);
+    onChange(format(date, 'yyyy-MM-dd'));
   };
 
   if (loading) {
@@ -169,7 +126,7 @@ const DeliveryDatePicker = ({ value, onChange, orderTimeLimit = "18:00" }) => {
       {/* Menú desplegable con botón para mostrar calendario */}
       <div className="relative">
         <div className="flex space-x-2">
-          <button 
+          <button
             type="button"
             onClick={() => setCalendarOpen(!calendarOpen)}
             className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
@@ -185,20 +142,20 @@ const DeliveryDatePicker = ({ value, onChange, orderTimeLimit = "18:00" }) => {
             )}
           </button>
         </div>
-        
+
         {/* Calendario desplegable */}
         {calendarOpen && (
           <div className="absolute z-10 mt-2 w-full bg-white rounded-md shadow-lg border border-gray-200 p-4">
             <div className="flex justify-between items-center mb-2">
               <h4 className="text-sm font-medium text-gray-700">Selecciona fecha de entrega</h4>
-              <button 
+              <button
                 onClick={() => setCalendarOpen(false)}
                 className="text-gray-400 hover:text-gray-600"
               >
                 ✕
               </button>
             </div>
-            
+
             <DatePicker
               selected={value ? new Date(value) : null}
               onChange={(date) => {
@@ -218,7 +175,7 @@ const DeliveryDatePicker = ({ value, onChange, orderTimeLimit = "18:00" }) => {
                 if (value && isSameDay(date, new Date(value))) {
                   return 'bg-indigo-100 text-indigo-800 hover:bg-indigo-200 font-medium';
                 }
-                
+
                 return isDateAvailable(date)
                   ? 'cursor-pointer bg-white hover:bg-blue-50 text-gray-700'
                   : 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-50';
@@ -234,11 +191,10 @@ const DeliveryDatePicker = ({ value, onChange, orderTimeLimit = "18:00" }) => {
                   <button
                     onClick={decreaseMonth}
                     disabled={prevMonthButtonDisabled}
-                    className={`p-1 rounded-full ${
-                      prevMonthButtonDisabled 
-                        ? 'text-gray-300 cursor-not-allowed' 
+                    className={`p-1 rounded-full ${prevMonthButtonDisabled
+                        ? 'text-gray-300 cursor-not-allowed'
                         : 'text-gray-700 hover:bg-gray-100'
-                    }`}
+                      }`}
                   >
                     ←
                   </button>
@@ -248,18 +204,26 @@ const DeliveryDatePicker = ({ value, onChange, orderTimeLimit = "18:00" }) => {
                   <button
                     onClick={increaseMonth}
                     disabled={nextMonthButtonDisabled}
-                    className={`p-1 rounded-full ${
-                      nextMonthButtonDisabled 
-                        ? 'text-gray-300 cursor-not-allowed' 
+                    className={`p-1 rounded-full ${nextMonthButtonDisabled
+                        ? 'text-gray-300 cursor-not-allowed'
                         : 'text-gray-700 hover:bg-gray-100'
-                    }`}
+                      }`}
                   >
                     →
                   </button>
                 </div>
               )}
             />
-            
+            {value && (
+              <div className="mt-4 p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
+                <p className="text-indigo-800 font-semibold text-sm">
+                  🗓 Fecha seleccionada: {formatDateToSpanish(new Date(value))}
+                </p>
+                <p className="text-indigo-600 text-xs mt-1">
+                  La entrega se realizará el {formatDateToSpanish(new Date(value))}
+                </p>
+              </div>
+            )}
             <div className="mt-2 flex flex-col space-y-1">
               <div className="flex items-center text-xs text-gray-500">
                 <span className="w-3 h-3 inline-block bg-indigo-100 rounded-full mr-2"></span>
@@ -277,7 +241,7 @@ const DeliveryDatePicker = ({ value, onChange, orderTimeLimit = "18:00" }) => {
           </div>
         )}
       </div>
-      
+
       <p className="text-sm text-gray-500 flex items-center">
         <span className="text-amber-500 mr-2">⚠️</span>
         Las entregas se procesan en días hábiles (lunes a sábado).

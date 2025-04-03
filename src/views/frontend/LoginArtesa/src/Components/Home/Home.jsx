@@ -34,7 +34,7 @@ const Home = () => {
             <p className="text-primary mb-4">Ingresa a nuestra página web!</p>
             <button
               className="w-full bg-homePrimary hover:bg-accent text-white hover:text-white font-semibold py-2 px-4 rounded"
-              onClick={() => handleNavigation('/')}
+              onClick={() => handleNavigation('/original-home')}
             >
               {user ? 'Ir al Home' : 'Acceder como Cliente'}
             </button>
