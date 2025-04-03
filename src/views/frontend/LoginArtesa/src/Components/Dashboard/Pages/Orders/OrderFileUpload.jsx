@@ -6,8 +6,9 @@ import { FaUpload, FaFile, FaFileImage, FaFilePdf, FaTimes } from 'react-icons/f
  * @param {Object} props - Props del componente
  * @param {function} props.onChange - Función para manejar cambios
  * @param {File} props.value - Archivo seleccionado
+ * @param {string} props.buttonLabel - Texto del botón (opcional)
  */
-const OrderFileUpload = ({ onChange, value }) => {
+const OrderFileUpload = ({ onChange, value, buttonLabel = "Adjuntar archivo" }) => {
   const [previewUrl, setPreviewUrl] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -73,8 +74,8 @@ const OrderFileUpload = ({ onChange, value }) => {
         {!value ? (
           <div className="file-input-container">
             <label htmlFor="orderAttachment" className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 cursor-pointer">
-              <FaUpload className="mr-2" />
-              Adjuntar archivo
+              {getFileIcon()}
+              {buttonLabel}
             </label>
             <input
               type="file"
