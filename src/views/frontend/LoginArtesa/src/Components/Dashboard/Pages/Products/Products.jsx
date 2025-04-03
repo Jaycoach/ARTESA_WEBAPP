@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { FiShoppingCart, FiSearch, FiEye, FiClipboard, FiPlus, FiMinus, FiList, FiGrid, FiCheck, FiMoon, FiSun } from 'react-icons/fi';
 import API from '../../../../api/config';
+import { useAuth } from '../../../../hooks/useAuth';
+import DeliveryDatePicker from '../Orders/DeliveryDatePicker';
 import Notification from '../../../../Components/ui/Notification';
 import Modal from '../../../../Components/ui/Modal';
 import Input from '../../../../Components/ui/Input';
@@ -17,10 +19,12 @@ const Products = () => {
   const [quantity, setQuantity] = useState(1);
   const [viewMode, setViewMode] = useState('table');
   const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
+  const [selectedDate, setSelectedDate] = useState('');
+  const { user } = useAuth();
 
   // Estado para manejar cantidades de cada producto
   const [productQuantities, setProductQuantities] = useState({});
-  
+
   // Estado para la paginación
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
@@ -29,40 +33,41 @@ const Products = () => {
   const [orderItems, setOrderItems] = useState([]);
   const [orderTotal, setOrderTotal] = useState(0);
   const [submittingOrder, setSubmittingOrder] = useState(false);
+  const [deliveryDate, setDeliveryDate] = useState('');
 
 
 
   // Función para cambiar de página
   const getPaginationRange = (currentPage, totalPages, siblingCount = 1) => {
     const totalPageNumbers = siblingCount * 2 + 5;
-    
+
     if (totalPageNumbers >= totalPages) {
       return Array.from({ length: totalPages }, (_, index) => index + 1);
     }
-  
+
     const leftSiblingIndex = Math.max(currentPage - siblingCount, 1);
     const rightSiblingIndex = Math.min(currentPage + siblingCount, totalPages);
-  
+
     const shouldShowLeftDots = leftSiblingIndex > 2;
     const shouldShowRightDots = rightSiblingIndex < totalPages - 2;
-  
+
     const firstPageIndex = 1;
     const lastPageIndex = totalPages;
-  
+
     if (!shouldShowLeftDots && shouldShowRightDots) {
       let leftItemCount = 3 + 2 * siblingCount;
       let leftRange = Array.from({ length: leftItemCount }, (_, i) => i + 1);
-  
+
       return [...leftRange, '...', totalPages];
     }
-  
+
     if (shouldShowLeftDots && !shouldShowRightDots) {
       let rightItemCount = 3 + 2 * siblingCount;
       let rightRange = Array.from({ length: rightItemCount }, (_, i) => totalPages - rightItemCount + 1 + i);
-      
+
       return [firstPageIndex, '...', ...rightRange];
     }
-  
+
     if (shouldShowLeftDots && shouldShowRightDots) {
       let middleRange = Array.from({ length: (siblingCount * 2) + 1 }, (_, i) => leftSiblingIndex + i);
       return [firstPageIndex, '...', ...middleRange, '...', lastPageIndex];
@@ -118,9 +123,9 @@ const Products = () => {
     setProductQuantities(prev => ({
       ...prev,
       [productId]: Math.max(1, quantity) // Evita cantidades negativas o cero
-  }));
-  console.log("Product quantities updated:", productId, Math.max(1, quantity));
-}, []);
+    }));
+    console.log("Product quantities updated:", productId, Math.max(1, quantity));
+  }, []);
 
   const incrementQuantity = useCallback(() => {
     if (selectedProduct) {
@@ -146,9 +151,9 @@ const Products = () => {
   const addToOrder = useCallback((product, qty = 1) => {
     try {
       const quantityToAdd = Number(qty || productQuantities[product.product_id] || 1);
-      
+
       const existingItemIndex = orderItems.findIndex(item => item.product_id === product.product_id);
-    
+
       if (existingItemIndex >= 0) {
         // Si el producto ya está en el pedido, actualizamos la cantidad
         const updatedItems = [...orderItems];
@@ -163,7 +168,7 @@ const Products = () => {
           unit_price: product.price_list1
         }]);
       }
-      
+
       showNotification(`${product.name} agregado al pedido`);
       if (modalVisible) closeModal();
     } catch (error) {
@@ -178,13 +183,13 @@ const Products = () => {
     const numValue = parseInt(newValue, 10);
     // Si no es un número o es menor que 1, usar 1
     const validQuantity = !isNaN(numValue) && numValue > 0 ? numValue : 1;
-    
+
     // Actualizar la cantidad
     setProductQuantities(prev => ({
       ...prev,
       [productId]: validQuantity
     }));
-      
+
     // Si estamos en el modal y el producto seleccionado coincide con el productId,
     // también actualizamos el estado de quantity
     if (selectedProduct && selectedProduct.product_id === productId) {
@@ -194,101 +199,90 @@ const Products = () => {
 
   // Función auxiliar para obtener el ID del usuario actual
   const getCurrentUserId = useCallback(() => {
-    return localStorage.getItem('userId') || 1; // Valor predeterminado para pruebas
-  }, []);
+    if (!user || !user.id) {
+      console.error("Error: No se pudo obtener el ID de usuario", user);
+      return null;
+    }
+    return user.id;
+  }, [user]);
 
   // Función para enviar el pedido completo a la API
   const submitOrder = useCallback(async () => {
+    // Validar que hay productos en el pedido
     if (orderItems.length === 0) {
       showNotification('No hay productos en el pedido', 'error');
       return;
     }
   
-    setSubmittingOrder(true);
-    try {
-      // Obtener fecha de entrega según políticas de negocio
-      const now = new Date();
-      const currentDay = now.getDay(); // 0 (domingo) a 6 (sábado)
-      const currentHour = now.getHours();
-      const currentMinute = now.getMinutes();
-      
-      // Convertir orderTimeLimit a horas y minutos (usar valor predeterminado si no está disponible)
-      const orderTimeLimit = siteSettings?.orderTimeLimit || '18:00';
-      const [limitHours, limitMinutes] = orderTimeLimit.split(':').map(Number);
-      
-      const isPastTimeLimit = currentHour > limitHours || 
-        (currentHour === limitHours && currentMinute >= limitMinutes);
-      
-      // Calcular días de entrega según reglas
-      let deliveryOffset = 2; // Mínimo 2 días en el futuro para entrega
-      
-      // Regla especial para sábados
-      if (currentDay === 6) { // Sábado
-        if (currentHour >= 12) { // Después del mediodía
-          // Después del mediodía en sábado, entrega el miércoles (4 días después)
-          deliveryOffset = 4;
-        } else {
-          // Antes del mediodía en sábado, entrega el martes (3 días después)
-          deliveryOffset = 3;
-        }
-      } 
-      // Regla para domingos - siempre entrega el miércoles (3 días)
-      else if (currentDay === 0) {
-        deliveryOffset = 3;
-      }
-      // Para otros días, mínimo 2 días de entrega
-      else if (isPastTimeLimit) {
-        // Si pasó el límite de tiempo, agregar un día extra
-        deliveryOffset = 3; // 3 días en lugar de 2
-      }
-      
-      // Calcular fecha de entrega
-      const deliveryDate = new Date(now);
-      deliveryDate.setDate(now.getDate() + deliveryOffset);
+    // Validar que todos los productos tienen datos válidos
+    const isValid = orderItems.every(item =>
+      item.product_id && 
+      item.quantity > 0 && 
+      item.unit_price > 0
+    );
+  
+    if (!isValid) {
+      showNotification('Por favor revisa los productos del pedido. Todos deben tener cantidades y precios válidos.', 'error');
+      return;
+    }
+  
+    // Validar que se ha seleccionado una fecha de entrega
+    if (!deliveryDate) {
+      showNotification('Selecciona una fecha de entrega válida', 'error');
+      return;
+    }
 
-      // Si cae en domingo, mover al lunes
-      if (deliveryDate.getDay() === 0) {
-        deliveryDate.setDate(deliveryDate.getDate() + 1);
-      }
-      
-      // Formato YYYY-MM-DD para la API
-      const formattedDeliveryDate = deliveryDate.toISOString().split('T')[0];
-      
-      // Preparar datos para la API según la estructura de orderController
+    const userId = getCurrentUserId();
+      if (!userId) {
+    showNotification('No se pudo identificar tu usuario. Por favor, inicia sesión nuevamente.', 'error');
+    return;
+    }
+  
+    setSubmittingOrder(true);
+  
+    try {
       const orderData = {
-          user_id: getCurrentUserId(),
-          total_amount: orderTotal,
-          delivery_date: formattedDeliveryDate, // Añadir fecha de entrega
-          details: orderItems.map(item => ({
-          product_id: item.product_id,
-          quantity: item.quantity,
-          unit_price: item.unit_price
+        user_id: getCurrentUserId(),
+        total_amount: orderTotal,
+        delivery_date: deliveryDate,
+        details: orderItems.map(item => ({
+          product_id: parseInt(item.product_id),
+          quantity: parseInt(item.quantity),
+          unit_price: parseFloat(item.unit_price)
         }))
       };
-      
-      // Agregar información del sitio para la fecha de entrega
+  
       const response = await API.post('/orders', orderData);
-      
+  
       if (response.data.success) {
-        showNotification('Pedido enviado correctamente. Entrega programada para: ' + 
-          new Date(formattedDeliveryDate).toLocaleDateString('es-ES', { 
-            weekday: 'long', 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric' 
-          }));
+        showNotification('Pedido creado exitosamente');
         setOrderItems([]);
         setOrderTotal(0);
+        setDeliveryDate('');
       } else {
-        showNotification(response.data.message || 'Error al crear el pedido', 'error');
+        throw new Error(response.data.message || 'Error al crear el pedido');
       }
     } catch (error) {
       console.error('Error submitting order:', error);
-      showNotification('Error al enviar el pedido: ' + (error.response?.data?.message || error.message), 'error');
+      
+      if (error.response) {
+        const status = error.response.status;
+        if (status === 400) {
+          showNotification('Datos inválidos en el pedido. Revisa la información.', 'error');
+        } else if (status === 403) {
+          showNotification('Tu usuario no tiene permisos para crear pedidos.', 'error');
+        } else if (status === 500) {
+          showNotification('Error en el servidor. Contacta al administrador.', 'error');
+        } else {
+          showNotification(`Error: ${error.response.data?.message || 'Desconocido'}`, 'error');
+        }
+      } else {
+        showNotification('Error de conexión. Verifica tu internet.', 'error');
+      }
     } finally {
       setSubmittingOrder(false);
     }
-  }, [orderItems, orderTotal, showNotification, getCurrentUserId, siteSettings]);
+  }, [orderItems, orderTotal, deliveryDate, showNotification, getCurrentUserId]);
 
   // Formatear precio
   const formatCurrency = useCallback((value) => {
@@ -319,7 +313,7 @@ const Products = () => {
         // Usar valores predeterminados si no se puede cargar
       }
     };
-  
+
     fetchSettings();
   }, []);
 
@@ -329,15 +323,15 @@ const Products = () => {
   }, [fetchProducts]);
 
   // Inicializar cantidades de productos cuando se cargan
-useEffect(() => {
-  if (products.length > 0) {
-    const initialQuantities = {};
-    products.forEach(product => {
-      initialQuantities[product.product_id] = 1;
-    });
-    setProductQuantities(initialQuantities);
-  }
-}, [products]);
+  useEffect(() => {
+    if (products.length > 0) {
+      const initialQuantities = {};
+      products.forEach(product => {
+        initialQuantities[product.product_id] = 1;
+      });
+      setProductQuantities(initialQuantities);
+    }
+  }, [products]);
 
   // Actualizar productos cuando cambia la búsqueda
   useEffect(() => {
@@ -366,8 +360,8 @@ useEffect(() => {
               Explora el catálogo y añade productos a tu orden
             </p>
           </div>
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             className={`rounded-full p-3 ${darkMode ? 'bg-gray-800 text-gray-200' : 'bg-white text-gray-800'}`}
             onClick={() => setDarkMode(!darkMode)}
           >
@@ -375,10 +369,10 @@ useEffect(() => {
           </Button>
         </div>
         <div className="mb-4 text-sm">
-        Mostrando {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, products.length)} de {products.length} productos
+          Mostrando {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, products.length)} de {products.length} productos
         </div>
 
-        
+
         {/* Order summary card with animation */}
         <div className={`mb-8 transform transition-all duration-300 hover:scale-[1.01] ${orderItems.length > 0 ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-90'}`}>
           <Card className={`overflow-hidden ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
@@ -402,14 +396,13 @@ useEffect(() => {
                   </span>
                   <Button
                     variant="secondary"
-                    className={`transition-all duration-200 transform active:scale-95 ${
-                      submittingOrder ? 'opacity-75' : ''
-                    } ${darkMode ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}
+                    className={`transition-all duration-200 transform active:scale-95 ${submittingOrder ? 'opacity-75' : ''
+                      } ${darkMode ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}
                     onClick={submitOrder}
                     disabled={orderItems.length === 0 || submittingOrder}
                   >
                     <span className="flex items-center gap-2">
-                      {submittingOrder ? 'Procesando...' : 'Finalizar Pedido'} 
+                      {submittingOrder ? 'Procesando...' : 'Finalizar Pedido'}
                       {!submittingOrder && <FiCheck />}
                     </span>
                   </Button>
@@ -418,7 +411,18 @@ useEffect(() => {
             </div>
           </Card>
         </div>
-        
+        <div className="mb-4">
+          <label className="block text-sm font-medium mb-1">
+            Fecha de entrega
+          </label>
+          <DeliveryDatePicker
+            value={deliveryDate}
+            onChange={setDeliveryDate}
+            orderTimeLimit={siteSettings?.orderTimeLimit || '18:00'}
+          />
+          {!deliveryDate && <p className="text-red-500 text-xs mt-1">Selecciona una fecha de entrega</p>}
+        </div>
+
         {/* Search and view controls */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
           <div className="lg:col-span-3">
@@ -442,14 +446,14 @@ useEffect(() => {
             </div>
           </div>
           <div className="flex justify-between lg:justify-end gap-2">
-            <Button 
-              variant={viewMode === 'table' ? 'secondary' : 'outline'} 
+            <Button
+              variant={viewMode === 'table' ? 'secondary' : 'outline'}
               onClick={() => setViewMode('table')}
               className={`flex-1 lg:flex-none ${viewMode === 'table' ? (darkMode ? 'bg-blue-500' : 'bg-blue-800') : (darkMode ? 'bg-gray-800 text-gray-200 border-gray-700' : 'bg-white border-gray-300')}`}>
               <FiList className="mr-1" /> Lista
             </Button>
-            <Button 
-              variant={viewMode === 'cards' ? 'secondary' : 'outline'} 
+            <Button
+              variant={viewMode === 'cards' ? 'secondary' : 'outline'}
               onClick={() => setViewMode('cards')}
               className={`flex-1 lg:flex-none ${viewMode === 'cards' ? (darkMode ? 'bg-indigo-600' : 'bg-indigo-600') : (darkMode ? 'bg-gray-800 text-gray-200 border-gray-700' : 'bg-white border-gray-300')}`}
             >
@@ -457,7 +461,7 @@ useEffect(() => {
             </Button>
           </div>
         </div>
-        
+
         {/* Products display - Table view */}
         {viewMode === 'table' && (
           <div className={`overflow-x-auto rounded-lg shadow ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
@@ -497,13 +501,13 @@ useEffect(() => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center border rounded-md w-32 overflow-hidden">
-                          <button 
+                          <button
                             onClick={() => {
                               const currentQty = productQuantities[product.product_id] || 1;
                               if (currentQty > 1) {
                                 updateQuantity(product.product_id, currentQty - 1);
                               }
-                            }} 
+                            }}
                             className={`px-2 py-1 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
                           >
                             <FiMinus size={14} />
@@ -515,11 +519,11 @@ useEffect(() => {
                             onChange={(e) => handleQuantityChange(product.product_id, parseInt(e.target.value, 10))}
                             className={`w-12 text-center text-sm border-0 focus:ring-0 focus:outline-none ${darkMode ? 'bg-gray-800 text-white' : 'bg-white'}`}
                           />
-                          <button 
+                          <button
                             onClick={() => {
                               const currentQty = productQuantities[product.product_id] || 1;
                               updateQuantity(product.product_id, currentQty + 1);
-                            }} 
+                            }}
                             className={`px-2 py-1 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
                           >
                             <FiPlus size={14} />
@@ -557,7 +561,7 @@ useEffect(() => {
             )}
           </div>
         )}
-        
+
         {/* Products display - Cards view */}
         {viewMode === 'cards' && (
           <div className={`${loading ? 'flex justify-center items-center min-h-[300px]' : ''}`}>
@@ -569,16 +573,15 @@ useEffect(() => {
             ) : products.length > 0 ? (
               <div className="grid grid-cols-2 gap-6">
                 {paginatedProducts.map((product) => (
-                  <div 
-                    key={product.product_id} 
-                    className={`rounded-lg overflow-hidden shadow-md transition-all duration-300 hover:shadow-lg transform hover:-translate-y-1 ${
-                      darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white'
-                    }`}
+                  <div
+                    key={product.product_id}
+                    className={`rounded-lg overflow-hidden shadow-md transition-all duration-300 hover:shadow-lg transform hover:-translate-y-1 ${darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white'
+                      }`}
                   >
                     {product.image ? (
-                      <img 
-                        src={product.image} 
-                        alt={product.name} 
+                      <img
+                        src={product.image}
+                        alt={product.name}
                         className="w-full h-48 object-cover"
                       />
                     ) : (
@@ -589,8 +592,8 @@ useEffect(() => {
                     <div className="p-4">
                       <h3 className={`font-semibold text-lg mb-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{product.name}</h3>
                       <p className={`text-sm mb-3 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {product.description ? 
-                          (product.description.length > 80 ? 
+                        {product.description ?
+                          (product.description.length > 80 ?
                             `${product.description.substring(0, 80)}...` : product.description
                           ) : 'Sin descripción'
                         }
@@ -600,13 +603,13 @@ useEffect(() => {
                           {formatCurrency(product.price_list1)}
                         </span>
                         <div className="flex items-center">
-                          <button 
+                          <button
                             onClick={() => {
                               const currentQty = productQuantities[product.product_id] || 1;
                               if (currentQty > 1) {
                                 updateQuantity(product.product_id, currentQty - 1);
                               }
-                            }} 
+                            }}
                             className={`p-1 rounded-md ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
                           >
                             <FiMinus size={14} />
@@ -616,15 +619,14 @@ useEffect(() => {
                             min="1"
                             value={productQuantities[product.product_id] || 1}
                             onChange={(e) => handleQuantityChange(product.product_id, parseInt(e.target.value, 10))}
-                            className={`w-12 text-center text-sm mx-1 border rounded-md ${
-                              darkMode ? 'bg-gray-700 text-white border-gray-600' : 'bg-white border-gray-300'
-                            }`}
+                            className={`w-12 text-center text-sm mx-1 border rounded-md ${darkMode ? 'bg-gray-700 text-white border-gray-600' : 'bg-white border-gray-300'
+                              }`}
                           />
-                          <button 
+                          <button
                             onClick={() => {
                               const currentQty = productQuantities[product.product_id] || 1;
                               updateQuantity(product.product_id, currentQty + 1);
-                            }} 
+                            }}
                             className={`p-1 rounded-md ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
                           >
                             <FiPlus size={14} />
@@ -635,9 +637,8 @@ useEffect(() => {
                         <Button
                           variant="outline"
                           size="sm"
-                          className={`flex-1 transition-transform active:scale-95 ${
-                            darkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-600 text-gray-200' : ''
-                          }`}
+                          className={`flex-1 transition-transform active:scale-95 ${darkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-600 text-gray-200' : ''
+                            }`}
                           onClick={() => openProductDetails(product)}
                         >
                           <FiEye className="mr-1" /> Ver
@@ -662,7 +663,7 @@ useEffect(() => {
             )}
           </div>
         )}
-        
+
         {/* Pagination */}
         {/* Nueva paginación */}
         <button onClick={() => paginate(Math.max(currentPage - 1, 1))}
@@ -681,11 +682,10 @@ useEffect(() => {
                   <button
                     key={index}
                     onClick={() => paginate(pageNumber)}
-                    className={`mx-1 px-3 py-1 rounded ${
-                      currentPage === pageNumber
-                        ? 'bg-indigo-600 text-white'
-                        : 'bg-gray-200 text-gray-700 Shover:bg-gray-300'
-                    }`}
+                    className={`mx-1 px-3 py-1 rounded ${currentPage === pageNumber
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-gray-200 text-gray-700 Shover:bg-gray-300'
+                      }`}
                   >
                     {pageNumber}
                   </button>
@@ -705,11 +705,11 @@ useEffect(() => {
           Página actual: {currentPage}
         </div>
       </div>
-      
+
       {/* Product Detail Modal */}
-      <Modal 
-        isOpen={modalVisible} 
-        onClose={closeModal} 
+      <Modal
+        isOpen={modalVisible}
+        onClose={closeModal}
         title={selectedProduct?.name || 'Detalle del Producto'}
         className={darkMode ? 'bg-gray-800 text-white' : ''}
       >
@@ -717,9 +717,9 @@ useEffect(() => {
           <div className="flex flex-col md:flex-row gap-6">
             <div className="w-full md:w-1/2">
               {selectedProduct.image ? (
-                <img 
-                  src={selectedProduct.image} 
-                  alt={selectedProduct.name} 
+                <img
+                  src={selectedProduct.image}
+                  alt={selectedProduct.name}
                   className="w-full h-auto rounded-lg object-cover shadow-md"
                 />
               ) : (
@@ -748,11 +748,10 @@ useEffect(() => {
                 <div className="flex items-center justify-between mb-6">
                   <span className={darkMode ? 'text-gray-300' : 'text-gray-600'}>Cantidad:</span>
                   <div className="flex items-center">
-                    <button 
-                      onClick={decrementQuantity} 
-                      className={`p-2 rounded-l-md ${
-                        darkMode ? 'bg-gray-600 hover:bg-gray-500 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
-                      }`}
+                    <button
+                      onClick={decrementQuantity}
+                      className={`p-2 rounded-l-md ${darkMode ? 'bg-gray-600 hover:bg-gray-500 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                        }`}
                     >
                       <FiMinus size={16} />
                     </button>
@@ -761,15 +760,13 @@ useEffect(() => {
                       min="1"
                       value={quantity}
                       onChange={(e) => handleQuantityChange(selectedProduct.product_id, parseInt(e.target.value, 10))}
-                      className={`w-16 py-2 text-center border-y ${
-                        darkMode ? 'bg-gray-700 text-white border-gray-600' : 'bg-white text-gray-700 border-gray-200'
-                      }`}
+                      className={`w-16 py-2 text-center border-y ${darkMode ? 'bg-gray-700 text-white border-gray-600' : 'bg-white text-gray-700 border-gray-200'
+                        }`}
                     />
-                    <button 
-                      onClick={incrementQuantity} 
-                      className={`p-2 rounded-r-md ${
-                        darkMode ? 'bg-gray-600 hover:bg-gray-500 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
-                      }`}
+                    <button
+                      onClick={incrementQuantity}
+                      className={`p-2 rounded-r-md ${darkMode ? 'bg-gray-600 hover:bg-gray-500 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                        }`}
                     >
                       <FiPlus size={16} />
                     </button>

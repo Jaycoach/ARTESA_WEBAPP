@@ -11,7 +11,7 @@ const OrderList = () => {
   const [orders, setOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  
+
   // Para manejar la edición y paginación
   const [editableOrders, setEditableOrders] = useState({});
   const [currentPage, setCurrentPage] = useState(1);
@@ -27,6 +27,40 @@ const OrderList = () => {
 
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const isAdmin = user?.role === 1; // Ajustar si tu backend define '1' como Admin
+
+  const ProductDetailsList = ({ details }) => {
+    if (!details || details.length === 0) {
+      return <span className="text-gray-500">No hay productos</span>;
+    }
+
+    return (
+      <div className="space-y-2">
+        {details.map((detail, index) => (
+          <div key={index} className="text-sm">
+            {/* Solo nombre del producto */}
+            <span className="text-gray-800 font-medium">{detail.product_name}</span>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  const ProductQuantitiesList = ({ details }) => {
+    if (!details || details.length === 0) {
+      return <span className="text-gray-500">No hay cantidades</span>;
+    }
+
+    return (
+      <div className="space-y-1">
+        {details.map((detail, index) => (
+          <div key={index} className="text-sm text-blue-600">
+            {detail.quantity} {detail.quantity === 1 ? 'unidad' : 'unidades'}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
 
   // 1. Cargar configuración (orderTimeLimit) y la lista de estados
   useEffect(() => {
@@ -69,28 +103,29 @@ const OrderList = () => {
       let data = [];
 
       if (isAdmin) {
-  // Órdenes del usuario admin
-  const userOrders = await orderService.getUserOrders(user.id);
+        // Órdenes del usuario admin
+        const userOrders = await orderService.getUserOrders(user.id);
 
-  // Órdenes del día actual
-  const todayISO = new Date().toISOString().split('T')[0];
-  const todayOrders = await orderService.getOrdersByDeliveryDate(todayISO);
+        // Órdenes del día actual
+        const todayISO = new Date().toISOString().split('T')[0];
+        const todayOrders = await orderService.getOrdersByDeliveryDate(todayISO);
 
-  // 1) Unimos ambos arreglos
-  const combined = [...userOrders, ...todayOrders];
+        // 1) Unimos ambos arreglos
+        const combined = [...userOrders, ...todayOrders];
 
-  // 2) Eliminamos duplicados usando un Map
-  const uniqueMap = new Map();
-  for (const o of combined) {
-    uniqueMap.set(o.order_id, o);
-  }
-  // 3) data final sin duplicados
-  data = Array.from(uniqueMap.values());
 
-} else {
-  // Usuario normal: solo sus órdenes
-  data = await orderService.getUserOrders(user.id);
-}
+        // 2) Eliminamos duplicados usando un Map
+        const uniqueMap = new Map();
+        for (const o of combined) {
+          uniqueMap.set(o.order_id, o);
+        }
+        // 3) data final sin duplicados
+        data = Array.from(uniqueMap.values());
+
+      } else {
+        // Usuario normal: solo sus órdenes
+        data = await orderService.getUserOrders(user.id);
+      }
 
       // Filtramos las órdenes por estados "activos" (no canceladas ni cerradas):
       const active = data.filter(o => {
@@ -101,6 +136,28 @@ const OrderList = () => {
       });
 
       setOrders(active);
+
+      // Para cada orden, obtener los detalles de productos
+      const ordersWithDetails = await Promise.all(
+        active.map(async (order) => {
+          try {
+            // Solicitar detalles de productos para esta orden
+            const detailsResponse = await API.get(`/orders/${order.order_id}`);
+            if (detailsResponse.data.success) {
+              return {
+                ...order,
+                orderDetails: detailsResponse.data.data.details || []
+              };
+            }
+            return order;
+          } catch (error) {
+            console.error(`Error fetching details for order ${order.order_id}:`, error);
+            return order;
+          }
+        })
+      );
+      setOrders(ordersWithDetails);
+
 
       // Comprobamos cuáles pedidos son editables
       const editMap = {};
@@ -204,12 +261,24 @@ const OrderList = () => {
     );
   }
 
+  const formatColombianCurrency = (amount) => {
+    if (!amount) return "$0";
+
+    // Convertir el número a string y usar expresiones regulares para formatear
+    const formattedAmount = Math.round(parseFloat(amount))
+      .toString()
+      .replace(/\B(?=(\d{3})+(?!\d))/g, ".") // Separador de miles con punto
+      .replace(/(\d+)\.(\d{3})\.(\d{3})$/, "$1'$2.$3"); // Separador de millones con comilla
+
+    return `$${formattedAmount}`;
+  };
+
   // 5. Render principal
   return (
     <div className="bg-white p-6 rounded-lg border shadow-sm">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-semibold text-gray-800">Mis Pedidos</h2>
-        
+
         <div className="flex gap-2 items-center">
           <button
             onClick={() => setShowFilterPanel(!showFilterPanel)}
@@ -303,6 +372,7 @@ const OrderList = () => {
               <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase text-center">Fecha</th>
               <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase text-center">Entrega</th>
               <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase text-center">Productos</th>
+              <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase text-center">Cantidad</th>
               <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase text-center">Total</th>
               <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase text-center">Estado</th>
               <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase text-center">Acciones</th>
@@ -328,11 +398,38 @@ const OrderList = () => {
                 <td className="px-6 py-4 border-b text-sm text-gray-500 text-center">
                   {formatDate(order.delivery_date)}
                 </td>
-                <td className="px-6 py-4 border-b text-sm text-gray-500 text-center">
-                  {order.item_count || 0} productos ({order.total_items || 0} unidades)
+                <td className="px-6 py-4 border-b text-sm">
+                  {order.orderDetails ? (
+                    <div className="space-y-2">
+                      {order.orderDetails.map((detail, index) => (
+                        <div
+                          key={index}
+                          className="text-gray-800 font-medium text-xs whitespace-nowrap overflow-hidden text-ellipsis block max-w-[200px]"
+                          title={detail.product_name} // Tooltip nativo
+                        >
+                          {detail.product_name}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <span>No hay productos</span>
+                  )}
+                </td>
+                <td className="px-6 py-4 border-b text-sm">
+                  {order.orderDetails ? (
+                    <div className="space-y-2">
+                      {order.orderDetails.map((detail, index) => (
+                        <div key={index} className="text-blue-600 text-center">
+                          {detail.quantity}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="text-center block">No hay cantidades</span>
+                  )}
                 </td>
                 <td className="px-6 py-4 border-b text-sm text-gray-900 text-right font-semibold">
-                  ${parseFloat(order.total_amount).toFixed(2)}
+                  {formatColombianCurrency(order.total_amount)}
                 </td>
                 <td className="px-6 py-4 border-b text-sm text-center">
                   <OrderStatusBadge status={orderStatuses[order.status_id] || order.status || 'pendiente'} />
@@ -400,11 +497,10 @@ const OrderList = () => {
               <button
                 key={num + 1}
                 onClick={() => paginate(num + 1)}
-                className={`px-4 py-2 border border-gray-300 bg-white text-sm font-medium ${
-                  currentPage === num + 1
-                    ? 'z-10 bg-indigo-50 border-indigo-500 text-indigo-600'
-                    : 'text-gray-700 hover:bg-gray-50'
-                }`}
+                className={`px-4 py-2 border border-gray-300 bg-white text-sm font-medium ${currentPage === num + 1
+                  ? 'z-10 bg-indigo-50 border-indigo-500 text-indigo-600'
+                  : 'text-gray-700 hover:bg-gray-50'
+                  }`}
               >
                 {num + 1}
               </button>

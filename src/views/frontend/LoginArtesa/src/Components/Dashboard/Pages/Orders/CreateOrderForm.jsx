@@ -394,6 +394,9 @@ const CreateOrderForm = ({ onOrderCreated }) => {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Imagen Referencia
+                </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Producto
                 </th>
@@ -412,57 +415,85 @@ const CreateOrderForm = ({ onOrderCreated }) => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {orderDetails.map((detail, index) => (
-                <tr key={index}>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <select
-                      value={detail.product_id}
-                      onChange={(e) => handleProductChange(index, 'product_id', e.target.value)}
-                      className="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                      required
-                    >
-                      <option value="">Seleccionar producto</option>
-                      {products.map(product => (
-                        <option
-                          key={product.product_id}
-                          value={product.product_id}
-                        >
-                          {product.name}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <input
-                      type="number"
-                      min="1"
-                      value={detail.quantity}
-                      onChange={(e) => handleProductChange(index, 'quantity', e.target.value)}
-                      className="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                      required
-                    />
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    ${parseFloat(detail.unit_price).toFixed(2)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    ${(detail.quantity * detail.unit_price).toFixed(2)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveProduct(index)}
-                      className="text-red-600 hover:text-red-800"
-                      disabled={orderDetails.length <= 1}
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {orderDetails.map((detail, index) => {
+                const selectedProduct = products.find(p => p.product_id === parseInt(detail.product_id));
+
+                return (
+                  <tr key={index}>
+                    {/* Imagen del producto */}
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {selectedProduct?.image_url ? (
+                        <div className="w-16 h-16">
+                          <img
+                            src={selectedProduct.image_url}
+                            alt={selectedProduct.name}
+                            className="object-cover w-full h-full rounded-md border border-gray-300"
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-16 h-16 flex items-center justify-center bg-gray-100 rounded-md border border-gray-300">
+                          <span className="text-gray-500 text-xs">Sin imagen</span>
+                        </div>
+                      )}
+                    </td>
+
+                    {/* Selector de producto */}
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <select
+                        value={detail.product_id}
+                        onChange={(e) => handleProductChange(index, 'product_id', e.target.value)}
+                        className="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                        required
+                      >
+                        <option value="">Seleccionar producto</option>
+                        {products.map(product => (
+                          <option key={product.product_id} value={product.product_id}>
+                            {product.name}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+
+                    {/* Cantidad */}
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <input
+                        type="number"
+                        min="1"
+                        value={detail.quantity}
+                        onChange={(e) => handleProductChange(index, 'quantity', e.target.value)}
+                        className="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                        required
+                      />
+                    </td>
+
+                    {/* Precio unitario */}
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      ${parseFloat(detail.unit_price).toFixed(2)}
+                    </td>
+
+                    {/* Subtotal */}
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      ${(detail.quantity * detail.unit_price).toFixed(2)}
+                    </td>
+
+                    {/* Acciones */}
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveProduct(index)}
+                        className="text-red-600 hover:text-red-800"
+                        disabled={orderDetails.length <= 1}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
+
           </table>
         </div>
 
@@ -511,7 +542,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
         <div className="flex gap-4">
           <button
             type="button"
-            className="flex-1 py-2 px-4 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+            className="flex-1 py-2 px-4 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-red-500 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
             onClick={handleCancelClick}
           >
             Cancelar
