@@ -133,7 +133,7 @@ const Home = () => {
           <a href="#productos" className="hover:text-orange-500 transition-colors duration-300">Productos</a>
           <a href="#blog" className="hover:text-orange-500 transition-colors duration-300">Quienes somos</a>
           <a href="#contacto" className="hover:text-orange-500 transition-colors duration-300">Contáctanos</a>
-          <a href='/original-home' className="hover:text-orange-500 transition-colors duration-300">Iniciar sesión</a>
+          <a href='/' className="hover:text-orange-500 transition-colors duration-300">Iniciar sesión</a>
         </nav>
       </div>
 
@@ -189,7 +189,7 @@ const Home = () => {
           <h2 className="text-2xl font-semibold text-white">Productos pasteleros de alta calidad</h2>
           <p className="mt-2 text-white">Programa tu pedido en línea con pago y transporte seguro.</p>
           <button
-            onClick={() => navigate('/original-home')}
+            onClick={() => navigate('/')}
             className="mt-4 bg-orange-500 text-white px-6 py-3 rounded-lg shadow-md hover:bg-orange-600 transition"
           >
             Realizar Pedido

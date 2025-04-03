@@ -2,8 +2,8 @@ import { lazy, Suspense, useEffect } from 'react';
 import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom';
 
 // Importar componentes de manera normal para páginas principales
-import Home from './Components/Home/home2';
-import OriginalHome from './Components/Home/Home';
+import Home from './Components/Home/Home';
+import OriginalHome from './Components/Home/home2';
 
 // Importar el contexto de autenticación
 import { useAuth } from './hooks/useAuth';
