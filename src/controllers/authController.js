@@ -275,19 +275,6 @@ static incrementLoginAttempts(mail) {
                     message: 'Credenciales incompletas'
                 });
             }
-
-            if (!user.email_verified) {
-                logger.warn('Intento de login con correo no verificado', {
-                  mail,
-                  userId: user.id
-                });
-                
-                return res.status(401).json({
-                  success: false,
-                  message: 'Por favor verifica tu correo electrónico antes de iniciar sesión',
-                  needsVerification: true
-                });
-              }
     
             // 2. Verificar intentos de login ANTES de incrementar el contador
             try {
@@ -328,19 +315,19 @@ static incrementLoginAttempts(mail) {
     
             // 3. Buscar usuario y verificar estado
             const query = `
-                SELECT 
-                    u.id,
-                    u.name,
-                    u.mail,
-                    u.password,
-                    u.rol_id,
-                    u.is_active,
-                    u.email_verified,
-                    r.nombre as role_name
-                FROM users u
-                JOIN roles r ON u.rol_id = r.id
-                WHERE u.mail = $1
-            `;
+            SELECT 
+                u.id,
+                u.name,
+                u.mail,
+                u.password,
+                u.rol_id,
+                u.is_active,
+                COALESCE(u.email_verified, true) as email_verified,
+                r.nombre as role_name
+            FROM users u
+            JOIN roles r ON u.rol_id = r.id
+            WHERE u.mail = $1
+        `;
             
             const result = await pool.query(query, [mail]);
     
@@ -362,7 +349,29 @@ static incrementLoginAttempts(mail) {
             }
     
             const user = result.rows[0];
-    
+
+            // Verificar si el correo está verificado (si existe el campo)
+            if (user.hasOwnProperty('email_verified') && !user.email_verified) {
+                logger.warn('Intento de login con correo no verificado', {
+                mail,
+                userId: user.id
+                });
+                
+                await this.logLoginAttempt(
+                    user.id, 
+                    req.ip, 
+                    'failed', 
+                    'Correo no verificado', 
+                    req
+                );
+                
+                return res.status(401).json({
+                success: false,
+                message: 'Por favor verifica tu correo electrónico antes de iniciar sesión',
+                needsVerification: true
+                });
+            }
+
             // 4. Verificación de contraseña
             try {
                 if (!user.password) {
@@ -843,5 +852,7 @@ module.exports = {
     register: AuthController.register.bind(AuthController),
     verifyToken: AuthController.verifyToken.bind(AuthController),
     handleServerRestart: AuthController.handleServerRestart.bind(AuthController),
+    verifyEmail: AuthController.verifyEmail.bind(AuthController),
+    resendVerification: AuthController.resendVerification.bind(AuthController),
     loginLimiter
 };
