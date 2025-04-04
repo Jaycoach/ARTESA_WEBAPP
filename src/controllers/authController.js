@@ -555,22 +555,15 @@ static incrementLoginAttempts(mail) {
                 throw new Error('Error en la configuración de roles');
             }  
 
-            // 4. Insertar nuevo usuario - is_active = false requiere activación posterior
-            const result = await pool.query(
-                `INSERT INTO users 
-                (name, mail, password, rol_id, is_active) 
-                VALUES ($1, $2, $3, $4, false)
-                RETURNING id, name, mail, rol_id`,
-                [name, mail, hashedPassword, userRoleId]
-            );
-
+            // 4. Insertar nuevo usuario con campos de verificación
             const verificationToken = crypto.randomBytes(32).toString('hex');
             const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 horas
 
-            await pool.query(
+            const result = await pool.query(
                 `INSERT INTO users 
                 (name, mail, password, rol_id, is_active, email_verified, verification_token, verification_expires) 
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, name, mail, rol_id`,
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                RETURNING id, name, mail, rol_id`,
                 [name, mail, hashedPassword, userRoleId, false, false, verificationToken, verificationExpires]
             );
 
