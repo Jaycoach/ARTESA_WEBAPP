@@ -60,7 +60,7 @@ const sanitizeParams = (req, res, next) => {
 
 // Middleware para prevenir ataques de SQL Injection en queries
 const validateQueryParams = (req, res, next) => {
-  const sqlInjectionPattern = /('|"|;|--|\/\*|\*\/|xp_|sp_|exec|execute|insert|select|delete|update|drop|union|into|load_file|outfile)/i;
+  const sqlInjectionPattern = /('|"|;)\s*(--|\/\*|\*\/|xp_|sp_|exec\s+|execute\s+|insert\s+into|select\s+from|delete\s+from|update\s+|drop\s+table|union\s+select|into\s+outfile|load_file)/i;
   
   const checkValue = (value, key) => {
     // Excepción para URLs de imágenes
@@ -99,6 +99,12 @@ const validateQueryParams = (req, res, next) => {
     };
 
     if (!checkObject(req.body)) {
+      logger.warn('Solicitud rechazada por parámetros inválidos', {
+        path: req.path,
+        method: req.method,
+        ip: req.ip,
+        body: JSON.stringify(req.body)
+      });
       return res.status(403).json({ 
         error: 'Invalid request body parameter detected' 
       });
