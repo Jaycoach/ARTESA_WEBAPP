@@ -561,10 +561,16 @@ static incrementLoginAttempts(mail) {
 
             const result = await pool.query(
                 `INSERT INTO users 
-                (name, mail, password, rol_id, is_active, email_verified, verification_token, verification_expires) 
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                (name, mail, password, rol_id, is_active) 
+                VALUES ($1, $2, $3, $4, $5)
                 RETURNING id, name, mail, rol_id`,
-                [name, mail, hashedPassword, userRoleId, false, false, verificationToken, verificationExpires]
+                [name, mail, hashedPassword, userRoleId, false]
+            );
+
+            await pool.query(
+                `INSERT INTO tokens (users_id, token, expiracion)
+                VALUES ($1, $2, $3)`,
+                [newUser.id, verificationToken, verificationExpires]
             );
 
             const newUser = result.rows[0];
@@ -660,7 +666,7 @@ static incrementLoginAttempts(mail) {
         
         // Verificar que el token existe y no ha expirado
         const { rows } = await pool.query(
-            'SELECT id, mail FROM users WHERE verification_token = $1 AND verification_expires > NOW()',
+            'SELECT u.id, u.mail FROM users u JOIN tokens t ON u.id = t.users_id WHERE t.token = $1 AND t.expiracion > NOW()',
             [token]
         );
         
@@ -676,8 +682,13 @@ static incrementLoginAttempts(mail) {
         
         // Actualizar usuario como verificado
         await pool.query(
-            'UPDATE users SET email_verified = true, is_active = true, verification_token = NULL, verification_expires = NULL WHERE id = $1',
+            'UPDATE users SET is_active = true WHERE id = $1',
             [userId]
+        );
+        
+        await pool.query(
+            'DELETE FROM tokens WHERE users_id = $1 AND token = $2',
+            [userId, token]
         );
         
         logger.info('Correo electrónico verificado exitosamente', {

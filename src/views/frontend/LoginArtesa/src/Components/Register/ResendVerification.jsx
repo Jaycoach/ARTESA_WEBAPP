@@ -34,7 +34,7 @@ const ResendVerification = () => {
     setIsLoading(true);
     
     try {
-      const response = await API.post('/auth/resend-verification', { email });
+      const response = await API.post('/auth/resend-verification', { mail: email });
       
       if (response.data.success) {
         setSuccess(true);
@@ -44,6 +44,9 @@ const ResendVerification = () => {
       }
     } catch (error) {
       console.error('Error al reenviar verificación:', error);
+
+      // Más información sobre el error para depuración
+        console.log("Respuesta detallada del error:", error.response?.data);
       
       // Manejar error de límite de intentos (429)
       if (error.response && error.response.status === 429) {
