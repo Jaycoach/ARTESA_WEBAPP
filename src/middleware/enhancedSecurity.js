@@ -152,6 +152,12 @@ const sendVerificationEmail = async (userEmail, verificationToken, verificationU
     }
   }
 
+  const registrationLimiter = rateLimit({
+    ...rateLimitConfig,
+    max: process.env.NODE_ENV === 'development' ? 100 : 10, // Más restrictivo para registros
+    message: 'Demasiadas solicitudes de registro. Por favor, intente más tarde.'
+});
+
 module.exports = {
     sensitiveApiLimiter,
     standardApiLimiter,

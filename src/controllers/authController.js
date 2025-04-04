@@ -6,6 +6,8 @@ const { createContextLogger } = require('../config/logger');
 const Roles = require('../models/Roles');
 const { TokenRevocation } = require('../middleware/tokenRevocation');
 const { validateRecaptcha } = require('../utils/recaptchaValidator');
+const crypto = require('crypto');
+const EmailService = require('../services/EmailService');
 
 // Crear una instancia del logger con contexto
 const logger = createContextLogger('AuthController');
@@ -333,6 +335,7 @@ static incrementLoginAttempts(mail) {
                     u.password,
                     u.rol_id,
                     u.is_active,
+                    u.email_verified,
                     r.nombre as role_name
                 FROM users u
                 JOIN roles r ON u.rol_id = r.id
@@ -555,7 +558,7 @@ static incrementLoginAttempts(mail) {
             const verificationToken = crypto.randomBytes(32).toString('hex');
             const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 horas
 
-            await client.query(
+            await pool.query(
                 `INSERT INTO users 
                 (name, mail, password, rol_id, is_active, email_verified, verification_token, verification_expires) 
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, name, mail, rol_id`,
