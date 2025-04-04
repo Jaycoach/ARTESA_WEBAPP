@@ -92,6 +92,62 @@ class EmailService {
         throw new Error(`Error al enviar el correo: ${error.message}`);
     }
   }
+
+  async sendVerificationEmail(userEmail, verificationToken, verificationUrl) {
+    try {
+      logger.info('Intentando enviar correo de verificación', {
+        to: userEmail,
+        verificationUrl: verificationUrl
+      });
+  
+      const mailOptions = {
+        from: {
+          name: 'La Artesa',
+          address: process.env.SMTP_FROM
+        },
+        to: userEmail,
+        subject: 'Verificación de Correo Electrónico - La Artesa',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h1 style="color: #333;">Verificación de Correo Electrónico</h1>
+            <p>Gracias por registrarte en La Artesa. Por favor, verifica tu dirección de correo electrónico para activar tu cuenta.</p>
+            <p>Utiliza el siguiente token para verificar tu correo:</p>
+            <div style="background-color: #f5f5f5; padding: 10px; margin: 20px 0; word-break: break-all;">
+              <code>${verificationToken}</code>
+            </div>
+            <p>O haz clic en el siguiente enlace:</p>
+            <a href="${verificationUrl}" 
+               style="display: inline-block; padding: 10px 20px; 
+                      background-color: #007bff; color: white; 
+                      text-decoration: none; border-radius: 5px;">
+              Verificar Correo Electrónico
+            </a>
+            <p>Este enlace expirará en 24 horas.</p>
+            <p>Si no solicitaste este registro, puedes ignorar este correo.</p>
+            <hr>
+            <p style="color: #666; font-size: 12px;">
+              Este es un correo automático, por favor no respondas a este mensaje.
+            </p>
+          </div>
+        `
+      };
+  
+      const info = await this.transporter.sendMail(mailOptions);
+      logger.info('Correo de verificación enviado exitosamente', {
+        messageId: info.messageId,
+        response: info.response
+      });
+  
+      return info;
+    } catch (error) {
+      logger.error('Error al enviar correo de verificación:', {
+        error: error.message,
+        stack: error.stack
+      });
+      throw new Error(`Error al enviar el correo de verificación: ${error.message}`);
+    }
+  }
 }
+
 
 module.exports = new EmailService();

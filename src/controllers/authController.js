@@ -5,6 +5,7 @@ const rateLimit = require('express-rate-limit');
 const { createContextLogger } = require('../config/logger');
 const Roles = require('../models/Roles');
 const { TokenRevocation } = require('../middleware/tokenRevocation');
+const { validateRecaptcha } = require('../utils/recaptchaValidator');
 
 // Crear una instancia del logger con contexto
 const logger = createContextLogger('AuthController');
@@ -272,6 +273,19 @@ static incrementLoginAttempts(mail) {
                     message: 'Credenciales incompletas'
                 });
             }
+
+            if (!user.email_verified) {
+                logger.warn('Intento de login con correo no verificado', {
+                  mail,
+                  userId: user.id
+                });
+                
+                return res.status(401).json({
+                  success: false,
+                  message: 'Por favor verifica tu correo electrónico antes de iniciar sesión',
+                  needsVerification: true
+                });
+              }
     
             // 2. Verificar intentos de login ANTES de incrementar el contador
             try {
@@ -485,8 +499,25 @@ static incrementLoginAttempts(mail) {
      */
     static async register(req, res) {
         try {
-            const { name, mail, password } = req.body;
+            const { name, mail, password, recaptchaToken } = req.body;
             logger.debug('Iniciando proceso de registro', { mail });
+
+            // Validar reCAPTCHA
+            if (recaptchaToken) {
+                const recaptchaValid = await validateRecaptcha(recaptchaToken, req.ip);
+                
+                if (!recaptchaValid) {
+                    logger.warn('Verificación reCAPTCHA fallida', {
+                        mail,
+                        ip: req.ip
+                    });
+                    
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Verificación de seguridad fallida. Por favor, intenta nuevamente.'
+                    });
+                }
+            }
 
             // 1. Verificar si el usuario ya existe
             const userExists = await pool.query(
@@ -510,7 +541,7 @@ static incrementLoginAttempts(mail) {
             if (!userRoleId) {
                 logger.error('No se pudo obtener el ID del rol de usuario');
                 throw new Error('Error en la configuración de roles');
-            }
+            }  
 
             // 4. Insertar nuevo usuario - is_active = false requiere activación posterior
             const result = await pool.query(
@@ -521,7 +552,37 @@ static incrementLoginAttempts(mail) {
                 [name, mail, hashedPassword, userRoleId]
             );
 
+            const verificationToken = crypto.randomBytes(32).toString('hex');
+            const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 horas
+
+            await client.query(
+                `INSERT INTO users 
+                (name, mail, password, rol_id, is_active, email_verified, verification_token, verification_expires) 
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, name, mail, rol_id`,
+                [name, mail, hashedPassword, userRoleId, false, false, verificationToken, verificationExpires]
+            );
+
             const newUser = result.rows[0];
+            const userId = result.rows[0].id;
+
+            // Enviar correo de verificación
+            try {
+            const verificationUrl = `${process.env.FRONTEND_URL}/verify-email/${verificationToken}`;
+            
+            await EmailService.sendVerificationEmail(mail, verificationToken, verificationUrl);
+            
+            logger.info('Correo de verificación enviado', {
+                userId,
+                mail
+            });
+            } catch (emailError) {
+            logger.error('Error al enviar correo de verificación', {
+                error: emailError.message,
+                userId,
+                mail
+            });
+            // No hacemos rollback aquí, el usuario se ha creado correctamente
+            }
 
             // 5. Obtener el nombre del rol
             const { rows: roleRows } = await pool.query(
@@ -579,6 +640,150 @@ static incrementLoginAttempts(mail) {
             });
         }
     }
+
+    /**
+     * Verifica el correo electrónico de un usuario
+     * @async
+     * @param {Object} req - Objeto de solicitud Express
+     * @param {Object} res - Objeto de respuesta Express
+     */
+    static async verifyEmail (req, res) {
+        const { token } = req.params;
+        
+        try {
+        logger.debug('Verificando token de correo electrónico', { token });
+        
+        // Verificar que el token existe y no ha expirado
+        const { rows } = await pool.query(
+            'SELECT id, mail FROM users WHERE verification_token = $1 AND verification_expires > NOW()',
+            [token]
+        );
+        
+        if (rows.length === 0) {
+            logger.warn('Token de verificación inválido o expirado', { token });
+            return res.status(400).json({
+            success: false,
+            message: 'El token de verificación es inválido o ha expirado'
+            });
+        }
+        
+        const userId = rows[0].id;
+        
+        // Actualizar usuario como verificado
+        await pool.query(
+            'UPDATE users SET email_verified = true, is_active = true, verification_token = NULL, verification_expires = NULL WHERE id = $1',
+            [userId]
+        );
+        
+        logger.info('Correo electrónico verificado exitosamente', {
+            userId,
+            mail: rows[0].mail
+        });
+        
+        res.status(200).json({
+            success: true,
+            message: 'Correo electrónico verificado exitosamente. Ahora puedes iniciar sesión.'
+        });
+        } catch (error) {
+        logger.error('Error al verificar correo electrónico', {
+            error: error.message,
+            stack: error.stack,
+            token
+        });
+        
+        res.status(500).json({
+            success: false,
+            message: 'Error al verificar correo electrónico',
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+        }
+    };
+
+    /**
+     * Reenvía el correo de verificación a un usuario
+     * @async
+     * @param {Object} req - Objeto de solicitud Express
+     * @param {Object} res - Objeto de respuesta Express
+     */
+    static async resendVerification (req, res) {
+        const { mail } = req.body;
+        
+        if (!mail) {
+        return res.status(400).json({
+            success: false,
+            message: 'El correo electrónico es requerido'
+        });
+        }
+        
+        try {
+        logger.debug('Reenviando correo de verificación', { mail });
+        
+        // Verificar si el usuario existe y necesita verificación
+        const { rows } = await pool.query(
+            'SELECT id, email_verified FROM users WHERE mail = $1',
+            [mail]
+        );
+        
+        if (rows.length === 0) {
+            // Por seguridad, no indicamos si el correo existe o no
+            return res.status(200).json({
+            success: true,
+            message: 'Si tu correo está registrado, recibirás un enlace de verificación'
+            });
+        }
+        
+        const userId = rows[0].id;
+        
+        // Si ya está verificado, no hacemos nada
+        if (rows[0].email_verified) {
+            logger.info('Intento de reenvío de verificación a correo ya verificado', {
+            userId,
+            mail
+            });
+            
+            return res.status(200).json({
+            success: true,
+            message: 'Si tu correo está registrado, recibirás un enlace de verificación'
+            });
+        }
+        
+        // Generar nuevo token y fecha de expiración
+        const verificationToken = crypto.randomBytes(32).toString('hex');
+        const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 horas
+        
+        // Actualizar token en la base de datos
+        await pool.query(
+            'UPDATE users SET verification_token = $1, verification_expires = $2 WHERE id = $3',
+            [verificationToken, verificationExpires, userId]
+        );
+        
+        // Enviar correo de verificación
+        const verificationUrl = `${process.env.FRONTEND_URL}/verify-email/${verificationToken}`;
+        await EmailService.sendVerificationEmail(mail, verificationToken, verificationUrl);
+        
+        logger.info('Correo de verificación reenviado', {
+            userId,
+            mail
+        });
+        
+        res.status(200).json({
+            success: true,
+            message: 'Si tu correo está registrado, recibirás un enlace de verificación'
+        });
+        } catch (error) {
+        logger.error('Error al reenviar correo de verificación', {
+            error: error.message,
+            stack: error.stack,
+            mail
+        });
+        
+        res.status(500).json({
+            success: false,
+            message: 'Error al procesar la solicitud',
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+        }
+    };
 
     // Método para verificar token JWT
     static async verifyToken(token) {

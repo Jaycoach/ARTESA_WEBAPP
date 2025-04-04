@@ -5,6 +5,7 @@ const logoutController = require('../controllers/logoutController');
 const AuthValidators = require('../validators/authValidators');
 const { sanitizeBody, securityHeaders } = require('../middleware/security');
 const { verifyToken } = require('../middleware/auth');
+const { registrationLimiter } = require('../middleware/enhancedSecurity');
 
 
 // Aplicar headers de seguridad a todas las rutas
@@ -239,6 +240,7 @@ router.post(
  */
 router.post(
     '/register',
+    registrationLimiter,
     sanitizeBody,
     AuthValidators.validateName,
     AuthValidators.validateEmail,
@@ -278,6 +280,70 @@ router.post(
     '/logout',
     verifyToken,
     logoutController.logout
+);
+
+/**
+ * @swagger
+ * /api/auth/verify-email/{token}:
+ *   get:
+ *     summary: Verificar dirección de correo electrónico
+ *     description: Verifica la dirección de correo del usuario utilizando el token enviado
+ *     tags: [Auth]
+ *     parameters:
+ *       - in: path
+ *         name: token
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Token de verificación de correo
+ *     responses:
+ *       '200':
+ *         description: Correo verificado exitosamente
+ *       '400':
+ *         description: Token inválido o expirado
+ *       '404':
+ *         description: Usuario no encontrado
+ *       '500':
+ *         description: Error interno del servidor
+ */
+router.get(
+    '/verify-email/:token',
+    authController.verifyEmail
+);
+
+/**
+ * @swagger
+ * /api/auth/resend-verification:
+ *   post:
+ *     summary: Reenviar correo de verificación
+ *     description: Reenvía el correo de verificación a un usuario registrado
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - mail
+ *             properties:
+ *               mail:
+ *                 type: string
+ *                 format: email
+ *                 description: Correo electrónico del usuario
+ *     responses:
+ *       '200':
+ *         description: Solicitud procesada exitosamente
+ *       '400':
+ *         description: Correo electrónico no proporcionado
+ *       '500':
+ *         description: Error interno del servidor
+ */
+router.post(
+    '/resend-verification',
+    sanitizeBody,
+    AuthValidators.validateEmail,
+    authController.resendVerification
 );
 
 module.exports = router;
