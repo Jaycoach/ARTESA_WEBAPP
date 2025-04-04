@@ -113,6 +113,19 @@ export const AuthProvider = ({ children }) => {
       
       console.log("Respuesta completa del login:", responseData);
       console.log("Datos de usuario extraídos:", userData);
+
+      // Verificar si el usuario necesita verificar su correo
+      if (responseData.needsVerification || userData.needsVerification) {
+        console.log("El usuario necesita verificar su correo");
+        throw {
+            response: {
+                data: {
+                    needsVerification: true,
+                    message: "Por favor verifica tu correo electrónico antes de acceder"
+                }
+            }
+        };
+    }
       
       // Verificar la estructura de los datos recibidos
       let userObject = userData.user || userData;
@@ -170,6 +183,22 @@ export const AuthProvider = ({ children }) => {
       throw error;
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Función para el reenvío de verificación
+  const resendVerificationEmail = async (email) => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+        const response = await API.post("/auth/resend-verification", { email });
+        return response.data;
+    } catch (error) {
+        setError(error.response?.data?.message || "Error al reenviar verificación");
+        throw error;
+    } finally {
+        setLoading(false);
     }
   };
 
@@ -276,7 +305,8 @@ export const AuthProvider = ({ children }) => {
     requestPasswordReset,
     resetPassword,
     updateUserInfo,
-    isAdmin
+    isAdmin,
+    resendVerificationEmail
   };
 
   return (

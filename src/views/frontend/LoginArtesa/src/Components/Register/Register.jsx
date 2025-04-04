@@ -1,5 +1,7 @@
-import React, { useState } from "react";
+// Necesitamos integrar el reCAPTCHA en el componente Register.jsx
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useGoogleReCaptcha } from "react-google-recaptcha-v3"; // Añadir esta importación
 import './Register.css'
 import '../../App.scss'
 import { Link, NavLink } from 'react-router-dom'
@@ -20,6 +22,7 @@ import { RiMicAiLine } from "react-icons/ri";
 
 const Register = () => {
     const navigate = useNavigate();
+    const { executeRecaptcha } = useGoogleReCaptcha(); // Hook para ejecutar reCAPTCHA
     const [formData, setFormData] = useState({
         name: '',
         mail: '',
@@ -27,6 +30,29 @@ const Register = () => {
     });
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const [rateLimit, setRateLimit] = useState({
+        isLimited: false,
+        countdown: 0
+    });
+
+    // Manejar countdown para rate limiting
+    useEffect(() => {
+        let timer;
+        if (rateLimit.isLimited && rateLimit.countdown > 0) {
+            timer = setTimeout(() => {
+                setRateLimit(prev => ({
+                    ...prev,
+                    countdown: prev.countdown - 1
+                }));
+            }, 1000);
+        } else if (rateLimit.isLimited && rateLimit.countdown <= 0) {
+            setRateLimit({
+                isLimited: false,
+                countdown: 0
+            });
+        }
+        return () => clearTimeout(timer);
+    }, [rateLimit]);
 
     const handleChange = (e) => {
         setFormData({
@@ -37,24 +63,52 @@ const Register = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        
+        if (rateLimit.isLimited) {
+            return;
+        }
+        
         setLoading(true);
         setError('');
-
+        
         try {
-            const response = await API.post('/auth/register', formData, {
+            // Obtener el token de reCAPTCHA
+            let recaptchaToken = "";
+            if (executeRecaptcha) {
+                recaptchaToken = await executeRecaptcha('register');
+            } else {
+                throw new Error("reCAPTCHA no está listo");
+            }
+            
+            // Incluir el token en la solicitud
+            const response = await API.post('/auth/register', {
+                ...formData,
+                recaptchaToken
+            }, {
                 headers: {
                     'Content-Type': 'application/json'
                 }
             });
-
-            // Guardar token y usuario en localStorage
-            localStorage.setItem('token', response.data.token);
-            localStorage.setItem('user', JSON.stringify(response.data.user));
-
-            // Redirigir al dashboard después del registro exitoso
-            navigate('/');
+            
+            // Redirigir a la página de éxito con el correo electrónico
+            navigate('/registration-success', { state: { email: formData.mail } });
+            
         } catch (error) {
-            setError(error.response?.data?.message || 'Error en el registro');
+            console.error("Error en registro:", error);
+            
+            // Manejar error de rate limiting (429)
+            if (error.response && error.response.status === 429) {
+                const retryAfter = parseInt(error.response.headers['retry-after'] || '60', 10);
+                setRateLimit({
+                    isLimited: true,
+                    countdown: retryAfter
+                });
+                setError(`Demasiados intentos. Por favor espera ${retryAfter} segundos antes de intentar nuevamente.`);
+            } else if (error.response && error.response.data.recaptchaFailed) {
+                setError("Verificación de seguridad fallida. Por favor, recarga la página e intenta nuevamente.");
+            } else {
+                setError(error.response?.data?.message || 'Error en el registro');
+            }
         } finally {
             setLoading(false);
         }
@@ -85,7 +139,12 @@ const Register = () => {
 
                 </div>
                 <form action="" onSubmit={handleSubmit} className="form grid">
-                {error && <p className="error-message">{error}</p>} {/* Mostrar errores */}
+                {error && <p className="error-message">{error}</p>}
+                {rateLimit.isLimited && (
+                    <p className="error-message">
+                        Por favor espera {rateLimit.countdown} segundos para intentar nuevamente.
+                    </p>
+                )}
 
                 <div className="inputDiv">
                         <label htmlFor="name">Nombre</label>
@@ -116,8 +175,16 @@ const Register = () => {
                         </div>
                     </div>
 
-                    <button type="submit" className="btn flex" disabled={loading} >
-                        <span>{loading ? 'Registrando...' : 'Registrarse'}</span>
+                    <button 
+                        type="submit" 
+                        className="btn flex" 
+                        disabled={loading || rateLimit.isLimited}
+                    >
+                        <span>
+                            {loading ? 'Registrando...' : 
+                             rateLimit.isLimited ? `Espera ${rateLimit.countdown}s` : 
+                             'Registrarse'}
+                        </span>
                         <TiArrowRightOutline className="icon" />
                     </button>
 
@@ -134,6 +201,6 @@ const Register = () => {
         </div>
         </div>
     )
-    }
+}
     
 export default Register

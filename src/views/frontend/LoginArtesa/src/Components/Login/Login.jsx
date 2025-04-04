@@ -39,20 +39,38 @@ const Login = () => {
         e.preventDefault();
         setLoading(true);
         setError('');
-
+    
         try {
             console.log("Enviando datos de login:", formData);
             
             // Usar la función login del contexto
-            await login({
+            const response = await login({
                 mail: formData.mail,
                 password: formData.password
             });
+            
+            // Verificar si el usuario necesita verificar su correo
+            if (response && response.needsVerification) {
+                setError('Por favor verifica tu correo electrónico para acceder. ¿No recibiste el correo?');
+                // Mostrar opción para reenviar correo de verificación
+                return;
+            }
             
             // Redireccionar al dashboard
             navigate('/dashboard');
         } catch (error) {
             console.error("Error en login:", error);
+            
+            // Verificar si es un error de verificación de correo
+            if (error.response?.data?.needsVerification) {
+                setError(
+                    'Es necesario verificar tu correo electrónico antes de acceder. ' +
+                    'Por favor revisa tu bandeja de entrada o solicita un nuevo correo de verificación.'
+                );
+                // Puedes mostrar un botón para reenviar verificación
+                return;
+            }
+            
             setError(
                 error.response?.data?.message || 
                 error.response?.data?.error || 
@@ -146,6 +164,14 @@ const Login = () => {
                         <form onSubmit={handleSubmit} className="form grid">
                             {error && <p className="error-message">{error}</p>}
                             
+                            {error && error.includes('verificar tu correo') && (
+                                <p className="forgot-password">
+                                    <Link to="/resend-verification" className="text-primary hover:text-accent">
+                                        Reenviar correo de verificación
+                                    </Link>
+                                </p>
+                            )}
+
                             {/* Input Correo */}
                             <div className="inputDiv">
                                 <label htmlFor="mail">Correo Electrónico</label>
