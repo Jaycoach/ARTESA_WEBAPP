@@ -13,8 +13,13 @@ export default ({ mode }) => {
       tailwindcss(),
     ],
     define: {
-      // Hacer que la variable de entorno de reCAPTCHA esté disponible globalmente
-      'import.meta.env.VITE_RECAPTCHA_SITE_KEY': JSON.stringify(env.VITE_RECAPTCHA_SITE_KEY),
+      // Hacer que todas las variables de entorno estén disponibles
+      ...Object.keys(env).reduce((acc, key) => {
+        if (key.startsWith('VITE_')) {
+          acc[`import.meta.env.${key}`] = JSON.stringify(env[key]);
+        }
+        return acc;
+      }, {})
     },
     theme: {
       extend: {
@@ -68,7 +73,17 @@ export default ({ mode }) => {
     },
     build: {
       // Generar source maps incluso en producción
-      sourcemap: true,
+      sourcemap: mode !== 'production',
+      // Opciones específicas para producción
+      ...(mode === 'production' && {
+        minify: 'terser',
+        terserOptions: {
+          compress: {
+            drop_console: true,
+            drop_debugger: true,
+          },
+        },
+      }),
       // Opciones de rollup para manejo de errores
       rollupOptions: {
         onwarn(warning, warn) {

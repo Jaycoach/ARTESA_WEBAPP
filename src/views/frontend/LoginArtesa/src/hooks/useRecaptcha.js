@@ -31,6 +31,11 @@ export const useRecaptcha = () => {
       if (!siteKey) {
         console.error('Clave de sitio reCAPTCHA no configurada');
         setError('Error de configuración de reCAPTCHA');
+        // En desarrollo, podrías retornar un token falso para pruebas
+        if (import.meta.env.DEV) {
+            console.warn('Retornando token de prueba para desarrollo');
+            return 'dev-test-token';
+        }
         return null;
       }
       
