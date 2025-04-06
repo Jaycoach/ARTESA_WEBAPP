@@ -46,7 +46,7 @@ const ResendVerification = () => {
       }
 
       const response = await API.post('/auth/resend-verification', { 
-        email,
+        mail: email,
         recaptchaToken
       });
       

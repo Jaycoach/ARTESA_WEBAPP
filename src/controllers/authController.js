@@ -660,9 +660,9 @@ static incrementLoginAttempts(mail) {
         
         // Verificar que el token existe y no ha expirado
         const { rows } = await pool.query(
-            'SELECT u.id, u.mail FROM users u JOIN tokens t ON u.id = t.users_id WHERE t.token = $1 AND t.expiracion > NOW()',
+            'SELECT id, mail FROM users WHERE verification_token = $1 AND verification_expires > NOW()',
             [token]
-        );
+          );
         
         if (rows.length === 0) {
             logger.warn('Token de verificación inválido o expirado', { token });
@@ -674,15 +674,10 @@ static incrementLoginAttempts(mail) {
         
         const userId = rows[0].id;
         
-        // Actualizar usuario como verificado
+        // Actualizar usuario como verificado y limpiar el token
         await pool.query(
-            'UPDATE users SET is_active = true WHERE id = $1',
+            'UPDATE users SET is_active = true, email_verified = true, verification_token = NULL, verification_expires = NULL WHERE id = $1',
             [userId]
-        );
-        
-        await pool.query(
-            'DELETE FROM tokens WHERE users_id = $1 AND token = $2',
-            [userId, token]
         );
         
         logger.info('Correo electrónico verificado exitosamente', {
