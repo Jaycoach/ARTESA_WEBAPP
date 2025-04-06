@@ -561,18 +561,12 @@ static incrementLoginAttempts(mail) {
 
             const result = await pool.query(
                 `INSERT INTO users 
-                (name, mail, password, rol_id, is_active) 
-                VALUES ($1, $2, $3, $4, $5)
+                (name, mail, password, rol_id, is_active, email_verified, verification_token, verification_expires) 
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                 RETURNING id, name, mail, rol_id`,
-                [name, mail, hashedPassword, userRoleId, false]
+                [name, mail, hashedPassword, userRoleId, false, false, verificationToken, verificationExpires]
             );
-
-            await pool.query(
-                `INSERT INTO tokens (users_id, token, expiracion)
-                VALUES ($1, $2, $3)`,
-                [newUser.id, verificationToken, verificationExpires]
-            );
-
+            
             const newUser = result.rows[0];
             const userId = newUser.id;
 
