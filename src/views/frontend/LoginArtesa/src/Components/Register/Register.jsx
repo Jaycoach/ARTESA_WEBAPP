@@ -194,9 +194,7 @@ const Register = () => {
                         disabled={loading || recaptchaLoading}
                     >
                         <span>
-                            {loading ? 'Registrando...' : 
-                             rateLimit.isLimited ? `Espera ${rateLimit.countdown}s` : 
-                             'Registrarse'}
+                            {loading ? 'Registrando...' : 'Registrarse'}
                         </span>
                         <TiArrowRightOutline className="icon" />
                     </button>
