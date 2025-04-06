@@ -16,9 +16,16 @@
     <!-- Precarga de imágenes críticas -->
     <link rel="preload" href="/src/LoginsAssets/principal_img.jpg" as="image">
     <link rel="preload" href="/src/LoginsAssets/logo_artesa_alt.png" as="image">
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
+
+    <!-- Google reCAPTCHA v3 -->
+    <script>
+      // Cargar dinámicamente el script reCAPTCHA con la clave del sitio
+      window.onload = function() {
+        const siteKey = '<VITE_RECAPTCHA_SITE_KEY_PLACEHOLDER>';
+        const script = document.createElement('script');
+        script.src = `https://www.google.com/recaptcha/api.js?render=${siteKey}`;
+        document.head.appendChild(script);
+      }
+    </script>
   </body>
 </html>

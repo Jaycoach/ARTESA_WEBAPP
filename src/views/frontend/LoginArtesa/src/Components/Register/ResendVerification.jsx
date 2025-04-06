@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FaPaperPlane, FaEnvelope, FaSpinner } from 'react-icons/fa';
+import { useRecaptcha } from "../../hooks/useRecaptcha"; // Importar el hook de reCAPTCHA
 import API from '../../api/config';
 import '../../App.scss';
 
 const ResendVerification = () => {
   const navigate = useNavigate();
+  const { generateRecaptchaToken, loading: recaptchaLoading, error: recaptchaError } = useRecaptcha();
   const [email, setEmail] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -34,7 +36,19 @@ const ResendVerification = () => {
     setIsLoading(true);
     
     try {
-      const response = await API.post('/auth/resend-verification', { mail: email });
+      // Generar token de reCAPTCHA
+      const recaptchaToken = await generateRecaptchaToken('resend_verification');
+      
+      if (!recaptchaToken) {
+        setError(recaptchaError || 'Error en la verificación de seguridad. Por favor, intenta nuevamente.');
+        setIsLoading(false);
+        return;
+      }
+
+      const response = await API.post('/auth/resend-verification', { 
+        email,
+        recaptchaToken
+      });
       
       if (response.data.success) {
         setSuccess(true);
@@ -44,12 +58,13 @@ const ResendVerification = () => {
       }
     } catch (error) {
       console.error('Error al reenviar verificación:', error);
-
-      // Más información sobre el error para depuración
-        console.log("Respuesta detallada del error:", error.response?.data);
       
+      // Manejo de errores específicos de reCAPTCHA
+      if (error.response?.data?.code === 'RECAPTCHA_FAILED') {
+        setError('Verificación de seguridad fallida. Por favor, intenta nuevamente.');
+      } 
       // Manejar error de límite de intentos (429)
-      if (error.response && error.response.status === 429) {
+      else if (error.response && error.response.status === 429) {
         setIsBlocked(true);
         // Obtener el tiempo de espera de las cabeceras o usar un valor predeterminado
         const retryAfter = error.response.headers['retry-after'] || 60;
@@ -161,20 +176,20 @@ const ResendVerification = () => {
               placeholder="Ingresa tu correo electrónico"
               className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
-              disabled={isLoading || isBlocked}
+              disabled={isLoading || isBlocked || recaptchaLoading}
             />
           </div>
 
           <button
             type="submit"
             className={`w-full flex justify-center items-center px-4 py-2 ${
-              isLoading || isBlocked
+              isLoading || isBlocked || recaptchaLoading
                 ? 'bg-gray-400 cursor-not-allowed'
                 : 'bg-blue-600 hover:bg-blue-700'
             } text-white rounded-md transition`}
-            disabled={isLoading || isBlocked}
+            disabled={isLoading || isBlocked || recaptchaLoading}
           >
-            {isLoading ? (
+            {isLoading || recaptchaLoading ? (
               <>
                 <FaSpinner className="animate-spin mr-2" /> Enviando...
               </>

@@ -574,7 +574,7 @@ static incrementLoginAttempts(mail) {
             );
 
             const newUser = result.rows[0];
-            const userId = result.rows[0].id;
+            const userId = newUser.id;
 
             // Enviar correo de verificación
             try {

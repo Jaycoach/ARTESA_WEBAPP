@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import API from "../../api/config"; // Asegúrate de que este sea el endpoint correcto
-import "../../App.scss"; // Agrega los estilos necesarios
+import { useRecaptcha } from "../../hooks/useRecaptcha"; // Importar el hook de reCAPTCHA
+import API from "../../api/config";
+import "../../App.scss";
 // Import Assets (los mismos que usa Login)
 import img from "../../LoginsAssets/principal_img.jpg";
 import logo from "../../LoginsAssets/logo_artesa_alt.png";
@@ -10,10 +11,10 @@ import { BsFillShieldLockFill } from "react-icons/bs";
 import { TiArrowRightOutline } from "react-icons/ti";
 import { Link } from "react-router-dom";
 
-
 const ResetPassword = () => {
-  const { token } = useParams(); // Captura el token desde la URL
+  const { token } = useParams();
   const navigate = useNavigate();
+  const { generateRecaptchaToken, loading: recaptchaLoading, error: recaptchaError } = useRecaptcha();
   
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -42,9 +43,19 @@ const ResetPassword = () => {
     }
 
     try {
+      // Generar token de reCAPTCHA
+      const recaptchaToken = await generateRecaptchaToken('reset_password');
+      
+      if (!recaptchaToken) {
+        setError(recaptchaError || '❌ Error en la verificación de seguridad. Por favor, intenta nuevamente.');
+        setIsLoading(false);
+        return;
+      }
+
       const response = await API.post("/password/reset", {
         token,
-        newPassword
+        newPassword,
+        recaptchaToken
       });
 
       // Verificar si la respuesta tiene la estructura esperada
@@ -61,46 +72,51 @@ const ResetPassword = () => {
     } catch (error) {
       console.error("Error al restablecer contraseña:", error);
       
-      // Manejo detallado de errores según la respuesta del backend
-      if (error.response) {
-        // El servidor respondió con un código de estado fuera del rango 2xx
-        const { data, status } = error.response;
-        
-        if (status === 400) {
-          // Capturar códigos de error específicos del backend
-          const errorMessage = data.message || "Datos inválidos";
-          const errorCode = data.errorCode || "";
-          
-          switch(errorCode) {
-            case "MISSING_TOKEN":
-              setError("❌ Token de recuperación no proporcionado.");
-              break;
-            case "MISSING_PASSWORD":
-              setError("❌ Debe proporcionar una nueva contraseña.");
-              break;
-            case "INVALID_TOKEN":
-              setError("❌ El token es inválido o ha expirado. Por favor solicite un nuevo enlace de recuperación.");
-              break;
-            case "SAME_PASSWORD":
-              setError("❌ La nueva contraseña no puede ser igual a la actual.");
-              break;
-            case "USER_NOT_FOUND":
-              setError("❌ No se encontró el usuario asociado al token.");
-              break;
-            default:
-              setError(`❌ ${errorMessage}`);
-          }
-        } else if (status === 500) {
-          setError("❌ Error en el servidor. Por favor intente más tarde.");
-        } else {
-          setError(`❌ Error (${status}): ${data.message || "Error desconocido"}`);
-        }
-      } else if (error.request) {
-        // La solicitud fue hecha pero no se recibió respuesta
-        setError("❌ No se pudo conectar con el servidor. Verifique su conexión a internet.");
+      // Manejar errores específicos de reCAPTCHA
+      if (error.response?.data?.code === 'RECAPTCHA_FAILED') {
+        setError("❌ Verificación de seguridad fallida. Por favor, intenta nuevamente.");
       } else {
-        // Error al configurar la solicitud
-        setError(`❌ Error: ${error.message}`);
+        // Manejo detallado de errores según la respuesta del backend
+        if (error.response) {
+          // El servidor respondió con un código de estado fuera del rango 2xx
+          const { data, status } = error.response;
+          
+          if (status === 400) {
+            // Capturar códigos de error específicos del backend
+            const errorMessage = data.message || "Datos inválidos";
+            const errorCode = data.errorCode || "";
+            
+            switch(errorCode) {
+              case "MISSING_TOKEN":
+                setError("❌ Token de recuperación no proporcionado.");
+                break;
+              case "MISSING_PASSWORD":
+                setError("❌ Debe proporcionar una nueva contraseña.");
+                break;
+              case "INVALID_TOKEN":
+                setError("❌ El token es inválido o ha expirado. Por favor solicite un nuevo enlace de recuperación.");
+                break;
+              case "SAME_PASSWORD":
+                setError("❌ La nueva contraseña no puede ser igual a la actual.");
+                break;
+              case "USER_NOT_FOUND":
+                setError("❌ No se encontró el usuario asociado al token.");
+                break;
+              default:
+                setError(`❌ ${errorMessage}`);
+            }
+          } else if (status === 500) {
+            setError("❌ Error en el servidor. Por favor intente más tarde.");
+          } else {
+            setError(`❌ Error (${status}): ${data.message || "Error desconocido"}`);
+          }
+        } else if (error.request) {
+          // La solicitud fue hecha pero no se recibió respuesta
+          setError("❌ No se pudo conectar con el servidor. Verifique su conexión a internet.");
+        } else {
+          // Error al configurar la solicitud
+          setError(`❌ Error: ${error.message}`);
+        }
       }
     } finally {
       setIsLoading(false);
@@ -174,7 +190,7 @@ const ResetPassword = () => {
             </div>
             
             {/* Botón de Cambiar Contraseña */}
-            <button type="submit" className="btn flex" disabled={isLoading}>
+            <button type="submit" className="btn flex" disabled={isLoading || recaptchaLoading}>
               <span>{isLoading ? "Procesando..." : "Cambiar Contraseña"}</span>
               {!isLoading && <TiArrowRightOutline className="icon" />}
             </button>

@@ -105,7 +105,18 @@ export const AuthProvider = ({ children }) => {
     setError(null);
     
     try {
-      const response = await API.post("/auth/login", credentials);
+      // Crear objeto de datos para la solicitud
+      const loginData = {
+        mail: credentials.mail,
+        password: credentials.password
+      };
+      
+      // Añadir el token de reCAPTCHA si está presente
+      if (credentials.recaptchaToken) {
+        loginData.recaptchaToken = credentials.recaptchaToken;
+      }
+      
+      const response = await API.post("/auth/login", loginData);
       // Asegurarnos de acceder a la estructura correcta
       const responseData = response.data;
       // Extraer userData que puede estar en data.data o en data directo
@@ -187,12 +198,19 @@ export const AuthProvider = ({ children }) => {
   };
 
   // Función para el reenvío de verificación
-  const resendVerificationEmail = async (email) => {
+  const resendVerificationEmail = async (email, recaptchaToken = null) => {
     setLoading(true);
     setError(null);
     
     try {
-        const response = await API.post("/auth/resend-verification", { email });
+        const verificationData = { email };
+        
+        // Añadir token de reCAPTCHA si está disponible
+        if (recaptchaToken) {
+          verificationData.recaptchaToken = recaptchaToken;
+        }
+        
+        const response = await API.post("/auth/resend-verification", verificationData);
         return response.data;
     } catch (error) {
         setError(error.response?.data?.message || "Error al reenviar verificación");
@@ -232,12 +250,20 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const requestPasswordReset = async (email) => {
+  const requestPasswordReset = async (email, recaptchaToken = null) => {
     setLoading(true);
     setError(null);
     
     try {
-      const response = await API.post("/password/request-reset", { mail: email });
+      // Crear objeto de datos para la solicitud
+      const resetData = { mail: email };
+      
+      // Añadir token de reCAPTCHA si está disponible
+      if (recaptchaToken) {
+        resetData.recaptchaToken = recaptchaToken;
+      }
+      
+      const response = await API.post("/password/request-reset", resetData);
       console.log("Respuesta del backend:", response.data);
       return response.data;
     } catch (error) {
@@ -248,12 +274,22 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const resetPassword = async (token, password) => {
+  const resetPassword = async (token, password, recaptchaToken = null) => {
     setLoading(true);
     setError(null);
     
     try {
-      const response = await API.post("/password/reset", { token, password });
+      const resetData = { 
+        token, 
+        password 
+      };
+      
+      // Añadir token de reCAPTCHA si está disponible
+      if (recaptchaToken) {
+        resetData.recaptchaToken = recaptchaToken;
+      }
+      
+      const response = await API.post("/password/reset", resetData);
       return response.data;
     } catch (error) {
       setError(error.response?.data?.message || "Error al restablecer contraseña");

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { useAuth } from "../../hooks/useAuth"; // Importar el hook de autenticación
+import { useNavigate, Link } from "react-router-dom";
+import { useAuth } from "../../hooks/useAuth"; 
+import { useRecaptcha } from "../../hooks/useRecaptcha"; // Importamos el hook de reCAPTCHA
 
 // Import Assets
 import img from "../../LoginsAssets/principal_img.gif";
@@ -13,7 +14,8 @@ import { MdEmail } from "react-icons/md";
 
 const Login = () => {
     const navigate = useNavigate();
-    const { login, requestPasswordReset } = useAuth(); // Usar el contexto de autenticación
+    const { login, requestPasswordReset } = useAuth();
+    const { generateRecaptchaToken, loading: recaptchaLoading, error: recaptchaError } = useRecaptcha();
     const [forgotPassword, setForgotPassword] = useState(false);
     const [formData, setFormData] = useState({
         mail: '', 
@@ -39,19 +41,29 @@ const Login = () => {
         e.preventDefault();
         setLoading(true);
         setError('');
-    
+
         try {
+            // Generar token de reCAPTCHA
+            const recaptchaToken = await generateRecaptchaToken('login');
+            
+            if (!recaptchaToken) {
+                setError(recaptchaError || 'Error en la verificación de seguridad. Por favor, intenta nuevamente.');
+                setLoading(false);
+                return;
+            }
+
             console.log("Enviando datos de login:", formData);
             
-            // Usar la función login del contexto
+            // Usar la función login del contexto, incluyendo el token de reCAPTCHA
             const response = await login({
                 mail: formData.mail,
-                password: formData.password
+                password: formData.password,
+                recaptchaToken: recaptchaToken
             });
             
             // Verificar si el usuario necesita verificar su correo
             if (response && response.needsVerification) {
-                setError('Por favor verifica tu correo electrónico para acceder. ¿No recibiste el correo?');
+                setError('Por favor verifica tu correo electrónico para acceder.');
                 // Mostrar opción para reenviar correo de verificación
                 return;
             }
@@ -67,7 +79,6 @@ const Login = () => {
                     'Es necesario verificar tu correo electrónico antes de acceder. ' +
                     'Por favor revisa tu bandeja de entrada o solicita un nuevo correo de verificación.'
                 );
-                // Puedes mostrar un botón para reenviar verificación
                 return;
             }
             
@@ -89,7 +100,16 @@ const Login = () => {
         setLoading(true);
 
         try {
-            const response = await requestPasswordReset(resetEmail);
+            // Generar token de reCAPTCHA para recuperación de contraseña
+            const recaptchaToken = await generateRecaptchaToken('password_reset');
+            
+            if (!recaptchaToken) {
+                setError(recaptchaError || 'Error en la verificación de seguridad. Por favor, intenta nuevamente.');
+                setLoading(false);
+                return;
+            }
+            
+            const response = await requestPasswordReset(resetEmail, recaptchaToken);
             setResetMessage(response.message || "Revisa tu correo para continuar con la recuperación.");
         } catch (error) {
             setError(error.response?.data?.message || "No se pudo procesar la solicitud.");
@@ -146,7 +166,7 @@ const Login = () => {
                                 </div>
                             </div>
                             {/* Botón de Enviar */}
-                            <button type="submit" className="btn flex" disabled={loading}>
+                            <button type="submit" className="btn flex" disabled={loading || recaptchaLoading}>
                                 <span>{loading ? "Enviando..." : "Enviar enlace"}</span>
                                 <TiArrowRightOutline className="icon" />
                             </button>
@@ -165,8 +185,8 @@ const Login = () => {
                             {error && <p className="error-message">{error}</p>}
                             
                             {error && error.includes('verificar tu correo') && (
-                                <p className="forgot-password">
-                                    <Link to="/resend-verification" className="text-primary hover:text-accent">
+                                <p className="forgotPassword">
+                                    <Link to="/resend-verification">
                                         Reenviar correo de verificación
                                     </Link>
                                 </p>
@@ -205,7 +225,7 @@ const Login = () => {
                             </div>
                             
                             {/* Botón de Login */}
-                            <button type="submit" className="btn flex" disabled={loading}>
+                            <button type="submit" className="btn flex" disabled={loading || recaptchaLoading}>
                                 <span>{loading ? "Iniciando sesión..." : "Iniciar sesión"}</span>
                                 <TiArrowRightOutline className="icon" />
                             </button>
