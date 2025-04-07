@@ -4,11 +4,12 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "build:staging": "vite build --mode staging",
-    "preview": "vite preview",
-    "preview:staging": "vite preview --mode staging"
+  "dev": "vite",
+  "dev:host": "vite --host",
+  "dev:ngrok": "vite --mode ngrok --host",
+  "build": "vite build",
+  "build:ngrok": "vite build --mode ngrok",
+  "preview": "vite preview"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.0.12",

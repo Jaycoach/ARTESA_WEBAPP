@@ -6,6 +6,7 @@ import path from 'path';
 // https://vitejs.dev/config/
 export default ({ mode }) => {
   // Cargar variables de entorno según el modo
+  console.log(`Iniciando en modo: ${mode}`);
   const env = loadEnv(mode, process.cwd(), '');
   
   return defineConfig({
@@ -16,6 +17,7 @@ export default ({ mode }) => {
       // Hacer que las variables específicas estén disponibles
       'import.meta.env.VITE_API_URL': JSON.stringify(env.VITE_API_URL),
       'import.meta.env.VITE_USE_NGROK': JSON.stringify(env.VITE_USE_NGROK),
+      'import.meta.env.VITE_NGROK_URL': JSON.stringify(env.VITE_NGROK_URL),
       'import.meta.env.VITE_RECAPTCHA_SITE_KEY': JSON.stringify(env.VITE_RECAPTCHA_SITE_KEY),
       'import.meta.env.VITE_APP_VERSION': JSON.stringify(env.VITE_APP_VERSION),
       'import.meta.env.VITE_APP_NAME': JSON.stringify(env.VITE_APP_NAME),
@@ -70,14 +72,17 @@ export default ({ mode }) => {
         overlay: true,
       },
       // Agregar proxy para las peticiones API cuando se desarrolla localmente
-      proxy: !process.env.VITE_USE_NGROK || process.env.VITE_USE_NGROK !== 'true' ? {
+      proxy: env.VITE_USE_NGROK !== 'true' && {
         '/api': {
           target: 'http://localhost:3000',
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/api/, '')
         }
-      } : null,
-      allowedHosts: ['.ngrok-free.app'],
+      },
+      // Permitir conexiones desde hosts externos cuando usamos --host
+      host: mode === 'ngrok' ? true : false,
+      // Permitir dominios ngrok
+      cors: true,
     },
     build: {
       // Generar source maps incluso en producción
