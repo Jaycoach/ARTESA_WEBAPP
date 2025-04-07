@@ -80,10 +80,11 @@ export default ({ mode }) => {
         }
       },
       // Permitir conexiones desde hosts externos cuando usamos --host
-      host: mode === 'ngrok' ? true : false,
+      host: true,
       // Permitir dominios ngrok
       cors: true,
-      allowedHosts: mode === 'ngrok' ? 'all' : undefined,
+      // Permitir cualquier host (incluyendo dominios de ngrok)
+      allowedHosts: 'all',
     },
     build: {
       // Generar source maps incluso en producción

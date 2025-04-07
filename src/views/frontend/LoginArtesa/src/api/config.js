@@ -6,7 +6,7 @@ const determineBaseUrl = () => {
   // 1. Verificar si estamos accediendo desde ngrok
   const currentHost = window.location.hostname;
   const isAccessingVia = (domain) => currentHost.includes(domain);
-  const isNgrok = isAccessingVia('ngrok-free.app');
+  const isNgrok = isAccessingVia('ngrok') || isAccessingVia('ngrok-free.app');
   
   // 2. Si accedemos desde ngrok, usar la misma URL base
   if (isNgrok) {
