@@ -101,19 +101,27 @@ app.use(cors({
       'http://localhost:3000',
       'http://localhost:5173',
       'http://localhost:5174',
-      'http://192.168.8.165:5173',           // Tu IP local (puede variar)
-      'https://api.artesa.com',              // URL de producción
-      /\.ngrok-free\.app$/                   // Cualquier subdominio de ngrok-free.app
+      'http://192.168.8.165:5173',
+      'https://api.artesa.com'
     ];
     
-    // Always allow localhost and ngrok domains
-    if (allowedOrigins.includes(origin) || 
-        origin.includes('localhost') || 
-        origin.includes('ngrok-free.app')) {
+    // Check if origin matches any allowed origin or is a subdomain we want to allow
+    const isAllowed = allowedOrigins.includes(origin) || 
+                     origin.includes('localhost') || 
+                     origin.includes('ngrok-free.app') ||
+                     origin.includes('127.0.0.1');
+    
+    if (isAllowed) {
       callback(null, true);
     } else {
       console.log('CORS rechazado para origen:', origin);
-      callback(new Error('No permitido por CORS'));
+      // En desarrollo, permitir todo para facilitar pruebas
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Permitiendo en desarrollo de todos modos');
+        callback(null, true);
+      } else {
+        callback(new Error('No permitido por CORS'));
+      }
     }
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH', 'HEAD'],
@@ -122,7 +130,9 @@ app.use(cors({
     'Authorization', 
     'X-Requested-With', 
     'Bypass-Tunnel-Reminder', 
-    'ngrok-skip-browser-warning'
+    'ngrok-skip-browser-warning',
+    'g-recaptcha-response',
+    'recaptchatoken'
   ],
   credentials: true,
   optionsSuccessStatus: 204

@@ -10,19 +10,26 @@ const logger = createContextLogger('RecaptchaValidator');
  * @returns {Promise<boolean>} - true si es válido, false si no
  */
 async function validateRecaptcha(token, req) {
-  if (!process.env.RECAPTCHA_SECRET_KEY) {
-    logger.warn('RECAPTCHA_SECRET_KEY no configurada, omitiendo validación');
-    return true; // Omitir validación si no está configurada
+  // Comprobar si la validación de reCAPTCHA está habilitada
+  if (process.env.RECAPTCHA_ENABLED !== 'true') {
+    logger.info('reCAPTCHA deshabilitado en configuración, omitiendo validación');
+    return true;
   }
   
-  // Permitir bypass de reCAPTCHA en desarrollo cuando se usa ngrok
-  if (process.env.NODE_ENV === 'development' && 
-      (req.headers?.host?.includes('ngrok') || req.ip?.includes('ngrok'))) {
-    logger.warn('Bypass de reCAPTCHA para entorno de desarrollo con ngrok', {
+  // Permitir bypass de reCAPTCHA en desarrollo
+  if (process.env.NODE_ENV === 'development' || process.env.RECAPTCHA_BYPASS === 'true') {
+    logger.info('Bypass de reCAPTCHA para entorno de desarrollo', {
       host: req.headers?.host,
       ip: req.ip
     });
     return true;
+  }
+  
+  // Verificar que la clave secreta exista
+  if (!process.env.RECAPTCHA_SECRET_KEY) {
+    logger.warn('RECAPTCHA_SECRET_KEY no configurada pero reCAPTCHA está habilitado');
+    // En producción, podrías querer rechazar la solicitud si falta la clave
+    return process.env.NODE_ENV !== 'production';
   }
   
   if (!token) {
@@ -31,6 +38,11 @@ async function validateRecaptcha(token, req) {
   }
   
   try {
+    logger.debug('Enviando solicitud de verificación a Google reCAPTCHA', {
+      tokenFragment: token.substring(0, 10) + '...',
+      ip: req.ip
+    });
+    
     const response = await axios.post('https://www.google.com/recaptcha/api/siteverify', null, {
       params: {
         secret: process.env.RECAPTCHA_SECRET_KEY,
@@ -39,27 +51,53 @@ async function validateRecaptcha(token, req) {
       }
     });
     
+    // Log detallado de la respuesta
     logger.debug('Respuesta de verificación reCAPTCHA', {
       success: response.data.success,
       score: response.data.score,
-      action: response.data.action
+      action: response.data.action,
+      errorCodes: response.data['error-codes'],
+      hostname: response.data.hostname
     });
     
-    // Verificar si la respuesta es exitosa y el score es aceptable (para reCAPTCHA v3)
-    if (response.data.success && response.data.score) {
+    // Para reCAPTCHA v3, verificar el score
+    if (response.data.success && response.data.score !== undefined) {
       const minScore = parseFloat(process.env.RECAPTCHA_MIN_SCORE || '0.5');
-      return response.data.score >= minScore;
+      const isValid = response.data.score >= minScore;
+      
+      logger.info('Verificación reCAPTCHA v3 completada', {
+        success: isValid,
+        score: response.data.score,
+        minScore: minScore,
+        action: response.data.action
+      });
+      
+      return isValid;
     }
+    
+    // Para reCAPTCHA v2, solo verificar success
+    logger.info('Verificación reCAPTCHA v2 completada', {
+      success: response.data.success,
+      errorCodes: response.data['error-codes']
+    });
     
     return response.data.success;
   } catch (error) {
     logger.error('Error al validar token reCAPTCHA', {
       error: error.message,
-      stack: error.stack
+      stack: error.stack,
+      config: error.config ? {
+        url: error.config.url,
+        params: error.config.params
+      } : 'No disponible'
     });
     
-    // En caso de error, permitir continuar en desarrollo
-    return process.env.NODE_ENV === 'development';
+    // En caso de error técnico, permitir continuar solo en desarrollo
+    if (process.env.NODE_ENV === 'development') {
+      logger.warn('Permitiendo solicitud en desarrollo a pesar del error en reCAPTCHA');
+      return true;
+    }
+    return false;
   }
 }
 
