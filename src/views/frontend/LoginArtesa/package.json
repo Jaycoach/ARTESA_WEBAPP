@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
   "dev": "vite",
+  "ngrok": "vite --mode ngrok",
   "dev:host": "vite --host",
   "dev:ngrok": "vite --mode ngrok --host",
   "build": "vite build",

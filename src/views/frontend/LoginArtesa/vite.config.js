@@ -83,6 +83,7 @@ export default ({ mode }) => {
       host: mode === 'ngrok' ? true : false,
       // Permitir dominios ngrok
       cors: true,
+      allowedHosts: mode === 'ngrok' ? 'all' : undefined,
     },
     build: {
       // Generar source maps incluso en producción
