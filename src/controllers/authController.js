@@ -709,6 +709,8 @@ static incrementLoginAttempts(mail) {
             
             logger.debug('Token de verificación revocado después de uso exitoso', { userId: user.id });
             
+            const EmailService = require('../services/EmailService');   
+
             // Enviar correo de confirmación de verificación
             try {
                 await EmailService.sendVerificationConfirmationEmail(user.mail, user.name);
