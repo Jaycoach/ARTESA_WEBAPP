@@ -3,35 +3,26 @@ import axios from 'axios';
 
 // Función para determinar la URL base
 const determineBaseUrl = () => {
-  // 1. Verificar si estamos accediendo desde ngrok
+  // Usar directamente la variable de entorno si está definida
+  if (import.meta.env.VITE_API_URL) {
+    console.log(`Usando API URL configurada: ${import.meta.env.VITE_API_URL}`);
+    return import.meta.env.VITE_API_URL;
+  }
+
+  // Obtener la información del host actual
   const currentHost = window.location.hostname;
-  const isAccessingVia = (domain) => currentHost.includes(domain);
-  const isNgrok = isAccessingVia('ngrok') || isAccessingVia('ngrok-free.app');
+  const isNgrok = currentHost.includes('ngrok') || currentHost.includes('ngrok-free.app');
   
-  // 2. Si accedemos desde ngrok, usar la misma URL base
   if (isNgrok) {
-    console.log('Accediendo a través de ngrok, usando la misma URL base');
-    const apiPath = import.meta.env.VITE_API_PATH || '/api';
-    return `${window.location.origin}${apiPath}`;
+    // Para ngrok, usar el mismo origen pero mantener el prefijo /api
+    return `${window.location.origin}`;
   }
   
-  // 3. Si no es ngrok, usar variables de entorno configuradas
-  const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-  const apiPath = import.meta.env.VITE_API_PATH || '/api';
-  
-  // 4. Construir URL completa asegurando estructura correcta
-  let fullUrl = baseUrl;
-  if (!fullUrl.endsWith(apiPath) && !fullUrl.endsWith(`${apiPath}/`)) {
-    // Si la base ya incluye la ruta /api, no añadirla dos veces
-    if (!fullUrl.endsWith('/')) fullUrl += '/';
-    fullUrl = fullUrl.replace(/\/+$/, ''); // Eliminar múltiples / al final
-    fullUrl += apiPath;
-  }
-  
-  return fullUrl;
+  // Para desarrollo local
+  return 'http://localhost:3000';
 };
 
-// Obtener la URL base determinada dinámicamente
+// Obtener la URL base
 const baseURL = determineBaseUrl();
 console.log(`API configurada para usar URL base: ${baseURL}`);
 
@@ -40,7 +31,6 @@ const API = axios.create({
   baseURL,
   headers: {
     'Content-Type': 'application/json',
-    // Headers para bypass de restricciones de ngrok
     'ngrok-skip-browser-warning': '69420',
     'Bypass-Tunnel-Reminder': 'true'
   },

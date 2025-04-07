@@ -100,7 +100,10 @@ app.use(cors({
     const allowedOrigins = [
       'http://localhost:3000',
       'http://localhost:5173',
-      'http://localhost:5174'
+      'http://localhost:5174',
+      'http://192.168.8.165:5173',           // Tu IP local (puede variar)
+      'https://api.artesa.com',              // URL de producción
+      /\.ngrok-free\.app$/                   // Cualquier subdominio de ngrok-free.app
     ];
     
     // Always allow localhost and ngrok domains

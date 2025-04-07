@@ -6,15 +6,22 @@ import path from 'path';
 // Configuración específica para ngrok
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  define: {
+    // Asegurar que estas variables estén disponibles en el frontend
+    'import.meta.env.VITE_API_URL': JSON.stringify(process.env.VITE_API_URL || 'https://3e1a-105-74-2-232.ngrok-free.app'),
+    'import.meta.env.VITE_USE_NGROK': JSON.stringify('true'),
+    'import.meta.env.VITE_RECAPTCHA_SITE_KEY': JSON.stringify(process.env.VITE_RECAPTCHA_SITE_KEY),
+  },
   server: {
     hmr: {
-      clientPort: 443,
-      host: 'all',
+        overlay: true,
+        clientPort: 443,
+        host: 'all',
     },
     host: true,
     cors: true,
     strictPort: true,
-    allowedHosts: 'all',
+    allowedHosts: ['localhost', '.ngrok-free.app'],
   },
   resolve: {
     alias: {
