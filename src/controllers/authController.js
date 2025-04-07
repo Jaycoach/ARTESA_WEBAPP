@@ -516,7 +516,7 @@ static incrementLoginAttempts(mail) {
 
             // Validar reCAPTCHA
             if (recaptchaToken) {
-                const recaptchaValid = await validateRecaptcha(recaptchaToken, req.ip);
+                const recaptchaValid = await validateRecaptcha(recaptchaToken, req);
                 
                 if (!recaptchaValid) {
                     logger.warn('Verificación reCAPTCHA fallida', {

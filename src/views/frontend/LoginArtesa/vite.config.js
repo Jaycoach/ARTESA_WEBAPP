@@ -70,6 +70,7 @@ export default ({ mode }) => {
       hmr: {
         overlay: true,
       },
+      allowedHosts: ['.ngrok-free.app'],
     },
     build: {
       // Generar source maps incluso en producción

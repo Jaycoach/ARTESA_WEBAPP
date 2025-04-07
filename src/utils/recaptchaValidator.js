@@ -6,13 +6,23 @@ const logger = createContextLogger('RecaptchaValidator');
 /**
  * Valida un token de reCAPTCHA
  * @param {string} token - Token de reCAPTCHA generado en el frontend
- * @param {string} remoteIp - Dirección IP del cliente
+ * @param {object} req - Objeto request de Express
  * @returns {Promise<boolean>} - true si es válido, false si no
  */
-async function validateRecaptcha(token, remoteIp) {
+async function validateRecaptcha(token, req) {
   if (!process.env.RECAPTCHA_SECRET_KEY) {
     logger.warn('RECAPTCHA_SECRET_KEY no configurada, omitiendo validación');
     return true; // Omitir validación si no está configurada
+  }
+  
+  // Permitir bypass de reCAPTCHA en desarrollo cuando se usa ngrok
+  if (process.env.NODE_ENV === 'development' && 
+      (req.headers?.host?.includes('ngrok') || req.ip?.includes('ngrok'))) {
+    logger.warn('Bypass de reCAPTCHA para entorno de desarrollo con ngrok', {
+      host: req.headers?.host,
+      ip: req.ip
+    });
+    return true;
   }
   
   if (!token) {
@@ -25,7 +35,7 @@ async function validateRecaptcha(token, remoteIp) {
       params: {
         secret: process.env.RECAPTCHA_SECRET_KEY,
         response: token,
-        remoteip: remoteIp
+        remoteip: req.ip
       }
     });
     
