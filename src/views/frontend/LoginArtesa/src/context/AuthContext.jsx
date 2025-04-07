@@ -124,6 +124,7 @@ export const AuthProvider = ({ children }) => {
       
       console.log("Respuesta completa del login:", responseData);
       console.log("Datos de usuario extraídos:", userData);
+      console.log("URL de la API utilizada:", API.defaults.baseURL);
 
       // Verificar si el usuario necesita verificar su correo
       if (responseData.needsVerification || userData.needsVerification) {

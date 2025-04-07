@@ -5,9 +5,9 @@ import axios from 'axios';
 let baseURL;
 
 // Verificamos si estamos usando ngrok
-if (import.meta.env.VITE_USE_NGROK === 'true' && import.meta.env.VITE_NGROK_URL) {
-  // Si usamos ngrok, usamos esa URL
-  baseURL = `${import.meta.env.VITE_NGROK_URL}/api`;
+if (import.meta.env.VITE_USE_NGROK === 'true') {
+  // Si usamos ngrok, usamos la URL de la API
+  baseURL = import.meta.env.VITE_API_URL;
 } else {
   // De lo contrario, usamos la URL de API configurada o localhost como fallback
   baseURL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';

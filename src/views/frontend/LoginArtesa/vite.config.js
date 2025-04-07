@@ -13,13 +13,12 @@ export default ({ mode }) => {
       tailwindcss(),
     ],
     define: {
-      // Hacer que todas las variables de entorno estén disponibles
-      ...Object.keys(env).reduce((acc, key) => {
-        if (key.startsWith('VITE_')) {
-          acc[`import.meta.env.${key}`] = JSON.stringify(env[key]);
-        }
-        return acc;
-      }, {})
+      // Hacer que las variables específicas estén disponibles
+      'import.meta.env.VITE_API_URL': JSON.stringify(env.VITE_API_URL),
+      'import.meta.env.VITE_USE_NGROK': JSON.stringify(env.VITE_USE_NGROK),
+      'import.meta.env.VITE_RECAPTCHA_SITE_KEY': JSON.stringify(env.VITE_RECAPTCHA_SITE_KEY),
+      'import.meta.env.VITE_APP_VERSION': JSON.stringify(env.VITE_APP_VERSION),
+      'import.meta.env.VITE_APP_NAME': JSON.stringify(env.VITE_APP_NAME),
     },
     theme: {
       extend: {
@@ -70,14 +69,14 @@ export default ({ mode }) => {
       hmr: {
         overlay: true,
       },
-      // Agregar proxy para las peticiones API
-      proxy: {
+      // Agregar proxy para las peticiones API cuando se desarrolla localmente
+      proxy: !process.env.VITE_USE_NGROK || process.env.VITE_USE_NGROK !== 'true' ? {
         '/api': {
           target: 'http://localhost:3000',
           changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/api/, '/api')
+          rewrite: (path) => path.replace(/^\/api/, '')
         }
-      },
+      } : null,
       allowedHosts: ['.ngrok-free.app'],
     },
     build: {

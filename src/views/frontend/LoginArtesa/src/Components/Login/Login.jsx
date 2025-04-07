@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth"; 
+import API from "../../api/config";
 import { useRecaptcha } from "../../hooks/useRecaptcha"; // Importamos el hook de reCAPTCHA
 
 // Import Assets
@@ -82,11 +83,15 @@ const Login = () => {
                 return;
             }
             
-            setError(
-                error.response?.data?.message || 
-                error.response?.data?.error || 
-                'Error en el inicio de sesión'
-            );
+            if (error.code === 'ERR_NETWORK') {
+                setError(`Error de conexión: No se puede conectar con el servidor. URL: ${API.defaults.baseURL}`);
+            } else {
+                setError(
+                    error.response?.data?.message || 
+                    error.response?.data?.error || 
+                    `Error en el inicio de sesión: ${error.message}`
+                );
+            }
         } finally {
             setLoading(false);
         }
