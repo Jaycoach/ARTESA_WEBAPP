@@ -683,15 +683,47 @@ static incrementLoginAttempts(mail) {
             
             // Si no está activo, lo activamos
             await pool.query(
-              'UPDATE users SET is_active = true, email_verified = true WHERE id = $1',
-              [user.id]
+                'UPDATE users SET is_active = true, email_verified = true WHERE id = $1',
+                [user.id]
             );
             
             // Limpiamos el token para que no pueda usarse nuevamente
             await pool.query(
-              'UPDATE users SET verification_token = NULL, verification_expires = NULL WHERE id = $1',
-              [user.id]
+                'UPDATE users SET verification_token = NULL, verification_expires = NULL WHERE id = $1',
+                [user.id]
             );
+            
+            // Revocar el token de verificación
+            await pool.query(
+                `INSERT INTO revoked_tokens (token_hash, user_id, revoked_at, expires_at, revocation_reason)
+                VALUES ($1, $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + INTERVAL '30 days', 'email_verified')
+                ON CONFLICT (token_hash) DO NOTHING`,
+                [token, user.id]
+            );
+            
+            // Eliminar de tokens activos
+            await pool.query(
+                'DELETE FROM active_tokens WHERE token_hash = $1',
+                [token]
+            );
+            
+            logger.debug('Token de verificación revocado después de uso exitoso', { userId: user.id });
+            
+            // Enviar correo de confirmación de verificación
+            try {
+                await EmailService.sendVerificationConfirmationEmail(user.mail, user.name);
+                logger.info('Correo de confirmación de verificación enviado', {
+                    userId: user.id,
+                    mail: user.mail
+                });
+            } catch (emailError) {
+                logger.error('Error al enviar correo de confirmación de verificación', {
+                    error: emailError.message,
+                    userId: user.id,
+                    mail: user.mail
+                });
+                // No detener el flujo si hay error en el envío del correo
+            }
             
             logger.info('Correo electrónico verificado exitosamente', {
               userId: user.id,
@@ -717,7 +749,7 @@ static incrementLoginAttempts(mail) {
               message: 'El token de verificación es inválido o ha expirado'
             });
           }
-          
+
           const userId = rows[0].id;
           
           // Si ya está verificado, devolvemos éxito
@@ -820,6 +852,22 @@ static incrementLoginAttempts(mail) {
         const verificationToken = crypto.randomBytes(32).toString('hex');
         const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 horas
         
+        // Verificar si hay tokens previos
+        const previousTokenQuery = await pool.query(
+            'SELECT verification_token FROM users WHERE id = $1 AND verification_token IS NOT NULL',
+            [userId]
+        );
+        
+        // Si hay un token previo, lo invalidamos en la tabla de tokens
+        if (previousTokenQuery.rows.length > 0 && previousTokenQuery.rows[0].verification_token) {
+            const oldToken = previousTokenQuery.rows[0].verification_token;
+            await pool.query(
+            'DELETE FROM tokens WHERE token = $1',
+            [oldToken]
+            );
+            logger.debug('Token de verificación previo invalidado', { userId, mail });
+        }
+
         // Actualizar token en la base de datos
         await pool.query(
             'UPDATE users SET verification_token = $1, verification_expires = $2 WHERE id = $3',
@@ -834,6 +882,22 @@ static incrementLoginAttempts(mail) {
             userId,
             mail
         });
+
+        // Registrar el nuevo token en active_tokens
+        await pool.query(
+            `INSERT INTO active_tokens (token_hash, user_id, issued_at, expires_at, device_info, ip_address) 
+            VALUES ($1, $2, CURRENT_TIMESTAMP, $3, $4, $5)
+            ON CONFLICT (token_hash) DO NOTHING`,
+            [
+            verificationToken, 
+            userId, 
+            verificationExpires, 
+            req.headers['user-agent'] || null, 
+            req.ip
+            ]
+        );
+        
+        logger.info('Token de verificación registrado como activo', { userId, mail });
         
         res.status(200).json({
             success: true,

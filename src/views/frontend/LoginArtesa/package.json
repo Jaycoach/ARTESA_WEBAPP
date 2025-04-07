@@ -4,18 +4,19 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-  "dev": "vite",
-  "build": "vite build",
-  "build:staging": "vite build --mode staging",
-  "preview": "vite preview",
-  "preview:staging": "vite preview --mode staging"
-},
+    "dev": "vite",
+    "build": "vite build",
+    "build:staging": "vite build --mode staging",
+    "preview": "vite preview",
+    "preview:staging": "vite preview --mode staging"
+  },
   "dependencies": {
     "@tailwindcss/vite": "^4.0.12",
     "@types/react-datepicker": "^6.2.0",
     "axios": "^1.7.9",
     "cors": "^2.8.5",
     "date-fns": "^4.1.0",
+    "framer-motion": "^12.6.3",
     "react": "^19.0.0",
     "react-datepicker": "^8.2.1",
     "react-dom": "^19.0.0",

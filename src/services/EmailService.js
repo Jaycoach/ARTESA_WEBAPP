@@ -147,6 +147,52 @@ class EmailService {
       throw new Error(`Error al enviar el correo de verificación: ${error.message}`);
     }
   }
+  async sendVerificationConfirmationEmail(userEmail, userName) {
+    try {
+      logger.info('Intentando enviar correo de confirmación de verificación', {
+        to: userEmail
+      });
+  
+      const mailOptions = {
+        from: {
+          name: 'La Artesa',
+          address: process.env.SMTP_FROM
+        },
+        to: userEmail,
+        subject: 'Bienvenido a La Artesa - Correo Verificado',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h1 style="color: #333;">¡Gracias por verificar tu correo!</h1>
+            <p>Hola ${userName || 'Usuario'},</p>
+            <p>Tu correo electrónico ha sido verificado exitosamente. Ahora puedes disfrutar de todos los beneficios de nuestra plataforma.</p>
+            <div style="background-color: #f5f5f5; padding: 15px; margin: 20px 0; border-left: 4px solid #007bff;">
+              <p style="margin: 0;">Tu cuenta está activa y puedes iniciar sesión cuando lo desees.</p>
+            </div>
+            <p>Si tienes alguna pregunta o necesitas ayuda, no dudes en contactarnos.</p>
+            <p>Saludos cordiales,<br>El equipo de La Artesa</p>
+            <hr>
+            <p style="color: #666; font-size: 12px;">
+              Este es un correo automático, por favor no respondas a este mensaje.
+            </p>
+          </div>
+        `
+      };
+  
+      const info = await this.transporter.sendMail(mailOptions);
+      logger.info('Correo de confirmación de verificación enviado exitosamente', {
+        messageId: info.messageId,
+        response: info.response
+      });
+  
+      return info;
+    } catch (error) {
+      logger.error('Error al enviar correo de confirmación de verificación:', {
+        error: error.message,
+        stack: error.stack
+      });
+      throw new Error(`Error al enviar el correo de confirmación de verificación: ${error.message}`);
+    }
+  }
 }
 
 
