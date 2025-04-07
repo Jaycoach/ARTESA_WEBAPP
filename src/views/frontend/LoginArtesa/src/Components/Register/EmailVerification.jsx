@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FaCheckCircle, FaExclamationTriangle, FaSpinner } from 'react-icons/fa';
 import API from '../../api/config';
@@ -10,15 +10,25 @@ const EmailVerification = () => {
   const navigate = useNavigate();
   const [status, setStatus] = useState('loading'); // loading, success, error
   const [message, setMessage] = useState('');
+  // Referencia para evitar verificaciones duplicadas
+  const verificationAttempted = useRef(false);
 
   useEffect(() => {
     // Función para verificar el token de correo electrónico
     const verifyEmail = async () => {
+      // Evitar doble verificación
+      if (verificationAttempted.current) {
+        return;
+      }
+      
       if (!token) {
         setStatus('error');
         setMessage('Token de verificación no proporcionado');
         return;
       }
+
+      // Marcar la verificación como intentada
+      verificationAttempted.current = true;
 
       try {
         // Llamada a la API para verificar el correo electrónico

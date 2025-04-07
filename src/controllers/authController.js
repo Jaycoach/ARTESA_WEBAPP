@@ -652,57 +652,121 @@ static incrementLoginAttempts(mail) {
      * @param {Object} req - Objeto de solicitud Express
      * @param {Object} res - Objeto de respuesta Express
      */
-    static async verifyEmail (req, res) {
+    static async verifyEmail(req, res) {
         const { token } = req.params;
         
         try {
-        logger.debug('Verificando token de correo electrónico', { token });
-        
-        // Verificar que el token existe y no ha expirado
-        const { rows } = await pool.query(
-            'SELECT id, mail FROM users WHERE verification_token = $1 AND verification_expires > NOW()',
+          logger.debug('Verificando token de correo electrónico', { token });
+          
+          // Primero verificamos si el token ya ha sido utilizado consultando la tabla de usuarios
+          const userQuery = await pool.query(
+            'SELECT id, mail, is_active FROM users WHERE verification_token = $1',
             [token]
           );
-        
-        if (rows.length === 0) {
+          
+          // Si encontramos el usuario directamente por el token
+          if (userQuery.rows.length > 0) {
+            const user = userQuery.rows[0];
+            
+            // Si el usuario ya está activo, devolvemos éxito sin cambiar nada
+            if (user.is_active) {
+              logger.info('Usuario ya verificado previamente', {
+                userId: user.id,
+                mail: user.mail
+              });
+              
+              return res.status(200).json({
+                success: true,
+                message: 'Correo electrónico ya verificado. Puedes iniciar sesión.'
+              });
+            }
+            
+            // Si no está activo, lo activamos
+            await pool.query(
+              'UPDATE users SET is_active = true, email_verified = true WHERE id = $1',
+              [user.id]
+            );
+            
+            // Limpiamos el token para que no pueda usarse nuevamente
+            await pool.query(
+              'UPDATE users SET verification_token = NULL, verification_expires = NULL WHERE id = $1',
+              [user.id]
+            );
+            
+            logger.info('Correo electrónico verificado exitosamente', {
+              userId: user.id,
+              mail: user.mail
+            });
+            
+            return res.status(200).json({
+              success: true,
+              message: 'Correo electrónico verificado exitosamente. Ahora puedes iniciar sesión.'
+            });
+          }
+          
+          // Verificar en la tabla de tokens (para compatibilidad con implementación anterior)
+          const { rows } = await pool.query(
+            'SELECT u.id, u.mail, u.is_active FROM users u JOIN tokens t ON u.id = t.users_id WHERE t.token = $1 AND t.expiracion > NOW()',
+            [token]
+          );
+          
+          if (rows.length === 0) {
             logger.warn('Token de verificación inválido o expirado', { token });
             return res.status(400).json({
-            success: false,
-            message: 'El token de verificación es inválido o ha expirado'
+              success: false,
+              message: 'El token de verificación es inválido o ha expirado'
             });
-        }
-        
-        const userId = rows[0].id;
-        
-        // Actualizar usuario como verificado y limpiar el token
-        await pool.query(
-            'UPDATE users SET is_active = true, email_verified = true, verification_token = NULL, verification_expires = NULL WHERE id = $1',
+          }
+          
+          const userId = rows[0].id;
+          
+          // Si ya está verificado, devolvemos éxito
+          if (rows[0].is_active) {
+            logger.info('Usuario ya verificado previamente', {
+              userId,
+              mail: rows[0].mail
+            });
+            
+            return res.status(200).json({
+              success: true,
+              message: 'Correo electrónico ya verificado. Puedes iniciar sesión.'
+            });
+          }
+          
+          // Actualizar usuario como verificado
+          await pool.query(
+            'UPDATE users SET is_active = true, email_verified = true WHERE id = $1',
             [userId]
-        );
-        
-        logger.info('Correo electrónico verificado exitosamente', {
+          );
+          
+          await pool.query(
+            'DELETE FROM tokens WHERE users_id = $1 AND token = $2',
+            [userId, token]
+          );
+          
+          logger.info('Correo electrónico verificado exitosamente', {
             userId,
             mail: rows[0].mail
-        });
-        
-        res.status(200).json({
+          });
+          
+          res.status(200).json({
             success: true,
             message: 'Correo electrónico verificado exitosamente. Ahora puedes iniciar sesión.'
-        });
+          });
         } catch (error) {
-        logger.error('Error al verificar correo electrónico', {
+          logger.error('Error al verificar correo electrónico', {
             error: error.message,
             stack: error.stack,
             token
-        });
-        
-        res.status(500).json({
+          });
+          
+          res.status(500).json({
             success: false,
             message: 'Error al verificar correo electrónico',
             error: process.env.NODE_ENV === 'development' ? error.message : undefined
-        });
+          });
         }
-    };
+      }
 
     /**
      * Reenvía el correo de verificación a un usuario
