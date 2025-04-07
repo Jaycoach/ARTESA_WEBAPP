@@ -660,7 +660,7 @@ static incrementLoginAttempts(mail) {
           
           // Primero verificamos si el token ya ha sido utilizado consultando la tabla de usuarios
           const userQuery = await pool.query(
-            'SELECT id, mail, is_active FROM users WHERE verification_token = $1',
+            'SELECT id, mail, name, is_active FROM users WHERE verification_token = $1',
             [token]
           );
           
@@ -740,7 +740,7 @@ static incrementLoginAttempts(mail) {
           
           // Verificar en la tabla de tokens (para compatibilidad con implementación anterior)
           const { rows } = await pool.query(
-            'SELECT u.id, u.mail, u.is_active FROM users u JOIN tokens t ON u.id = t.users_id WHERE t.token = $1 AND t.expiracion > NOW()',
+            'SELECT u.id, u.mail, u.name, u.is_active FROM users u JOIN tokens t ON u.id = t.users_id WHERE t.token = $1 AND t.expiracion > NOW()',
             [token]
           );
           
@@ -777,6 +777,21 @@ static incrementLoginAttempts(mail) {
             'DELETE FROM tokens WHERE users_id = $1 AND token = $2',
             [userId, token]
           );
+
+          try {
+            await EmailService.sendVerificationConfirmationEmail(rows[0].mail, rows[0].name);
+            logger.info('Correo de confirmación de verificación enviado', {
+              userId,
+              mail: rows[0].mail
+            });
+          } catch (emailError) {
+            logger.error('Error al enviar correo de confirmación de verificación', {
+              error: emailError.message,
+              userId,
+              mail: rows[0].mail
+            });
+            // No detener el flujo si hay error en el envío del correo
+          }
           
           logger.info('Correo electrónico verificado exitosamente', {
             userId,

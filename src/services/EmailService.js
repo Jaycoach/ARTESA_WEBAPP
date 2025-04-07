@@ -150,9 +150,12 @@ class EmailService {
   async sendVerificationConfirmationEmail(userEmail, userName) {
     try {
       logger.info('Intentando enviar correo de confirmación de verificación', {
-        to: userEmail
+        to: userEmail,
+        userName: userName || 'No proporcionado'
       });
-  
+
+      const displayName = userName || 'Estimado Usuario';
+
       const mailOptions = {
         from: {
           name: 'La Artesa',
@@ -163,7 +166,7 @@ class EmailService {
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <h1 style="color: #333;">¡Gracias por verificar tu correo!</h1>
-            <p>Hola ${userName || 'Usuario'},</p>
+            <p>Hola ${displayName},</p>
             <p>Tu correo electrónico ha sido verificado exitosamente. Ahora puedes disfrutar de todos los beneficios de nuestra plataforma.</p>
             <div style="background-color: #f5f5f5; padding: 15px; margin: 20px 0; border-left: 4px solid #007bff;">
               <p style="margin: 0;">Tu cuenta está activa y puedes iniciar sesión cuando lo desees.</p>
