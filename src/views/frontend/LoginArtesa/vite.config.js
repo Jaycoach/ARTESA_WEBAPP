@@ -70,6 +70,10 @@ export default ({ mode }) => {
       // Configuración para mostrar warnings pero no hacer fallar la compilación
       hmr: {
         overlay: true,
+        // Permitir cualquier host para HMR cuando usamos ngrok
+        host: mode === 'ngrok' ? 'all' : undefined,
+        // Permitir conexiones desde tu dominio ngrok específico
+        clientPort: mode === 'ngrok' ? 443 : undefined,
       },
       // Agregar proxy para las peticiones API cuando se desarrolla localmente
       proxy: env.VITE_USE_NGROK !== 'true' && {
@@ -84,7 +88,9 @@ export default ({ mode }) => {
       // Permitir dominios ngrok
       cors: true,
       // Permitir cualquier host (incluyendo dominios de ngrok)
-      allowedHosts: 'all',
+      allowedHosts: mode === 'ngrok' 
+      ? ['localhost', '.ngrok-free.app', '3e1a-105-74-2-232.ngrok-free.app'] 
+      : undefined
     },
     build: {
       // Generar source maps incluso en producción
