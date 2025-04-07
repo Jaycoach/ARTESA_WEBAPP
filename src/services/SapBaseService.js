@@ -18,7 +18,10 @@ class SapBaseService {
     this.initialized = false;
     this.lastSyncTime = null;
     this.httpsAgent = new (require('https').Agent)({
-      rejectUnauthorized: false
+      rejectUnauthorized: false,
+      keepAlive: true,
+      timeout: 30000, // 30 segundos
+      maxSockets: 10  // Límite de conexiones simultáneas
     });
   }
 
@@ -87,15 +90,59 @@ class SapBaseService {
       });
 
       // Crear una instancia de axios con el agente HTTPS
+      // Configuración mejorada para axios con timeouts y reintentos
       const axiosInstance = axios.create({
-        httpsAgent: this.httpsAgent
+        httpsAgent: this.httpsAgent,
+        timeout: 10000, // 10 segundos de timeout
+        headers: {
+          'Content-Type': 'application/json'
+        }
       });
 
-      const response = await axiosInstance.post(`${this.baseUrl}/Login`, {
-        CompanyDB: this.companyDB,
-        UserName: this.username,
-        Password: this.password
-      });
+      // Agregar manejo de reintento
+      let retries = 0;
+      const maxRetries = 3;
+      let response;
+
+      while (retries < maxRetries) {
+        try {
+          this.logger.debug(`Intentando login con SAP (intento ${retries + 1}/${maxRetries})`, {
+            baseUrl: this.baseUrl,
+            companyDB: this.companyDB,
+            username: this.username
+          });
+          
+          response = await axiosInstance.post(`${this.baseUrl}/Login`, {
+            CompanyDB: this.companyDB,
+            UserName: this.username,
+            Password: this.password
+          });
+          
+          // Si la solicitud es exitosa, salir del bucle
+          break;
+        } catch (retryError) {
+          retries++;
+          
+          // Si hemos agotado los reintentos, lanzar el error
+          if (retries >= maxRetries) {
+            this.logger.error(`Autenticación fallida después de ${maxRetries} intentos`, {
+              error: retryError.message,
+              code: retryError.code || 'UNKNOWN'
+            });
+            throw retryError;
+          }
+          
+          // Esperar antes de reintentar (backoff exponencial)
+          const delay = 1000 * Math.pow(2, retries);
+          this.logger.warn(`Reintentando conexión en ${delay}ms`, {
+            attempt: retries,
+            maxRetries,
+            error: retryError.message
+          });
+          
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
 
       if (response.status === 200) {
         // Extraer sessionId de las cookies

@@ -8,6 +8,13 @@ import './App.css'
 
 const recaptchaKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
 
+// Depuración de variables de entorno
+console.log("Variables de entorno cargadas:");
+console.log("- VITE_API_URL:", import.meta.env.VITE_API_URL);
+console.log("- VITE_USE_NGROK:", import.meta.env.VITE_USE_NGROK);
+console.log("- VITE_NGROK_URL:", import.meta.env.VITE_NGROK_URL);
+console.log("- VITE_RECAPTCHA_SITE_KEY:", recaptchaKey);
+
 // Verificación opcional para entornos de desarrollo
 if (!recaptchaKey) {
   console.warn('La clave de reCAPTCHA no está definida en las variables de entorno.');

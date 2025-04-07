@@ -70,6 +70,14 @@ export default ({ mode }) => {
       hmr: {
         overlay: true,
       },
+      // Agregar proxy para las peticiones API
+      proxy: {
+        '/api': {
+          target: 'http://localhost:3000',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api/, '/api')
+        }
+      },
       allowedHosts: ['.ngrok-free.app'],
     },
     build: {
