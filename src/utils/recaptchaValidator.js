@@ -16,10 +16,18 @@ async function validateRecaptcha(token, req) {
     return true;
   }
   
-  // Permitir bypass de reCAPTCHA en desarrollo
-  if (process.env.NODE_ENV === 'development' || process.env.RECAPTCHA_BYPASS === 'true') {
+  // Permitir bypass de reCAPTCHA en desarrollo siempre
+  if (process.env.NODE_ENV === 'development') {
     logger.info('Bypass de reCAPTCHA para entorno de desarrollo', {
       host: req.headers?.host,
+      ip: req.ip
+    });
+    return true;
+  }
+
+  // Si no es desarrollo, verificar configuración explícita de bypass
+  if (process.env.RECAPTCHA_BYPASS === 'true') {
+    logger.info('Bypass de reCAPTCHA habilitado por configuración', {
       ip: req.ip
     });
     return true;

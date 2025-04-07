@@ -22,7 +22,7 @@ import { RiMicAiLine } from "react-icons/ri";
 
 const Register = () => {
     const navigate = useNavigate();
-    const { generateRecaptchaToken, loading: recaptchaLoading, error: recaptchaError } = useRecaptcha(); // Hook para ejecutar reCAPTCHA
+    const { generateRecaptchaToken, loading: recaptchaLoading, error: recaptchaError, isRecaptchaReady } = useRecaptcha();
     const [formData, setFormData] = useState({
         name: '',
         mail: '',
@@ -64,35 +64,36 @@ const Register = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         
-        /*if (rateLimit.isLimited) {
-            return;
-        }*/
-        
         setLoading(true);
         setError('');
         
         try {
-            // Generar token de reCAPTCHA para registro
+            // Generar token de reCAPTCHA para registro (añade logs)
+            console.log("Generando token reCAPTCHA para registro");
             const recaptchaToken = await generateRecaptchaToken('register');
             
             if (!recaptchaToken) {
-                setError(recaptchaError || 'Error en la verificación de seguridad. Por favor, intenta nuevamente.');
+                setError(recaptchaError || 'No se pudo completar la verificación de seguridad. Por favor, recargue la página e intente nuevamente.');
+                console.error("No se pudo obtener token reCAPTCHA para registro");
                 setLoading(false);
                 return;
             }
+            
+            console.log("Token reCAPTCHA obtenido correctamente para registro");
             
             // Añadir el token de reCAPTCHA al objeto de datos
             const registerData = {
                 ...formData,
                 recaptchaToken
             };
-
+    
+            console.log("Enviando solicitud de registro con token reCAPTCHA");
             const response = await API.post('/auth/register', registerData, {
                 headers: {
                     'Content-Type': 'application/json'
                 }
             });
-
+    
             // Guardar token y usuario en localStorage
             localStorage.setItem('token', response.data.token);
             localStorage.setItem('user', JSON.stringify(response.data.user));
@@ -101,35 +102,17 @@ const Register = () => {
             navigate('/registration-success', { state: { email: formData.mail } });
             
         } catch (error) {
-            //console.error("Error en registro:", error); Eliminada CaptCha -- Revisar Chan
+            console.error("Error en registro:", error);
             
             if (error.response?.data?.code === 'RECAPTCHA_FAILED') {
-                setError('Verificación de seguridad fallida. Por favor, intenta nuevamente.');
+                setError('Verificación de seguridad fallida. Por favor, recargue la página e intente nuevamente.');
             } else {
-                setError(error.response?.data?.message || 'Error en el registro');
+                setError(error.response?.data?.message || 'Error en el registro. Por favor intente más tarde.');
             }
         } finally {
             setLoading(false);
         }
     };
-
-            // Manejar error de rate limiting (429)
-            /*if (error.response && error.response.status === 429) {
-                const retryAfter = parseInt(error.response.headers['retry-after'] || '60', 10);
-                setRateLimit({
-                    isLimited: true,
-                    countdown: retryAfter
-                });
-                setError(`Demasiados intentos. Por favor espera ${retryAfter} segundos antes de intentar nuevamente.`);
-            } else if (error.response && error.response.data.recaptchaFailed) {
-                setError("Verificación de seguridad fallida. Por favor, recarga la página e intenta nuevamente.");
-            } else {
-                setError(error.response?.data?.message || 'Error en el registro');
-            }
-        } finally {
-            setLoading(false);
-        }
-    };*/
 
 
     return (
@@ -194,7 +177,7 @@ const Register = () => {
                         disabled={loading || recaptchaLoading}
                     >
                         <span>
-                            {loading ? 'Registrando...' : 'Registrarse'}
+                            {loading ? 'Registrando...' : !isRecaptchaReady ? 'Cargando seguridad...' : 'Registrarse'}
                         </span>
                         <TiArrowRightOutline className="icon" />
                     </button>

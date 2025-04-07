@@ -33,6 +33,15 @@ createRoot(document.getElementById('root')).render(
         defer: true,
         appendTo: 'head',
       }}
+      useRecaptchaNet={true}
+      useEnterprise={false}
+      language="es"
+      container={{
+        parameters: {
+          badge: 'bottomright',
+          theme: 'light',
+        }
+      }}
     >
       <AuthProvider>
         <App />

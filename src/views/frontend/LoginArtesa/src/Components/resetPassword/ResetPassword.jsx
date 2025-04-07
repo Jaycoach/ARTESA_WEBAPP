@@ -14,7 +14,7 @@ import { Link } from "react-router-dom";
 const ResetPassword = () => {
   const { token } = useParams();
   const navigate = useNavigate();
-  const { generateRecaptchaToken, loading: recaptchaLoading, error: recaptchaError } = useRecaptcha();
+  const { generateRecaptchaToken, loading: recaptchaLoading, error: recaptchaError, isRecaptchaReady } = useRecaptcha();
   
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -44,19 +44,27 @@ const ResetPassword = () => {
 
     try {
       // Generar token de reCAPTCHA
+      console.log("Generando token reCAPTCHA para reset_password");
       const recaptchaToken = await generateRecaptchaToken('reset_password');
       
       if (!recaptchaToken) {
-        setError(recaptchaError || '❌ Error en la verificación de seguridad. Por favor, intenta nuevamente.');
+        setError(recaptchaError || '❌ Error en la verificación de seguridad. Por favor, recargue la página e intente nuevamente.');
+        console.error("No se pudo obtener token reCAPTCHA para reset_password");
         setIsLoading(false);
         return;
       }
 
-      const response = await API.post("/password/reset", {
-        token,
-        newPassword,
-        recaptchaToken
-      });
+      console.log("Token reCAPTCHA obtenido correctamente para reset_password");
+
+        // Crear el objeto de datos con el token reCAPTCHA
+        const resetData = {
+            token,
+            newPassword,
+            recaptchaToken
+        };
+        
+        console.log("Enviando solicitud de reset_password con token reCAPTCHA");
+        const response = await API.post("/password/reset", resetData);
 
       // Verificar si la respuesta tiene la estructura esperada
       if (response.data && response.data.success) {
@@ -191,9 +199,11 @@ const ResetPassword = () => {
             
             {/* Botón de Cambiar Contraseña */}
             <button type="submit" className="btn flex" disabled={isLoading || recaptchaLoading}>
-              <span>{isLoading ? "Procesando..." : "Cambiar Contraseña"}</span>
+              <span>
+                  {isLoading ? "Procesando..." : !isRecaptchaReady ? "Cargando seguridad..." : "Cambiar Contraseña"}
+              </span>
               {!isLoading && <TiArrowRightOutline className="icon" />}
-            </button>
+          </button>
           </form>
         </div>
       </div>

@@ -7,7 +7,7 @@ import '../../App.scss';
 
 const ResendVerification = () => {
   const navigate = useNavigate();
-  const { generateRecaptchaToken, loading: recaptchaLoading, error: recaptchaError } = useRecaptcha();
+  const { generateRecaptchaToken, loading: recaptchaLoading, error: recaptchaError, isRecaptchaReady } = useRecaptcha();
   const [email, setEmail] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -37,24 +37,29 @@ const ResendVerification = () => {
     
     try {
       // Generar token de reCAPTCHA
+      console.log("Generando token reCAPTCHA para resend_verification");
       const recaptchaToken = await generateRecaptchaToken('resend_verification');
       
       if (!recaptchaToken) {
-        setError(recaptchaError || 'Error en la verificación de seguridad. Por favor, intenta nuevamente.');
+        setError(recaptchaError || 'No se pudo completar la verificación de seguridad. Por favor, recargue la página e intente nuevamente.');
+        console.error("No se pudo obtener token reCAPTCHA para resend_verification");
         setIsLoading(false);
         return;
       }
 
-      const response = await API.post('/auth/resend-verification', { 
-        mail: email,
-        recaptchaToken
-      });
+      console.log("Token reCAPTCHA obtenido correctamente para resend_verification");
+
+        console.log("Enviando solicitud de reenvío de verificación con token reCAPTCHA");
+        const response = await API.post('/auth/resend-verification', { 
+            mail: email,
+            recaptchaToken
+        });
       
-      if (response.data.success) {
-        setSuccess(true);
-        setMessage(response.data.message || 'Correo de verificación enviado con éxito');
+        if (response.data.success) {
+          setSuccess(true);
+          setMessage(response.data.message || 'Correo de verificación enviado con éxito');
       } else {
-        setError(response.data.message || 'Error al enviar el correo de verificación');
+          setError(response.data.message || 'Error al enviar el correo de verificación');
       }
     } catch (error) {
       console.error('Error al reenviar verificación:', error);
@@ -183,22 +188,24 @@ const ResendVerification = () => {
           <button
             type="submit"
             className={`w-full flex justify-center items-center px-4 py-2 ${
-              isLoading || isBlocked || recaptchaLoading
-                ? 'bg-gray-400 cursor-not-allowed'
-                : 'bg-blue-600 hover:bg-blue-700'
+                isLoading || isBlocked || recaptchaLoading
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : 'bg-blue-600 hover:bg-blue-700'
             } text-white rounded-md transition`}
             disabled={isLoading || isBlocked || recaptchaLoading}
           >
             {isLoading || recaptchaLoading ? (
-              <>
-                <FaSpinner className="animate-spin mr-2" /> Enviando...
-              </>
+                <>
+                    <FaSpinner className="animate-spin mr-2" /> Enviando...
+                </>
             ) : isBlocked ? (
-              `Espera ${countdown} segundos`
+                `Espera ${countdown} segundos`
+            ) : !isRecaptchaReady ? (
+                "Cargando seguridad..."
             ) : (
-              'Enviar Correo de Verificación'
+                'Enviar Correo de Verificación'
             )}
-          </button>
+        </button>
 
           <div className="text-center">
             <button

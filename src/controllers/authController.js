@@ -265,7 +265,7 @@ static incrementLoginAttempts(mail) {
             logger.debug('Iniciando proceso de login', { mail });
 
             // Validar reCAPTCHA solo si está configurado
-            if (process.env.RECAPTCHA_ENABLED === 'true') {
+            if (process.env.RECAPTCHA_ENABLED === 'true' && process.env.NODE_ENV !== 'development') {
                 const recaptchaResponse = req.body.recaptchaToken || req.body['g-recaptcha-response'] || req.body.captchaToken;
                 
                 if (!recaptchaResponse) {
@@ -289,6 +289,8 @@ static incrementLoginAttempts(mail) {
                         message: 'Verificación de seguridad fallida. Por favor, intenta nuevamente.'
                     });
                 }
+            } else if (process.env.NODE_ENV === 'development') {
+                logger.debug('Saltando verificación de reCAPTCHA en desarrollo', { mail });
             }
     
             // 1. Verificación inicial de credenciales
@@ -542,48 +544,32 @@ static incrementLoginAttempts(mail) {
             logger.debug('Iniciando proceso de registro', { mail });
 
             // Validar reCAPTCHA solo si está configurado
-            if (process.env.RECAPTCHA_ENABLED === 'true') {
-                const recaptchaResponse = req.body.recaptchaToken || 
-                                        req.body['g-recaptcha-response'] || 
-                                        req.headers['g-recaptcha-response'];
+            if (process.env.RECAPTCHA_ENABLED === 'true' && process.env.NODE_ENV !== 'development') {
+                const recaptchaResponse = req.body.recaptchaToken || req.body['g-recaptcha-response'] || req.body.captchaToken;
                 
-                logger.debug('Datos de reCAPTCHA en registro', { 
-                    mail, 
-                    hasToken: !!recaptchaResponse,
-                    bodyKeys: Object.keys(req.body),
-                    headerKeys: Object.keys(req.headers)
-                });
-                
-                // En desarrollo podemos permitir registro sin reCAPTCHA
                 if (!recaptchaResponse) {
-                    if (process.env.NODE_ENV === 'development' || process.env.RECAPTCHA_BYPASS === 'true') {
-                        logger.warn('Bypassing reCAPTCHA en entorno de desarrollo', { mail });
-                    } else {
-                        logger.warn('Intento de registro sin token reCAPTCHA', { mail, ip: req.ip });
-                        return res.status(400).json({
-                            success: false,
-                            message: 'Por favor, complete la verificación de seguridad'
-                        });
-                    }
-                } else {
-                    const recaptchaValid = await validateRecaptcha(recaptchaResponse, req);
-                    
-                    if (!recaptchaValid && process.env.NODE_ENV !== 'development') {
-                        logger.warn('Verificación reCAPTCHA fallida', {
-                            mail,
-                            ip: req.ip
-                        });
-                        
-                        return res.status(400).json({
-                            success: false,
-                            message: 'Verificación de seguridad fallida. Por favor, intenta nuevamente.'
-                        });
-                    }
-                    
-                    logger.debug('Verificación reCAPTCHA exitosa', { mail });
+                    logger.warn('Intento de login sin token reCAPTCHA', { mail, ip: req.ip });
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Por favor, complete la verificación de seguridad'
+                    });
                 }
-            } else {
-                logger.debug('reCAPTCHA desactivado en configuración, omitiendo validación', { mail });
+                
+                const recaptchaValid = await validateRecaptcha(recaptchaResponse, req);
+                
+                if (!recaptchaValid) {
+                    logger.warn('Verificación reCAPTCHA fallida en login', {
+                        mail,
+                        ip: req.ip
+                    });
+                    
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Verificación de seguridad fallida. Por favor, intenta nuevamente.'
+                    });
+                }
+            } else if (process.env.NODE_ENV === 'development') {
+                logger.debug('Saltando verificación de reCAPTCHA en desarrollo', { mail });
             }
 
             // 1. Verificar si el usuario ya existe

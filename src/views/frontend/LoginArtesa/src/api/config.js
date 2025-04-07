@@ -42,6 +42,12 @@ if (import.meta.env.DEV || import.meta.env.VITE_DEBUG_API === 'true') {
   API.interceptors.request.use(
     (config) => {
       console.log(`📤 Enviando petición a: ${config.baseURL}${config.url}`);
+      // Agregar log para reCAPTCHA
+      if (config.data && config.data.recaptchaToken) {
+        console.log('reCAPTCHA token presente en la solicitud:', config.url);
+      } else if (config.url.includes('login') || config.url.includes('register') || config.url.includes('password')) {
+        console.warn('Advertencia: Sin token reCAPTCHA para:', config.url);
+      }
       return config;
     },
     (error) => {

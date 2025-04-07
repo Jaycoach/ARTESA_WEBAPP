@@ -1,4 +1,5 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+import { useGoogleReCaptcha } from 'react-google-recaptcha-v3';
 
 /**
  * Hook personalizado para manejar reCAPTCHA v3
@@ -7,7 +8,16 @@ import { useState, useCallback } from 'react';
 export const useRecaptcha = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const { executeRecaptcha } = useGoogleReCaptcha();
+  const [isRecaptchaReady, setIsRecaptchaReady] = useState(false);
   
+  // Verificar si reCAPTCHA está listo
+  useEffect(() => {
+    if (executeRecaptcha) {
+      setIsRecaptchaReady(true);
+    }
+  }, [executeRecaptcha]);
+
   /**
    * Genera un token de reCAPTCHA para la acción especificada
    * @param {string} action - Nombre de la acción para reCAPTCHA (login, register, etc.)
@@ -18,43 +28,31 @@ export const useRecaptcha = () => {
     setError(null);
     
     try {
-      // Verificar si grecaptcha está disponible
-      if (!window.grecaptcha || !window.grecaptcha.execute) {
-        console.error('reCAPTCHA no está disponible');
-        setError('reCAPTCHA no está disponible. Por favor, recarga la página.');
+      if (!executeRecaptcha) {
+        console.error('reCAPTCHA no está listo aún');
+        setError('El sistema de seguridad aún se está cargando. Por favor, espere unos segundos y vuelva a intentarlo.');
         return null;
       }
       
-      // Obtener la clave del sitio desde las variables de entorno
-      const siteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
+      console.log(`Ejecutando reCAPTCHA para acción: ${action}`);
+      const token = await executeRecaptcha(action);
+      console.log(`Token reCAPTCHA generado: ${token ? 'OK (token obtenido)' : 'FALLO (sin token)'}`);
       
-      if (!siteKey) {
-        console.error('Clave de sitio reCAPTCHA no configurada');
-        setError('Error de configuración de reCAPTCHA');
-        // En desarrollo, podrías retornar un token falso para pruebas
-        if (import.meta.env.DEV) {
-            console.warn('Retornando token de prueba para desarrollo');
-            return 'dev-test-token';
-        }
-        return null;
-      }
-      
-      // Generar el token de reCAPTCHA
-      const token = await window.grecaptcha.execute(siteKey, { action });
       return token;
     } catch (error) {
       console.error('Error al generar token reCAPTCHA:', error);
-      setError('Error al verificar reCAPTCHA. Por favor, intenta nuevamente.');
+      setError('Error al verificar reCAPTCHA. Por favor, intenta nuevamente en unos momentos.');
       return null;
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [executeRecaptcha]);
 
   return {
     generateRecaptchaToken,
     loading,
     error,
+    isRecaptchaReady
   };
 };
 

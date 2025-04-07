@@ -45,17 +45,18 @@ const Login = () => {
 
         try {
             // Generar token de reCAPTCHA
+            console.log("Generando token reCAPTCHA para login");
             const recaptchaToken = await generateRecaptchaToken('login');
             
             if (!recaptchaToken) {
-                setError(recaptchaError || 'Error en la verificación de seguridad. Por favor, intenta nuevamente.');
+                setError(recaptchaError || 'No se pudo completar la verificación de seguridad. Por favor, recargue la página e intente nuevamente.');
+                console.error("No se pudo obtener token reCAPTCHA");
                 setLoading(false);
                 return;
             }
 
-            console.log("Enviando datos de login:", formData);
+            console.log("Enviando datos de login con token reCAPTCHA");
             
-            // Usar la función login del contexto, incluyendo el token de reCAPTCHA
             const response = await login({
                 mail: formData.mail,
                 password: formData.password,
@@ -65,7 +66,6 @@ const Login = () => {
             // Verificar si el usuario necesita verificar su correo
             if (response && response.needsVerification) {
                 setError('Por favor verifica tu correo electrónico para acceder.');
-                // Mostrar opción para reenviar correo de verificación
                 return;
             }
             
