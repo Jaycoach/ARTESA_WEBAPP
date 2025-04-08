@@ -71,6 +71,9 @@ const Register = () => {
             // Generar token de reCAPTCHA para registro (añade logs)
             console.log("Generando token reCAPTCHA para registro");
             const recaptchaToken = await generateRecaptchaToken('register');
+
+            // Log para depuración del token
+            console.log("Token reCAPTCHA obtenido:", recaptchaToken ? "Éxito (longitud: " + recaptchaToken.length + ")" : "Fallo (null)");
             
             if (!recaptchaToken) {
                 setError(recaptchaError || 'No se pudo completar la verificación de seguridad. Por favor, recargue la página e intente nuevamente.');

@@ -16,10 +16,9 @@ async function validateRecaptcha(token, req) {
     return true;
   }
   
-  // Permitir bypass de reCAPTCHA en desarrollo siempre
-  if (process.env.NODE_ENV === 'development') {
-    logger.info('Bypass de reCAPTCHA para entorno de desarrollo', {
-      host: req.headers?.host,
+  // Si estamos en desarrollo y el token parece un token de prueba específico
+  if (process.env.NODE_ENV === 'development' && token === 'development-test-token') {
+    logger.info('Usando token de prueba para desarrollo', {
       ip: req.ip
     });
     return true;
@@ -104,6 +103,14 @@ async function validateRecaptcha(token, req) {
     if (process.env.NODE_ENV === 'development') {
       logger.info('Bypass de reCAPTCHA para entorno de desarrollo', {
         host: req.headers?.host,
+        ip: req.ip
+      });
+      return true;
+    }
+
+    // Permitir un token específico para pruebas en desarrollo
+    if (process.env.NODE_ENV === 'development' && token === 'development-test-token') {
+      logger.info('Usando token de prueba específico para desarrollo', {
         ip: req.ip
       });
       return true;

@@ -46,6 +46,9 @@ const ResetPassword = () => {
       // Generar token de reCAPTCHA
       console.log("Generando token reCAPTCHA para reset_password");
       const recaptchaToken = await generateRecaptchaToken('reset_password');
+
+      // Log para depuración del token
+      console.log("Token reCAPTCHA obtenido:", recaptchaToken ? "Éxito (longitud: " + recaptchaToken.length + ")" : "Fallo (null)");
       
       if (!recaptchaToken) {
         setError(recaptchaError || '❌ Error en la verificación de seguridad. Por favor, recargue la página e intente nuevamente.');

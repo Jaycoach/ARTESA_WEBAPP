@@ -9,6 +9,16 @@ import './App.css'
 // Asegurarnos de que la clave de reCAPTCHA siempre tenga un valor, incluso en desarrollo
 const recaptchaKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
 
+// Usar clave de prueba en desarrollo si no hay clave configurada
+const finalRecaptchaKey = import.meta.env.DEV && !recaptchaKey 
+  ? '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI' // Clave de prueba de Google
+  : recaptchaKey;
+
+// Informar que usamos clave de prueba
+if (import.meta.env.DEV && finalRecaptchaKey === '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI') {
+  console.warn('ATENCIÓN: Usando clave de prueba de Google reCAPTCHA. Esta clave permite cualquier validación en desarrollo.');
+}
+
 // Depuración de variables de entorno
 console.log("Variables de entorno cargadas:");
 console.log("- VITE_API_URL:", import.meta.env.VITE_API_URL);
@@ -28,7 +38,7 @@ if (import.meta.env.DEV) {
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <GoogleReCaptchaProvider
-      reCaptchaKey={recaptchaKey}
+      reCaptchaKey={finalRecaptchaKey}
       scriptProps={{
         async: true,
         defer: true,
