@@ -100,12 +100,23 @@ async function validateRecaptcha(token, req) {
       } : 'No disponible'
     });
     
-    // En caso de error técnico, permitir continuar solo en desarrollo
+    // Permitir bypass de reCAPTCHA SOLO en desarrollo
     if (process.env.NODE_ENV === 'development') {
-      logger.warn('Permitiendo solicitud en desarrollo a pesar del error en reCAPTCHA');
+      logger.info('Bypass de reCAPTCHA para entorno de desarrollo', {
+        host: req.headers?.host,
+        ip: req.ip
+      });
       return true;
     }
-    return false;
+
+    // En producción, siempre verificar el token
+    if (process.env.NODE_ENV === 'production' && (!token || token.length < 20)) {
+      logger.warn('Token reCAPTCHA inválido o demasiado corto en producción', {
+        tokenLength: token ? token.length : 0,
+        ip: req.ip
+      });
+      return false;
+    }
   }
 }
 

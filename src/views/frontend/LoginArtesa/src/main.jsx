@@ -6,6 +6,7 @@ import { GoogleReCaptchaProvider } from 'react-google-recaptcha-v3';
 import { logEnvironmentInfo } from './utils/environment';
 import './App.css'
 
+// Asegurarnos de que la clave de reCAPTCHA siempre tenga un valor, incluso en desarrollo
 const recaptchaKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
 
 // Depuración de variables de entorno
@@ -13,11 +14,11 @@ console.log("Variables de entorno cargadas:");
 console.log("- VITE_API_URL:", import.meta.env.VITE_API_URL);
 console.log("- VITE_USE_NGROK:", import.meta.env.VITE_USE_NGROK);
 console.log("- VITE_NGROK_URL:", import.meta.env.VITE_NGROK_URL);
-console.log("- VITE_RECAPTCHA_SITE_KEY:", recaptchaKey);
+console.log("- VITE_RECAPTCHA_SITE_KEY:", recaptchaKey ? "Configurada correctamente" : "NO CONFIGURADA");
 
-// Verificación opcional para entornos de desarrollo
+// Alertar si falta la clave (en cualquier entorno)
 if (!recaptchaKey) {
-  console.warn('La clave de reCAPTCHA no está definida en las variables de entorno.');
+  console.error('ERROR: La clave de reCAPTCHA no está definida en las variables de entorno. La validación de seguridad no funcionará correctamente.');
 }
 
 if (import.meta.env.DEV) {
@@ -32,6 +33,7 @@ createRoot(document.getElementById('root')).render(
         async: true,
         defer: true,
         appendTo: 'head',
+        nonce: '',  // Para compatibilidad con CSP
       }}
       useRecaptchaNet={true}
       useEnterprise={false}
@@ -41,6 +43,14 @@ createRoot(document.getElementById('root')).render(
           badge: 'bottomright',
           theme: 'light',
         }
+      }}
+      onLoad={() => {
+        console.log('reCAPTCHA cargado correctamente');
+        // Puedes establecer una variable de estado aquí si necesitas
+      }}
+      onError={(error) => {
+        console.error('Error al cargar reCAPTCHA:', error);
+        // Manejar el error de carga
       }}
     >
       <AuthProvider>
