@@ -8,10 +8,10 @@ export default ({ mode }) => {
   // Cargar variables de entorno según el modo
   console.log(`Iniciando en modo: ${mode}`);
   const env = loadEnv(mode, process.cwd(), '');
-  
+
   return defineConfig({
     plugins: [react(),
-      tailwindcss(),
+    tailwindcss(),
     ],
     define: {
       // Hacer que las variables específicas estén disponibles
@@ -88,9 +88,9 @@ export default ({ mode }) => {
       // Permitir dominios ngrok
       cors: true,
       // Permitir cualquier host (incluyendo dominios de ngrok)
-      allowedHosts: mode === 'ngrok' 
-      ? ['localhost', '.ngrok-free.app', '3e1a-105-74-2-232.ngrok-free.app'] 
-      : undefined
+      allowedHosts: mode === 'ngrok'
+        ? ['localhost', '.ngrok-free.app']
+        : undefined
     },
     build: {
       // Generar source maps incluso en producción

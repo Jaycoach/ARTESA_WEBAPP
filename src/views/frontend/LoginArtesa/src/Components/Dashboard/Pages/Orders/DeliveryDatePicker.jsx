@@ -214,16 +214,7 @@ const DeliveryDatePicker = ({ value, onChange, orderTimeLimit = "18:00" }) => {
                 </div>
               )}
             />
-            {value && (
-              <div className="mt-4 p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
-                <p className="text-indigo-800 font-semibold text-sm">
-                  🗓 Fecha seleccionada: {formatDateToSpanish(new Date(value))}
-                </p>
-                <p className="text-indigo-600 text-xs mt-1">
-                  La entrega se realizará el {formatDateToSpanish(new Date(value))}
-                </p>
-              </div>
-            )}
+            
             <div className="mt-2 flex flex-col space-y-1">
               <div className="flex items-center text-xs text-gray-500">
                 <span className="w-3 h-3 inline-block bg-indigo-100 rounded-full mr-2"></span>

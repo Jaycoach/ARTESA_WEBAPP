@@ -1,5 +1,6 @@
 import React, { createContext, useState, useEffect } from "react";
 import API from "../api/config";
+import { RECAPTCHA_DEV_MODE, API_URL, isDevelopment } from "../utils/environment";
 
 // Crear el contexto de autenticación
 const AuthContext = createContext();
@@ -30,22 +31,28 @@ export const AuthProvider = ({ children }) => {
           } else {
             userData.is_active = true; // Valor predeterminado si no existe
           }
+          if (isDevelopment) {
+            console.log("Usuario recuperado del localStorage:", userData);
+          }
 
-          console.log("Usuario recuperado del localStorage:", userData);
-          
           // Asegurarnos de que el rol sea un número (manejar estructura anidada)
           if (userData.role) {
             // Si role es un objeto, extraer el id
             if (typeof userData.role === 'object' && userData.role !== null && userData.role.id) {
-              console.log("Role es un objeto, extrayendo id:", userData.role);
+              if (isDevelopment) {
+                console.log("Role es un objeto, extrayendo id:", userData.role);
+              }
               userData.role = parseInt(userData.role.id);
             } else if (typeof userData.role === 'string' || typeof userData.role === 'number') {
               // Si role ya es un string o número, intentar convertir a número
               userData.role = parseInt(userData.role);
             }
-            console.log("Role convertido a número:", userData.role);
+            
+            if (isDevelopment) {
+              console.log("Role convertido a número:", userData.role);
+            }
           }
-          
+
           // Si existe un perfil guardado, combinar su información con userData
           if (storedProfile) {
             const profileData = JSON.parse(storedProfile);
@@ -53,7 +60,7 @@ export const AuthProvider = ({ children }) => {
             const isActive = userData.is_active !== undefined ? userData.is_active : true;
             userData = { ...userData, ...profileData, is_active: isActive };
           }
-          
+
           // Establecer el usuario combinado
           setUser(userData);
           setIsAuthenticated(true);
@@ -73,32 +80,6 @@ export const AuthProvider = ({ children }) => {
     checkAuthState();
   }, []);
 
-  // Función para actualizar la información del usuario
-  const updateUserInfo = (updatedUserData) => {
-    if (!user) return;
-    
-    // Preservar el estado de activación del usuario
-    const isActive = user.is_active !== undefined ? user.is_active : true;
-    
-    // Combinar datos existentes con los actualizados, preservando is_active
-    const newUserData = { ...user, ...updatedUserData, is_active: isActive };
-    
-    // Actualizar el estado
-    setUser(newUserData);
-    
-    // También actualizar en localStorage
-    localStorage.setItem("user", JSON.stringify(newUserData));
-    
-    // Si hay información de perfil, actualizar clientProfile
-    if (updatedUserData.nombre) {
-      const profileData = { 
-        nombre: updatedUserData.nombre, 
-        email: updatedUserData.email || user.email || user.mail 
-      };
-      localStorage.setItem("clientProfile", JSON.stringify(profileData));
-    }
-  };
-
   // Función para iniciar sesión
   const login = async (credentials) => {
     setLoading(true);
@@ -115,61 +96,80 @@ export const AuthProvider = ({ children }) => {
       if (credentials.recaptchaToken) {
         loginData.recaptchaToken = credentials.recaptchaToken;
       }
-      
+      // En modo desarrollo con reCAPTCHA desactivado, no es necesario el token
+      else if (RECAPTCHA_DEV_MODE) {
+        // No hacer nada, aceptamos login sin recaptcha en desarrollo
+        if (isDevelopment) {
+          console.log("Modo desarrollo: reCAPTCHA omitido");
+        }
+      }
+
       const response = await API.post("/auth/login", loginData);
+      
       // Asegurarnos de acceder a la estructura correcta
       const responseData = response.data;
       // Extraer userData que puede estar en data.data o en data directo
       const userData = responseData.data || responseData;
       
-      console.log("Respuesta completa del login:", responseData);
-      console.log("Datos de usuario extraídos:", userData);
-      console.log("URL de la API utilizada:", API.defaults.baseURL);
+      if (isDevelopment) {
+        console.log("Respuesta completa del login:", responseData);
+        console.log("Datos de usuario extraídos:", userData);
+        console.log("URL de la API utilizada:", API.defaults.baseURL);
+      }
 
       // Verificar si el usuario necesita verificar su correo
       if (responseData.needsVerification || userData.needsVerification) {
-        console.log("El usuario necesita verificar su correo");
+        if (isDevelopment) {
+          console.log("El usuario necesita verificar su correo");
+        }
         throw {
-            response: {
-                data: {
-                    needsVerification: true,
-                    message: "Por favor verifica tu correo electrónico antes de acceder"
-                }
+          response: {
+            data: {
+              needsVerification: true,
+              message: "Por favor verifica tu correo electrónico antes de acceder"
             }
+          }
         };
-    }
-      
+      }
+
       // Verificar la estructura de los datos recibidos
       let userObject = userData.user || userData;
       
       // Asegurarnos de que el rol esté presente como un número
-      // Manejar estructura de rol anidada
       if (userObject.role) {
         // Si role es un objeto, extraer el id
         if (typeof userObject.role === 'object' && userObject.role !== null && userObject.role.id) {
-          console.log("Role es un objeto, extrayendo id:", userObject.role);
+          if (isDevelopment) {
+            console.log("Role es un objeto, extrayendo id:", userObject.role);
+          }
           userObject.role = parseInt(userObject.role.id);
         } else if (typeof userObject.role === 'string' || typeof userObject.role === 'number') {
           // Si role ya es un string o número, intentar convertir a número
           userObject.role = parseInt(userObject.role);
         }
-        console.log("Role convertido a número durante login:", userObject.role);
+        
+        if (isDevelopment) {
+          console.log("Role convertido a número durante login:", userObject.role);
+        }
       }
       
-      console.log("Objeto de usuario final:", userObject);
-      
+      if (isDevelopment) {
+        console.log("Objeto de usuario final:", userObject);
+      }
+
       // Verificar si hay un perfil guardado previamente
       const storedProfile = localStorage.getItem("clientProfile");
       let userWithProfile = userObject;
-
+      
       // Asegurarse de que is_active sea un booleano
-      const isActive = userObject.is_active !== undefined ? 
-      (typeof userObject.is_active === 'string' ? 
-        userObject.is_active.toLowerCase() === 'true' : 
-        Boolean(userObject.is_active)) : 
-      true;
+      const isActive = userObject.is_active !== undefined ?
+        (typeof userObject.is_active === 'string' ?
+          userObject.is_active.toLowerCase() === 'true' :
+          Boolean(userObject.is_active)) :
+        true;
+      
       userWithProfile.is_active = isActive;
-
+      
       if (storedProfile) {
         // Combinar información del perfil con la del usuario
         const profileData = JSON.parse(storedProfile);
@@ -177,7 +177,7 @@ export const AuthProvider = ({ children }) => {
           userWithProfile = { ...userObject, ...profileData, is_active: isActive };
         }
       }
-      
+
       // Guardar en localStorage
       localStorage.setItem("token", userData.token);
       localStorage.setItem("user", JSON.stringify(userWithProfile));
@@ -186,7 +186,9 @@ export const AuthProvider = ({ children }) => {
       setUser(userWithProfile);
       setIsAuthenticated(true);
       
-      console.log("Login exitoso, datos de usuario guardados:", userWithProfile);
+      if (isDevelopment) {
+        console.log("Login exitoso, datos de usuario guardados:", userWithProfile);
+      }
       
       return userData;
     } catch (error) {
@@ -198,6 +200,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  
   // Función para el reenvío de verificación
   const resendVerificationEmail = async (email, recaptchaToken = null) => {
     setLoading(true);
@@ -329,6 +332,31 @@ export const AuthProvider = ({ children }) => {
     
     return false;
   };
+  
+  const updateUserInfo = (updatedUserData) => {
+    if (!user) return;
+    
+    // Preservar el estado de activación del usuario
+    const isActive = user.is_active !== undefined ? user.is_active : true;
+    
+    // Combinar datos existentes con los actualizados
+    const newUserData = { ...user, ...updatedUserData, is_active: isActive };
+    
+    // Actualizar el estado
+    setUser(newUserData);
+    
+    // También actualizar en localStorage
+    localStorage.setItem("user", JSON.stringify(newUserData));
+    
+    // Si hay información de perfil, actualizar clientProfile
+    if (updatedUserData.nombre) {
+      const profileData = {
+        nombre: updatedUserData.nombre,
+        email: updatedUserData.email || user.email || user.mail
+      };
+      localStorage.setItem("clientProfile", JSON.stringify(profileData));
+    }
+  }; // Asegúrate de que esta llave de cierre esté presente
 
   // Valor que se proporciona al contexto
   const contextValue = {
