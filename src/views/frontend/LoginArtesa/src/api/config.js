@@ -3,6 +3,8 @@ import { isNgrok, isDevelopment } from '../utils/environment';
 
 // Función para determinar la URL base usando las variables de entorno
 const determineBaseUrl = () => {
+  // Verificar si estamos en modo ngrok
+  const isNgrokMode = import.meta.env.VITE_USE_NGROK === 'true';
   // Usar directamente la variable de entorno si está definida
   if (import.meta.env.VITE_API_URL) {
     console.log(`Usando API URL configurada: ${import.meta.env.VITE_API_URL}`);
@@ -11,16 +13,15 @@ const determineBaseUrl = () => {
 
   // Obtener la información del host actual
   const currentHost = window.location.hostname;
-  const isNgrokHost = currentHost.includes('ngrok') || currentHost.includes('ngrok-free.app');
+  const isNgrok = currentHost.includes('ngrok') || currentHost.includes('ngrok-free.app');
   
-  if (isNgrokHost) {
-    // Para ngrok, usar el mismo origen pero mantener el prefijo /api
-    console.log(`Detectado entorno ngrok: ${window.location.origin}`);
-    return `${window.location.origin}`;
+  if (isNgrok) {
+    // Si estamos en ngrok, usar la URL ngrok para la API
+    console.log(`Detectado host ngrok: ${window.location.origin}`);
+    return window.location.origin;
   }
   
-  // Para desarrollo local como último recurso
-  console.log('Usando URL de desarrollo local predeterminada');
+  // Para desarrollo local
   return 'http://localhost:3000';
 };
 

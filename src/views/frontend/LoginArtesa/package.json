@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
   "dev": "vite",
-  "ngrok": "vite --mode ngrok",
+  "ngrok": "vite --config vite.config.js --mode ngrok --host",
   "dev:host": "vite --host",
   "dev:ngrok": "vite --mode ngrok --host",
   "build": "vite build",

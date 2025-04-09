@@ -4,6 +4,10 @@ import App from './App.jsx';
 import { AuthProvider } from "./context/AuthContext";
 import { GoogleReCaptchaProvider } from 'react-google-recaptcha-v3';
 import { logEnvironmentInfo } from './utils/environment';
+console.log("Modo de ejecución:", import.meta.env.MODE);
+console.log("API URL:", import.meta.env.VITE_API_URL);
+console.log("Usando ngrok:", import.meta.env.VITE_USE_NGROK);
+console.log("URL de ngrok:", import.meta.env.VITE_NGROK_URL);
 import { RECAPTCHA_SITE_KEY, RECAPTCHA_DEV_MODE } from './config/env';
 import './App.css';
 

@@ -74,9 +74,10 @@ export default ({ mode }) => {
         host: mode === 'ngrok' ? 'all' : undefined,
         // Permitir conexiones desde tu dominio ngrok específico
         clientPort: mode === 'ngrok' ? 443 : undefined,
+        protocol: mode === 'ngrok' ? 'wss' : 'ws',
       },
       // Agregar proxy para las peticiones API cuando se desarrolla localmente
-      proxy: env.VITE_USE_NGROK !== 'true' && {
+      proxy: {
         '/api': {
           target: 'http://localhost:3000',
           changeOrigin: true,
@@ -89,7 +90,7 @@ export default ({ mode }) => {
       cors: true,
       // Permitir cualquier host (incluyendo dominios de ngrok)
       allowedHosts: mode === 'ngrok'
-        ? ['localhost', '.ngrok-free.app']
+        ? ['localhost', '.ngrok-free.app', 'e4dd-105-74-2-232.ngrok-free.app']
         : undefined
     },
     build: {
