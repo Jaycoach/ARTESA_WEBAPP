@@ -315,16 +315,22 @@ img, video {
 }
 
 .sidebar {
-  width: 250px;
-  min-width: 250px;
-  height: 100vh; /* Importante para ocupar todo el alto */
+  width: 60px; /* Por defecto colapsar en móviles */
+  min-width: 60px;
+  height: 100vh;
   background-color: #1e3a56;
   color: #fff;
   transition: width 0.3s ease;
   top: 60px;
-  overflow-y: auto; /* Mantener visible para mostrar el botón */
-  /* Estilos para los elementos del menú */
-  /* Separador opcional para el menú */
+  overflow-y: auto;
+  z-index: 100; /* Asegurar que aparezca por encima del contenido */
+}
+
+@media (min-width: 1024px) {
+  .sidebar {
+    width: 250px;
+    min-width: 250px;
+  }
 }
 .sidebar.collapsed {
   width: 60px;
@@ -422,10 +428,17 @@ img, video {
 
 .dashboard {
   display: flex;
+  flex-direction: column; /* En móviles, sidebar arriba y contenido abajo */
   height: 100vh;
   width: 100vw;
   overflow: hidden;
   padding-top: 60px;
+}
+
+@media (min-width: 768px) {
+  .dashboard {
+    flex-direction: row; /* En tablets y escritorio, volver a layout horizontal */
+  }
 }
 .dashboard .dashboard-content {
   flex: 1;
@@ -442,11 +455,23 @@ img, video {
 }
 .dashboard .dashboard-content .main-content {
   flex: 1;
-  padding: 2rem 4rem; /* más padding lateral para centrar mejor el contenido */
+  padding: 1rem; /* Reducir padding para móviles */
   overflow-x: hidden;
   overflow-y: auto;
   margin-top: 50px;
   position: relative;
+}
+
+@media (min-width: 768px) {
+  .dashboard .dashboard-content .main-content {
+    padding: 1.5rem 2rem; /* Padding medio para tablets */
+  }
+}
+
+@media (min-width: 1024px) {
+  .dashboard .dashboard-content .main-content {
+    padding: 2rem 4rem; /* Padding original para escritorio */
+  }
 }
 .dashboard .dashboard-content .main-content > div {
   max-width: 1400px;
@@ -514,16 +539,27 @@ img, video {
 }
 .dashboard .dashboard-content .dashboard-sections {
   display: grid;
-  gap: 20px;
+  gap: 15px;
+  grid-template-columns: 1fr; /* Una columna por defecto para móviles */
 }
-@media (max-width: 768px) {
-  .dashboard .dashboard-content .dashboard-page {
-    padding: 15px;
-  }
+
+@media (min-width: 640px) {
   .dashboard .dashboard-content .dashboard-sections {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: var(--spacing-md);
+    grid-template-columns: repeat(2, 1fr); /* Dos columnas en pequeñas tablets */
+    gap: 15px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .dashboard .dashboard-content .dashboard-sections {
+    grid-template-columns: repeat(3, 1fr); /* Tres columnas en desktop */
+    gap: 20px;
+  }
+}
+
+@media (max-width: 640px) {
+  .dashboard .dashboard-content .dashboard-page {
+    padding: 10px;
   }
 }
 @media (min-width: 769px) and (max-width: 1200px) {
@@ -552,11 +588,14 @@ img, video {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-sm);
+  margin-bottom: 1.5rem; /* Agregar espacio en dispositivos pequeños */
 }
+
 @media (min-width: 768px) {
   .dashboard .order-summary {
     flex-direction: row;
     gap: var(--spacing-md);
+    margin-bottom: 2rem; /* Más espacio en dispositivos grandes */
   }
 }
 .dashboard .summary-card {
@@ -565,9 +604,32 @@ img, video {
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
   border-left-width: 4px;
   border-left-style: solid;
-  padding: 1rem;
+  padding: 0.75rem; /* Reducir padding en móviles */
   width: 100%;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+  min-width: 0; /* Evitar desbordamiento */
+}
+
+@media (min-width: 768px) {
+  .dashboard .summary-card {
+    padding: 1rem; /* Restaurar padding original en pantallas más grandes */
+  }
+}
+
+/* Ajuste para tamaños de texto en tarjetas */
+.dashboard .summary-card .card-content .card-value {
+  font-size: 1.25rem; /* Reducir tamaño para móviles */
+  font-weight: bold;
+  color: #222;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (min-width: 768px) {
+  .dashboard .summary-card .card-content .card-value {
+    font-size: 1.5rem; /* Tamaño original para pantallas más grandes */
+  }
 }
 .dashboard .summary-card:hover {
   transform: translateY(-3px);
