@@ -47,6 +47,30 @@ const API = axios.create({
   withCredentials: false
 });
 
+// Interceptor para asegurar que todas las URLs tienen el prefijo API correcto
+API.interceptors.request.use(
+  (config) => {
+    // Si la URL ya comienza con el prefijo API o es una URL absoluta, no hacer nada
+    if (config.url.startsWith('http') || (apiPath && config.url.startsWith(apiPath))) {
+      return config;
+    }
+    
+    // Asegurarse de que el prefijo y la URL tienen la barra diagonal correcta
+    const normalizedPath = apiPath.endsWith('/') ? apiPath : apiPath + '/';
+    const normalizedUrl = config.url.startsWith('/') ? config.url.substring(1) : config.url;
+    
+    // Combinar correctamente
+    config.url = normalizedPath + normalizedUrl;
+    
+    if (isDevelopment || import.meta.env.VITE_DEBUG_API === 'true') {
+      console.log(`URL normalizada: ${config.url}`);
+    }
+    
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
 // Interceptor para debugging (activado en desarrollo o si está explícitamente habilitado)
 if (isDevelopment || import.meta.env.VITE_DEBUG_API === 'true') {
   API.interceptors.request.use(
