@@ -409,20 +409,27 @@ img, video {
   transition: width 0.3s ease;
   top: 60px;
   overflow-y: auto;
-  z-index: 100; /* Asegurar que aparezca por encima del contenido */
+  z-index: 100;
+  position: fixed; /* Asegurar que aparezca por encima del contenido */
+  left: 0; /* Esta propiedad para asegurar que siempre esté a la izquierda */
   
   @include breakpoint(lg) {
     width: 250px;
     min-width: 250px;
   }
   
+  &.expanded {
+    width: 250px; /* Cambiar de 60px a 250px */
+    min-width: 250px; /* Añadir esta propiedad */
+  }
+
   &.collapsed {
     width: 60px;
     min-width: 60px;
   }
   
   .menuTitle, .settingsTitle, .smallText {
-    display: none;
+    display: block;
     color: var(--white); /* Asegurar que el color sea blanco */
     margin: 10px 15px;
     font-size: 16px;
@@ -551,6 +558,9 @@ img, video {
     background-color: #f4f7fa;
     display: flex;
     flex-direction: column;
+    margin-left: 60px; /* Añadir esto para dejar espacio para el sidebar colapsado */
+    width: calc(100% - 60px); /* Asegurar que el ancho se ajuste */
+    transition: margin-left 0.3s ease, width 0.3s ease; /* Añadir transición */
   
     .main-content {
       flex: 1;
@@ -579,7 +589,8 @@ img, video {
       transition: width var(--transition-default) ease;
       
       &.expanded {
-        width: var(--transition-default) ease;
+        margin-left: 250px;
+        width: calc(100% - 250px);
       }
     }
     
@@ -774,35 +785,88 @@ img, video {
     background-color: rgba(148, 163, 184, 0.9);
   }
 }
-// Optimizaciones adicionales para móviles
-@media (max-width: 640px) {
-  // Reducir margen y padding generales
-  .dashboard .dashboard-content .main-content > div {
-    margin-bottom: 0.5rem;
-  }
-  
-  // Mejorar la visualización de tablas
-  table {
-    display: block;
-    overflow-x: auto;
-    white-space: nowrap;
+// Media queries para dispositivos móviles
+@media (max-width: 768px) {
+  .dashboard {
+    .dashboard-content {
+      margin-left: 0; /* En móviles, el contenido ocupa toda la pantalla */
+      width: 100%;
+      padding-left: 60px; /* En vez de margin, usamos padding para dejar espacio al sidebar */
+    }
     
-    th, td {
-      padding: 0.5rem 0.75rem;
+    .sidebar {
+      z-index: 1000; /* Asegurar que esté por encima del contenido */
+      
+      &.expanded {
+        /* En móviles, cuando está expandido, se superpone al contenido */
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      }
     }
   }
+}
+
+// Estilos para menú móvil
+.mobile-menu-btn {
+  display: none;
+  position: fixed;
+  top: 15px;
+  left: 15px;
+  z-index: 1100;
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 12px;
+  cursor: pointer;
   
-  // Reducir tamaño de fuentes
-  h1 {
-    font-size: 1.5rem !important;
+  @media (max-width: 576px) {
+    display: block;
   }
-  
-  h2 {
-    font-size: 1.25rem !important;
+}
+
+.mobile-menu-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0,0,0,0.5);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mobile-menu {
+  animation: slideIn 0.3s ease-out;
+  background: white;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 300px;
+  padding: 20px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
   }
-  
-  // Ajustar botones para tamaños pequeños
-  button, .btn {
-    padding: 0.5rem 0.75rem !important;
+  to {
+    transform: translateX(0);
   }
+}
+/* Asegurarnos que el sidebar se muestre correctamente en desktop */
+@media (min-width: 769px) {
+.mobile-menu-btn {
+  display: none;
+}
+
+.dashboard {
+  flex-direction: row;
+}
+
+.sidebar {
+  display: block;
+}
 }
