@@ -8,20 +8,27 @@ export default ({ mode }) => {
   // Cargar variables de entorno según el modo
   console.log(`Iniciando en modo: ${mode}`);
   const env = loadEnv(mode, process.cwd(), '');
+  
+  // Forzar configuración para ngrok
+  if (mode === 'ngrok') {
+    console.log('Forzando configuración para modo ngrok');
+    env.VITE_USE_NGROK = 'true';
+    env.VITE_API_PATH = env.VITE_API_PATH || '/api';
+  }
 
   return defineConfig({
-    plugins: [react(),
-    tailwindcss(),
-    ],
+    plugins: [react(), tailwindcss()],
     define: {
-      // Hacer que las variables específicas estén disponibles
+      // Definir explícitamente las variables más importantes
       'import.meta.env.VITE_API_URL': JSON.stringify(env.VITE_API_URL),
       'import.meta.env.VITE_USE_NGROK': JSON.stringify(env.VITE_USE_NGROK),
       'import.meta.env.VITE_NGROK_URL': JSON.stringify(env.VITE_NGROK_URL),
       'import.meta.env.VITE_RECAPTCHA_SITE_KEY': JSON.stringify(env.VITE_RECAPTCHA_SITE_KEY),
       'import.meta.env.VITE_APP_VERSION': JSON.stringify(env.VITE_APP_VERSION),
       'import.meta.env.VITE_APP_NAME': JSON.stringify(env.VITE_APP_NAME),
+      'import.meta.env.VITE_API_PATH': JSON.stringify(env.VITE_API_PATH || '/api'),
     },
+
     theme: {
       extend: {
         colors: {
@@ -67,16 +74,12 @@ export default ({ mode }) => {
       },
     },
     server: {
-      // Configuración para mostrar warnings pero no hacer fallar la compilación
       hmr: {
         overlay: true,
-        // Permitir cualquier host para HMR cuando usamos ngrok
         host: mode === 'ngrok' ? 'all' : undefined,
-        // Permitir conexiones desde tu dominio ngrok específico
         clientPort: mode === 'ngrok' ? 443 : undefined,
         protocol: mode === 'ngrok' ? 'wss' : 'ws',
       },
-      // Agregar proxy para las peticiones API cuando se desarrolla localmente
       proxy: {
         '/api': {
           target: 'http://localhost:3000',
@@ -84,14 +87,10 @@ export default ({ mode }) => {
           rewrite: (path) => path.replace(/^\/api/, '')
         }
       },
-      // Permitir conexiones desde hosts externos cuando usamos --host
       host: true,
-      // Permitir dominios ngrok
       cors: true,
-      // Permitir cualquier host (incluyendo dominios de ngrok)
-      allowedHosts: mode === 'ngrok'
-        ? ['localhost', '.ngrok-free.app', 'e4dd-105-74-2-232.ngrok-free.app']
-        : undefined
+      // Simplificar para permitir cualquier host en ngrok
+      allowedHosts: mode === 'ngrok' ? 'all' : undefined
     },
     build: {
       // Generar source maps incluso en producción

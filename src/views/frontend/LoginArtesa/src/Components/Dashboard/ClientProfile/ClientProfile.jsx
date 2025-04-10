@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './ClientProfile.scss';
 import API from '../../../api/config';
-import { FaTimes, FaUpload } from 'react-icons/fa';
+import { FaTimes, FaUpload, FaExclamationCircle } from 'react-icons/fa';
 import { useAuth } from '../../../hooks/useAuth'; // Importar el hook de auth
 import './ConfirmationModal.scss';
 import ConfirmationModal from './ConfirmationModal';
@@ -60,6 +60,26 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
 
   const [isFormLocked, setIsFormLocked] = useState(false);
 
+  // Verificar que el backend está disponible cuando se monta el componente
+useEffect(() => {
+  const checkBackendConnection = async () => {
+    try {
+      console.log("Verificando conexión con el backend...");
+      // Intenta obtener un recurso básico para verificar conectividad
+      const response = await API.get('/health');
+      console.log("Conexión con backend establecida:", response.data);
+    } catch (error) {
+      console.error("Error de conexión con el backend:", error);
+      // Solo mostrar error si no es una ruta no encontrada (404)
+      if (error.response && error.response.status !== 404) {
+        setError("No se pudo establecer conexión con el servidor. Verifique su configuración.");
+      }
+    }
+  };
+  
+  checkBackendConnection();
+}, []);
+
   useEffect(() => {
     // Verificar si el usuario ya tiene un perfil
     const fetchProfile = async () => {
@@ -69,54 +89,71 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
           return;
         }
 
-        console.log("Intentando obtener perfil para usuario ID:", user.id);
-
-        // Mantener el endpoint tal como está en la API
-        const response = await API.get(`/client-profiles/user/${user.id}`);
-
-        console.log("Respuesta de API:", response.data);
-
-        // Extraer los datos - pueden estar en response.data.data o directamente en response.data
-        const profileData = response.data?.data || response.data;
-
-        if (profileData?.nit_number && profileData?.verification_digit) {
-          setIsFormLocked(true); // Bloquear el formulario si ambos campos existen
+        // Verificar token de autenticación
+        const token = localStorage.getItem("token");
+        if (!token) {
+          console.warn("No hay token de autenticación disponible");
         }
 
-        // Preparar datos para el formulario (adicionar los campos que hagan falta del Response en el API)
+        // Imprimir información completa para depuración
+        console.log("Usuario actual:", user);
+        console.log("Intentando obtener perfil para usuario ID:", user.id);
+        const endpoint = `/client-profiles/user/${user.id}`;
+        console.log("URL base de API:", API.defaults.baseURL);
+        console.log("Endpoint completo:", API.defaults.baseURL + endpoint);
+
+        const response = await API.get(endpoint);
+        console.log("Respuesta completa de API:", response);
+        console.log("Datos recibidos:", response.data);
+
+        // Manejar respuesta
+        if (!response.data) {
+          console.error("Respuesta vacía de la API");
+          return;
+        }
+
+        // Extraer los datos con manejo mejorado de estructura
+        const profileData = response.data?.data || response.data;
+
+        // Verificar bloqueo del formulario basado en campos específicos
+        if (profileData?.nit_number && profileData?.verification_digit) {
+          setIsFormLocked(true);
+          console.log("Formulario bloqueado porque ya tiene NIT y dígito de verificación");
+        }
+
+        // Preparar datos para el formulario con mejor manejo de campos
         const formDataUpdate = {
-          nombre: profileData.nombre || '',
-          direccion: profileData.direccion || '',
-          ciudad: profileData.ciudad || '',
-          pais: profileData.pais || 'Colombia',
-          telefono: profileData.telefono || '',
+          nombre: profileData.nombre || profileData.name || '',
+          direccion: profileData.direccion || profileData.address || '',
+          ciudad: profileData.ciudad || profileData.city || '',
+          pais: profileData.pais || profileData.country || 'Colombia',
+          telefono: profileData.telefono || profileData.phone || '',
           email: profileData.email || user?.email || user?.mail || '',
-          razonSocial: profileData.razonSocial || '',
-          nit: profileData.nit_number || profileData.nit || '',
+          razonSocial: profileData.razonSocial || profileData.companyName || '',
+          nit: profileData.nit_number || profileData.nit || profileData.taxId || '',
         };
 
+        // Procesar dígito de verificación
         if (profileData.verification_digit) {
           formDataUpdate.digitoVerificacion = profileData.verification_digit;
         }
 
         if (profileData) {
-          console.log("Perfil encontrado:", profileData);
+          console.log("Perfil encontrado, actualizando estado");
           setExistingProfile(profileData);
 
-          // Si hay un campo notes, puede contener datos adicionales en formato JSON
+          // Procesamiento mejorado de datos adicionales
           if (profileData.notes) {
             try {
               const additionalData = JSON.parse(profileData.notes);
               console.log("Datos adicionales encontrados en notes:", additionalData);
-
-              // Combinar con formDataUpdate
               Object.assign(formDataUpdate, additionalData);
             } catch (e) {
               console.error("Error al parsear notes:", e);
             }
           }
 
-          // Procesar campos específicos si están disponibles directamente
+          // Procesar campos específicos con mejor manejo de errores
           [
             'tipoDocumento', 'numeroDocumento', 'representanteLegal',
             'actividadComercial', 'sectorEconomico', 'tamanoEmpresa',
@@ -124,27 +161,31 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
             'tipoCuenta', 'numeroCuenta', 'nombreContacto',
             'cargoContacto', 'telefonoContacto', 'emailContacto'
           ].forEach(field => {
-            if (profileData[field]) {
+            if (profileData[field] !== undefined && profileData[field] !== null) {
               formDataUpdate[field] = profileData[field];
             }
           });
 
-          console.log("Actualizando formulario con datos:", formDataUpdate);
-          setFormData(prev => ({
-            ...prev,
-            ...formDataUpdate,
-          }));
-
-          console.log('Perfil cargado desde la API');
+          console.log("Actualizando formulario con datos procesados:", formDataUpdate);
+          setFormData(prev => ({ ...prev, ...formDataUpdate }));
         }
       } catch (error) {
         console.error('Error al obtener perfil:', error);
 
-        // Si no existe perfil, inicializar con el email del usuario logueado
+        // Detalles específicos del error para mejor depuración
+        if (error.response) {
+          console.error('Respuesta de error:', error.response.status, error.response.data);
+        } else if (error.request) {
+          console.error('Error de solicitud (sin respuesta):', error.request);
+        } else {
+          console.error('Error:', error.message);
+        }
+
+        // Si no existe perfil, inicializar con datos básicos del usuario
         if (user) {
           setFormData(prev => ({
             ...prev,
-            email: user.mail || user.email || '', // Consideramos ambos campos por compatibilidad
+            email: user.mail || user.email || '',
             nombre: user.nombre || user.name || ''
           }));
         }
@@ -322,15 +363,32 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
       setShowConfirmation(true);
 
     } catch (error) {
-      setError(error.response?.data?.message || 'Error al guardar el perfil');
       console.error('Error al guardar perfil:', error);
-
+      
+      let errorMessage = 'Error al guardar el perfil';
+      
+      if (error.response) {
+        console.error('Detalles del error:', error.response.status, error.response.data);
+        errorMessage = error.response.data?.message || 'Error en la respuesta del servidor';
+        
+        // Manejar códigos de estado específicos
+        if (error.response.status === 401) {
+          errorMessage = 'Sesión expirada. Por favor, inicie sesión nuevamente.';
+        } else if (error.response.status === 403) {
+          errorMessage = 'No tiene permisos para realizar esta acción.';
+        } else if (error.response.status === 422) {
+          errorMessage = 'Datos de formulario inválidos. Por favor verifique los campos.';
+        }
+      } else if (error.request) {
+        errorMessage = 'No se recibió respuesta del servidor. Verifique su conexión.';
+      }
+      
+      setError(errorMessage);
+      
       // Configurar y mostrar el modal de confirmación de error
       setConfirmationIsSuccess(false);
       setConfirmationMessage('Datos Incorrectos. Por favor verifique la información proporcionada.');
       setShowConfirmation(true);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -347,13 +405,17 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
         {error && <div className="profile-error-message">{error}</div>}
         {success && <div className="profile-success-message">{success}</div>}
         {isFormLocked && (
-          <div className="locked-message">
-            <p className="text-sm text-gray-600 bg-yellow-100 border border-yellow-400 px-4 py-2 rounded mt-2">
-              Este perfil ya ha sido sincronizado con SAP y no puede ser modificado.
-            </p>
+          <div className="bg-yellow-50 text-yellow-800 p-4 mb-6 rounded-md border border-yellow-200 flex items-center">
+            <FaExclamationCircle className="mr-2" />
+            <span>Este perfil ya ha sido sincronizado con SAP y no puede ser modificado.</span>
           </div>
         )}
-
+        {loading && (
+          <div className="flex justify-center items-center p-4 my-4">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+            <p className="ml-2">Cargando datos del perfil...</p>
+          </div>
+        )}
         <div className="client-profile-content">
           <form onSubmit={handleSubmit} className="client-profile-form">
             {/* Sección 1: Información Básica */}

@@ -1,26 +1,17 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import "../../../App.css";
-import { useAuth } from "../../../hooks/useAuth"; 
-import { 
-  FaHome, 
-  FaListAlt, 
-  FaFileInvoiceDollar, 
-  FaBoxes,
-  FaCog,
-  FaSignOutAlt,
-  FaAngleLeft,
-  FaAngleRight,
-  FaTools // Icono para administración
+import { useAuth } from "../../../hooks/useAuth";
+import {
+  FaHome, FaListAlt, FaFileInvoiceDollar, FaBoxes, FaCog,
+  FaSignOutAlt, FaTools
 } from "react-icons/fa";
 
-const Sidebar = () => {
-  const [collapsed, setCollapsed] = useState(true);
+const Sidebar = ({ collapsed, onToggle }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout } = useAuth(); // Obtener el usuario y la función logout del contexto
+  const { user, logout } = useAuth();
   const [hasAdminAccess, setHasAdminAccess] = useState(false);
-  
+
   // Verificar permisos de administración cuando cambia el usuario
   useEffect(() => {
     if (user) {
@@ -29,10 +20,6 @@ const Sidebar = () => {
       // Revisar todas las propiedades posibles donde podría estar el rol
       const role = user.role || user.rol;
       console.log("Propiedad role encontrada:", role, "Tipo:", typeof role);
-      
-      // Forzar acceso de administrador para depuración
-      // Si uncommentas la siguiente línea, todos los usuarios tendrán acceso de administrador
-      // const isAdmin = true;
       
       let isAdmin = false;
       
@@ -50,10 +37,8 @@ const Sidebar = () => {
         }
       }
       
-      // SOLUCIÓN ALTERNATIVA: Verificar por email o nombre del usuario
-      // Esta es una solución temporal mientras se arregla el problema del rol
+      // Verificar por email o nombre del usuario como alternativa
       if (!isAdmin && user.email) {
-        // Aquí puedes colocar los correos de los administradores
         const adminEmails = ['admin@example.com', 'jonathan@example.com'];
         if (adminEmails.includes(user.email)) {
           isAdmin = true;
@@ -62,118 +47,131 @@ const Sidebar = () => {
       }
       
       console.log("¿Tiene permisos de admin?:", isAdmin);
-      
-      // Habilitar depuración: forzar acceso para todos 
-      // Descomenta esta línea para probar que la ruta funciona
-      // setHasAdminAccess(true);
-      
-      // Configuración normal (comenta esta línea cuando uses la línea anterior)
       setHasAdminAccess(isAdmin);
     } else {
       setHasAdminAccess(false);
     }
   }, [user]);
-  
-  // Detectar la ruta activa para resaltar el menú correspondiente
+
+  // Función para determinar si una ruta está activa
   const isActive = (path) => {
-    if (path === '/dashboard' && location.pathname === '/dashboard') {
-      return true;
+    if (path === '/dashboard') {
+      return location.pathname === '/dashboard';
     }
     return location.pathname.startsWith(path);
   };
-  
+
   const handleLogout = () => {
-    // Usar la función logout del contexto
     logout();
-    navigate("/"); // Redirigir a la página de inicio
+    navigate("/");
   };
 
   return (
-    <div
-      className={`sidebar ${collapsed ? "collapsed" : "expanded"}`}
-      onMouseEnter={() => setCollapsed(false)}  
-      onMouseLeave={() => setCollapsed(true)}
-    >
-      <button className="toggle-btn" onClick={() => setCollapsed(!collapsed)}>
-        {collapsed ? <FaAngleRight /> : <FaAngleLeft />}
-      </button>
-
-      <div className="sidebar-menu">
-        {!collapsed && <h3 className="menuTitle">Menú</h3>}
-        <ul>
+    <div className="h-full flex flex-col text-white overflow-y-auto">
+      <div className="flex-1 overflow-y-auto">
+        {!collapsed && <h3 className="text-xs uppercase text-white/70 px-4 mb-2">Menú</h3>}
+        
+        <ul className="space-y-1 px-2">
           <li>
-            <button 
-              className={isActive('/dashboard') && location.pathname === '/dashboard' ? 'active' : ''}
+            <button
               onClick={() => navigate("/dashboard")}
+              className={`w-full flex items-center py-2 px-3 rounded-md transition-colors ${
+                isActive('/dashboard') 
+                  ? 'bg-accent text-white' 
+                  : 'hover:bg-white/10 text-white'
+              }`}
             >
-              <FaHome className="menu-icon" />
-              <span className="menu-text">Inicio</span>
+              <FaHome className={`text-lg ${collapsed ? 'mx-auto' : 'mr-3'}`} />
+              {!collapsed && <span>Inicio</span>}
             </button>
           </li>
+          
           <li>
-            <button 
-              className={isActive('/dashboard/orders') ? 'active' : ''}
+            <button
               onClick={() => navigate("/dashboard/orders")}
+              className={`w-full flex items-center py-2 px-3 rounded-md transition-colors ${
+                isActive('/dashboard/orders') 
+                  ? 'bg-accent text-white' 
+                  : 'hover:bg-white/10 text-white'
+              }`}
             >
-              <FaListAlt className="menu-icon" />
-              <span className="menu-text">Pedidos</span>
+              <FaListAlt className={`text-lg ${collapsed ? 'mx-auto' : 'mr-3'}`} />
+              {!collapsed && <span>Pedidos</span>}
             </button>
           </li>
+          
           <li>
-            <button 
-              className={isActive('/dashboard/invoices') ? 'active' : ''}
+            <button
               onClick={() => navigate("/dashboard/invoices")}
+              className={`w-full flex items-center py-2 px-3 rounded-md transition-colors ${
+                isActive('/dashboard/invoices') 
+                  ? 'bg-accent text-white' 
+                  : 'hover:bg-white/10 text-white'
+              }`}
             >
-              <FaFileInvoiceDollar className="menu-icon" />
-              <span className="menu-text">Facturas</span>
+              <FaFileInvoiceDollar className={`text-lg ${collapsed ? 'mx-auto' : 'mr-3'}`} />
+              {!collapsed && <span>Facturas</span>}
             </button>
           </li>
+          
           <li>
-            <button 
-              className={isActive('/dashboard/products') ? 'active' : ''}
+            <button
               onClick={() => navigate("/dashboard/products")}
+              className={`w-full flex items-center py-2 px-3 rounded-md transition-colors ${
+                isActive('/dashboard/products') 
+                  ? 'bg-accent text-white' 
+                  : 'hover:bg-white/10 text-white'
+              }`}
             >
-              <FaBoxes className="menu-icon" />
-              <span className="menu-text">Productos</span>
+              <FaBoxes className={`text-lg ${collapsed ? 'mx-auto' : 'mr-3'}`} />
+              {!collapsed && <span>Productos</span>}
             </button>
           </li>
           
-          {!collapsed && (
-            <li className="separator">
-              <hr />
-            </li>
-          )}
+          {!collapsed && <div className="border-t border-white/10 my-2 mx-4"></div>}
           
           <li>
-            <button 
-              className={isActive('/dashboard/settings') ? 'active' : ''}
-              onClick={() => navigate('/dashboard/settings')}
+            <button
+              onClick={() => navigate("/dashboard/settings")}
+              className={`w-full flex items-center py-2 px-3 rounded-md transition-colors ${
+                isActive('/dashboard/settings') 
+                  ? 'bg-accent text-white' 
+                  : 'hover:bg-white/10 text-white'
+              }`}
             >
-              <FaCog className="menu-icon" />
-              <span className="menu-text">Configuración</span>
+              <FaCog className={`text-lg ${collapsed ? 'mx-auto' : 'mr-3'}`} />
+              {!collapsed && <span>Configuración</span>}
             </button>
           </li>
           
           {/* Opción de Administración - Solo visible para roles 1 y 3 */}
           {hasAdminAccess && (
             <li>
-              <button 
-                className={isActive('/dashboard/admin') ? 'active' : ''}
-                onClick={() => navigate('/dashboard/admin')}
+              <button
+                onClick={() => navigate("/dashboard/admin")}
+                className={`w-full flex items-center py-2 px-3 rounded-md transition-colors ${
+                  isActive('/dashboard/admin') 
+                    ? 'bg-accent text-white' 
+                    : 'hover:bg-white/10 text-white'
+                }`}
               >
-                <FaTools className="menu-icon" />
-                <span className="menu-text">Administración</span>
+                <FaTools className={`text-lg ${collapsed ? 'mx-auto' : 'mr-3'}`} />
+                {!collapsed && <span>Administración</span>}
               </button>
             </li>
           )}
-          
-          <li>
-            <button onClick={handleLogout}>
-              <FaSignOutAlt className="menu-icon" />
-              <span className="menu-text">Cerrar Sesión</span>
-            </button>
-          </li>
         </ul>
+      </div>
+      
+      {/* Botón de cerrar sesión */}
+      <div className="p-2 mt-auto">
+        <button
+          onClick={handleLogout}
+          className="w-full flex items-center py-2 px-3 rounded-md hover:bg-white/10 text-white"
+        >
+          <FaSignOutAlt className={`text-lg ${collapsed ? 'mx-auto' : 'mr-3'}`} />
+          {!collapsed && <span>Cerrar Sesión</span>}
+        </button>
       </div>
     </div>
   );

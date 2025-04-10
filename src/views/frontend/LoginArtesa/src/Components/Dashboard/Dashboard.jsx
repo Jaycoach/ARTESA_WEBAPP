@@ -33,7 +33,6 @@ const Dashboard = () => {
   const [user, setUser] = useState(null);
   const [showProfile, setShowProfile] = useState(false);
   const [userName, setUserName] = useState('');
-  const [darkMode, setDarkMode] = useState(false);
 
   // Para las tarjetas
   const [stats, setStats] = useState({
@@ -92,12 +91,9 @@ const Dashboard = () => {
       <div className="mb-8 rounded-xl shadow-lg overflow-hidden">
         <Banner imageUrl={bannerImage} altText="Banner Artesa" />
       </div>
-      <div className={`w-full px-8 py-6 ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-900'}`}>
+      <div className={`w-full px-8 py-6 bg-white rounded-xl shadow-lg ${showProfile ? 'hidden' : ''}`}>
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold">Bienvenido, {userName}</h1>
-          <Button variant="outline" onClick={() => setDarkMode(!darkMode)} className="shadow-sm">
-            {darkMode ? <FaSun /> : <FaMoon />}
-          </Button>
         </div>
 
         {/* Tarjetas resumen */}
