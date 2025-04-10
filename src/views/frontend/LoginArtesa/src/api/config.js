@@ -1,10 +1,8 @@
 import axios from 'axios';
 import { isNgrok, isDevelopment } from '../utils/environment';
 
-// Función para determinar la URL base usando las variables de entorno
+// Función para determinar la URL base
 const determineBaseUrl = () => {
-  // Verificar si estamos en modo ngrok
-  const isNgrokMode = import.meta.env.VITE_USE_NGROK === 'true';
   // Usar directamente la variable de entorno si está definida
   if (import.meta.env.VITE_API_URL) {
     console.log(`Usando API URL configurada: ${import.meta.env.VITE_API_URL}`);
@@ -13,10 +11,9 @@ const determineBaseUrl = () => {
 
   // Obtener la información del host actual
   const currentHost = window.location.hostname;
-  const isNgrok = currentHost.includes('ngrok') || currentHost.includes('ngrok-free.app');
+  const isNgrokHost = currentHost.includes('ngrok') || currentHost.includes('ngrok-free.app');
   
-  if (isNgrok) {
-    // Si estamos en ngrok, usar la URL ngrok para la API
+  if (isNgrokHost) {
     console.log(`Detectado host ngrok: ${window.location.origin}`);
     return window.location.origin;
   }
@@ -29,16 +26,14 @@ const determineBaseUrl = () => {
 const baseURL = determineBaseUrl();
 console.log(`API configurada para usar URL base: ${baseURL}`);
 
-// Construir la ruta completa incluyendo el path de API si es necesario
-const apiPath = import.meta.env.VITE_API_PATH || '';
-const fullBaseURL = baseURL + apiPath;
+// Definir el path de API
+const apiPath = import.meta.env.VITE_API_PATH || '/api';
 
 // Crear instancia de axios
 const API = axios.create({
-  baseURL: fullBaseURL,
+  baseURL: baseURL,
   headers: {
     'Content-Type': 'application/json',
-    // Headers específicos para ngrok para evitar advertencias
     ...(import.meta.env.VITE_USE_NGROK === 'true' || window.location.hostname.includes('ngrok') ? {
       'ngrok-skip-browser-warning': '69420',
       'Bypass-Tunnel-Reminder': 'true'
@@ -50,17 +45,22 @@ const API = axios.create({
 // Interceptor para asegurar que todas las URLs tienen el prefijo API correcto
 API.interceptors.request.use(
   (config) => {
-    // Si la URL ya comienza con el prefijo API o es una URL absoluta, no hacer nada
-    if (config.url.startsWith('http') || (apiPath && config.url.startsWith(apiPath))) {
+    // Si la URL ya comienza con http, no modificar
+    if (config.url.startsWith('http')) {
       return config;
     }
     
-    // Asegurarse de que el prefijo y la URL tienen la barra diagonal correcta
-    const normalizedPath = apiPath.endsWith('/') ? apiPath : apiPath + '/';
-    const normalizedUrl = config.url.startsWith('/') ? config.url.substring(1) : config.url;
+    // Si la URL ya incluye el prefijo API, no modificar
+    if (config.url.startsWith(apiPath)) {
+      if (isDevelopment || import.meta.env.VITE_DEBUG_API === 'true') {
+        console.log(`URL ya tiene prefijo API: ${config.url}`);
+      }
+      return config;
+    }
     
-    // Combinar correctamente
-    config.url = normalizedPath + normalizedUrl;
+    // Añadir prefijo API
+    const normalizedUrl = config.url.startsWith('/') ? config.url : `/${config.url}`;
+    config.url = `${apiPath}${normalizedUrl}`;
     
     if (isDevelopment || import.meta.env.VITE_DEBUG_API === 'true') {
       console.log(`URL normalizada: ${config.url}`);
@@ -71,12 +71,11 @@ API.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Interceptor para debugging (activado en desarrollo o si está explícitamente habilitado)
+// Interceptores para debugging
 if (isDevelopment || import.meta.env.VITE_DEBUG_API === 'true') {
   API.interceptors.request.use(
     (config) => {
       console.log(`📤 Enviando petición a: ${config.baseURL}${config.url}`);
-      // Agregar log para reCAPTCHA
       if (config.data && config.data.recaptchaToken) {
         console.log('reCAPTCHA token presente en la solicitud:', config.url);
       } else if (config.url.includes('login') || config.url.includes('register') || config.url.includes('password')) {
@@ -102,7 +101,7 @@ if (isDevelopment || import.meta.env.VITE_DEBUG_API === 'true') {
   );
 }
 
-// Interceptor para agregar el token de autenticación
+// Interceptor para autenticación
 API.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
@@ -111,9 +110,7 @@ API.interceptors.request.use(
     }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
 export default API;

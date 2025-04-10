@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { FiShoppingCart, FiSearch, FiEye, FiClipboard, FiPlus, FiMinus, FiList, FiGrid, FiCheck, FiMoon, FiSun } from 'react-icons/fi';
+import { FiShoppingCart, FiSearch, FiEye, FiClipboard, FiPlus, FiMinus, FiList, FiGrid, FiCheck } from 'react-icons/fi';
 import API from '../../../../api/config';
 import { useAuth } from '../../../../hooks/useAuth';
 import DeliveryDatePicker from '../Orders/DeliveryDatePicker';
@@ -34,8 +34,6 @@ const Products = () => {
   const [orderTotal, setOrderTotal] = useState(0);
   const [submittingOrder, setSubmittingOrder] = useState(false);
   const [deliveryDate, setDeliveryDate] = useState('');
-
-
 
   // Función para cambiar de página
   const getPaginationRange = (currentPage, totalPages, siblingCount = 1) => {
@@ -76,7 +74,6 @@ const Products = () => {
 
   // Efecto para cargar la configuración del sitio
   const [siteSettings, setSiteSettings] = useState({ orderTimeLimit: '18:00' });
-  const [darkMode, setDarkMode] = useState(false);
 
   // Función para mostrar notificaciones
   const showNotification = useCallback((message, type = 'success') => {
@@ -104,7 +101,6 @@ const Products = () => {
       setLoading(false);
     }
   }, [search, showNotification]);
-
 
   // Funcionalidades de producto
   const openProductDetails = useCallback((product) => {
@@ -206,6 +202,13 @@ const Products = () => {
     return user.id;
   }, [user]);
 
+  const removeFromOrder = useCallback((productId) => {
+    setOrderItems(prevItems => 
+      prevItems.filter(item => item.product_id !== productId)
+    );
+    showNotification('Producto eliminado del pedido');
+  }, [showNotification]);
+
   // Función para enviar el pedido completo a la API
   const submitOrder = useCallback(async () => {
     // Validar que hay productos en el pedido
@@ -213,19 +216,19 @@ const Products = () => {
       showNotification('No hay productos en el pedido', 'error');
       return;
     }
-  
+
     // Validar que todos los productos tienen datos válidos
     const isValid = orderItems.every(item =>
-      item.product_id && 
-      item.quantity > 0 && 
+      item.product_id &&
+      item.quantity > 0 &&
       item.unit_price > 0
     );
-  
+
     if (!isValid) {
       showNotification('Por favor revisa los productos del pedido. Todos deben tener cantidades y precios válidos.', 'error');
       return;
     }
-  
+
     // Validar que se ha seleccionado una fecha de entrega
     if (!deliveryDate) {
       showNotification('Selecciona una fecha de entrega válida', 'error');
@@ -233,13 +236,13 @@ const Products = () => {
     }
 
     const userId = getCurrentUserId();
-      if (!userId) {
-    showNotification('No se pudo identificar tu usuario. Por favor, inicia sesión nuevamente.', 'error');
-    return;
+    if (!userId) {
+      showNotification('No se pudo identificar tu usuario. Por favor, inicia sesión nuevamente.', 'error');
+      return;
     }
-  
+
     setSubmittingOrder(true);
-  
+
     try {
       const orderData = {
         user_id: getCurrentUserId(),
@@ -251,9 +254,9 @@ const Products = () => {
           unit_price: parseFloat(item.unit_price)
         }))
       };
-  
+
       const response = await API.post('/orders', orderData);
-  
+
       if (response.data.success) {
         showNotification('Pedido creado exitosamente');
         setOrderItems([]);
@@ -264,7 +267,7 @@ const Products = () => {
       }
     } catch (error) {
       console.error('Error submitting order:', error);
-      
+
       if (error.response) {
         const status = error.response.status;
         if (status === 400) {
@@ -344,60 +347,53 @@ const Products = () => {
   }, [orderItems, calculateOrderTotal]);
 
   return (
-    <div className={`min-h-screen ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`}>
+    <div className="min-h-screen bg-gray-50">
       {notification.show && (
         <Notification message={notification.message} type={notification.type} onClose={() => setNotification({ show: false, message: '', type: '' })} />
       )}
 
       <div className="container mx-auto px-4 py-6">
-        {/* Header with dark mode toggle */}
+        {/* Header */}
         <div className="flex justify-between items-center mb-8">
           <div>
-            <h1 className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+            <h1 className="text-3xl font-bold text-gray-900">
               Selecciona los productos para tu pedido SAP
             </h1>
-            <p className={`mt-2 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+            <p className="mt-2 text-gray-600">
               Explora el catálogo y añade productos a tu orden
             </p>
           </div>
-          <Button
-            variant="outline"
-            className={`rounded-full p-3 ${darkMode ? 'bg-gray-800 text-gray-200' : 'bg-white text-gray-800'}`}
-            onClick={() => setDarkMode(!darkMode)}
-          >
-            {darkMode ? <FiSun size={20} /> : <FiMoon size={20} />}
-          </Button>
         </div>
-        <div className="mb-4 text-sm">
+
+        <div className="mb-4 text-sm text-gray-600">
           Mostrando {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, products.length)} de {products.length} productos
         </div>
 
-
-        {/* Order summary card with animation */}
+        {/* Order summary card */}
         <div className={`mb-8 transform transition-all duration-300 hover:scale-[1.01] ${orderItems.length > 0 ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-90'}`}>
-          <Card className={`overflow-hidden ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
-            <div className={`p-1 ${darkMode ? 'bg-indigo-900' : 'bg-indigo-100'}`}></div>
+          <Card className="overflow-hidden bg-white border-gray-200">
+            <div className="p-1 bg-indigo-100"></div>
             <div className="p-5">
               <div className="flex flex-wrap justify-between items-center gap-4">
                 <div className="flex items-center gap-3">
-                  <div className={`p-3 rounded-full ${darkMode ? 'bg-primary' : 'bg-indigo-100'}`}>
-                    <FiShoppingCart size={20} className={darkMode ? 'text-indigo-300' : 'text-primary'} />
+                  <div className="p-3 rounded-full bg-indigo-100">
+                    <FiShoppingCart size={20} className="text-primary" />
                   </div>
                   <div>
-                    <h2 className={`font-bold text-lg ${darkMode ? 'text-white' : 'text-gray-900'}`}>Tu Pedido Actual</h2>
-                    <p className={darkMode ? 'text-gray-700' : 'text-gray-700'}>
+                    <h2 className="font-bold text-lg text-gray-900">Tu Pedido Actual</h2>
+                    <p className="text-gray-700">
                       {orderItems.length} productos | {orderItems.reduce((sum, item) => sum + item.quantity, 0)} unidades
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-4 ml-auto">
-                  <span className={`text-xl font-bold ${darkMode ? 'text-indigo-300' : 'text-primary-300'}`}>
+                  <span className="text-xl font-bold text-primary-300">
                     {formatCurrency(orderTotal)}
                   </span>
                   <Button
                     variant="secondary"
-                    className={`transition-all duration-200 transform active:scale-95 ${submittingOrder ? 'opacity-75' : ''
-                      } ${darkMode ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}
+                    className={`transition-all duration-200 transform active:scale-95 ${submittingOrder ? 'opacity-75' : ''} 
+                    bg-indigo-600 hover:bg-indigo-700`}
                     onClick={submitOrder}
                     disabled={orderItems.length === 0 || submittingOrder}
                   >
@@ -410,9 +406,69 @@ const Products = () => {
               </div>
             </div>
           </Card>
+           {/* Nueva sección de productos seleccionados */}
+        {orderItems.length > 0 && (
+          <div className="mt-6 border-t pt-4">
+            <h3 className="font-semibold mb-3 text-gray-900">
+              Productos Seleccionados
+            </h3>
+            <div className="space-y-3 max-h-80 overflow-y-auto pr-2">
+              {orderItems.map((item) => (
+                <div 
+                  key={item.product_id}
+                  className="flex items-center justify-between p-3 rounded-lg bg-gray-50"
+                >
+                  <div className="flex-1">
+                    <p className="font-medium text-gray-900">
+                      {item.name}
+                    </p>
+                    <div className="flex gap-4 mt-1">
+                      <span className="text-sm text-gray-600">
+                        Cantidad: {item.quantity}
+                      </span>
+                      <span className="text-sm text-gray-600">
+                        Subtotal: {formatCurrency(item.unit_price * item.quantity)}
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => removeFromOrder(item.product_id)}
+                    className="ml-4 px-3 py-1 rounded text-white text-sm flex items-center bg-red-600 hover:bg-red-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
+                  >
+                    <FiMinus className="mr-1" />
+                    Eliminar
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         </div>
+
+        {/* Banner de fecha seleccionada */}
+        {deliveryDate && (
+          <div className="mb-3 p-3 bg-indigo-50 border border-indigo-100 rounded-md flex items-center">
+            <div className="bg-indigo-600 text-white rounded-md p-2 mr-3">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-700">Fecha seleccionada:</p>
+              <p className="text-lg font-semibold text-indigo-700">
+                {new Date(deliveryDate).toLocaleDateString('es-ES', { 
+                  weekday: 'long', 
+                  year: 'numeric', 
+                  month: 'long', 
+                  day: 'numeric' 
+                })}
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="mb-4">
-          <label className="block text-sm font-medium mb-1">
+          <label className="block text-sm font-medium mb-1 text-gray-700">
             Fecha de entrega
           </label>
           <DeliveryDatePicker
@@ -426,7 +482,7 @@ const Products = () => {
         {/* Search and view controls */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
           <div className="lg:col-span-3">
-            <div className={`relative flex items-center ${darkMode ? 'bg-gray-800 text-gray-200' : 'bg-white text-gray-700'} rounded-lg overflow-hidden shadow-sm`}>
+            <div className="relative flex items-center rounded-lg overflow-hidden shadow-sm bg-white">
               <div className="px-3">
                 <FiSearch className="text-gray-400" />
               </div>
@@ -434,11 +490,11 @@ const Products = () => {
                 placeholder="Busca por nombre, código o descripción..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className={`border-0 shadow-none focus:ring-0 ${darkMode ? 'bg-gray-800 text-white placeholder-gray-500' : 'bg-white text-gray-900'} py-3 px-0 w-full`}
+                className="border-0 shadow-none focus:ring-0 py-3 px-0 w-full"
               />
               {search && (
                 <button
-                  className={`px-3 text-gray-400 hover:${darkMode ? 'text-gray-200' : 'text-gray-600'}`}
+                  className="px-3 text-gray-400 hover:text-gray-600"
                   onClick={() => setSearch('')}
                 >
                 </button>
@@ -446,43 +502,61 @@ const Products = () => {
             </div>
           </div>
           <div className="flex justify-between lg:justify-end gap-2">
-            <Button
-              variant={viewMode === 'table' ? 'secondary' : 'outline'}
+            <button
               onClick={() => setViewMode('table')}
-              className={`flex-1 lg:flex-none ${viewMode === 'table' ? (darkMode ? 'bg-blue-500' : 'bg-blue-800') : (darkMode ? 'bg-gray-800 text-gray-200 border-gray-700' : 'bg-white border-gray-300')}`}>
-              <FiList className="mr-1" /> Lista
-            </Button>
-            <Button
-              variant={viewMode === 'cards' ? 'secondary' : 'outline'}
-              onClick={() => setViewMode('cards')}
-              className={`flex-1 lg:flex-none ${viewMode === 'cards' ? (darkMode ? 'bg-indigo-600' : 'bg-indigo-600') : (darkMode ? 'bg-gray-800 text-gray-200 border-gray-700' : 'bg-white border-gray-300')}`}
+              className={`flex items-center px-4 py-2 rounded-md transition-all duration-200 ${
+                viewMode === 'table' 
+                  ? 'bg-white text-indigo-700 shadow-md border border-gray-200' 
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-indigo-500'
+                }`}
+              aria-label="Ver productos en formato lista"
             >
-              <FiGrid className="mr-1" /> Tarjetas
-            </Button>
+              <FiList 
+                className={`mr-2 ${viewMode === 'table' ? 'text-indigo-500' : ''}`} 
+                size={18} 
+              />
+              <span>Lista</span>
+            </button>
+            
+            <button
+              onClick={() => setViewMode('cards')}
+              className={`flex items-center px-4 py-2 rounded-md transition-all duration-200 ${
+                viewMode === 'cards' 
+                  ? 'bg-white text-indigo-700 shadow-md border border-gray-200' 
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-indigo-500'
+                }`}
+              aria-label="Ver productos en formato Miniaturas / Fotos y descripción detallada de producto"
+            >
+              <FiGrid 
+                className={`mr-2 ${viewMode === 'cards' ? 'text-indigo-500' : ''}`} 
+                size={18} 
+              />
+              <span>Miniaturas</span>
+            </button>
           </div>
         </div>
 
         {/* Products display - Table view */}
         {viewMode === 'table' && (
-          <div className={`overflow-x-auto rounded-lg shadow ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+          <div className="overflow-x-auto rounded-lg shadow bg-white">
             {loading ? (
               <div className="text-center py-12 animate-fadeIn">
                 <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-                <p className="mt-2">Cargando productos...</p>
+                <p className="mt-2 text-gray-600">Cargando productos...</p>
               </div>
             ) : products.length > 0 ? (
               <table className="min-w-full divide-y divide-gray-200 bg-white rounded-lg shadow-md overflow-hidden">
-                <thead className={darkMode ? 'bg-gray-700' : 'bg-gray-50'}>
+                <thead className="bg-gray-50">
                   <tr>
-                    <th scope="col" className={`px-6 py-3 text-left text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>Producto</th>
-                    <th scope="col" className={`px-6 py-3 text-left text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>Precio</th>
-                    <th scope="col" className={`px-6 py-3 text-left text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>Cantidad</th>
-                    <th scope="col" className={`px-6 py-3 text-left text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>Acciones</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Producto</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Precio</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cantidad</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
                   </tr>
                 </thead>
-                <tbody className={`divide-y ${darkMode ? 'divide-gray-700' : 'divide-gray-200'}`}>
+                <tbody className="divide-y divide-gray-200">
                   {paginatedProducts.map((product) => (
-                    <tr key={product.product_id} className={`transition-colors ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`}>
+                    <tr key={product.product_id} className="transition-colors hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
                           {product.image && (
@@ -491,13 +565,13 @@ const Products = () => {
                             </div>
                           )}
                           <div>
-                            <div className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>{product.name}</div>
-                            <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{product.code}</div>
+                            <div className="font-medium text-gray-900">{product.name}</div>
+                            <div className="text-sm text-gray-500">{product.code}</div>
                           </div>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>{formatCurrency(product.price_list1)}</div>
+                        <div className="font-medium text-gray-900">{formatCurrency(product.price_list1)}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center border rounded-md w-32 overflow-hidden">
@@ -508,7 +582,7 @@ const Products = () => {
                                 updateQuantity(product.product_id, currentQty - 1);
                               }
                             }}
-                            className={`px-2 py-1 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
+                            className="px-2 py-1 bg-gray-100 hover:bg-gray-200"
                           >
                             <FiMinus size={14} />
                           </button>
@@ -517,14 +591,14 @@ const Products = () => {
                             min="1"
                             value={productQuantities[product.product_id] || 1}
                             onChange={(e) => handleQuantityChange(product.product_id, parseInt(e.target.value, 10))}
-                            className={`w-12 text-center text-sm border-0 focus:ring-0 focus:outline-none ${darkMode ? 'bg-gray-800 text-white' : 'bg-white'}`}
+                            className="w-12 text-center text-sm border-0 focus:ring-0 focus:outline-none bg-white"
                           />
                           <button
                             onClick={() => {
                               const currentQty = productQuantities[product.product_id] || 1;
                               updateQuantity(product.product_id, currentQty + 1);
                             }}
-                            className={`px-2 py-1 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
+                            className="px-2 py-1 bg-gray-100 hover:bg-gray-200"
                           >
                             <FiPlus size={14} />
                           </button>
@@ -535,7 +609,7 @@ const Products = () => {
                           <Button
                             variant="outline"
                             size="sm"
-                            className={`transition-transform active:scale-95 ${darkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-600 text-gray-200' : 'bg-white'}`}
+                            className="transition-transform active:scale-95 bg-white"
                             onClick={() => openProductDetails(product)}
                           >
                             <FiEye className="mr-1" /> Ver
@@ -556,7 +630,7 @@ const Products = () => {
               </table>
             ) : (
               <div className="text-center py-12">
-                <p className={darkMode ? 'text-gray-300' : 'text-gray-600'}>No se encontraron productos.</p>
+                <p className="text-gray-600">No se encontraron productos.</p>
               </div>
             )}
           </div>
@@ -568,15 +642,14 @@ const Products = () => {
             {loading ? (
               <div className="text-center">
                 <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-                <p className="mt-2">Cargando productos...</p>
+                <p className="mt-2 text-gray-600">Cargando productos...</p>
               </div>
             ) : products.length > 0 ? (
               <div className="grid grid-cols-2 gap-6">
                 {paginatedProducts.map((product) => (
                   <div
                     key={product.product_id}
-                    className={`rounded-lg overflow-hidden shadow-md transition-all duration-300 hover:shadow-lg transform hover:-translate-y-1 ${darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white'
-                      }`}
+                    className="rounded-lg overflow-hidden shadow-md transition-all duration-300 hover:shadow-lg transform hover:-translate-y-1 bg-white"
                   >
                     {product.image ? (
                       <img
@@ -585,21 +658,22 @@ const Products = () => {
                         className="w-full h-48 object-cover"
                       />
                     ) : (
-                      <div className={`w-full h-48 flex items-center justify-center ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                        <span className={`text-4xl ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>📦</span>
+                      <div className="w-full h-48 flex items-center justify-center bg-gray-100">
+                        <span className="text-4xl text-gray-400">📦</span>
                       </div>
                     )}
                     <div className="p-4">
-                      <h3 className={`font-semibold text-lg mb-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{product.name}</h3>
-                      <p className={`text-sm mb-3 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {product.description ?
-                          (product.description.length > 80 ?
-                            `${product.description.substring(0, 80)}...` : product.description
-                          ) : 'Sin descripción'
+                      <h3 className="font-semibold text-lg mb-2 text-gray-900 line-clamp-2">{product.name}</h3>
+                      <p className="text-sm mb-3 text-gray-600 min-h-[3rem] line-clamp-3">
+                        {(product.description && product.description !== product.name) 
+                          ? (product.description.length > 120 
+                              ? `${product.description.substring(0, 120)}...` 
+                              : product.description)
+                          : 'Sin descripción detallada disponible para este producto.'
                         }
                       </p>
-                      <div className={`flex justify-between items-center mb-3 pb-3 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-                        <span className={`font-bold text-lg ${darkMode ? 'text-indigo-300' : 'text-indigo-600'}`}>
+                      <div className="flex justify-between items-center mb-3 pb-3 border-b border-gray-200">
+                        <span className="font-bold text-lg text-indigo-600">
                           {formatCurrency(product.price_list1)}
                         </span>
                         <div className="flex items-center">
@@ -610,7 +684,7 @@ const Products = () => {
                                 updateQuantity(product.product_id, currentQty - 1);
                               }
                             }}
-                            className={`p-1 rounded-md ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
+                            className="p-1 rounded-md bg-gray-100 hover:bg-gray-200"
                           >
                             <FiMinus size={14} />
                           </button>
@@ -619,15 +693,14 @@ const Products = () => {
                             min="1"
                             value={productQuantities[product.product_id] || 1}
                             onChange={(e) => handleQuantityChange(product.product_id, parseInt(e.target.value, 10))}
-                            className={`w-12 text-center text-sm mx-1 border rounded-md ${darkMode ? 'bg-gray-700 text-white border-gray-600' : 'bg-white border-gray-300'
-                              }`}
+                            className="w-12 text-center text-sm mx-1 border rounded-md bg-white border-gray-300"
                           />
                           <button
                             onClick={() => {
                               const currentQty = productQuantities[product.product_id] || 1;
                               updateQuantity(product.product_id, currentQty + 1);
                             }}
-                            className={`p-1 rounded-md ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
+                            className="p-1 rounded-md bg-gray-100 hover:bg-gray-200"
                           >
                             <FiPlus size={14} />
                           </button>
@@ -637,8 +710,7 @@ const Products = () => {
                         <Button
                           variant="outline"
                           size="sm"
-                          className={`flex-1 transition-transform active:scale-95 ${darkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-600 text-gray-200' : ''
-                            }`}
+                          className="flex-1 transition-transform active:scale-95"
                           onClick={() => openProductDetails(product)}
                         >
                           <FiEye className="mr-1" /> Ver
@@ -657,52 +729,57 @@ const Products = () => {
                 ))}
               </div>
             ) : (
-              <div className={`text-center py-12 ${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow`}>
-                <p className={darkMode ? 'text-gray-300' : 'text-gray-600'}>No se encontraron productos que coincidan con tu búsqueda.</p>
+              <div className="text-center py-12 bg-white rounded-lg shadow">
+                <p className="text-gray-600">No se encontraron productos que coincidan con tu búsqueda.</p>
               </div>
             )}
           </div>
         )}
 
-        {/* Pagination */}
-        {/* Nueva paginación */}
-        <button onClick={() => paginate(Math.max(currentPage - 1, 1))}
-          disabled={currentPage === 1}
-          className="px-3 py-1 rounded bg-gray-100 text-gray-700"
-        >
-          {'<'}
-        </button>
-        {!loading && products.length > itemsPerPage && (
-          <div className="mt-6 flex justify-center">
-            <nav className="flex items-center gap-1">
-              {getPaginationRange(currentPage, Math.ceil(products.length / itemsPerPage)).map((pageNumber, index) =>
-                pageNumber === '...' ? (
-                  <span key={index} className="px-2">...</span>
-                ) : (
-                  <button
-                    key={index}
-                    onClick={() => paginate(pageNumber)}
-                    className={`mx-1 px-3 py-1 rounded ${currentPage === pageNumber
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-gray-200 text-gray-700 Shover:bg-gray-300'
-                      }`}
-                  >
-                    {pageNumber}
-                  </button>
-                )
-              )}
-            </nav>
+        {/* Paginación */}
+        <div className="flex flex-col items-center mt-4 mb-2">
+          {!loading && products.length > 0 && (
+            <div className="flex items-center justify-center gap-2 mb-3">
+              <button
+                onClick={() => paginate(Math.max(currentPage - 1, 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1 rounded bg-gray-100 text-gray-700 disabled:opacity-50"
+              >
+                {'<'}
+              </button>
+
+              <div className="flex items-center gap-1">
+                {getPaginationRange(currentPage, Math.ceil(products.length / itemsPerPage)).map((pageNumber, index) =>
+                  pageNumber === '...' ? (
+                    <span key={index} className="px-2">...</span>
+                  ) : (
+                    <button
+                      key={index}
+                      onClick={() => paginate(pageNumber)}
+                      className={`mx-1 px-3 py-1 rounded ${currentPage === pageNumber
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        }`}
+                    >
+                      {pageNumber}
+                    </button>
+                  )
+                )}
+              </div>
+
+              <button
+                onClick={() => paginate(Math.min(currentPage + 1, Math.ceil(products.length / itemsPerPage)))}
+                disabled={currentPage === Math.ceil(products.length / itemsPerPage)}
+                className="px-3 py-1 rounded bg-gray-100 text-gray-700 disabled:opacity-50"
+              >
+                {'>'}
+              </button>
+            </div>
+          )}
+
+          <div className="text-center font-bold text-gray-700">
+            Página actual: {currentPage}
           </div>
-        )}
-        <button
-          onClick={() => paginate(Math.min(currentPage + 1, Math.ceil(products.length / itemsPerPage)))}
-          disabled={currentPage === Math.ceil(products.length / itemsPerPage)}
-          className="px-3 py-1 rounded bg-gray-100 text-gray-700"
-        >
-          {'>'}
-        </button>
-        <div className="text-center mt-2 font-bold">
-          Página actual: {currentPage}
         </div>
       </div>
 
@@ -711,7 +788,6 @@ const Products = () => {
         isOpen={modalVisible}
         onClose={closeModal}
         title={selectedProduct?.name || 'Detalle del Producto'}
-        className={darkMode ? 'bg-gray-800 text-white' : ''}
       >
         {selectedProduct && (
           <div className="flex flex-col md:flex-row gap-6">
@@ -723,35 +799,34 @@ const Products = () => {
                   className="w-full h-auto rounded-lg object-cover shadow-md"
                 />
               ) : (
-                <div className={`w-full h-64 flex items-center justify-center rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                <div className="w-full h-64 flex items-center justify-center rounded-lg bg-gray-100">
                   <span className="text-6xl">📦</span>
                 </div>
               )}
             </div>
             <div className="w-full md:w-1/2">
-              <h2 className={`text-2xl font-bold mb-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{selectedProduct.name}</h2>
-              <div className={`mb-4 pb-4 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-                <span className={`inline-block px-2 py-1 rounded-md text-xs font-semibold ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+              <h2 className="text-2xl font-bold mb-2 text-gray-900">{selectedProduct.name}</h2>
+              <div className="mb-4 pb-4 border-b border-gray-200">
+                <span className="inline-block px-2 py-1 rounded-md text-xs font-semibold bg-gray-100 text-gray-600">
                   Código: {selectedProduct.code || 'N/A'}
                 </span>
               </div>
-              <p className={`mb-6 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+              <p className="mb-6 text-gray-700">
                 {selectedProduct.description || 'Sin descripción disponible para este producto.'}
               </p>
-              <div className={`mb-6 p-4 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+              <div className="mb-6 p-4 rounded-lg bg-gray-50">
                 <div className="flex justify-between items-center mb-4">
-                  <span className={darkMode ? 'text-gray-300' : 'text-gray-600'}>Precio:</span>
-                  <span className={`text-xl font-bold ${darkMode ? 'text-indigo-300' : 'text-indigo-600'}`}>
+                  <span className="text-gray-600">Precio:</span>
+                  <span className="text-xl font-bold text-indigo-600">
                     {formatCurrency(selectedProduct.price_list1)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between mb-6">
-                  <span className={darkMode ? 'text-gray-300' : 'text-gray-600'}>Cantidad:</span>
+                  <span className="text-gray-600">Cantidad:</span>
                   <div className="flex items-center">
                     <button
                       onClick={decrementQuantity}
-                      className={`p-2 rounded-l-md ${darkMode ? 'bg-gray-600 hover:bg-gray-500 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
-                        }`}
+                      className="p-2 rounded-l-md bg-gray-200 hover:bg-gray-300 text-gray-700"
                     >
                       <FiMinus size={16} />
                     </button>
@@ -760,13 +835,11 @@ const Products = () => {
                       min="1"
                       value={quantity}
                       onChange={(e) => handleQuantityChange(selectedProduct.product_id, parseInt(e.target.value, 10))}
-                      className={`w-16 py-2 text-center border-y ${darkMode ? 'bg-gray-700 text-white border-gray-600' : 'bg-white text-gray-700 border-gray-200'
-                        }`}
+                      className="w-16 py-2 text-center border-y bg-white text-gray-700 border-gray-200"
                     />
                     <button
                       onClick={incrementQuantity}
-                      className={`p-2 rounded-r-md ${darkMode ? 'bg-gray-600 hover:bg-gray-500 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
-                        }`}
+                      className="p-2 rounded-r-md bg-gray-200 hover:bg-gray-300 text-gray-700"
                     >
                       <FiPlus size={16} />
                     </button>
