@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { Outlet, useNavigate, Link } from "react-router-dom";
+import { Outlet, useNavigate } from "react-router-dom";
 import Sidebar from "./SidebarSection/Sidebar";
+import Top from "./Body Section/TopSection/Top";
 import { useAuth } from "../../hooks/useAuth";
-import { FaBars, FaTimes } from "react-icons/fa";
 
 const DashboardLayout = () => {
-  const [showMobileMenu, setShowMobileMenu] = useState(false);
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
@@ -23,9 +22,8 @@ const DashboardLayout = () => {
     setLoading(false);
   }, [isAuthenticated, navigate]);
 
-  const handleLogout = () => {
-    logout();
-    navigate("/");
+  const toggleSidebar = () => {
+    setSidebarCollapsed(!sidebarCollapsed);
   };
 
   if (loading) {
