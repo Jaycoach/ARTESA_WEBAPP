@@ -12,12 +12,12 @@ const determineBaseUrl = () => {
   // Obtener la información del host actual
   const currentHost = window.location.hostname;
   const isNgrokHost = currentHost.includes('ngrok') || currentHost.includes('ngrok-free.app');
-  
+
   if (isNgrokHost) {
     console.log(`Detectado host ngrok: ${window.location.origin}`);
     return window.location.origin;
   }
-  
+
   // Para desarrollo local
   return 'http://localhost:3000';
 };
@@ -45,27 +45,28 @@ const API = axios.create({
 // Interceptor para asegurar que todas las URLs tienen el prefijo API correcto
 API.interceptors.request.use(
   (config) => {
+    // Imprimir URL original para depuración
+    console.log(`URL original: ${config.url}`);
+
     // Si la URL ya comienza con http, no modificar
     if (config.url.startsWith('http')) {
       return config;
     }
-    
+
+    // Asegurar que apiPath esté definido correctamente
+    const apiPath = import.meta.env.VITE_API_PATH || '/api';
+
     // Si la URL ya incluye el prefijo API, no modificar
     if (config.url.startsWith(apiPath)) {
-      if (isDevelopment || import.meta.env.VITE_DEBUG_API === 'true') {
-        console.log(`URL ya tiene prefijo API: ${config.url}`);
-      }
+      console.log(`URL mantiene prefijo API: ${config.url}`);
       return config;
     }
-    
+
     // Añadir prefijo API
     const normalizedUrl = config.url.startsWith('/') ? config.url : `/${config.url}`;
     config.url = `${apiPath}${normalizedUrl}`;
-    
-    if (isDevelopment || import.meta.env.VITE_DEBUG_API === 'true') {
-      console.log(`URL normalizada: ${config.url}`);
-    }
-    
+    console.log(`URL normalizada: ${config.url}`);
+
     return config;
   },
   (error) => Promise.reject(error)

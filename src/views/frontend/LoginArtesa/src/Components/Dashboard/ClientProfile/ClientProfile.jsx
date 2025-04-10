@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import './ClientProfile.scss';
-import API from '../../../api/config';
+import apiService from '../../../services/api';
+import { useAuth } from '../../../hooks/useAuth';
 import { FaTimes, FaUpload, FaExclamationCircle } from 'react-icons/fa';
-import { useAuth } from '../../../hooks/useAuth'; // Importar el hook de auth
 import './ConfirmationModal.scss';
 import ConfirmationModal from './ConfirmationModal';
 
-const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
-  const { updateUserInfo } = useAuth(); // Obtener la función de actualización del contexto
+const ClientProfile = ({ onClose, onProfileUpdate }) => {
+  const { user, updateUserInfo } = useAuth();
   const [formData, setFormData] = useState({
     // Datos básicos
     nombre: '',
@@ -48,7 +48,7 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
     fotocopiaRut: null,
     anexosAdicionales: null
   });
-
+  
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
@@ -57,122 +57,114 @@ const ClientProfile = ({ user, onClose, onProfileUpdate }) => {
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [confirmationIsSuccess, setConfirmationIsSuccess] = useState(false);
   const [confirmationMessage, setConfirmationMessage] = useState('');
-
   const [isFormLocked, setIsFormLocked] = useState(false);
 
-  // Verificar que el backend está disponible cuando se monta el componente
-useEffect(() => {
-  const checkBackendConnection = async () => {
-    try {
-      console.log("Verificando conexión con el backend...");
-      // Intenta obtener un recurso básico para verificar conectividad
-      const response = await API.get('/health');
-      console.log("Conexión con backend establecida:", response.data);
-    } catch (error) {
-      console.error("Error de conexión con el backend:", error);
-      // Solo mostrar error si no es una ruta no encontrada (404)
-      if (error.response && error.response.status !== 404) {
-        setError("No se pudo establecer conexión con el servidor. Verifique su configuración.");
-      }
-    }
+  // Función para verificar y obtener el ID de usuario válido
+  const getUserId = () => {
+    if (!user) return null;
+    return user.id || user._id || user.userId || user.user_id;
   };
-  
-  checkBackendConnection();
-}, []);
+
+  // Headers para las solicitudes ngrok
+  const ngrokHeaders = {
+    'ngrok-skip-browser-warning': '69420',
+    'Bypass-Tunnel-Reminder': 'true',
+    'Accept': 'application/json',
+    'Content-Type': 'application/json'
+  };
 
   useEffect(() => {
     // Verificar si el usuario ya tiene un perfil
     const fetchProfile = async () => {
       try {
-        if (!user || !user.id) {
+        const userId = getUserId();
+        
+        if (!userId) {
           console.log("No hay ID de usuario para buscar perfil");
           return;
         }
 
-        // Verificar token de autenticación
-        const token = localStorage.getItem("token");
-        if (!token) {
-          console.warn("No hay token de autenticación disponible");
-        }
-
-        // Imprimir información completa para depuración
-        console.log("Usuario actual:", user);
-        console.log("Intentando obtener perfil para usuario ID:", user.id);
-        const endpoint = `/client-profiles/user/${user.id}`;
-        console.log("URL base de API:", API.defaults.baseURL);
-        console.log("Endpoint completo:", API.defaults.baseURL + endpoint);
-
-        const response = await API.get(endpoint);
+        console.log("Intentando obtener perfil para usuario ID:", userId);
+        
+        // Construir el endpoint correctamente
+        const endpoint = `/client-profiles/user/${userId}`;
+        
+        // Usar el nuevo servicio de API con los headers específicos para ngrok
+        const response = await apiService.get(endpoint, {}, { headers: ngrokHeaders });
+        
         console.log("Respuesta completa de API:", response);
-        console.log("Datos recibidos:", response.data);
-
+        
         // Manejar respuesta
-        if (!response.data) {
+        if (!response || !response.data) {
           console.error("Respuesta vacía de la API");
           return;
         }
 
         // Extraer los datos con manejo mejorado de estructura
-        const profileData = response.data?.data || response.data;
+        const profileData = response.data.data || response.data;
+        
+        console.log("Datos de perfil recibidos:", profileData);
 
-        // Verificar bloqueo del formulario basado en campos específicos
+        // Verificar bloqueo del formulario
         if (profileData?.nit_number && profileData?.verification_digit) {
           setIsFormLocked(true);
-          console.log("Formulario bloqueado porque ya tiene NIT y dígito de verificación");
         }
 
-        // Preparar datos para el formulario con mejor manejo de campos
+        // Procesar campos básicos
         const formDataUpdate = {
-          nombre: profileData.nombre || profileData.name || '',
+          nombre: profileData.nombre || profileData.name || profileData.user_name || '',
           direccion: profileData.direccion || profileData.address || '',
           ciudad: profileData.ciudad || profileData.city || '',
           pais: profileData.pais || profileData.country || 'Colombia',
           telefono: profileData.telefono || profileData.phone || '',
           email: profileData.email || user?.email || user?.mail || '',
           razonSocial: profileData.razonSocial || profileData.companyName || '',
-          nit: profileData.nit_number || profileData.nit || profileData.taxId || '',
+          nit: profileData.nit_number || '',
+          digitoVerificacion: profileData.verification_digit || '',
         };
 
-        // Procesar dígito de verificación
-        if (profileData.verification_digit) {
-          formDataUpdate.digitoVerificacion = profileData.verification_digit;
-        }
-
         if (profileData) {
-          console.log("Perfil encontrado, actualizando estado");
           setExistingProfile(profileData);
 
-          // Procesamiento mejorado de datos adicionales
-          if (profileData.notes) {
+          // Procesar datos adicionales - revisar múltiples ubicaciones posibles
+          let additionalData = null;
+          
+          if (profileData.additionalInfo) {
+            additionalData = profileData.additionalInfo;
+          } else if (profileData.extraInfo) {
+            additionalData = profileData.extraInfo;
+          } else if (profileData.notes) {
             try {
-              const additionalData = JSON.parse(profileData.notes);
-              console.log("Datos adicionales encontrados en notes:", additionalData);
-              Object.assign(formDataUpdate, additionalData);
+              additionalData = JSON.parse(profileData.notes);
             } catch (e) {
               console.error("Error al parsear notes:", e);
             }
           }
 
-          // Procesar campos específicos con mejor manejo de errores
-          [
-            'tipoDocumento', 'numeroDocumento', 'representanteLegal',
-            'actividadComercial', 'sectorEconomico', 'tamanoEmpresa',
-            'ingresosMensuales', 'patrimonio', 'entidadBancaria',
-            'tipoCuenta', 'numeroCuenta', 'nombreContacto',
-            'cargoContacto', 'telefonoContacto', 'emailContacto'
-          ].forEach(field => {
-            if (profileData[field] !== undefined && profileData[field] !== null) {
-              formDataUpdate[field] = profileData[field];
-            }
-          });
+          // Si encontramos datos adicionales, añadirlos al formulario
+          if (additionalData) {
+            console.log("Datos adicionales encontrados:", additionalData);
+            
+            // Iterar a través de los campos adicionales
+            [
+              'tipoDocumento', 'numeroDocumento', 'representanteLegal',
+              'actividadComercial', 'sectorEconomico', 'tamanoEmpresa',
+              'ingresosMensuales', 'patrimonio', 'entidadBancaria',
+              'tipoCuenta', 'numeroCuenta', 'nombreContacto',
+              'cargoContacto', 'telefonoContacto', 'emailContacto'
+            ].forEach(field => {
+              if (additionalData[field] !== undefined && additionalData[field] !== null) {
+                formDataUpdate[field] = additionalData[field];
+              }
+            });
+          }
 
           console.log("Actualizando formulario con datos procesados:", formDataUpdate);
           setFormData(prev => ({ ...prev, ...formDataUpdate }));
         }
       } catch (error) {
         console.error('Error al obtener perfil:', error);
-
-        // Detalles específicos del error para mejor depuración
+        
         if (error.response) {
           console.error('Respuesta de error:', error.response.status, error.response.data);
         } else if (error.request) {
@@ -180,8 +172,8 @@ useEffect(() => {
         } else {
           console.error('Error:', error.message);
         }
-
-        // Si no existe perfil, inicializar con datos básicos del usuario
+        
+        // Inicializar con datos básicos del usuario si hay error
         if (user) {
           setFormData(prev => ({
             ...prev,
@@ -254,7 +246,7 @@ useEffect(() => {
     setError('');
     setSuccess('');
 
-    // Validar que el NIT solo contenga números
+    // Validaciones
     if (formData.nit && !/^\d+$/.test(formData.nit)) {
       setFieldErrors(prev => ({
         ...prev,
@@ -265,7 +257,6 @@ useEffect(() => {
       return;
     }
 
-    // Validar que digitoVerificacion sea un número entero de un solo dígito
     if (formData.digitoVerificacion && (!/^[0-9]$/.test(formData.digitoVerificacion))) {
       setError('El dígito de verificación debe ser un número entre 0 y 9');
       setLoading(false);
@@ -284,47 +275,85 @@ useEffect(() => {
     try {
       // Crear FormData para enviar archivos
       const formDataToSend = new FormData();
-
-      // Agregar nit_number y verification_digit como campos separados
-      formDataToSend.append('nit_number', formData.nit || '');
-      formDataToSend.append('verification_digit', formData.digitoVerificacion || '');
-      formDataToSend.append('tax_id', taxId);
-
-      // Agregar todos los campos del formulario
-      Object.keys(formData).forEach(key => {
-        if (key === 'fotocopiaCedula' || key === 'fotocopiaRut' || key === 'anexosAdicionales') {
-          if (formData[key]) {
-            formDataToSend.append(key, formData[key]);
-          }
-        } else {
-          formDataToSend.append(key, formData[key]);
-        }
-      });
-
-      // Agregar ID del usuario
-      if (user && user.id) {
-        formDataToSend.append('userId', user.id);
+      
+      // Agregar campos básicos
+      formDataToSend.append('nombre', formData.nombre);
+      formDataToSend.append('email', formData.email);
+      formDataToSend.append('telefono', formData.telefono);
+      formDataToSend.append('direccion', formData.direccion);
+      formDataToSend.append('ciudad', formData.ciudad);
+      formDataToSend.append('pais', formData.pais);
+      
+      // Información empresarial
+      formDataToSend.append('razonSocial', formData.razonSocial);
+      formDataToSend.append('nit', formData.nit);
+      formDataToSend.append('digitoVerificacion', formData.digitoVerificacion);
+      
+      // Crear objeto de datos adicionales
+      const additionalInfo = {
+        tipoDocumento: formData.tipoDocumento,
+        numeroDocumento: formData.numeroDocumento,
+        representanteLegal: formData.representanteLegal,
+        actividadComercial: formData.actividadComercial,
+        sectorEconomico: formData.sectorEconomico,
+        tamanoEmpresa: formData.tamanoEmpresa,
+        ingresosMensuales: formData.ingresosMensuales,
+        patrimonio: formData.patrimonio,
+        entidadBancaria: formData.entidadBancaria,
+        tipoCuenta: formData.tipoCuenta,
+        numeroCuenta: formData.numeroCuenta,
+        nombreContacto: formData.nombreContacto,
+        cargoContacto: formData.cargoContacto,
+        telefonoContacto: formData.telefonoContacto,
+        emailContacto: formData.emailContacto
+      };
+      
+      // Añadir datos adicionales como JSON
+      formDataToSend.append('additionalInfo', JSON.stringify(additionalInfo));
+      
+      // Agregar archivos solo si están presentes
+      if (formData.fotocopiaCedula) {
+        formDataToSend.append('fotocopiaCedula', formData.fotocopiaCedula);
       }
-
-      // Mantener el endpoint tal como está en la API
+      
+      if (formData.fotocopiaRut) {
+        formDataToSend.append('fotocopiaRut', formData.fotocopiaRut);
+      }
+      
+      if (formData.anexosAdicionales) {
+        formDataToSend.append('anexosAdicionales', formData.anexosAdicionales);
+      }
+      
+      // Obtener ID de usuario
+      const userId = getUserId();
+      if (!userId) {
+        throw new Error('No se puede identificar el ID de usuario');
+      }
+      
+      // Agregar ID del usuario
+      formDataToSend.append('userId', userId);
+      
+      // Determinar el endpoint según si es crear o actualizar
       const endpoint = existingProfile
-        ? `/client-profiles/user/${user.id}`
+        ? `/client-profiles/user/${userId}`
         : '/client-profiles';
-
-      const method = existingProfile ? 'put' : 'post';
-
-      console.log(`Enviando datos al endpoint: ${endpoint} con método: ${method}`);
-
-      // Realizar la solicitud a la API
-      const response = await API({
-        method,
-        url: endpoint,
-        data: formDataToSend,
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
-      });
-
+        
+      console.log(`Enviando datos al endpoint: ${endpoint}`);
+      
+      // Combinar los headers para FormData y ngrok
+      const headers = { 
+        'Content-Type': 'multipart/form-data',
+        ...ngrokHeaders 
+      };
+      
+      // Realizar la solicitud
+      let response;
+      if (existingProfile) {
+        response = await apiService.put(endpoint, formDataToSend, { headers });
+      } else {
+        response = await apiService.post(endpoint, formDataToSend, { headers });
+      }
+      
       console.log("Respuesta de guardado:", response.data);
 
       // Extraer los datos guardados
@@ -353,7 +382,7 @@ useEffect(() => {
         onProfileUpdate(formData.nombre);
       }
 
-      // En lugar de solo mostrar mensaje en el formulario, mostramos el modal de confirmación
+      // Mostrar mensaje de éxito
       setSuccess('Perfil guardado correctamente');
       setExistingProfile(response.data);
 
@@ -366,11 +395,11 @@ useEffect(() => {
       console.error('Error al guardar perfil:', error);
       
       let errorMessage = 'Error al guardar el perfil';
-      
+
       if (error.response) {
         console.error('Detalles del error:', error.response.status, error.response.data);
         errorMessage = error.response.data?.message || 'Error en la respuesta del servidor';
-        
+
         // Manejar códigos de estado específicos
         if (error.response.status === 401) {
           errorMessage = 'Sesión expirada. Por favor, inicie sesión nuevamente.';
@@ -381,14 +410,17 @@ useEffect(() => {
         }
       } else if (error.request) {
         errorMessage = 'No se recibió respuesta del servidor. Verifique su conexión.';
-      }
+      } 
       
       setError(errorMessage);
-      
+
       // Configurar y mostrar el modal de confirmación de error
       setConfirmationIsSuccess(false);
       setConfirmationMessage('Datos Incorrectos. Por favor verifique la información proporcionada.');
       setShowConfirmation(true);
+      
+    } finally {
+      setLoading(false);
     }
   };
 

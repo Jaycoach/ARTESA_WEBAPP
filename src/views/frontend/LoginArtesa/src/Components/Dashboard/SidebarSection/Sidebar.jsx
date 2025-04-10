@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from "react";
+import ReactDOM from 'react-dom';
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../../hooks/useAuth";
 import {
   FaHome, FaListAlt, FaFileInvoiceDollar, FaBoxes, FaCog,
   FaSignOutAlt, FaTools
 } from "react-icons/fa";
+
 
 const Sidebar = ({ collapsed, onToggle }) => {
   const navigate = useNavigate();
