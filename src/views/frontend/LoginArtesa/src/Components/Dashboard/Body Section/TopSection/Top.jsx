@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { FaUserCircle, FaBell, FaBars } from "react-icons/fa";
+import logoArtesa from '../../../../LoginsAssets/logo_artesa.png';
 import { useAuth } from "../../../../hooks/useAuth";
 import ClientProfile from "../../ClientProfile/ClientProfile";
 
@@ -51,28 +52,32 @@ const Top = ({ user, onToggleSidebar }) => {
   };
 
   return (
-    <div className="bg-primary text-white h-14 px-4 flex items-center justify-between shadow-md z-30">
+    <div className="bg-primary text-white h-14 px-7 flex items-center justify-between shadow-md z-30">
       {/* Lado izquierdo - Título y toggle */}
       <div className="flex items-center">
-        <button 
+        <button
           onClick={onToggleSidebar}
           className="mr-4 text-white hover:text-gray-200 focus:outline-none"
         >
           <FaBars />
         </button>
-        <h1 className="font-bold text-lg">LA ARTESA</h1>
+        <img
+          src={logoArtesa}
+          alt="Logo de LA ARTESA"
+          className="h-8 object-contain ml-[2px]" // <-- Ajusta este valor si lo deseas más alineado
+        />
       </div>
-      
+
       {/* Lado derecho - Perfil */}
       <div className="relative" ref={menuRef}>
-        <button 
+        <button
           onClick={() => setMenuOpen(!menuOpen)}
           className="flex items-center space-x-2 text-white hover:text-gray-200"
         >
           <span className="mr-2">{displayName}</span>
           <FaUserCircle size={24} />
         </button>
-        
+
         {/* Menú desplegable */}
         {menuOpen && (
           <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50">
@@ -98,26 +103,26 @@ const Top = ({ user, onToggleSidebar }) => {
           </div>
         )}
       </div>
-      
+
       {/* Modal de perfil */}
       {showProfileModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div 
+          <div
             ref={profileModalRef}
             className="bg-white rounded-lg shadow-xl w-full max-w-md m-4 p-6"
           >
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-semibold text-gray-800">Mi Perfil</h2>
-              <button 
+              <button
                 onClick={handleCloseProfile}
                 className="text-gray-500 hover:text-gray-700 focus:outline-none"
               >
                 ✕
               </button>
             </div>
-            <ClientProfile 
+            <ClientProfile
               onClose={handleCloseProfile}  // <- Añadir esta prop
-              onProfileUpdate={updateUserInfo} 
+              onProfileUpdate={updateUserInfo}
             />
           </div>
         </div>
