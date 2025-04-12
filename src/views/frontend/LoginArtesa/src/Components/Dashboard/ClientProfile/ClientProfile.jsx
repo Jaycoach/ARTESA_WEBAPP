@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import './ClientProfile.scss';
-import apiService from '../../../services/api';
+import API from '../../../api/config';  // Usando la configuración centralizada de API
+import { FaTimes, FaUpload } from 'react-icons/fa';
 import { useAuth } from '../../../hooks/useAuth';
-import { FaTimes, FaUpload, FaExclamationCircle } from 'react-icons/fa';
 import './ConfirmationModal.scss';
 import ConfirmationModal from './ConfirmationModal';
 
 const ClientProfile = ({ onClose, onProfileUpdate }) => {
+  // Obtener contexto de autenticación (no recibimos user como prop para evitar inconsistencias)
   const { user, updateUserInfo } = useAuth();
+  
+  // Estado inicial del formulario
   const [formData, setFormData] = useState({
     // Datos básicos
     nombre: '',
@@ -17,8 +20,8 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
     ciudad: '',
     pais: 'Colombia',
     telefono: '',
-    email: user?.email || user?.mail || '',
-
+    email: '',
+    
     // Información empresarial
     razonSocial: '',
     nit: '',
@@ -27,28 +30,29 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
     actividadComercial: '',
     sectorEconomico: '',
     tamanoEmpresa: 'Microempresa',
-
+    
     // Información financiera
     ingresosMensuales: '',
     patrimonio: '',
-
+    
     // Información bancaria
     entidadBancaria: '',
     tipoCuenta: 'Ahorros',
     numeroCuenta: '',
-
+    
     // Información de contacto alternativo
     nombreContacto: '',
     cargoContacto: '',
     telefonoContacto: '',
     emailContacto: '',
-
+    
     // Archivos
     fotocopiaCedula: null,
     fotocopiaRut: null,
     anexosAdicionales: null
   });
-  
+
+  // Estados para UI y control
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
@@ -58,113 +62,159 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
   const [confirmationIsSuccess, setConfirmationIsSuccess] = useState(false);
   const [confirmationMessage, setConfirmationMessage] = useState('');
   const [isFormLocked, setIsFormLocked] = useState(false);
+  const [debugInfo, setDebugInfo] = useState({});
 
-  // Función para verificar y obtener el ID de usuario válido
+  // Función mejorada para obtener el ID del usuario de múltiples fuentes
   const getUserId = () => {
-    if (!user) return null;
-    return user.id || user._id || user.userId || user.user_id;
+    // Debug information
+    const userDebugInfo = {
+      contextUser: user ? { ...user } : null,
+      localStorage: localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')) : null
+    };
+    setDebugInfo(userDebugInfo);
+    console.log("DEBUG - getUserId - Estado actual user:", userDebugInfo);
+
+    // 1. Intentar obtener del contexto
+    if (user) {
+      if (user.id) {
+        console.log("DEBUG - ID encontrado en contexto user.id:", user.id);
+        return user.id;
+      }
+      if (user._id) {
+        console.log("DEBUG - ID encontrado en contexto user._id:", user._id);
+        return user._id;
+      }
+    }
+    
+    // 2. Intentar obtener del localStorage (respaldo)
+    try {
+      const storedUserString = localStorage.getItem('user');
+      if (storedUserString) {
+        const storedUser = JSON.parse(storedUserString);
+        console.log("DEBUG - Usuario recuperado de localStorage:", storedUser);
+        
+        if (storedUser.id) {
+          console.log("DEBUG - ID encontrado en localStorage user.id:", storedUser.id);
+          return storedUser.id;
+        }
+        if (storedUser._id) {
+          console.log("DEBUG - ID encontrado en localStorage user._id:", storedUser._id);
+          return storedUser._id;
+        }
+      }
+    } catch (e) {
+      console.error("Error al parsear usuario del localStorage:", e);
+    }
+    
+    // 3. Intentar obtener del token JWT (última opción)
+    try {
+      const token = localStorage.getItem('token');
+      if (token) {
+        // El token está en formato Base64, podemos decodificarlo
+        const payload = token.split('.')[1];
+        const decodedPayload = JSON.parse(atob(payload));
+        console.log("DEBUG - Payload decodificado del token:", decodedPayload);
+        
+        if (decodedPayload && decodedPayload.id) {
+          console.log("DEBUG - ID encontrado en token JWT:", decodedPayload.id);
+          return decodedPayload.id;
+        }
+      }
+    } catch (e) {
+      console.error("Error al decodificar token:", e);
+    }
+    
+    console.log("DEBUG - No se pudo encontrar ID de usuario en ninguna fuente");
+    return null;
   };
 
-  // Headers para las solicitudes ngrok
-  const ngrokHeaders = {
-    'ngrok-skip-browser-warning': '69420',
-    'Bypass-Tunnel-Reminder': 'true',
-    'Accept': 'application/json',
-    'Content-Type': 'application/json'
-  };
-
+  // Efecto para cargar el perfil del usuario
   useEffect(() => {
-    // Verificar si el usuario ya tiene un perfil
     const fetchProfile = async () => {
       try {
+        // Obtener ID de usuario con la función mejorada
         const userId = getUserId();
         
         if (!userId) {
           console.log("No hay ID de usuario para buscar perfil");
+          // Intento de inicialización con datos básicos si no hay perfil pero hay usuario
+          const userFromContext = user || JSON.parse(localStorage.getItem('user') || '{}');
+          if (userFromContext) {
+            setFormData(prev => ({
+              ...prev,
+              email: userFromContext.mail || userFromContext.email || '',
+              nombre: userFromContext.nombre || userFromContext.name || ''
+            }));
+          }
           return;
         }
 
         console.log("Intentando obtener perfil para usuario ID:", userId);
         
-        // Construir el endpoint correctamente
-        const endpoint = `/client-profiles/user/${userId}`;
-        
-        // Usar el nuevo servicio de API con los headers específicos para ngrok
-        const response = await apiService.get(endpoint, {}, { headers: ngrokHeaders });
-        
+        // Hacer la solicitud a la API usando la configuración centralizada
+        const response = await API.get(`/client-profiles/user/${userId}`);
         console.log("Respuesta completa de API:", response);
         
-        // Manejar respuesta
-        if (!response || !response.data) {
-          console.error("Respuesta vacía de la API");
-          return;
-        }
-
-        // Extraer los datos con manejo mejorado de estructura
-        const profileData = response.data.data || response.data;
-        
-        console.log("Datos de perfil recibidos:", profileData);
-
-        // Verificar bloqueo del formulario
-        if (profileData?.nit_number && profileData?.verification_digit) {
-          setIsFormLocked(true);
-        }
-
-        // Procesar campos básicos
-        const formDataUpdate = {
-          nombre: profileData.nombre || profileData.name || profileData.user_name || '',
-          direccion: profileData.direccion || profileData.address || '',
-          ciudad: profileData.ciudad || profileData.city || '',
-          pais: profileData.pais || profileData.country || 'Colombia',
-          telefono: profileData.telefono || profileData.phone || '',
-          email: profileData.email || user?.email || user?.mail || '',
-          razonSocial: profileData.razonSocial || profileData.companyName || '',
-          nit: profileData.nit_number || '',
-          digitoVerificacion: profileData.verification_digit || '',
-        };
-
-        if (profileData) {
-          setExistingProfile(profileData);
-
-          // Procesar datos adicionales - revisar múltiples ubicaciones posibles
-          let additionalData = null;
+        // Procesar datos recibidos
+        if (response && response.data) {
+          const profileData = response.data.data || response.data;
+          console.log("Datos de perfil recibidos:", profileData);
           
-          if (profileData.additionalInfo) {
-            additionalData = profileData.additionalInfo;
-          } else if (profileData.extraInfo) {
-            additionalData = profileData.extraInfo;
-          } else if (profileData.notes) {
+          // Bloquear formulario si ya tiene NIT registrado (sincronizado con SAP)
+          if (profileData?.nit_number && profileData?.verification_digit) {
+            setIsFormLocked(true);
+          }
+          
+          // Preparar datos para el formulario
+          const formDataUpdate = {
+            nombre: profileData.nombre || profileData.name || '',
+            direccion: profileData.direccion || profileData.address || '',
+            ciudad: profileData.ciudad || profileData.city || '',
+            pais: profileData.pais || profileData.country || 'Colombia',
+            telefono: profileData.telefono || profileData.phone || '',
+            email: profileData.email || user?.email || user?.mail || '',
+            razonSocial: profileData.razonSocial || profileData.business_name || '',
+            nit: profileData.nit_number || profileData.nit || '',
+            digitoVerificacion: profileData.verification_digit || profileData.digitoVerificacion || '',
+          };
+          
+          // Procesar datos adicionales que podrían estar en el campo 'notes'
+          if (profileData.notes) {
             try {
-              additionalData = JSON.parse(profileData.notes);
+              const additionalData = JSON.parse(profileData.notes);
+              console.log("Datos adicionales encontrados en notes:", additionalData);
+              Object.assign(formDataUpdate, additionalData);
             } catch (e) {
               console.error("Error al parsear notes:", e);
             }
           }
-
-          // Si encontramos datos adicionales, añadirlos al formulario
-          if (additionalData) {
-            console.log("Datos adicionales encontrados:", additionalData);
-            
-            // Iterar a través de los campos adicionales
-            [
-              'tipoDocumento', 'numeroDocumento', 'representanteLegal',
-              'actividadComercial', 'sectorEconomico', 'tamanoEmpresa',
-              'ingresosMensuales', 'patrimonio', 'entidadBancaria',
-              'tipoCuenta', 'numeroCuenta', 'nombreContacto',
-              'cargoContacto', 'telefonoContacto', 'emailContacto'
-            ].forEach(field => {
-              if (additionalData[field] !== undefined && additionalData[field] !== null) {
-                formDataUpdate[field] = additionalData[field];
-              }
-            });
-          }
-
-          console.log("Actualizando formulario con datos procesados:", formDataUpdate);
-          setFormData(prev => ({ ...prev, ...formDataUpdate }));
+          
+          // Procesar campos específicos si están disponibles directamente
+          [
+            'tipoDocumento', 'numeroDocumento', 'representanteLegal',
+            'actividadComercial', 'sectorEconomico', 'tamanoEmpresa',
+            'ingresosMensuales', 'patrimonio', 'entidadBancaria',
+            'tipoCuenta', 'numeroCuenta', 'nombreContacto',
+            'cargoContacto', 'telefonoContacto', 'emailContacto'
+          ].forEach(field => {
+            if (profileData[field]) {
+              formDataUpdate[field] = profileData[field];
+            }
+          });
+          
+          console.log("Actualizando formulario con datos:", formDataUpdate);
+          setFormData(prev => ({
+            ...prev,
+            ...formDataUpdate,
+          }));
+          
+          setExistingProfile(profileData);
+          console.log('Perfil cargado exitosamente desde la API');
         }
       } catch (error) {
         console.error('Error al obtener perfil:', error);
         
+        // Mostrar detalles específicos del error para debugging
         if (error.response) {
           console.error('Respuesta de error:', error.response.status, error.response.data);
         } else if (error.request) {
@@ -173,20 +223,22 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
           console.error('Error:', error.message);
         }
         
-        // Inicializar con datos básicos del usuario si hay error
-        if (user) {
+        // Si no existe perfil, inicializar con el email del usuario logueado
+        const userFromContext = user || JSON.parse(localStorage.getItem('user') || '{}');
+        if (userFromContext) {
           setFormData(prev => ({
             ...prev,
-            email: user.mail || user.email || '',
-            nombre: user.nombre || user.name || ''
+            email: userFromContext.mail || userFromContext.email || '',
+            nombre: userFromContext.nombre || userFromContext.name || ''
           }));
         }
       }
     };
 
     fetchProfile();
-  }, [user]);
+  }, [user]); // Dependencia del useEffect
 
+  // Manejar cambios en campos de formulario
   const handleChange = (e) => {
     const { name, value } = e.target;
 
@@ -222,6 +274,7 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
     }
   };
 
+  // Manejar cambios en archivos
   const handleFileChange = (e) => {
     const { name, files } = e.target;
     setFormData(prev => ({
@@ -230,23 +283,24 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
     }));
   };
 
+  // Manejar cierre de modal de confirmación
   const handleConfirmationClose = () => {
     setShowConfirmation(false);
 
-    // Si la operación fue exitosa, cerrar el formulario y regresar al dashboard
+    // Si la operación fue exitosa, cerrar el formulario
     if (confirmationIsSuccess) {
-      onClose(); // Cerrar el modal de perfil
+      onClose();
     }
-    // Si hubo un error, seguimos mostrando el formulario para corregir
   };
 
+  // Manejar envío del formulario
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
     setSuccess('');
 
-    // Validaciones
+    // Validar NIT y dígito de verificación
     if (formData.nit && !/^\d+$/.test(formData.nit)) {
       setFieldErrors(prev => ({
         ...prev,
@@ -273,93 +327,57 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
     }
 
     try {
-      // Crear FormData para enviar archivos
+      // Preparar FormData para envío
       const formDataToSend = new FormData();
       
-      // Agregar campos básicos
-      formDataToSend.append('nombre', formData.nombre);
-      formDataToSend.append('email', formData.email);
-      formDataToSend.append('telefono', formData.telefono);
-      formDataToSend.append('direccion', formData.direccion);
-      formDataToSend.append('ciudad', formData.ciudad);
-      formDataToSend.append('pais', formData.pais);
+      // Agregar campos específicos para SAP
+      formDataToSend.append('nit_number', formData.nit || '');
+      formDataToSend.append('verification_digit', formData.digitoVerificacion || '');
+      formDataToSend.append('tax_id', taxId);
       
-      // Información empresarial
-      formDataToSend.append('razonSocial', formData.razonSocial);
-      formDataToSend.append('nit', formData.nit);
-      formDataToSend.append('digitoVerificacion', formData.digitoVerificacion);
-      
-      // Crear objeto de datos adicionales
-      const additionalInfo = {
-        tipoDocumento: formData.tipoDocumento,
-        numeroDocumento: formData.numeroDocumento,
-        representanteLegal: formData.representanteLegal,
-        actividadComercial: formData.actividadComercial,
-        sectorEconomico: formData.sectorEconomico,
-        tamanoEmpresa: formData.tamanoEmpresa,
-        ingresosMensuales: formData.ingresosMensuales,
-        patrimonio: formData.patrimonio,
-        entidadBancaria: formData.entidadBancaria,
-        tipoCuenta: formData.tipoCuenta,
-        numeroCuenta: formData.numeroCuenta,
-        nombreContacto: formData.nombreContacto,
-        cargoContacto: formData.cargoContacto,
-        telefonoContacto: formData.telefonoContacto,
-        emailContacto: formData.emailContacto
-      };
-      
-      // Añadir datos adicionales como JSON
-      formDataToSend.append('additionalInfo', JSON.stringify(additionalInfo));
-      
-      // Agregar archivos solo si están presentes
-      if (formData.fotocopiaCedula) {
-        formDataToSend.append('fotocopiaCedula', formData.fotocopiaCedula);
-      }
-      
-      if (formData.fotocopiaRut) {
-        formDataToSend.append('fotocopiaRut', formData.fotocopiaRut);
-      }
-      
-      if (formData.anexosAdicionales) {
-        formDataToSend.append('anexosAdicionales', formData.anexosAdicionales);
-      }
-      
-      // Obtener ID de usuario
+      // Agregar todos los campos del formulario
+      Object.keys(formData).forEach(key => {
+        if (key === 'fotocopiaCedula' || key === 'fotocopiaRut' || key === 'anexosAdicionales') {
+          if (formData[key]) {
+            formDataToSend.append(key, formData[key]);
+          }
+        } else {
+          formDataToSend.append(key, formData[key]);
+        }
+      });
+
+      // Obtener el ID del usuario
       const userId = getUserId();
       if (!userId) {
-        throw new Error('No se puede identificar el ID de usuario');
+        throw new Error("No se pudo determinar el ID del usuario");
       }
       
-      // Agregar ID del usuario
       formDataToSend.append('userId', userId);
-      
-      // Determinar el endpoint según si es crear o actualizar
+
+      // Determinar endpoint y método según si estamos actualizando o creando
       const endpoint = existingProfile
         ? `/client-profiles/user/${userId}`
         : '/client-profiles';
-        
-      console.log(`Enviando datos al endpoint: ${endpoint}`);
-      
-      // Combinar los headers para FormData y ngrok
-      const headers = { 
-        'Content-Type': 'multipart/form-data',
-        ...ngrokHeaders 
-      };
-      
-      // Realizar la solicitud
-      let response;
-      if (existingProfile) {
-        response = await apiService.put(endpoint, formDataToSend, { headers });
-      } else {
-        response = await apiService.post(endpoint, formDataToSend, { headers });
-      }
-      
+      const method = existingProfile ? 'put' : 'post';
+
+      console.log(`Enviando datos al endpoint: ${endpoint} con método: ${method}`);
+
+      // Ejecutar la solicitud
+      const response = await API({
+        method,
+        url: endpoint,
+        data: formDataToSend,
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+
       console.log("Respuesta de guardado:", response.data);
 
-      // Extraer los datos guardados
+      // Extraer datos guardados
       const savedData = response.data?.data || response.data;
 
-      // Crear objeto con la información relevante actualizada
+      // Información de usuario actualizada para el contexto
       const updatedUserData = {
         nombre: formData.nombre,
         email: formData.email,
@@ -368,62 +386,66 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
         ciudad: formData.ciudad
       };
 
-      // Guardar perfil en localStorage para acceso rápido
+      // Guardar en localStorage para acceso rápido
       localStorage.setItem('clientProfile', JSON.stringify({
         nombre: formData.nombre,
         email: formData.email
       }));
 
-      // Actualizar la información en el contexto de autenticación
-      updateUserInfo(updatedUserData);
+      // Actualizar contexto de autenticación
+      if (typeof updateUserInfo === 'function') {
+        updateUserInfo(updatedUserData);
+      }
 
-      // Notificar al Dashboard sobre el cambio de nombre si existe la función
+      // Notificar al Dashboard sobre el cambio
       if (typeof onProfileUpdate === 'function') {
         onProfileUpdate(formData.nombre);
       }
 
-      // Mostrar mensaje de éxito
+      // Mostrar confirmación de éxito
       setSuccess('Perfil guardado correctamente');
-      setExistingProfile(response.data);
-
-      // Configurar y mostrar el modal de confirmación exitosa
+      setExistingProfile(savedData);
       setConfirmationIsSuccess(true);
       setConfirmationMessage('Datos Almacenados Correctamente');
       setShowConfirmation(true);
 
     } catch (error) {
+      // Manejar errores
       console.error('Error al guardar perfil:', error);
       
-      let errorMessage = 'Error al guardar el perfil';
-
-      if (error.response) {
-        console.error('Detalles del error:', error.response.status, error.response.data);
-        errorMessage = error.response.data?.message || 'Error en la respuesta del servidor';
-
-        // Manejar códigos de estado específicos
-        if (error.response.status === 401) {
-          errorMessage = 'Sesión expirada. Por favor, inicie sesión nuevamente.';
-        } else if (error.response.status === 403) {
-          errorMessage = 'No tiene permisos para realizar esta acción.';
-        } else if (error.response.status === 422) {
-          errorMessage = 'Datos de formulario inválidos. Por favor verifique los campos.';
-        }
-      } else if (error.request) {
-        errorMessage = 'No se recibió respuesta del servidor. Verifique su conexión.';
-      } 
-      
+      const errorMessage = error.response?.data?.message || 
+                          error.message || 
+                          'Error al guardar el perfil';
       setError(errorMessage);
 
-      // Configurar y mostrar el modal de confirmación de error
       setConfirmationIsSuccess(false);
       setConfirmationMessage('Datos Incorrectos. Por favor verifique la información proporcionada.');
       setShowConfirmation(true);
-      
     } finally {
       setLoading(false);
     }
   };
 
+  // Componente de depuración (solo para desarrollo)
+  const DebugPanel = () => {
+    if (import.meta.env.MODE !== 'development') return null;
+    
+    return (
+      <div className="bg-yellow-100 p-4 mb-4 text-xs rounded">
+        <h4 className="font-bold mb-1">Debug Info</h4>
+        <div>User ID: {getUserId() || 'No disponible'}</div>
+        <div>Usuario en contexto: {user ? 'Disponible' : 'No disponible'}</div>
+        <div>Usuario en localStorage: {localStorage.getItem('user') ? 'Disponible' : 'No disponible'}</div>
+        <details>
+          <summary>Ver datos completos</summary>
+          <pre className="mt-2 overflow-auto max-h-40">
+            {JSON.stringify(debugInfo, null, 2)}
+          </pre>
+        </details>
+      </div>
+    );
+  };
+  
   return (
     <div className="client-profile-overlay">
       <div className="client-profile-container">
@@ -437,17 +459,13 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
         {error && <div className="profile-error-message">{error}</div>}
         {success && <div className="profile-success-message">{success}</div>}
         {isFormLocked && (
-          <div className="bg-yellow-50 text-yellow-800 p-4 mb-6 rounded-md border border-yellow-200 flex items-center">
-            <FaExclamationCircle className="mr-2" />
-            <span>Este perfil ya ha sido sincronizado con SAP y no puede ser modificado.</span>
+          <div className="locked-message">
+            <p className="text-sm text-gray-600 bg-yellow-100 border border-yellow-400 px-4 py-2 rounded mt-2">
+              Este perfil ya ha sido sincronizado con SAP y no puede ser modificado.
+            </p>
           </div>
         )}
-        {loading && (
-          <div className="flex justify-center items-center p-4 my-4">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-            <p className="ml-2">Cargando datos del perfil...</p>
-          </div>
-        )}
+
         <div className="client-profile-content">
           <form onSubmit={handleSubmit} className="client-profile-form">
             {/* Sección 1: Información Básica */}
