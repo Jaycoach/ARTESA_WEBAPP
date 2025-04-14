@@ -70,7 +70,7 @@ const Sidebar = ({ collapsed, onToggle }) => {
 
   return (
     <div className="h-full flex flex-col text-white overflow-y-auto">
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto pt-8">
         {!collapsed && <h3 className="text-xs uppercase text-white/70 px-4 mb-2">Menú</h3>}
 
         <ul className="space-y-1 px-2">
