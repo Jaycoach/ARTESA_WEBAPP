@@ -7,33 +7,48 @@ const determineBaseUrl = () => {
   console.log("VITE_USE_NGROK:", import.meta.env.VITE_USE_NGROK);
   console.log("VITE_API_PATH:", import.meta.env.VITE_API_PATH);
   
-  // Si tenemos una URL de API explícita, usarla
-  if (import.meta.env.VITE_API_URL) {
-    console.log(`Usando API URL explícita: ${import.meta.env.VITE_API_URL}`);
+  // Si estamos en modo Ngrok, SIEMPRE usar la URL explícita 
+  // de la API (que debe ser localhost:3000)
+  if (import.meta.env.VITE_USE_NGROK === 'true' && import.meta.env.VITE_API_URL) {
+    console.log(`Modo Ngrok activado, usando API URL explícita: ${import.meta.env.VITE_API_URL}`);
     return import.meta.env.VITE_API_URL;
   }
   
-  // Si estamos en un entorno de navegador, intentar usar la URL actual
-  if (typeof window !== 'undefined') {
+  // Para no-Ngrok, podemos intentar detectar el origen
+  if (typeof window !== 'undefined' && import.meta.env.VITE_USE_NGROK !== 'true') {
     const currentOrigin = window.location.origin;
-    if (currentOrigin.includes('ngrok') || currentOrigin.includes('ngrok-free.app')) {
-      console.log(`Detectado entorno Ngrok, usando origen: ${currentOrigin}`);
-      return currentOrigin;
+    if (currentOrigin.includes('localhost') || currentOrigin.includes('127.0.0.1')) {
+      console.log(`Desarrollo local, usando proxy: ${currentOrigin}`);
+      // En desarrollo local podemos usar rutas relativas (vacío)
+      // para aprovechar el proxy de Vite
+      return '';
     }
   }
   
-  // Fallback para desarrollo local
-  console.log('Fallback a URL local: http://localhost:3000');
+  // Si hay una URL explícita configurada, usarla
+  if (import.meta.env.VITE_API_URL) {
+    console.log(`Usando API URL explícita fallback: ${import.meta.env.VITE_API_URL}`);
+    return import.meta.env.VITE_API_URL;
+  }
+  
+  // Último fallback
+  console.log('Fallback final a URL local: http://localhost:3000');
   return 'http://localhost:3000';
 };
 
 // Obtener la URL base
 let baseURL = determineBaseUrl();
-// Verificar si la URL base ya contiene /api
-if (!baseURL.endsWith('/api')) {
+
+// Solo añadir /api si la URL no está vacía y no termina ya con /api
+if (baseURL && !baseURL.endsWith('/api')) {
   console.log(`URL base sin /api, añadiendo prefijo: ${baseURL}/api`);
   baseURL = `${baseURL}/api`;
+} else if (!baseURL) {
+  // Si la URL está vacía, usar solo /api (para rutas relativas)
+  baseURL = '/api';
+  console.log(`Usando rutas relativas: ${baseURL}`);
 }
+
 console.log(`API configurada para usar URL base final: ${baseURL}`);
 
 // Crear instancia de axios con configuración simplificada
