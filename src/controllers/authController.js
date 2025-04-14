@@ -724,7 +724,7 @@ static incrementLoginAttempts(mail) {
             
             // Si no está activo, lo activamos
             await pool.query(
-                'UPDATE users SET is_active = true, email_verified = true WHERE id = $1',
+                'UPDATE users SET email_verified = true WHERE id = $1',
                 [user.id]
             );
             
@@ -810,7 +810,7 @@ static incrementLoginAttempts(mail) {
           
           // Actualizar usuario como verificado
           await pool.query(
-            'UPDATE users SET is_active = true, email_verified = true WHERE id = $1',
+            'UPDATE users SET email_verified = true WHERE id = $1',
             [userId]
           );
           

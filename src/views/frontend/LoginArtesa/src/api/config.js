@@ -8,11 +8,10 @@ const determineBaseUrl = () => {
   console.log("VITE_API_PATH:", import.meta.env.VITE_API_PATH);
   
   // Cuando usamos ngrok para acceder a la aplicación frontend, 
-  // necesitamos seguir apuntando a localhost para la API
-  if (import.meta.env.VITE_USE_NGROK === 'true') {
-    // Uso explícito de localhost para la API cuando estamos en modo ngrok
-    console.log("Modo ngrok activo: Apuntando API a localhost:3000");
-    return 'http://localhost:3000';
+  // necesitamos apuntar a la URL pública del backend
+  if (import.meta.env.VITE_USE_NGROK === 'true' && import.meta.env.VITE_API_URL) {
+    console.log("Modo ngrok activo: Usando API URL configurada:", import.meta.env.VITE_API_URL);
+    return import.meta.env.VITE_API_URL;
   }
   
   // Para uso no-ngrok (desarrollo local normal)
