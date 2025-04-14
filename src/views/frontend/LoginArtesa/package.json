@@ -8,10 +8,11 @@
   "ngrok": "vite --config vite.config.js --mode ngrok --host",
   "dev:host": "vite --host",
   "dev:ngrok": "vite --mode ngrok --config vite.config.ngrok.js",
+  "dev:ngrok-env": "vite --mode ngrok --config vite.config.ngrok.js --env-file .env.ngrok",
   "build": "vite build",
   "build:ngrok": "vite build --mode ngrok",
   "preview": "vite preview"
-  },
+},
   "dependencies": {
     "@tailwindcss/vite": "^4.0.12",
     "@types/react-datepicker": "^6.2.0",

@@ -5,6 +5,7 @@ const determineBaseUrl = () => {
   // Imprimir todas las variables de entorno relevantes para depuración
   console.log("VITE_API_URL:", import.meta.env.VITE_API_URL);
   console.log("VITE_USE_NGROK:", import.meta.env.VITE_USE_NGROK);
+  console.log("VITE_API_PATH:", import.meta.env.VITE_API_PATH);
   
   // Si tenemos una URL de API explícita, usarla
   if (import.meta.env.VITE_API_URL) {
@@ -41,6 +42,32 @@ const API = axios.create({
   },
   withCredentials: false
 });
+
+// Agregar interceptor para asegurar que todas las solicitudes incluyan el prefijo /api
+API.interceptors.request.use(
+  (config) => {
+    // Obtener la ruta de API desde las variables de entorno
+    const apiPath = import.meta.env.VITE_API_PATH || '/api';
+    
+    // No modificar URL que ya comienzan con http o https
+    if (config.url.startsWith('http://') || config.url.startsWith('https://')) {
+      return config;
+    }
+    
+    // Evitar duplicar el prefijo si ya está presente
+    if (!config.url.startsWith(apiPath)) {
+      if (config.url.startsWith('/')) {
+        config.url = `${apiPath}${config.url}`;
+      } else {
+        config.url = `${apiPath}/${config.url}`;
+      }
+    }
+    
+    console.log(`URL final de petición: ${config.baseURL}${config.url}`);
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
 
 console.log('API configurada con baseURL:', API.defaults.baseURL);
 console.log('API Path configurado:', import.meta.env.VITE_API_PATH);
