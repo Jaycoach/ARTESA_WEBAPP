@@ -7,7 +7,7 @@
   "dev": "vite",
   "ngrok": "vite --config vite.config.js --mode ngrok --host",
   "dev:host": "vite --host",
-  "dev:ngrok": "vite --mode ngrok",
+  "dev:ngrok": "vite --mode ngrok --host",
   "dev:ngrok-env": "vite --mode ngrok --config vite.config.ngrok.js --env-file .env.ngrok",
   "build": "vite build",
   "build:ngrok": "vite build --mode ngrok",
