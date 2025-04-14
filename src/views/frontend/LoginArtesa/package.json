@@ -7,7 +7,7 @@
   "dev": "vite",
   "ngrok": "vite --config vite.config.js --mode ngrok --host",
   "dev:host": "vite --host",
-  "dev:ngrok": "vite --mode grok --config vite.config.ngrok.js",
+  "dev:ngrok": "vite --mode ngrok --config vite.config.ngrok.js",
   "build": "vite build",
   "build:ngrok": "vite build --mode ngrok",
   "preview": "vite preview"

@@ -2,32 +2,33 @@ import axios from 'axios';
 import { isNgrok, isDevelopment } from '../utils/environment';
 
 const determineBaseUrl = () => {
-  // Obtener el prefijo de API si está definido
-  const apiPath = import.meta.env.VITE_API_PATH || '/api';
+  // Imprimir todas las variables de entorno relevantes para depuración
+  console.log("VITE_API_URL:", import.meta.env.VITE_API_URL);
+  console.log("VITE_USE_NGROK:", import.meta.env.VITE_USE_NGROK);
   
-  // Si estamos usando ngrok, usar la URL de ngrok del archivo .env.grok
-  if (import.meta.env.VITE_USE_NGROK === 'true' && import.meta.env.VITE_API_URL) {
-    const baseUrl = import.meta.env.VITE_API_URL;
-    console.log(`Usando URL de ngrok: ${baseUrl}${apiPath}`);
-    // Aquí aseguramos que la URL termina correctamente concatenada con el prefijo
-    return `${baseUrl}${apiPath}`;
-  }
-  
-  // Intentar con VITE_API_URL
+  // Si tenemos una URL de API explícita, usarla
   if (import.meta.env.VITE_API_URL) {
-    const baseUrl = import.meta.env.VITE_API_URL;
-    console.log(`Usando VITE_API_URL: ${baseUrl}${apiPath}`);
-    return `${baseUrl}${apiPath}`;
+    console.log(`Usando API URL explícita: ${import.meta.env.VITE_API_URL}`);
+    return import.meta.env.VITE_API_URL;
   }
-
+  
+  // Si estamos en un entorno de navegador, intentar usar la URL actual
+  if (typeof window !== 'undefined') {
+    const currentOrigin = window.location.origin;
+    if (currentOrigin.includes('ngrok') || currentOrigin.includes('ngrok-free.app')) {
+      console.log(`Detectado entorno Ngrok, usando origen: ${currentOrigin}`);
+      return currentOrigin;
+    }
+  }
+  
   // Fallback para desarrollo local
-  console.log('Fallback a URL local con prefijo API');
-  return `http://localhost:3000${apiPath}`;
+  console.log('Fallback a URL local: http://localhost:3000');
+  return 'http://localhost:3000';
 };
 
 // Obtener la URL base
 const baseURL = determineBaseUrl();
-console.log(`API configurada para usar URL base: ${baseURL}`);
+console.log(`API configurada para usar URL base final: ${baseURL}`);
 
 // Crear instancia de axios con configuración simplificada
 const API = axios.create({
@@ -35,10 +36,8 @@ const API = axios.create({
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
-    ...(import.meta.env.VITE_USE_NGROK === 'true' ? {
-      'ngrok-skip-browser-warning': '69420',
-      'Bypass-Tunnel-Reminder': 'true'
-    } : {})
+    'ngrok-skip-browser-warning': '69420',
+    'Bypass-Tunnel-Reminder': 'true'
   },
   withCredentials: false
 });
