@@ -84,7 +84,8 @@ export default ({ mode }) => {
         '/api': {
           target: 'http://localhost:3000',
           changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/api/, '')
+          // Mantener el prefijo /api
+          rewrite: (path) => path
         }
       } : undefined,
       host: true,

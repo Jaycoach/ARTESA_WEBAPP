@@ -1,24 +1,28 @@
 import axios from 'axios';
 import { isNgrok, isDevelopment } from '../utils/environment';
 
-// Función para determinar la URL base (mejorada)
-// Función para determinar la URL base (simplificada)
 const determineBaseUrl = () => {
+  // Obtener el prefijo de API si está definido
+  const apiPath = import.meta.env.VITE_API_PATH || '/api';
+  
   // Si estamos usando ngrok, usar la URL de ngrok del archivo .env.grok
   if (import.meta.env.VITE_USE_NGROK === 'true' && import.meta.env.VITE_API_URL) {
-    console.log(`Usando URL de ngrok: ${import.meta.env.VITE_API_URL}`);
-    return import.meta.env.VITE_API_URL;
+    const baseUrl = import.meta.env.VITE_API_URL;
+    console.log(`Usando URL de ngrok: ${baseUrl}${apiPath}`);
+    // Aquí aseguramos que la URL termina correctamente concatenada con el prefijo
+    return `${baseUrl}${apiPath}`;
   }
   
   // Intentar con VITE_API_URL
   if (import.meta.env.VITE_API_URL) {
-    console.log(`Usando VITE_API_URL: ${import.meta.env.VITE_API_URL}`);
-    return import.meta.env.VITE_API_URL;
+    const baseUrl = import.meta.env.VITE_API_URL;
+    console.log(`Usando VITE_API_URL: ${baseUrl}${apiPath}`);
+    return `${baseUrl}${apiPath}`;
   }
 
   // Fallback para desarrollo local
-  console.log('Fallback a URL local');
-  return 'http://localhost:3000';
+  console.log('Fallback a URL local con prefijo API');
+  return `http://localhost:3000${apiPath}`;
 };
 
 // Obtener la URL base
@@ -38,6 +42,18 @@ const API = axios.create({
   },
   withCredentials: false
 });
+
+console.log('API configurada con baseURL:', API.defaults.baseURL);
+console.log('API Path configurado:', import.meta.env.VITE_API_PATH);
+
+// Añadir log adicional en interceptor de peticiones
+API.interceptors.request.use(
+  (config) => {
+    console.log(`Enviando petición completa a: ${config.baseURL}${config.url}`);
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
 
 // Mejorar el interceptor para evitar prefijos duplicados
 // Simplificar el interceptor para evitar modificaciones innecesarias
