@@ -2,29 +2,22 @@ import axios from 'axios';
 import { isNgrok, isDevelopment } from '../utils/environment';
 
 // Función para determinar la URL base (mejorada)
+// Función para determinar la URL base (simplificada)
 const determineBaseUrl = () => {
-  // Priorizar VITE_REACT_APP_API_URL para compatibilidad con código existente
-  if (import.meta.env.VITE_REACT_APP_API_URL) {
-    console.log(`Usando VITE_REACT_APP_API_URL: ${import.meta.env.VITE_REACT_APP_API_URL}`);
-    return import.meta.env.VITE_REACT_APP_API_URL;
+  // Si estamos usando ngrok, usar la URL de ngrok del archivo .env.grok
+  if (import.meta.env.VITE_USE_NGROK === 'true' && import.meta.env.VITE_API_URL) {
+    console.log(`Usando URL de ngrok: ${import.meta.env.VITE_API_URL}`);
+    return import.meta.env.VITE_API_URL;
   }
   
-  // Luego intentar con VITE_API_URL
+  // Intentar con VITE_API_URL
   if (import.meta.env.VITE_API_URL) {
     console.log(`Usando VITE_API_URL: ${import.meta.env.VITE_API_URL}`);
     return import.meta.env.VITE_API_URL;
   }
 
-  // Detectar Ngrok automáticamente
-  const currentHost = window.location.hostname;
-  const isNgrokHost = currentHost.includes('ngrok') || currentHost.includes('ngrok-free.app');
-
-  if (isNgrokHost) {
-    console.log(`Detectado host ngrok: ${window.location.origin}`);
-    return `${window.location.origin}`;
-  }
-
   // Fallback para desarrollo local
+  console.log('Fallback a URL local');
   return 'http://localhost:3000';
 };
 
@@ -32,18 +25,13 @@ const determineBaseUrl = () => {
 const baseURL = determineBaseUrl();
 console.log(`API configurada para usar URL base: ${baseURL}`);
 
-// Definir el path de API (considerar si ya está incluido en baseURL)
-const apiPath = import.meta.env.VITE_API_PATH || '/api';
-const baseURLIncludesApiPath = baseURL.includes(apiPath);
-
-// Crear instancia de axios con configuración mejorada
+// Crear instancia de axios con configuración simplificada
 const API = axios.create({
-  baseURL: baseURLIncludesApiPath ? baseURL : `${baseURL}${apiPath}`,
+  baseURL: baseURL,
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
-    ...(import.meta.env.VITE_USE_NGROK === 'true' || 
-       window.location.hostname.includes('ngrok') ? {
+    ...(import.meta.env.VITE_USE_NGROK === 'true' ? {
       'ngrok-skip-browser-warning': '69420',
       'Bypass-Tunnel-Reminder': 'true'
     } : {})
@@ -52,34 +40,10 @@ const API = axios.create({
 });
 
 // Mejorar el interceptor para evitar prefijos duplicados
+// Simplificar el interceptor para evitar modificaciones innecesarias
 API.interceptors.request.use(
   (config) => {
-    // Si la URL ya comienza con http o https, no modificar
-    if (config.url.startsWith('http')) {
-      console.log(`URL absoluta, no se modifica: ${config.url}`);
-      return config;
-    }
-    
-    // Si baseURL ya incluye apiPath, no necesitamos añadirlo de nuevo
-    if (baseURLIncludesApiPath) {
-      // Asegurar que la URL empiece con /
-      config.url = config.url.startsWith('/') ? config.url : `/${config.url}`;
-      console.log(`URL con baseURL que ya incluye apiPath: ${config.baseURL}${config.url}`);
-      return config;
-    }
-
-    // Si la URL ya incluye el prefijo API, no modificar
-    if (config.url.startsWith(apiPath)) {
-      console.log(`URL ya contiene prefijo API: ${config.url}`);
-      return config;
-    }
-
-    // Normalizar la URL y añadir prefijo API
-    const normalizedUrl = config.url.startsWith('/') ? config.url : `/${config.url}`;
-    // Aquí ya no añadimos apiPath porque ya se incluye en baseURL
-    config.url = normalizedUrl;
-    console.log(`URL normalizada: ${config.baseURL}${config.url}`);
-
+    console.log(`Enviando petición a: ${config.baseURL}${config.url}`);
     return config;
   },
   (error) => Promise.reject(error)

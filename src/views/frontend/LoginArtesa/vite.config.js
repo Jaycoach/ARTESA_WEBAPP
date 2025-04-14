@@ -80,13 +80,13 @@ export default ({ mode }) => {
         clientPort: mode === 'ngrok' ? 443 : undefined,
         protocol: mode === 'ngrok' ? 'wss' : 'ws',
       },
-      proxy: {
+      proxy: mode !== 'ngrok' ? {
         '/api': {
           target: 'http://localhost:3000',
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/api/, '')
         }
-      },
+      } : undefined,
       host: true,
       cors: true,
       // Simplificar para permitir cualquier host en ngrok
