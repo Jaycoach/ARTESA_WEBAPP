@@ -28,7 +28,12 @@ const determineBaseUrl = () => {
 };
 
 // Obtener la URL base
-const baseURL = determineBaseUrl();
+let baseURL = determineBaseUrl();
+// Verificar si la URL base ya contiene /api
+if (!baseURL.endsWith('/api')) {
+  console.log(`URL base sin /api, añadiendo prefijo: ${baseURL}/api`);
+  baseURL = `${baseURL}/api`;
+}
 console.log(`API configurada para usar URL base final: ${baseURL}`);
 
 // Crear instancia de axios con configuración simplificada
@@ -43,80 +48,31 @@ const API = axios.create({
   withCredentials: false
 });
 
-// Agregar interceptor para asegurar que todas las solicitudes incluyan el prefijo /api
+// Interceptor principal para autenticación y logs
 API.interceptors.request.use(
   (config) => {
-    // Obtener la ruta de API desde las variables de entorno
-    const apiPath = import.meta.env.VITE_API_PATH || '/api';
-    
-    // No modificar URL que ya comienzan con http o https
-    if (config.url.startsWith('http://') || config.url.startsWith('https://')) {
-      return config;
-    }
-    
-    // Evitar duplicar el prefijo si ya está presente
-    if (!config.url.startsWith(apiPath)) {
-      if (config.url.startsWith('/')) {
-        config.url = `${apiPath}${config.url}`;
-      } else {
-        config.url = `${apiPath}/${config.url}`;
-      }
-    }
-    
-    console.log(`URL final de petición: ${config.baseURL}${config.url}`);
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
-
-console.log('API configurada con baseURL:', API.defaults.baseURL);
-console.log('API Path configurado:', import.meta.env.VITE_API_PATH);
-
-// Añadir log adicional en interceptor de peticiones
-API.interceptors.request.use(
-  (config) => {
-    console.log(`Enviando petición completa a: ${config.baseURL}${config.url}`);
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
-
-// Mejorar el interceptor para evitar prefijos duplicados
-// Simplificar el interceptor para evitar modificaciones innecesarias
-API.interceptors.request.use(
-  (config) => {
-    console.log(`Enviando petición a: ${config.baseURL}${config.url}`);
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
-
-// Interceptor mejorado para autenticación con manejo de errores
-API.interceptors.request.use(
-  (config) => {
+    // Añadir token de autenticación si existe
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
       console.log("Token de autenticación añadido a la petición");
-    } else {
-      console.warn("No se encontró token de autenticación");
     }
+    
+    // Logging de la URL final
+    console.log(`Enviando petición a: ${config.baseURL}${config.url}`);
+    
     return config;
   },
   (error) => Promise.reject(error)
 );
 
-// Interceptor para manejar respuestas de error comunes
+// Interceptor para manejar respuestas de error
 API.interceptors.response.use(
   (response) => response,
   (error) => {
     // Manejar errores específicos como token expirado
     if (error.response && error.response.status === 401) {
       console.error("Sesión expirada o token inválido");
-      // Opcionalmente limpiar localStorage y redirigir a login
-      // localStorage.removeItem('token');
-      // localStorage.removeItem('user');
-      // window.location.href = '/login';
     }
     return Promise.reject(error);
   }

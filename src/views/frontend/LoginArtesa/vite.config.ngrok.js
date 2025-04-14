@@ -25,8 +25,6 @@ export default ({ mode }) => {
     server: {
       hmr: {
         overlay: true,
-        clientPort: 443,
-        host: 'all',
       },
       host: true,
       cors: true,

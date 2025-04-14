@@ -11,6 +11,19 @@ console.log("URL de ngrok:", import.meta.env.VITE_NGROK_URL);
 import { RECAPTCHA_SITE_KEY, RECAPTCHA_DEV_MODE } from './config/env';
 import './App.css';
 
+// Agregar esto en main.jsx o al inicio de App.jsx
+fetch('https://6a22-91-126-42-32.ngrok-free.app/api')
+  .then(response => {
+    console.log('Estado de respuesta API principal:', response.status);
+    return response.text();
+  })
+  .then(data => {
+    console.log('Respuesta API:', data);
+  })
+  .catch(error => {
+    console.error('Error al verificar API:', error);
+  });
+
 // Usar la configuración centralizada para reCAPTCHA
 const finalRecaptchaKey = import.meta.env.DEV && !RECAPTCHA_SITE_KEY
   ? '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI' // Clave de prueba de Google
