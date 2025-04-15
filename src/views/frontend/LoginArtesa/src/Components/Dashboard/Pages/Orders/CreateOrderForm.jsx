@@ -106,7 +106,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
   // Formatear precio para visualización
   const formatProductName = (product) => {
     const price = getProductPrice(product);
-    return `${product.name} - $${price.toFixed(2)}`;
+    return `${product.name} - ${formatCurrencyCOP(price)}`;
   };
 
   const handleAddProduct = () => {
@@ -142,7 +142,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     return orderDetails.reduce((total, item) => {
       const itemTotal = item.quantity * item.unit_price;
       return total + (isNaN(itemTotal) ? 0 : itemTotal);
-    }, 0).toFixed(2);
+    }, 0);
   };
 
   const showNotification = (message, type = 'success') => {
@@ -294,6 +294,37 @@ const CreateOrderForm = ({ onOrderCreated }) => {
 
   const handleCancelConfirmationClose = () => {
     setShowCancelConfirmation(false);
+  };
+
+  // Función para formatear valores monetarios en formato colombiano
+  const formatCurrencyCOP = (value) => {
+    // Aseguramos que value sea un número
+    const numValue = parseFloat(value);
+    if (isNaN(numValue)) return "$ 0";
+
+    // Convertimos a entero (eliminamos decimales)
+    const intValue = Math.floor(numValue);
+
+    // Convertimos a string
+    const valueStr = intValue.toString();
+
+    // Para valores menores a un millón, solo usamos puntos para miles
+    if (valueStr.length <= 6) {
+      return `$ ${valueStr.replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
+    }
+
+    // Para valores de un millón o más
+    // Obtenemos la parte de millones y la parte de miles
+    const millionsPart = valueStr.slice(0, valueStr.length - 6);
+    const thousandsPart = valueStr.slice(valueStr.length - 6);
+
+    // Formateamos millones con puntos si son miles de millones
+    const formattedMillions = millionsPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    // Formateamos miles con puntos
+    const formattedThousands = thousandsPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+
+    // Unimos con apóstrofe
+    return `$ ${formattedMillions}'${formattedThousands}`;
   };
 
   // Si están cargando los productos o configuraciones, mostrar indicador
@@ -481,12 +512,12 @@ const CreateOrderForm = ({ onOrderCreated }) => {
 
                     {/* Precio unitario */}
                     <td className="px-6 py-4 whitespace-nowrap">
-                      ${parseFloat(detail.unit_price).toFixed(2)}
+                      {formatCurrencyCOP(detail.unit_price)}
                     </td>
 
                     {/* Subtotal */}
                     <td className="px-6 py-4 whitespace-nowrap">
-                      ${(detail.quantity * detail.unit_price).toFixed(2)}
+                      {formatCurrencyCOP(detail.quantity * detail.unit_price)}
                     </td>
 
                     {/* Acciones */}
@@ -521,7 +552,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
           </button>
 
           <div className="text-xl font-bold" style={{ color: '#2c3e50' }}>
-            Total: ${calculateTotal()}
+            Total: {formatCurrencyCOP(calculateTotal())}
           </div>
         </div>
 
@@ -610,7 +641,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
           <div className="bg-white rounded-lg p-6 max-w-md mx-auto">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Confirmar pedido</h3>
             <p className="text-gray-500 mb-2">¿Estás seguro de que deseas crear este pedido?</p>
-            <p className="text-gray-700 font-medium mb-4">Total: ${calculateTotal()}</p>
+            <p className="text-gray-700 font-medium mb-4">Total: {formatCurrencyCOP(calculateTotal())}</p>
 
             <div className="flex justify-end gap-3">
               <button
