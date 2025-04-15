@@ -165,7 +165,7 @@ class ClientSyncController {
       }
 
       // Ejecutar sincronización
-      const results = await sapServiceManager.syncClients();
+      const results = await sapServiceManager.clientService.syncClientsWithSAP();
       
       res.status(200).json({
         success: true,
