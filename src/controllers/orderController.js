@@ -2294,8 +2294,45 @@ const getMonthlyStats = async (req, res) => {
 };
 
 /**
- * Método auxiliar para diagnóstico - ejecuta consulta SQL directamente
- * @route GET /api/orders/debug/{userId}
+ * @swagger
+ * /api/orders/debug/{userId}:
+ *   get:
+ *     summary: Ejecutar diagnóstico SQL directo para órdenes de usuario
+ *     description: Realiza una consulta SQL directa para obtener información detallada de todas las órdenes de un usuario
+ *     tags: [Orders]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID del usuario para diagnóstico
+ *     responses:
+ *       200:
+ *         description: Resultados de diagnóstico obtenidos exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 source:
+ *                   type: string
+ *                   example: "sql_direct"
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *       401:
+ *         description: No autorizado
+ *       403:
+ *         description: Solo administradores pueden usar esta función
+ *       500:
+ *         description: Error interno del servidor
  */
 const debugUserOrders = async (req, res) => {
   try {

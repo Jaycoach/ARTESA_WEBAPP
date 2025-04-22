@@ -229,6 +229,19 @@ router.get('/orders/top-products', verifyToken, getTopSellingProducts);
 router.get('/orders/monthly-stats', verifyToken, getMonthlyStats);
 
 /**
+ * Ejecutar diagnóstico SQL directo para órdenes de usuario
+ * @route GET /orders/debug/{userId}
+ * @group Orders - Operaciones relacionadas con órdenes
+ * @param {number} userId.path.required - ID del usuario para diagnóstico
+ * @security bearerAuth
+ * @returns {object} 200 - Resultados de diagnóstico obtenidos exitosamente
+ * @returns {object} 401 - No autorizado
+ * @returns {object} 403 - Solo administradores pueden usar esta función
+ * @returns {object} 500 - Error interno del servidor
+ */
+router.get('/orders/debug/:userId', verifyToken, checkRole([1]), debugUserOrders);
+
+/**
  * Obtener una orden específica
  * @route GET /orders/{orderId}
  * @group Orders - Operaciones relacionadas con órdenes
@@ -242,19 +255,6 @@ router.get('/orders/monthly-stats', verifyToken, getMonthlyStats);
  */
 // Ruta para obtener una orden específica
 router.get('/orders/:orderId', verifyToken, getOrderById);
-
-/**
- * Ejecutar diagnóstico SQL directo para órdenes de usuario
- * @route GET /orders/debug/{userId}
- * @group Orders - Operaciones relacionadas con órdenes
- * @param {number} userId.path.required - ID del usuario para diagnóstico
- * @security bearerAuth
- * @returns {object} 200 - Resultados de diagnóstico obtenidos exitosamente
- * @returns {object} 401 - No autorizado
- * @returns {object} 403 - Solo administradores pueden usar esta función
- * @returns {object} 500 - Error interno del servidor
- */
-router.get('/orders/debug/:userId', verifyToken, checkRole([1]), debugUserOrders);
 
 /**
  * Actualizar una orden existente
