@@ -420,6 +420,13 @@ const getUserOrders = async (req, res) => {
 
     // Obtener las órdenes
     const orders = await Order.getUserOrders(userId);
+
+    // Log detallado para diagnóstico
+    if (orders.length > 0) {
+      logger.debug('Detalles de la primera orden recuperada:', {
+        firstOrder: JSON.stringify(orders[0])
+      });
+    }
     
     logger.info('Órdenes de usuario recuperadas exitosamente', {
       targetUserId: userId,
@@ -2286,6 +2293,57 @@ const getMonthlyStats = async (req, res) => {
   }
 };
 
+/**
+ * Método auxiliar para diagnóstico - ejecuta consulta SQL directamente
+ * @route GET /api/orders/debug/{userId}
+ */
+const debugUserOrders = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const user = req.user;
+    
+    if (user.rol_id !== 1) {
+      return res.status(403).json({
+        success: false,
+        message: 'Solo administradores pueden usar esta función de diagnóstico'
+      });
+    }
+    
+    logger.debug('Ejecutando consulta SQL directa para diagnóstico', { userId });
+    
+    // Ejecutar la consulta SQL directamente
+    const query = `
+      SELECT o.*, 
+            COUNT(od.order_detail_id) as item_count, 
+            SUM(od.quantity) as total_items
+      FROM Orders o
+      LEFT JOIN Order_Details od ON o.order_id = od.order_id
+      WHERE o.user_id = $1
+      GROUP BY o.order_id
+      ORDER BY o.order_date DESC
+    `;
+    
+    const { rows } = await pool.query(query, [userId]);
+    
+    res.status(200).json({
+      success: true,
+      source: 'sql_direct',
+      data: rows
+    });
+  } catch (error) {
+    logger.error('Error en diagnóstico SQL', {
+      error: error.message,
+      stack: error.stack
+    });
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error en diagnóstico',
+      error: error.message
+    });
+  }
+};
+
 module.exports = { 
   createOrder,
   getOrderById,
@@ -2305,5 +2363,6 @@ module.exports = {
   checkInvoicedOrders,
   getInvoicesByUser,
   getTopSellingProducts,
-  getMonthlyStats
+  getMonthlyStats,
+  debugUserOrders
 };

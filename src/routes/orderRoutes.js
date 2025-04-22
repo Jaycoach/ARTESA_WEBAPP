@@ -242,6 +242,9 @@ router.get('/orders/monthly-stats', verifyToken, getMonthlyStats);
 // Ruta para obtener una orden específica
 router.get('/orders/:orderId', verifyToken, getOrderById);
 
+// Ruta de diagnóstico - solo en desarrollo o para administradores
+router.get('/orders/debug/:userId', verifyToken, checkRole([1]), debugUserOrders);
+
 /**
  * Actualizar una orden existente
  * @route PUT /orders/{orderId}

@@ -301,12 +301,23 @@ class Order {
       
       const { rows } = await pool.query(query, [userId]);
       
-      logger.info('Órdenes de usuario recuperadas', { userId, count: rows.length });
-      return rows;
+      // Log detallado de los datos recuperados para diagnóstico
+      logger.debug('Datos de órdenes recuperados', {
+        userId,
+        sampleData: rows.length > 0 ? JSON.stringify(rows[0]) : 'No data',
+        rowCount: rows.length
+      });
+      
+      // Procesar tipos de datos
+      const processedOrders = this.processOrderTypes(rows);
+      
+      logger.info('Órdenes de usuario recuperadas', { userId, count: processedOrders.length });
+      return processedOrders;
     } catch (error) {
       logger.error('Error al obtener órdenes del usuario', { 
         error: error.message,
-        userId
+        userId,
+        stack: error.stack
       });
       throw error;
     }
@@ -1042,6 +1053,35 @@ static async getMonthlyStats(userId, months = 6) {
       });
       throw error;
     }
+  }
+
+  /**
+   * Función auxiliar para procesar los tipos de datos de las órdenes
+   * @param {Array<Object>} orders - Lista de órdenes recuperadas de la base de datos
+   * @returns {Array<Object>} Lista de órdenes con tipos de datos corregidos
+   */
+  static processOrderTypes(orders) {
+    return orders.map(order => {
+      // Crear un objeto nuevo para no modificar el original
+      const processedOrder = { ...order };
+      
+      // Asegurarse de que los campos numéricos sean números
+      processedOrder.order_id = parseInt(order.order_id, 10);
+      processedOrder.user_id = parseInt(order.user_id, 10);
+      processedOrder.total_amount = order.total_amount.toString();
+      processedOrder.status_id = parseInt(order.status_id, 10);
+      processedOrder.sap_sync_attempts = parseInt(order.sap_sync_attempts || 0, 10);
+      
+      // Campos de conteo
+      processedOrder.item_count = order.item_count.toString();
+      processedOrder.total_items = order.total_items.toString();
+      
+      // Campos de entrega
+      processedOrder.delivered_quantity = order.delivered_quantity ? order.delivered_quantity.toString() : "0";
+      processedOrder.total_quantity = order.total_quantity ? order.total_quantity.toString() : "0";
+      
+      return processedOrder;
+    });
   }
 }
 
