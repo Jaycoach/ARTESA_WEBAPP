@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { FaUserCircle, FaBell, FaBars } from "react-icons/fa";
 import logoArtesa from '../../../../LoginsAssets/logo_artesa.png';
 import { useAuth } from "../../../../hooks/useAuth";
@@ -61,11 +61,13 @@ const Top = ({ user, onToggleSidebar }) => {
         >
           <FaBars />
         </button>
+        <Link to="/dashboard">
         <img
           src={logoArtesa}
           alt="Logo de LA ARTESA"
           className="h-8 object-contain ml-[2px]" // <-- Ajusta este valor si lo deseas más alineado
         />
+        </Link> 
       </div>
 
       {/* Lado derecho - Perfil */}

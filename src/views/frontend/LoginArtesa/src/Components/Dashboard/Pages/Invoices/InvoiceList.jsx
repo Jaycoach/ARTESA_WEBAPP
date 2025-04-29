@@ -4,7 +4,7 @@ import { useAuth } from '../../../../hooks/useAuth';
 import { FaEye, FaFilePdf, FaSearch, FaFilter } from 'react-icons/fa';
 import API from '../../../../api/config';
 
-const InvoiceList = ({ filterStatus = 'all' }) => {
+const InvoiceList = ({ filterStatus = 'all', formatCurrency }) => {
   const { user } = useAuth();
   const [invoices, setInvoices] = useState([]);
   const [filteredInvoices, setFilteredInvoices] = useState([]);
@@ -214,7 +214,7 @@ const InvoiceList = ({ filterStatus = 'all' }) => {
                 <td className="px-4 py-3 whitespace-nowrap">{formatDate(invoice.invoice_date)}</td>
                 <td className="px-4 py-3 whitespace-nowrap">{invoice.user_name}</td>
                 <td className="px-4 py-3 whitespace-nowrap">{invoice.company_name}</td>
-                <td className="px-4 py-3 whitespace-nowrap font-medium">${parseFloat(invoice.invoice_total).toFixed(2)}</td>
+                <td className="px-4 py-3 whitespace-nowrap font-medium">{formatCurrency(invoice.invoice_total)}</td>
                 <td className="px-4 py-3 whitespace-nowrap">
                   <div className="flex space-x-2">
                     {invoice.invoice_url ? (
@@ -285,7 +285,7 @@ const InvoiceList = ({ filterStatus = 'all' }) => {
                   </div>
                   <div>
                     <p className="text-sm text-gray-500">Total</p>
-                    <p className="font-medium text-blue-600">${parseFloat(selectedInvoice.invoice_total).toFixed(2)}</p>
+                    <p className="font-medium text-blue-600">Total: {formatCurrency(selectedInvoice.invoice_total)}</p>
                   </div>
                 </div>
               </div>
@@ -315,8 +315,8 @@ const InvoiceList = ({ filterStatus = 'all' }) => {
                             <td className="px-4 py-2">{item.item_code}</td>
                             <td className="px-4 py-2">{item.description}</td>
                             <td className="px-4 py-2">{item.quantity}</td>
-                            <td className="px-4 py-2">${parseFloat(item.price).toFixed(2)}</td>
-                            <td className="px-4 py-2">${parseFloat(item.line_total).toFixed(2)}</td>
+                            <td className="px-4 py-2">{formatCurrency(item.price)}</td>
+                            <td className="px-4 py-2">{formatCurrency(item.line_total)}</td>
                           </tr>
                         ))
                       ) : (

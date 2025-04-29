@@ -1,128 +1,131 @@
 // Necesitamos integrar el reCAPTCHA en el componente Register.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import './Register.css'
-import '../../App.scss'
-import { Link, NavLink } from 'react-router-dom'
+import { Link } from 'react-router-dom';
 import { useRecaptcha } from "../../hooks/useRecaptcha";
+import { useFormValidation } from "../../hooks/useFormValidation";
+import { useError } from "../../context/ErrorContext";
+import FormErrorMessage from "../ui/FormErrorMessage";
 
-// Importar configuración de la API
-import API from "../../api/config";
-
-//Import Assets
+// Import Assets
 import img from "../../LoginsAssets/principal_img.gif";
-import logo from '../../LoginsAssets/logo_artesa_alt.png'
+import logo from '../../LoginsAssets/logo_artesa_alt.png';
 
-//Import Icons
+// Import Icons
 import { FaUserShield } from "react-icons/fa";
 import { BsFillShieldLockFill } from "react-icons/bs";
 import { TiArrowRightOutline } from "react-icons/ti";
 import { MdMarkEmailRead } from "react-icons/md";
-import { RiMicAiLine } from "react-icons/ri";
+
+// API config
+import API from "../../api/config";
 
 const Register = () => {
     const navigate = useNavigate();
-    const { generateRecaptchaToken, loading: recaptchaLoading, error: recaptchaError, isRecaptchaReady } = useRecaptcha();
-    const [formData, setFormData] = useState({
+    const { generateRecaptchaToken, loading: recaptchaLoading, error: recaptchaError } = useRecaptcha();
+    const { values, setValues, validateField } = useFormValidation({
         name: '',
         mail: '',
         password: ''
     });
-    const [error, setError] = useState('');
+    const { errors, setFieldError, clearFieldError, clearAllErrors } = useError();
     const [loading, setLoading] = useState(false);
-    /*const [rateLimit, setRateLimit] = useState({
-        isLimited: false,
-        countdown: 0
-    });
-
-    // Manejar countdown para rate limiting
-    useEffect(() => {
-        let timer;
-        if (rateLimit.isLimited && rateLimit.countdown > 0) {
-            timer = setTimeout(() => {
-                setRateLimit(prev => ({
-                    ...prev,
-                    countdown: prev.countdown - 1
-                }));
-            }, 1000);
-        } else if (rateLimit.isLimited && rateLimit.countdown <= 0) {
-            setRateLimit({
-                isLimited: false,
-                countdown: 0
-            });
-        }
-        return () => clearTimeout(timer);
-    }, [rateLimit]);*/
+    const [generalError, setGeneralError] = useState('');
+    const [formSubmitted, setFormSubmitted] = useState(false);
 
     const handleChange = (e) => {
-        setFormData({
-            ...formData,
-            [e.target.id]: e.target.value
-        });
+        const { id, value } = e.target;
+        setValues({ ...values, [id]: value });
+        
+        // Limpiar error al empezar a escribir
+        if (errors[id]) {
+            clearFieldError(id);
+        }
+    };
+
+    const handleBlur = (e) => {
+        const { id, value } = e.target;
+        const rules = id === 'mail' ? ['required', 'email'] : ['required'];
+        const error = validateField(id, value, rules);
+        
+        if (error) {
+            setFieldError(id, error);
+        } else {
+            clearFieldError(id);
+        }
+    };
+
+    const handleInvalid = (e) => {
+        e.preventDefault(); // Evitar mensaje nativo del navegador
+        const { id, value } = e.target;
+        const rules = id === 'mail' ? ['required', 'email'] : ['required'];
+        const error = validateField(id, value, rules);
+        
+        if (error) {
+            setFieldError(id, error);
+        }
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        clearAllErrors();
+        setFormSubmitted(true);
+        
+        // Validar todos los campos antes de enviar
+        let formValid = true;
+        
+        for (const [key, value] of Object.entries(values)) {
+            const rules = key === 'mail' ? ['required', 'email'] : ['required'];
+            const error = validateField(key, value, rules);
+            
+            if (error) {
+                setFieldError(key, error);
+                formValid = false;
+            }
+        }
+        
+        if (!formValid) return;
 
         setLoading(true);
-        setError('');
+        setGeneralError('');
 
         try {
-            // Generar token de reCAPTCHA para registro (añade logs)
-            console.log("Generando token reCAPTCHA para registro");
             const recaptchaToken = await generateRecaptchaToken('register');
 
-            // Log para depuración del token
-            console.log("Token reCAPTCHA obtenido:", recaptchaToken ? "Éxito (longitud: " + recaptchaToken.length + ")" : "Fallo (null)");
-
             if (!recaptchaToken) {
-                setError(recaptchaError || 'No se pudo completar la verificación de seguridad. Por favor, recargue la página e intente nuevamente.');
-                console.error("No se pudo obtener token reCAPTCHA para registro");
+                setGeneralError(recaptchaError || 'Verificación de seguridad fallida.');
                 setLoading(false);
                 return;
             }
 
-            console.log("Token reCAPTCHA obtenido correctamente para registro");
-
-            // Añadir el token de reCAPTCHA al objeto de datos
             const registerData = {
-                ...formData,
+                ...values,
                 recaptchaToken
             };
 
-            console.log("Enviando solicitud de registro con token reCAPTCHA");
             const response = await API.post('/auth/register', registerData, {
                 headers: {
                     'Content-Type': 'application/json'
                 }
             });
 
-            // Guardar token y usuario en localStorage
             localStorage.setItem('token', response.data.token);
             localStorage.setItem('user', JSON.stringify(response.data.user));
-
-            // Redirigir a la página de éxito con el correo electrónico
-            navigate('/registration-success', { state: { email: formData.mail } });
+            navigate('/registration-success', { state: { email: values.mail } });
 
         } catch (error) {
             console.error("Error en registro:", error);
-
-            if (error.response?.data?.code === 'RECAPTCHA_FAILED') {
-                setError('Verificación de seguridad fallida. Por favor, recargue la página e intente nuevamente.');
-            } else {
-                setError(error.response?.data?.message || 'Error en el registro. Por favor intente más tarde.');
-            }
+            setGeneralError(error.response?.data?.message || 'Error en el registro');
         } finally {
             setLoading(false);
         }
     };
-
+    
 
     return (
         <div className="RegisterPage flex">
             <div className="container flex">
                 <div className="imgDiv">
-
                     <img src={img} alt="registerImg" />
                     <div className="textDiv">
                         <h2 className="title"></h2>
@@ -140,48 +143,86 @@ const Register = () => {
                     <div className="headerDiv">
                         <img src={logo} alt="Logo Artesa" />
                         <h3>Registrate</h3>
-
                     </div>
-                    <form action="" onSubmit={handleSubmit} className="form grid">
-                        {error && <p className="error-message">{error}</p>}
+                    <form onSubmit={handleSubmit} className="form grid" noValidate>
+                        {generalError && (
+                            <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md mb-4 text-sm">
+                                {generalError}
+                            </div>
+                        )}
 
                         <div className="inputDiv">
-                            <label htmlFor="name">Nombre</label>
-                            <div className="input flex">
-                                <FaUserShield className="icon" />
-                                <input type="text" id="name" placeholder="Escriba su Nombre:" value={formData.name} onChange={handleChange} required />
+                            <label htmlFor="name">Nombre o Razón Social</label>
+                            <div className={`input flex ${errors.name ? 'border-red-500' : values.name && !errors.name ? 'border-green-500' : ''}`}>
+                                <FaUserShield className={`icon ${errors.name ? 'text-red-500' : values.name && !errors.name ? 'text-green-500' : ''}`} />
+                                <input
+                                    type="text"
+                                    id="name"
+                                    placeholder="Escriba su Nombre:"
+                                    value={values.name}
+                                    onChange={handleChange}
+                                    onBlur={handleBlur}
+                                    onInvalid={handleInvalid}
+                                    required
+                                    className="w-full outline-none bg-transparent"
+                                />
+                                {values.name && !errors.name && (
+                                    <span className="text-green-500 ml-2">✓</span>
+                                )}
                             </div>
+                            {errors.name && <FormErrorMessage message={errors.name} />}
                         </div>
 
                         <div className="inputDiv">
                             <label htmlFor="mail">Email</label>
-                            <div className="input flex">
-                                <MdMarkEmailRead className="icon" />
-                                <input type="email" id="mail" placeholder="Escriba su Email:" value={formData.mail} onChange={handleChange} required />
+                            <div className={`input flex ${errors.mail ? 'border-red-500' : values.mail && !errors.mail ? 'border-green-500' : ''}`}>
+                                <MdMarkEmailRead className={`icon ${errors.mail ? 'text-red-500' : values.mail && !errors.mail ? 'text-green-500' : ''}`} />
+                                <input
+                                    type="email"
+                                    id="mail"
+                                    placeholder="Escriba su Email:"
+                                    value={values.mail}
+                                    onChange={handleChange}
+                                    onBlur={handleBlur}
+                                    onInvalid={handleInvalid}
+                                    required
+                                    className="w-full outline-none bg-transparent"
+                                />
+                                {values.mail && !errors.mail && (
+                                    <span className="text-green-500 ml-2">✓</span>
+                                )}
                             </div>
+                            {errors.mail && <FormErrorMessage message={errors.mail} />}
                         </div>
+
                         <div className="inputDiv">
                             <label htmlFor="password">Contraseña</label>
-                            <div className="input flex">
-                                <BsFillShieldLockFill className="icon" />
+                            <div className={`input flex ${errors.password ? 'border-red-500' : values.password && !errors.password ? 'border-green-500' : ''}`}>
+                                <BsFillShieldLockFill className={`icon ${errors.password ? 'text-red-500' : values.password && !errors.password ? 'text-green-500' : ''}`} />
                                 <input
                                     type="password"
                                     id="password"
                                     placeholder="Escriba su contraseña:"
-                                    value={formData.password}
+                                    value={values.password}
                                     onChange={handleChange}
-                                    required />
+                                    onBlur={handleBlur}
+                                    onInvalid={handleInvalid}
+                                    required
+                                    className="w-full outline-none bg-transparent"
+                                />
+                                {values.password && !errors.password && (
+                                    <span className="text-green-500 ml-2">✓</span>
+                                )}
                             </div>
+                            {errors.password && <FormErrorMessage message={errors.password} />}
                         </div>
 
                         <button
                             type="submit"
-                            className="btn flex"
+                            className={`btn flex ${loading || recaptchaLoading ? 'opacity-70 cursor-not-allowed' : 'hover:opacity-90'}`}
                             disabled={loading || recaptchaLoading}
                         >
-                            <span>
-                                {loading ? 'Registrando...' : 'Registrarse'}
-                            </span>
+                            <span>{loading ? 'Registrando...' : 'Registrarse'}</span>
                             <TiArrowRightOutline className="icon" />
                         </button>
 
@@ -190,14 +231,11 @@ const Register = () => {
                                 Recuperar aquí
                             </a>
                         </span>
-
                     </form>
                 </div>
-
-
             </div>
         </div>
-    )
-}
+    );
+};
 
-export default Register
+export default Register;

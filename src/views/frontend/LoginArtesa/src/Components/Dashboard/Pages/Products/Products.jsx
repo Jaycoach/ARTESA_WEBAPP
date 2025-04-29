@@ -446,27 +446,6 @@ const Products = () => {
         </div>
 
         {/* Banner de fecha seleccionada */}
-        {deliveryDate && (
-          <div className="mb-3 p-3 bg-indigo-50 border border-indigo-100 rounded-md flex items-center">
-            <div className="bg-indigo-600 text-white rounded-md p-2 mr-3">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-700">Fecha seleccionada:</p>
-              <p className="text-lg font-semibold text-indigo-700">
-                {new Date(deliveryDate).toLocaleDateString('es-ES', { 
-                  weekday: 'long', 
-                  year: 'numeric', 
-                  month: 'long', 
-                  day: 'numeric' 
-                })}
-              </p>
-            </div>
-          </div>
-        )}
-
         <div className="mb-4">
           <label className="block text-sm font-medium mb-1 text-gray-700">
             Fecha de entrega

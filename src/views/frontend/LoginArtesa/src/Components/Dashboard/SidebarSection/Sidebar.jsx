@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import ReactDOM from 'react-dom';
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../../hooks/useAuth";
@@ -8,9 +8,10 @@ import {
 } from "react-icons/fa";
 
 
-const Sidebar = ({ collapsed, onToggle }) => {
+const Sidebar = ({ collapsed, mobileMenuOpen, onCloseMobileMenu, onToggleCollapse }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const sidebarRef = useRef(null);
   const { user, logout } = useAuth();
   const [hasAdminAccess, setHasAdminAccess] = useState(false);
 
@@ -55,12 +56,29 @@ const Sidebar = ({ collapsed, onToggle }) => {
     }
   }, [user]);
 
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (sidebarRef.current && !sidebarRef.current.contains(event.target)) {
+        if (mobileMenuOpen && onCloseMobileMenu) onCloseMobileMenu();
+        if (!collapsed && !mobileMenuOpen && onToggleCollapse) onToggleCollapse();
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [mobileMenuOpen, collapsed, onCloseMobileMenu, onToggleCollapse]);
+
   // Función para determinar si una ruta está activa
   const isActive = (path) => {
     if (path === '/dashboard') {
       return location.pathname === '/dashboard';
     }
     return location.pathname.startsWith(path);
+  };
+
+  const handleMenuClick = (path) => {
+    navigate(path);
+    if (mobileMenuOpen && onCloseMobileMenu) onCloseMobileMenu();
+    if (!mobileMenuOpen && onToggleCollapse) onToggleCollapse();
   };
 
   const handleLogout = () => {
@@ -76,7 +94,7 @@ const Sidebar = ({ collapsed, onToggle }) => {
         <ul className="space-y-1 px-2">
           <li>
             <button
-              onClick={() => navigate("/dashboard")}
+              onClick={() => handleMenuClick("/dashboard")}
               title={collapsed ? "Inicio" : undefined}
               className={`relative w-full flex items-center py-2 px-3 rounded-md transition-all duration-200 ease-in-out group
     ${isActive('/dashboard')
@@ -92,7 +110,7 @@ const Sidebar = ({ collapsed, onToggle }) => {
 
           <li>
             <button
-              onClick={() => navigate("/dashboard/orders")}
+              onClick={() => handleMenuClick("/dashboard/orders")}
               title={collapsed ? "Pedidos" : undefined}
               className={`relative w-full flex items-center py-2 px-3 rounded-md transition-all duration-200 ease-in-out group
         ${isActive('/dashboard/orders')
@@ -107,7 +125,7 @@ const Sidebar = ({ collapsed, onToggle }) => {
 
           <li>
             <button
-              onClick={() => navigate("/dashboard/invoices")}
+              onClick={() => handleMenuClick("/dashboard/invoices")}
               title={collapsed ? "Facturas" : undefined}
               className={`relative w-full flex items-center py-2 px-3 rounded-md transition-all duration-200 ease-in-out group
         ${isActive('/dashboard/invoices')
@@ -122,7 +140,7 @@ const Sidebar = ({ collapsed, onToggle }) => {
 
           <li>
             <button
-              onClick={() => navigate("/dashboard/products")}
+              onClick={() => handleMenuClick("/dashboard/products")}
               title={collapsed ? "Productos" : undefined}
               className={`relative w-full flex items-center py-2 px-3 rounded-md transition-all duration-200 ease-in-out group
         ${isActive('/dashboard/products')
@@ -139,7 +157,7 @@ const Sidebar = ({ collapsed, onToggle }) => {
 
           <li>
             <button
-              onClick={() => navigate("/dashboard/settings")}
+              onClick={() => handleMenuClick("/dashboard/settings")}
               title={collapsed ? "Configuración" : undefined}
               className={`relative w-full flex items-center py-2 px-3 rounded-md transition-all duration-200 ease-in-out group
         ${isActive('/dashboard/settings')
@@ -155,7 +173,7 @@ const Sidebar = ({ collapsed, onToggle }) => {
           {hasAdminAccess && (
             <li>
               <button
-                onClick={() => navigate("/dashboard/admin")}
+                onClick={() => handleMenuClick("/dashboard/admin")}
                 title={collapsed ? "Administración" : undefined}
                 className={`relative w-full flex items-center py-2 px-3 rounded-md transition-all duration-200 ease-in-out group
           ${isActive('/dashboard/admin')

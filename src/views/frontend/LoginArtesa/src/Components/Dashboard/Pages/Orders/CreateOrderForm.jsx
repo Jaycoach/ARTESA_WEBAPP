@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import Select from 'react-select';
 import { useAuth } from '../../../../hooks/useAuth';
 import { orderService } from '../../../../services/orderService';
 import API from '../../../../api/config';
@@ -22,6 +23,33 @@ const CreateOrderForm = ({ onOrderCreated }) => {
   const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
   const navigate = useNavigate();
+
+  /*const mockProducts = [
+    {
+      product_id: 1,
+      name: "Pan Baguette",
+      price_list1: 5000,
+      image_url: "https://images.unsplash.com/photo-1587495571010-7cf4cc9a9897?w=80&h=80&fit=crop"
+    },
+    {
+      product_id: 2,
+      name: "Croissant",
+      price_list1: 3500,
+      image_url: "https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=80&h=80&fit=crop"
+    },
+    {
+      product_id: 3,
+      name: "Pan Integral",
+      price_list1: 4500,
+      image_url: "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=80&h=80&fit=crop"
+    },
+    {
+      product_id: 4,
+      name: "Pan de Chocolate",
+      price_list1: 6000,
+      image_url: "https://images.unsplash.com/photo-1517686469429-8bdb88b9f907?w=80&h=80&fit=crop"
+    }
+  ];*/
 
   useEffect(() => {
     // Comprobar si el usuario está inactivo
@@ -64,31 +92,29 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       setLoadingProducts(true);
       try {
         const response = await API.get('/products');
-        if (response.data.success) {
-          setProducts(response.data.data || []);
-        } else {
+        if (response.data.success && Array.isArray(response.data.data)) {
+           //Aseguramos que image_url exista o sea null/undefined
+          const fetchedProducts = response.data.data.map(p => ({
+            ...p,
+            image_url: p.image_url || null // O usa una imagen por defecto si prefieres
+          }));
+          setProducts(fetchedProducts);
+        }  else {
           showNotification('No se pudieron cargar los productos', 'error');
-          // Datos de ejemplo como fallback
-          setProducts([
-            { product_id: 1, name: 'Pan Blanco', price_list1: 25.99 },
-            { product_id: 2, name: 'Croissant', price_list1: 15.50 },
-            { product_id: 3, name: 'Pan Integral', price_list1: 39.99 }
-          ]);
+          setProducts([]); // Inicia vacío si falla
         }
+
+       //setProducts(mockProducts);
+      //console.log("Usando datos de prueba para productos:", mockProducts);
+      
       } catch (error) {
         console.error('Error fetching products:', error);
         showNotification('Error al cargar productos', 'error');
-        // Datos de ejemplo como fallback
-        setProducts([
-          { product_id: 1, name: 'Pan Blanco', price_list1: 25.99 },
-          { product_id: 2, name: 'Croissant', price_list1: 15.50 },
-          { product_id: 3, name: 'Pan Integral', price_list1: 39.99 }
-        ]);
+        setProducts([]); // Inicia vacío si hay error
       } finally {
         setLoadingProducts(false);
       }
     };
-
     fetchProducts();
   }, []);
 
@@ -296,6 +322,45 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     setShowCancelConfirmation(false);
   };
 
+  const productOptionsForSelect = useMemo(() => {
+    return products.map(product => ({
+      value: product.product_id,
+      label: product.name,
+      image: product.image_url,
+      price: product.price_list1
+    }));
+  }, [products]);
+
+  const handleSelectChange = (index, option) => {
+    const newDetails = [...orderDetails];
+
+    if (option) {
+      newDetails[index].product_id = option.value;
+      const selectedProduct = products.find(p => p.product_id === parseInt(option.value));
+      if (selectedProduct) {
+        newDetails[index].unit_price = selectedProduct.price_list1;
+      }
+    } else {
+      newDetails[index].product_id = '';
+      newDetails[index].unit_price = 0;
+    }
+
+    handleProductChange(index, 'product_id', option ? option.value : '');
+  };
+
+  const formatOptionLabel = ({ value, label, image, price }) => (
+    <div className="flex items-center">
+      {image ? (
+        <img src={image} alt={label} className="w-8 h-8 mr-3 rounded-md object-cover border border-gray-200" />
+      ) : (
+        <div className="w-8 h-8 mr-3 rounded-md bg-gray-100 flex items-center justify-center text-xs text-gray-400 border border-gray-200">Img</div>
+      )}
+      <div>
+        <div className="font-medium text-sm text-gray-800">{label}</div>
+        {price && <div className="text-xs text-gray-500">{formatCurrencyCOP(price)}</div>}
+      </div>
+    </div>
+  );
   // Función para formatear valores monetarios en formato colombiano
   const formatCurrencyCOP = (value) => {
     // Aseguramos que value sea un número
@@ -411,18 +476,6 @@ const CreateOrderForm = ({ onOrderCreated }) => {
                 onChange={setDeliveryDate}
                 orderTimeLimit={siteSettings.orderTimeLimit}
               />
-              {deliveryDate && (
-                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
-                  <p className="text-blue-800 font-medium">
-                    Entrega programada para: {new Date(deliveryDate).toLocaleDateString('es-ES', {
-                      weekday: 'long',
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric'
-                    })}
-                  </p>
-                </div>
-              )}
             </div>
 
           </div>
@@ -483,19 +536,46 @@ const CreateOrderForm = ({ onOrderCreated }) => {
 
                     {/* Selector de producto */}
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <select
-                        value={detail.product_id}
-                        onChange={(e) => handleProductChange(index, 'product_id', e.target.value)}
-                        className="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                        required
-                      >
-                        <option value="">Seleccionar producto</option>
-                        {products.map(product => (
-                          <option key={product.product_id} value={product.product_id}>
-                            {product.name}
-                          </option>
-                        ))}
-                      </select>
+                      <Select
+                        value={productOptionsForSelect.find(option => option.value === parseInt(detail.product_id))}
+                        onChange={(option) => handleSelectChange(index, option)}
+                        options={productOptionsForSelect}
+                        formatOptionLabel={formatOptionLabel}
+                        placeholder="Seleccionar producto"
+                        className="w-full" // Cambia esto
+                        classNamePrefix="select"
+                        isClearable
+                        isSearchable
+                        menuPortalTarget={document.body}
+                        menuPosition="fixed"
+                        menuPlacement="auto"
+                        styles={{
+                          control: (base) => ({
+                            ...base,
+                            borderColor: '#D1D5DB',
+                            boxShadow: 'none',
+                            minWidth: '300px',  // Ancho mínimo fijo
+                            width: '100%',      // Ocupar todo el espacio disponible
+                            '&:hover': { borderColor: '#4F46E5' }
+                          }),
+                          container: (base) => ({
+                            ...base,
+                            width: '300px',    // Ancho fijo del contenedor
+                            minWidth: '300px', // Ancho mínimo
+                            maxWidth: '400px'  // Ancho máximo opcional
+                          }),
+                          menu: (base) => ({
+                            ...base,
+                            zIndex: 9999,
+                            width: '300px',    // Ancho fijo del menú desplegable
+                            minWidth: '300px'  // Asegurar que no sea más pequeño
+                          }),
+                          menuPortal: (base) => ({
+                            ...base,
+                            zIndex: 9999
+                          })
+                        }}
+                      />
                     </td>
 
                     {/* Cantidad */}

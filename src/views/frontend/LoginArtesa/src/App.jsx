@@ -256,5 +256,3 @@ function App() {
 }
 
 export default App;
-
-  // CHAN LE CAMBIE HASTA LA MADRE!! 

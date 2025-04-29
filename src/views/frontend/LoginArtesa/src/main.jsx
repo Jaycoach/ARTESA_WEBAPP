@@ -2,6 +2,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.jsx';
 import { AuthProvider } from "./context/AuthContext";
+import { ErrorProvider } from "./context/ErrorContext";
 import { GoogleReCaptchaProvider } from 'react-google-recaptcha-v3';
 import { logEnvironmentInfo } from './utils/environment';
 console.log("Modo de ejecución:", import.meta.env.MODE);
@@ -53,7 +54,9 @@ createRoot(document.getElementById('root')).render(
       }}
     >
       <AuthProvider>
+      <ErrorProvider>
         <App />
+        </ErrorProvider>
       </AuthProvider>
     </GoogleReCaptchaProvider>
   </React.StrictMode>,

@@ -17,9 +17,9 @@ import API from "../../api/config";
 // Reutilizamos tu SummaryCard
 const SummaryCard = ({ title, value, icon, color, link }) => (
   <Link to={link}>
-    <Card className="flex items-center justify-between p-5 rounded-xl shadow-sm border hover:shadow-md transition-shadow">
-      <div className="flex items-center gap-4">
-        <div className="p-3 rounded-full" style={{ backgroundColor: `${color}20`, color }}>
+    <Card className="flex flex-col sm:flex-row items-center sm:justify-between p-3 sm:p-4 md:p-5 rounded-xl shadow-sm border hover:shadow-md transition-shadow">
+      <div className="flex items-center gap-2 sm:gap-3 md:gap-4 w-full sm:w-auto justify-center sm:justify-start mb-2 sm:mb-0">
+        <div className="p-2 sm:p-3 rounded-full" style={{ backgroundColor: `${color}20`, color }}>
           {icon}
         </div>
         <span className="text-gray-700 font-medium">{title}</span>
@@ -91,9 +91,9 @@ const Dashboard = () => {
       <div className="mb-8 rounded-xl shadow-lg overflow-hidden">
         <Banner imageUrl={bannerImage} altText="Banner Artesa" />
       </div>
-      <div className={`w-full px-8 py-6 bg-white rounded-xl shadow-lg ${showProfile ? 'hidden' : ''}`}>
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold">Bienvenido, {userName}</h1>
+      <div className={`w-full px-4 sm:px-6 md:px-8 py-4 sm:py-6 bg-white rounded-xl shadow-lg ${showProfile ? 'hidden' : ''}`}>
+        <div className="flex justify-between items-center mb-4 sm:mb-6">
+          <h1 className="text-xl sm:text-2xl font-bold">Bienvenido al Portal Institucional Artesa, {userName}</h1>
         </div>
 
         {/* Tarjetas resumen */}
@@ -106,7 +106,7 @@ const Dashboard = () => {
             link="/dashboard/orders"
           />
           <SummaryCard
-            title="Productos Disponibles"
+            title="Catálogo de Productos"
             value={stats.totalProducts}
             icon={<FaBoxOpen />}
             color="#4e9af6"
@@ -133,8 +133,8 @@ const Dashboard = () => {
         {/* Gráfico de barras con los pedidos reales del usuario */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           <div className="bg-white rounded-xl shadow-sm overflow-hidden h-[400px] flex flex-col">
-              <StatsChart />
-            </div>
+            <StatsChart />
+          </div>
           <div className="bg-white rounded-xl shadow-sm overflow-hidden h-[400px] flex flex-col">
             <TopProductsChart userId={user?.id} />
           </div>

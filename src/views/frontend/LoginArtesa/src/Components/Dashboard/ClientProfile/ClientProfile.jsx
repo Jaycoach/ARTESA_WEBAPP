@@ -11,7 +11,7 @@ import ConfirmationModal from './ConfirmationModal';
 const ClientProfile = ({ onClose, onProfileUpdate }) => {
 
    // Estados para manejar los pasos del formulario
-   const steps = ["Información Básica", "Información Empresarial", "Información Financiera", "Información Bancaria", "Documentos"];
+   const steps = ["Información de contacto", "Información Empresarial", "Información Financiera", "Información Bancaria", "Documentos"];
    const [currentStep, setCurrentStep] = useState(0);
   // Obtener contexto de autenticación (no recibimos user como prop para evitar inconsistencias)
   const { user, updateUserInfo } = useAuth();
@@ -26,7 +26,7 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
     ciudad: '',
     pais: 'Colombia',
     telefono: '',
-    email: '',
+    contact_email: '',
     
     // Información empresarial
     razonSocial: '',
@@ -630,7 +630,7 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
                       className="bg-sky-50 px-4 py-3 flex justify-between items-center cursor-pointer"
                       onClick={() => toggleSection('basic')}
                     >
-                      <h3 className="font-medium text-slate-700">Información Básica</h3>
+                      <h3 className="font-medium text-slate-700">Información de contacto</h3>
                       <div className={`transform transition-transform ${expandedSections.basic ? 'rotate-180' : ''}`}>
                         <FaChevronDown className="text-slate-700" />
                       </div>

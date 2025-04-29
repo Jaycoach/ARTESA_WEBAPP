@@ -13,9 +13,24 @@ const Invoices = () => {
   const [activeView, setActiveView] = useState('list');
   const [notification, setNotification] = useState({ show: false, message: '', type: '' });
   const [selectedFilter, setSelectedFilter] = useState('all');
+
+    
   
   // Determinar si estamos en vista detallada
   const isDetailView = location.pathname.includes('/invoices/detail/');
+   // Función para formatear moneda colombiana con Intl.NumberFormat
+  const formatColombianCurrency = (amount) => {
+    if (!amount) return "$0";
+    
+    const formatter = new Intl.NumberFormat('es-CO', {
+      style: 'currency',
+      currency: 'COP',
+      minimumFractionDigits: 0
+    });
+    
+    return formatter.format(amount);
+  };
+  
 
   useEffect(() => {
     if (isDetailView) {
@@ -35,6 +50,7 @@ const Invoices = () => {
   const handleFilterChange = (filter) => {
     setSelectedFilter(filter);
   };
+  
 
   if (!isAuthenticated) {
     return (
@@ -117,7 +133,7 @@ const Invoices = () => {
             </div>
           </div>
           
-          <InvoiceList filterStatus={selectedFilter} />
+          <InvoiceList filterStatus={selectedFilter} formatCurrency={formatColombianCurrency} />
         </>
       )}
       
@@ -126,6 +142,7 @@ const Invoices = () => {
           invoiceId={invoiceId} 
           onBack={() => navigate('/dashboard/invoices')}
           onDownloadSuccess={() => showNotification('Factura descargada exitosamente', 'success')}
+          formatCurrency={formatColombianCurrency}
         />
       )}
     </div>

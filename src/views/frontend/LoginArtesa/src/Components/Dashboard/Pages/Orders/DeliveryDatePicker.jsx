@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { registerLocale } from 'react-datepicker';
 import es from 'date-fns/locale/es';
-import { addDays, addMonths, isSameDay, format } from 'date-fns';
+import { addDays, addMonths, isSameDay, format, parseISO } from 'date-fns';
 
 registerLocale('es', es);
 
@@ -22,107 +22,199 @@ const DeliveryDatePicker = ({ value, onChange, orderTimeLimit = "18:00" }) => {
   const [errorMessage, setErrorMessage] = useState('');
   const [selectedDate, setSelectedDate] = useState(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const initialLoadRef = useRef(true);
 
-  useEffect(() => {
-    calculateAvailableDates();
+  // 1. Cálculo centralizado del offset de días
+  const calculateStartOffset = useCallback(() => {
+    const now = new Date();
+    const currentDay = now.getDay();
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+    const [limitHours, limitMinutes] = orderTimeLimit.split(':').map(Number);
+    
+    // Offset mínimo garantizado: 2 días
+    let offset = 2;
+    
+    // Reglas específicas que pueden incrementar el offset
+    if (currentDay === 6) { // Sábado
+      offset = currentHour >= 12 ? 4 : 3;
+    } else if (currentDay === 0) { // Domingo
+      offset = 3;
+    } else if (currentHour > limitHours || 
+              (currentHour === limitHours && currentMinute >= limitMinutes)) {
+      // Después del límite horario
+      offset += 1;
+    }
+    
+    // Verificar si la fecha calculada cae en domingo
+    const calculatedDate = addDays(now, offset);
+    if (calculatedDate.getDay() === 0) {
+      return offset + 1; // Añadir un día más si cae en domingo
+    }
+    
+    return offset;
   }, [orderTimeLimit]);
 
-  // Calcula las fechas disponibles según reglas de negocio
-  const calculateAvailableDates = () => {
+  // 2. Cálculo de fechas disponibles
+  const calculateAvailableDates = useCallback(() => {
     setLoading(true);
     try {
       const dates = [];
-      const allDates = []; // Para almacenar todas las fechas posibles (1 mes)
+      const allDates = [];
       const now = new Date();
-      const currentDay = now.getDay(); // 0 (domingo) a 6 (sábado)
-      const currentHour = now.getHours();
-      const currentMinute = now.getMinutes();
-
-      // Convertir orderTimeLimit a horas y minutos
-      const [limitHours, limitMinutes] = orderTimeLimit.split(':').map(Number);
-      const isPastTimeLimit = currentHour > limitHours ||
-        (currentHour === limitHours && currentMinute >= limitMinutes);
-
-      // Reglas para calcular días de entrega mínimos basados en el día actual
-      let startOffset = 2; // Mínimo 2 días en el futuro para entrega normalmente
-
-      // Regla especial para sábados
-      if (currentDay === 6) { // Sábado
-        startOffset = currentHour >= 12 ? 4 : 3;
-      } else if (currentDay === 0) {
-        startOffset = 3;
-      } else if (isPastTimeLimit) {
-        startOffset++;
-      }
-
-      // Fecha de inicio para entregas
+      
+      // Obtener offset inicial
+      const startOffset = calculateStartOffset();
       const startDate = addDays(now, startOffset);
       const endDate = addMonths(now, 1);
-
+      
+      console.log(`Fecha actual: ${format(now, 'yyyy-MM-dd HH:mm')}`);
+      console.log(`Offset calculado: ${startOffset} días`);
+      console.log(`Primera fecha disponible: ${format(startDate, 'yyyy-MM-dd')}`);
+      
       let currentDate = new Date(startDate);
+      
+      // Generar fechas disponibles
       while (currentDate <= endDate) {
-        if (currentDate.getDay() !== 0) {
+        if (currentDate.getDay() !== 0) { // Excluir domingos
           const formattedDate = format(currentDate, 'yyyy-MM-dd');
+          
           allDates.push({
             value: formattedDate,
             label: formatDateToSpanish(currentDate),
             date: new Date(currentDate)
           });
-          if (dates.length < 5) dates.push({
-            value: formattedDate,
-            label: formatDateToSpanish(currentDate)
-          });
+          
+          if (dates.length < 5) {
+            dates.push({
+              value: formattedDate,
+              label: formatDateToSpanish(currentDate)
+            });
+          }
         }
         currentDate = addDays(currentDate, 1);
       }
-
+      
+      if (allDates.length === 0) {
+        throw new Error('No se pudieron calcular fechas disponibles');
+      }
+      
       setAvailableDates(dates);
       setAllPossibleDates(allDates);
-
-      if (!value && dates.length > 0) {
-        onChange(dates[0].value);
-        setSelectedDate(new Date(dates[0].value));
+      
+      // Solo establecer la fecha inicial si:
+      // 1. No hay valor seleccionado previamente
+      // 2. Es la carga inicial (controlado por ref)
+      if (initialLoadRef.current && (!value || value === '')) {
+        const newDate = new Date(allDates[0].date);
+        onChange(format(newDate, 'yyyy-MM-dd'));
+        setSelectedDate(newDate);
+        initialLoadRef.current = false;
       }
+      
     } catch (error) {
       console.error('Error calculando fechas disponibles:', error);
       setErrorMessage('Error al calcular fechas de entrega disponibles');
     } finally {
       setLoading(false);
     }
-  };
+  }, [calculateStartOffset, onChange, value]);
 
+  // 3. Formateo consistente de fechas
   const formatDateToSpanish = (date) => {
     return format(date, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es });
   };
-
-  const isDateAvailable = (date) => {
+  
+  // 4. Verificación de fecha disponible (memoizada)
+  const isDateAvailable = useCallback((date) => {
     return allPossibleDates.some(d => isSameDay(d.date, date));
-  };
+  }, [allPossibleDates]);
 
-  const handleDateChange = (date) => {
-    setSelectedDate(date);
-    onChange(format(date, 'yyyy-MM-dd'));
-  };
+  // 5. Manejo consistente de cambios de fecha
+  const handleDateChange = useCallback((date) => {
+    const utcDate = new Date(Date.UTC(
+      date.getFullYear(),
+      date.getMonth(),
+      date.getDate(),
+      12, 0, 0
+    ));
+    const formattedDate = format(utcDate, 'yyyy-MM-dd');
+  console.log(`Fecha seleccionada: ${formattedDate} (UTC)`);
+  
+  setSelectedDate(date);
+  onChange(formattedDate);
+}, [onChange]);
 
+  // Efectos
+
+  // Inicialización y recálculo cuando cambia el límite horario
+  useEffect(() => {
+    calculateAvailableDates();
+  }, [calculateAvailableDates]);
+
+  // Sincronización cuando cambia el valor externo
+  useEffect(() => {
+    if (value && value !== '') {
+      try {
+        // Asegurar que la fecha externa esté en el formato correcto
+        const parsedDate = parseISO(value);
+        
+        // Verificar si esta fecha existe en nuestras fechas disponibles
+        const isValid = allPossibleDates.some(d => 
+          isSameDay(d.date, parsedDate)
+        );
+        
+        if (isValid) {
+          setSelectedDate(parsedDate);
+        } else if (allPossibleDates.length > 0) {
+          // Si la fecha no es válida pero tenemos fechas disponibles,
+          // seleccionar la primera fecha disponible
+          console.warn('Fecha recibida no válida, usando primera fecha disponible');
+          const newDate = new Date(allPossibleDates[0].date);
+          setSelectedDate(newDate);
+          onChange(format(newDate, 'yyyy-MM-dd'));
+        }
+      } catch (error) {
+        console.error('Error al procesar la fecha recibida:', error);
+      }
+    }
+  }, [value, allPossibleDates, onChange]);
+
+  // Renderizado condicional
   if (loading) {
-    return <div className="text-gray-500 flex items-center">
-      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-      </svg>
-      Calculando fechas disponibles...
-    </div>;
+    return (
+      <div className="text-gray-500 flex items-center">
+        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        Calculando fechas disponibles...
+      </div>
+    );
   }
 
   if (errorMessage) {
-    return <div className="text-red-500 flex items-center">
-      <span className="mr-2">❌</span>
-      {errorMessage}
-    </div>;
+    return (
+      <div className="text-red-500 flex items-center">
+        <span className="mr-2">❌</span>
+        {errorMessage}
+      </div>
+    );
   }
+
+  // Mostrar la fecha seleccionada de manera más clara
+  const selectedDateFormatted = selectedDate 
+    ? formatDateToSpanish(selectedDate)
+    : 'Ninguna fecha seleccionada';
 
   return (
     <div className="delivery-date-picker space-y-4">
+      {/* Fecha seleccionada actualmente */}
+      <div className="p-2 bg-indigo-50 rounded-md">
+        <p className="text-sm text-gray-600">Fecha de entrega seleccionada:</p>
+        <p className="font-medium text-indigo-700">{selectedDateFormatted}</p>
+      </div>
+      
       {/* Menú desplegable con botón para mostrar calendario */}
       <div className="relative">
         <div className="flex space-x-2">
@@ -157,9 +249,9 @@ const DeliveryDatePicker = ({ value, onChange, orderTimeLimit = "18:00" }) => {
             </div>
 
             <DatePicker
-              selected={value ? new Date(value) : null}
+              selected={selectedDate}
               onChange={(date) => {
-                onChange(date.toISOString().split('T')[0]);
+                handleDateChange(date);
                 setCalendarOpen(false);
               }}
               filterDate={isDateAvailable}
@@ -168,17 +260,23 @@ const DeliveryDatePicker = ({ value, onChange, orderTimeLimit = "18:00" }) => {
               locale="es"
               inline
               monthsShown={1}
-              showMonthDropdown={false} // Simplificamos quitando el dropdown de meses
               className="border-0"
-              dayClassName={(date) => {
-                // Destacar la fecha seleccionada con un color diferente
-                if (value && isSameDay(date, new Date(value))) {
-                  return 'bg-indigo-100 text-indigo-800 hover:bg-indigo-200 font-medium';
+              popperModifiers={{
+                preventOverflow: {
+                  enabled: true,
+                  boundariesElement: 'viewport'
                 }
-
-                return isDateAvailable(date)
-                  ? 'cursor-pointer bg-white hover:bg-blue-50 text-gray-700'
-                  : 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-50';
+              }}
+              dayClassName={(date) => {
+                const baseClasses = 'text-center p-2 rounded-full transition-colors';
+                
+                if (selectedDate && isSameDay(date, selectedDate)) {
+                  return `${baseClasses} bg-indigo-600 text-white`;
+                }
+                
+                return isDateAvailable(date) 
+                  ? `${baseClasses} hover:bg-indigo-100 cursor-pointer`
+                  : `${baseClasses} bg-gray-100 text-gray-400 cursor-not-allowed`;
               }}
               renderCustomHeader={({
                 date,
@@ -192,8 +290,8 @@ const DeliveryDatePicker = ({ value, onChange, orderTimeLimit = "18:00" }) => {
                     onClick={decreaseMonth}
                     disabled={prevMonthButtonDisabled}
                     className={`p-1 rounded-full ${prevMonthButtonDisabled
-                        ? 'text-gray-300 cursor-not-allowed'
-                        : 'text-gray-700 hover:bg-gray-100'
+                      ? 'text-gray-300 cursor-not-allowed'
+                      : 'text-gray-700 hover:bg-gray-100'
                       }`}
                   >
                     ←
@@ -205,8 +303,8 @@ const DeliveryDatePicker = ({ value, onChange, orderTimeLimit = "18:00" }) => {
                     onClick={increaseMonth}
                     disabled={nextMonthButtonDisabled}
                     className={`p-1 rounded-full ${nextMonthButtonDisabled
-                        ? 'text-gray-300 cursor-not-allowed'
-                        : 'text-gray-700 hover:bg-gray-100'
+                      ? 'text-gray-300 cursor-not-allowed'
+                      : 'text-gray-700 hover:bg-gray-100'
                       }`}
                   >
                     →
@@ -214,10 +312,10 @@ const DeliveryDatePicker = ({ value, onChange, orderTimeLimit = "18:00" }) => {
                 </div>
               )}
             />
-            
+
             <div className="mt-2 flex flex-col space-y-1">
               <div className="flex items-center text-xs text-gray-500">
-                <span className="w-3 h-3 inline-block bg-indigo-100 rounded-full mr-2"></span>
+                <span className="w-3 h-3 inline-block bg-indigo-600 rounded-full mr-2"></span>
                 <span>Fecha seleccionada</span>
               </div>
               <div className="flex items-center text-xs text-gray-500">
@@ -235,7 +333,7 @@ const DeliveryDatePicker = ({ value, onChange, orderTimeLimit = "18:00" }) => {
 
       <p className="text-sm text-gray-500 flex items-center">
         <span className="text-amber-500 mr-2">⚠️</span>
-        Las entregas se procesan en días hábiles (lunes a sábado).
+        Las entregas se procesan en días hábiles (lunes a sábado) y requieren mínimo 2 días de anticipación.
       </p>
     </div>
   );

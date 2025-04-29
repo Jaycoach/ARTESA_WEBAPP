@@ -41,34 +41,34 @@ const OrderDetails = () => {
         setIsLoading(false);
         return;
       }
-      
+
       if (!user || !user.id) {
         setError('Usuario no identificado');
         setIsLoading(false);
         return;
       }
-      
+
       try {
         setIsLoading(true);
         setError(null);
-        
+
         if (!orderId || orderId === 'undefined') {
           throw new Error('ID de pedido inválido');
         }
 
         const result = await orderService.getOrderById(orderId);
-        
+
         if (result && result.success) {
           setOrder(result.data);
-          
+
           // Verificar si el pedido pertenece al usuario actual
           if (result.data.user_id === user.id) {
             // Verificar si el pedido puede ser editado
             const editCheck = await orderService.canEditOrder(
-              orderId, 
+              orderId,
               siteSettings.orderTimeLimit
             );
-            
+
             setCanEdit(editCheck.canEdit);
             if (!editCheck.canEdit) {
               setEditRestriction(editCheck.reason);
@@ -87,6 +87,7 @@ const OrderDetails = () => {
 
     fetchOrderDetails();
   }, [orderId, user, siteSettings.orderTimeLimit]);
+
 
   // Añadir order statuses
   useEffect(() => {
@@ -113,23 +114,23 @@ const OrderDetails = () => {
   // Función para formatear la fecha
   const formatDate = (dateString) => {
     if (!dateString) return 'Fecha no disponible';
-    
+
     const date = new Date(dateString);
     if (isNaN(date.getTime())) return 'Fecha inválida';
-    
+
     return new Intl.DateTimeFormat('es-ES', {
       year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
+      month: 'long',
+      day: 'numeric',
+      weekday: 'long',
+      timeZone: 'UTC'  // ← Esta es la clave
     }).format(date);
   };
 
   // Función para mostrar el tipo de archivo:
   const getFileIcon = (fileType) => {
     if (!fileType) return <FaFile />;
-    
+
     if (fileType.startsWith('image/')) {
       return <FaFileImage className="text-blue-500" />;
     } else if (fileType === 'application/pdf') {
@@ -159,7 +160,7 @@ const OrderDetails = () => {
         <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md" role="alert">
           <p className="font-medium">Error</p>
           <p>{error}</p>
-          <button 
+          <button
             onClick={() => navigate('/dashboard/orders')}
             className="mt-4 inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
           >
@@ -177,7 +178,7 @@ const OrderDetails = () => {
         <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-md" role="alert">
           <p className="font-medium">Pedido no encontrado</p>
           <p>No se encontró el pedido solicitado.</p>
-          <button 
+          <button
             onClick={() => navigate('/dashboard/orders')}
             className="mt-4 inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-yellow-600 hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500"
           >
@@ -192,7 +193,7 @@ const OrderDetails = () => {
     <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
       <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
         <div className="flex justify-between items-center mb-6">
-          <button 
+          <button
             onClick={() => navigate('/dashboard/orders')}
             className="flex items-center text-gray-600 hover:text-gray-900"
           >
@@ -201,7 +202,7 @@ const OrderDetails = () => {
             </svg>
             Volver a pedidos
           </button>
-          
+
           <div className="flex space-x-4">
             {canEdit ? (
               <button
@@ -219,7 +220,7 @@ const OrderDetails = () => {
                 </div>
               )
             )}
-            
+
             <button
               onClick={() => window.print()}
               className="flex items-center text-gray-600 hover:text-gray-800 bg-gray-50 hover:bg-gray-100 px-3 py-2 rounded-md"
@@ -231,7 +232,7 @@ const OrderDetails = () => {
             </button>
           </div>
         </div>
-        
+
         <div className="border-b pb-6 mb-6">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Pedido #{order.order_id}</h1>
           <div className="flex flex-wrap gap-y-2 items-center">
@@ -243,21 +244,21 @@ const OrderDetails = () => {
             </span>
             <span className="flex items-center">
               Estado: <span className="ml-2">
-                <OrderStatusBadge 
+                <OrderStatusBadge
                   status={
                     // Intenta varios enfoques para obtener el estado correcto
-                    orderStatuses[order.status_id] || 
-                    order.status || 
+                    orderStatuses[order.status_id] ||
+                    order.status ||
                     orderStatuses[String(order.status_id)] || // Intentar con conversión a string
                     'pendiente'
-                  } 
-                  size="lg" 
+                  }
+                  size="lg"
                 />
               </span>
             </span>
           </div>
         </div>
-        
+
         {/* Detalles de productos en el pedido */}
         <div className="mb-8">
           <h2 className="text-xl font-semibold text-gray-800 mb-4">Productos</h2>
@@ -320,7 +321,7 @@ const OrderDetails = () => {
             </table>
           </div>
         </div>
-        
+
         {/* Información adicional */}
         <div className="border-t pt-6">
           <h2 className="text-xl font-semibold text-gray-800 mb-4">Información adicional</h2>
@@ -329,13 +330,8 @@ const OrderDetails = () => {
               <div className="sm:col-span-1">
                 <dt className="text-sm font-medium text-gray-500">Fecha de entrega</dt>
                 <dd className="mt-1 text-sm text-gray-900">
-                  {order.delivery_date 
-                    ? new Date(order.delivery_date).toLocaleDateString('es-ES', {
-                        weekday: 'long',
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric'
-                      }) 
+                  {order.delivery_date
+                    ? formatDate(order.delivery_date) // Utilizar la función formatDate ya corregida
                     : 'No especificada'}
                 </dd>
               </div>
@@ -355,9 +351,9 @@ const OrderDetails = () => {
                 <div className="sm:col-span-2">
                   <dt className="text-sm font-medium text-gray-500">Archivo adjunto</dt>
                   <dd className="mt-2">
-                    <a 
-                      href={order.file_url} 
-                      target="_blank" 
+                    <a
+                      href={order.file_url}
+                      target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                     >
@@ -371,7 +367,7 @@ const OrderDetails = () => {
               <div className="sm:col-span-2">
                 <dt className="text-sm font-medium text-gray-500">Notas</dt>
                 <dd className="mt-1 text-sm text-gray-900">
-                  {order.notes 
+                  {order.notes
                     ? <p className="whitespace-pre-line">{order.notes}</p>
                     : 'Sin notas adicionales'
                   }

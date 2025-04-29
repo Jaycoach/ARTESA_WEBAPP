@@ -223,8 +223,8 @@ const InvoiceDetail = ({ invoiceId, onBack, onDownloadSuccess }) => {
                     <td className="px-4 py-3 whitespace-nowrap">{item.item_code}</td>
                     <td className="px-4 py-3">{item.description}</td>
                     <td className="px-4 py-3 text-right whitespace-nowrap">{item.quantity}</td>
-                    <td className="px-4 py-3 text-right whitespace-nowrap">${parseFloat(item.unit_price).toFixed(2)}</td>
-                    <td className="px-4 py-3 text-right whitespace-nowrap">${parseFloat(item.subtotal).toFixed(2)}</td>
+                    <td className="px-4 py-3 text-right whitespace-nowrap">{formatCurrency(item.unit_price)}</td>
+                    <td className="px-4 py-3 text-right whitespace-nowrap">{formatCurrency(item.subtotal)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -252,7 +252,7 @@ const InvoiceDetail = ({ invoiceId, onBack, onDownloadSuccess }) => {
               )}
               <div className="flex justify-between py-2 border-t border-gray-200 mt-2">
                 <span className="text-lg font-bold">Total:</span>
-                <span className="text-lg font-bold">${parseFloat(invoice.total_amount).toFixed(2)}</span>
+                <span className="text-lg font-bold">{formatCurrency(invoice.total_amount)}</span>
               </div>
             </div>
           </div>
