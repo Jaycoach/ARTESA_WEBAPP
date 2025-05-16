@@ -12,6 +12,24 @@ console.log("URL de ngrok:", import.meta.env.VITE_NGROK_URL);
 import { RECAPTCHA_SITE_KEY, RECAPTCHA_DEV_MODE } from './config/env';
 import './App.css';
 
+// Comprobar conectividad API
+const apiTestURL = import.meta.env.VITE_USE_NGROK === 'true' 
+  ? 'http://localhost:3000/api' 
+  : '/api';
+
+console.log(`Probando conectividad API en: ${apiTestURL}`);
+fetch(apiTestURL)
+  .then(response => {
+    console.log('Estado de respuesta API principal:', response.status);
+    return response.text();
+  })
+  .then(data => {
+    console.log('Respuesta API:', data);
+  })
+  .catch(error => {
+    console.error('Error al verificar API:', error);
+  });
+
 // Usar la configuración centralizada para reCAPTCHA
 const finalRecaptchaKey = import.meta.env.DEV && !RECAPTCHA_SITE_KEY
   ? '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI' // Clave de prueba de Google

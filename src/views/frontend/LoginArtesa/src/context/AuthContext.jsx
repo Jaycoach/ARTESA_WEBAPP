@@ -81,6 +81,7 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   // Función para iniciar sesión
+  // En la función login del AuthContext.jsx
   const login = async (credentials) => {
     setLoading(true);
     setError(null);
@@ -96,12 +97,11 @@ export const AuthProvider = ({ children }) => {
       if (credentials.recaptchaToken) {
         loginData.recaptchaToken = credentials.recaptchaToken;
       }
-      // En modo desarrollo con reCAPTCHA desactivado, no es necesario el token
-      else if (RECAPTCHA_DEV_MODE) {
-        // No hacer nada, aceptamos login sin recaptcha en desarrollo
-        if (isDevelopment) {
-          console.log("Modo desarrollo: reCAPTCHA omitido");
-        }
+      // Forzar modo desarrollo para ngrok
+      else if (isDevelopment || import.meta.env.VITE_USE_NGROK === 'true') {
+        // Usar un token simulado en desarrollo
+        console.log("Modo desarrollo o ngrok detectado: omitiendo reCAPTCHA");
+        loginData.recaptchaToken = 'dev-mode-bypass-token';
       }
 
       const response = await API.post("/auth/login", loginData);

@@ -520,7 +520,7 @@ class SapClientService extends SapBaseService {
       errors: 0,
       skipped: 0
     };
-
+  
     try {
       this.logger.info('Iniciando sincronización de clientes con SAP B1');
       
@@ -529,12 +529,12 @@ class SapClientService extends SapBaseService {
       
       // Obtener clientes que necesitan ser verificados (sap_lead_synced = true, is_active = false)
       const query = `
-        SELECT cp.*, u.id as user_id, u.is_active
+        SELECT cp.*, u.id as user_id, u.is_active, u.name, u.mail
         FROM client_profiles cp
         JOIN users u ON cp.user_id = u.id
-        WHERE cp.cardcode_sap IS NOT NULL 
+        WHERE ((cp.cardcode_sap IS NOT NULL OR cp.clientprofilecode_sap IS NOT NULL) 
         AND cp.sap_lead_synced = true
-        AND u.is_active = false
+        AND u.is_active = false)
       `;
       
       const { rows } = await pool.query(query);
@@ -545,19 +545,25 @@ class SapClientService extends SapBaseService {
       // Para cada cliente, verificar en SAP su estado
       for (const client of rows) {
         try {
-          // Verificar si el cliente todavía existe en SAP
-          const cardCode = client.cardcode_sap;
-          if (!cardCode) {
-            this.logger.warn('Cliente sin código SAP, saltando', { clientId: client.client_id });
-            stats.skipped++;
-            continue;
+          // Buscar el cliente en SAP prioritariamente por clientprofilecode_sap 
+          let sapClient = null;
+          
+          if (client.clientprofilecode_sap) {
+            sapClient = await this.getBusinessPartnerByArtesaCode(client.clientprofilecode_sap);
           }
           
-          // Consultar el cliente en SAP por su cardCode
-          const sapClient = await this.getBusinessPartnerBySapCode(cardCode);
+          // Si no se encontró, intentar con cardcode_sap
+          if (!sapClient && client.cardcode_sap) {
+            sapClient = await this.getBusinessPartnerBySapCode(client.cardcode_sap);
+          }
           
+          // Si no se encontró por ninguno de los dos códigos, saltar
           if (!sapClient) {
-            this.logger.warn('Cliente no encontrado en SAP, saltando', { cardCode });
+            this.logger.warn('Cliente no encontrado en SAP, saltando', { 
+              clientId: client.client_id,
+              cardcode_sap: client.cardcode_sap,
+              clientprofilecode_sap: client.clientprofilecode_sap 
+            });
             stats.skipped++;
             continue;
           }
@@ -571,36 +577,40 @@ class SapClientService extends SapBaseService {
           
               // Procesar el FederalTaxID para extraer nit_number y verification_digit
               const taxInfo = this.processFederalTaxID(sapClient.FederalTaxID);
-
-              // Primero actualizar datos del cliente con la información de SAP
+  
+              // Actualizar todos los campos relevantes del cliente
               const updateClientQuery = `
-              UPDATE client_profiles
-              SET 
-                cardcode_sap = $1,
-                tax_id = $2,
-                nit_number = $3,
-                verification_digit = $4,
-                company_name = $5,
-                contact_phone = $6,
-                contact_email = $7,
-                address = $8,
-                updated_at = CURRENT_TIMESTAMP
-              WHERE client_id = $9
-            `;
-
-            await dbClient.query(updateClientQuery, [
-              sapClient.CardCode, // Actualiza el cardcode_sap con el CardCode de SAP
-              taxInfo.tax_id || client.tax_id, // Actualiza el tax_id con FederalTaxID procesado
-              taxInfo.nit_number || client.nit_number, // Actualiza nit_number
-              taxInfo.verification_digit || client.verification_digit, // Actualiza verification_digit
-              sapClient.CardName || client.company_name, // Actualiza el company_name con CardName de SAP
-              sapClient.Phone1 || client.contact_phone, // Actualiza el teléfono
-              sapClient.EmailAddress || client.contact_email, // Actualiza el email
-              sapClient.Address || client.address, // Actualiza la dirección
-              client.client_id
-            ]);
+                UPDATE client_profiles
+                SET 
+                  cardcode_sap = $1,
+                  tax_id = $2,
+                  nit_number = $3,
+                  verification_digit = $4,
+                  company_name = $5,
+                  contact_phone = $6,
+                  contact_email = $7,
+                  address = $8,
+                  city = $9,
+                  country = $10,
+                  updated_at = CURRENT_TIMESTAMP
+                WHERE client_id = $11
+              `;
+  
+              await dbClient.query(updateClientQuery, [
+                sapClient.CardCode, // Actualiza el cardcode_sap con el CardCode de SAP
+                taxInfo.tax_id || client.tax_id, // Actualiza el tax_id con FederalTaxID procesado
+                taxInfo.nit_number || client.nit_number, // Actualiza nit_number
+                taxInfo.verification_digit || client.verification_digit, // Actualiza verification_digit
+                sapClient.CardName || client.company_name, // Actualiza el company_name con CardName de SAP
+                sapClient.Phone1 || client.contact_phone, // Actualiza el teléfono
+                sapClient.EmailAddress || client.contact_email, // Actualiza el email
+                sapClient.Address || client.address, // Actualiza la dirección
+                sapClient.City || client.city, // Ciudad
+                sapClient.Country || client.country, // País
+                client.client_id
+              ]);
           
-              // Luego activar al usuario
+              // Activar al usuario
               await dbClient.query('UPDATE users SET is_active = true WHERE id = $1', [client.user_id]);
               
               await dbClient.query('COMMIT');
@@ -633,7 +643,7 @@ class SapClientService extends SapBaseService {
             try {
               // Procesar el FederalTaxID para extraer nit_number y verification_digit
               const taxInfo = this.processFederalTaxID(sapClient.FederalTaxID);
-
+  
               // Solo actualizamos los datos para mantener sincronización, sin activar el usuario
               await pool.query(`
                 UPDATE client_profiles
@@ -643,14 +653,20 @@ class SapClientService extends SapBaseService {
                   nit_number = $3, 
                   verification_digit = $4,
                   company_name = $5,
+                  contact_phone = $6,
+                  contact_email = $7,
+                  address = $8,
                   updated_at = CURRENT_TIMESTAMP
-                WHERE client_id = $6
+                WHERE client_id = $9
               `, [
                 sapClient.CardCode,
                 taxInfo.tax_id || client.tax_id,
                 taxInfo.nit_number || client.nit_number,
                 taxInfo.verification_digit || client.verification_digit,
                 sapClient.CardName || client.company_name,
+                sapClient.Phone1 || client.contact_phone,
+                sapClient.EmailAddress || client.contact_email,
+                sapClient.Address || client.address,
                 client.client_id
               ]);
           
@@ -724,7 +740,7 @@ class SapClientService extends SapBaseService {
       
       // Obtener todos los perfiles que tienen código SAP o código de perfil
       const query = `
-        SELECT cp.*, u.id as user_id, u.is_active
+        SELECT cp.*, u.id as user_id, u.is_active, u.name, u.mail
         FROM client_profiles cp
         JOIN users u ON cp.user_id = u.id
         WHERE (cp.cardcode_sap IS NOT NULL OR cp.clientprofilecode_sap IS NOT NULL)
@@ -738,19 +754,19 @@ class SapClientService extends SapBaseService {
       // Para cada perfil, verificar y actualizar datos desde SAP
       for (const profile of rows) {
         try {
-          // Primero intentamos buscar por cardcode_sap si existe
-          // Buscar el cliente en SAP por cualquiera de los códigos disponibles
+          // Buscar el cliente en SAP prioritariamente por clientprofilecode_sap 
+          // que corresponde al campo U_AR_ArtesaCode en SAP
           let sapClient = null;
-          if (profile.cardcode_sap) {
-            // Intentar buscar por cualquier código, priorizando ArtesaCode
-            sapClient = await this.getBusinessPartnerByAnyCode(profile.cardcode_sap);
+          
+          if (profile.clientprofilecode_sap) {
+            sapClient = await this.getBusinessPartnerByArtesaCode(profile.clientprofilecode_sap);
           }
-
-          // Si no se encontró, intentar con clientprofilecode_sap
-          if (!sapClient && profile.clientprofilecode_sap) {
-            sapClient = await this.getBusinessPartnerByAnyCode(profile.clientprofilecode_sap);
+          
+          // Si no se encontró, intentar con cardcode_sap
+          if (!sapClient && profile.cardcode_sap) {
+            sapClient = await this.getBusinessPartnerBySapCode(profile.cardcode_sap);
           }
-
+          
           // Si todavía no se encontró, intentar generando un código a partir del NIT
           if (!sapClient && profile.nit_number) {
             const generatedCode = `CI${profile.nit_number}`;
@@ -764,7 +780,9 @@ class SapClientService extends SapBaseService {
             this.logger.warn('Cliente no encontrado en SAP, saltando', { 
               client_id: profile.client_id,
               cardcode_sap: profile.cardcode_sap,
-              clientprofilecode_sap: profile.clientprofilecode_sap 
+              clientprofilecode_sap: profile.clientprofilecode_sap,
+              mail: profile.mail,
+              name: profile.name
             });
             stats.skipped++;
             continue;
@@ -778,42 +796,91 @@ class SapClientService extends SapBaseService {
           try {
             await dbClient.query('BEGIN');
             
-            // Actualizar datos del perfil con la información de SAP
-            const updateQuery = `
-              UPDATE client_profiles
-              SET 
-                cardcode_sap = $1,
-                tax_id = $2,
-                nit_number = $3,
-                verification_digit = $4,
-                company_name = $5,
-                contact_phone = $6,
-                contact_email = $7,
-                address = $8,
-                city = $9,
-                country = $10,
-                updated_at = CURRENT_TIMESTAMP,
-                sap_lead_synced = true
-              WHERE client_id = $11
-              AND clientprofilecode_sap = $12
-            `;
+            // Recolectar todos los cambios desde SAP
+            const updates = {};
+            const changesDetected = [];
             
-            await dbClient.query(updateQuery, [
-              sapClient.CardCode,
-              taxInfo.tax_id || profile.tax_id,
-              taxInfo.nit_number || profile.nit_number,
-              taxInfo.verification_digit || profile.verification_digit,
-              sapClient.CardName || profile.company_name,
-              sapClient.Phone1 || profile.contact_phone,
-              sapClient.EmailAddress || profile.contact_email,
-              sapClient.Address || profile.address,
-              sapClient.City || profile.city,
-              sapClient.Country || profile.country,
-              profile.client_id,
-              profile.clientprofilecode_sap
-            ]);
+            // Verificar y actualizar campos principales
+            if (sapClient.CardCode && sapClient.CardCode !== profile.cardcode_sap) {
+              updates.cardcode_sap = sapClient.CardCode;
+              changesDetected.push('cardcode_sap');
+            }
             
-            // Si el cliente ya no es Lead en SAP, activar el usuario si no está activo
+            if (taxInfo.tax_id && taxInfo.tax_id !== profile.tax_id) {
+              updates.tax_id = taxInfo.tax_id;
+              changesDetected.push('tax_id');
+            }
+            
+            if (taxInfo.nit_number && taxInfo.nit_number !== profile.nit_number) {
+              updates.nit_number = taxInfo.nit_number;
+              changesDetected.push('nit_number');
+            }
+            
+            if (taxInfo.verification_digit && taxInfo.verification_digit !== profile.verification_digit) {
+              updates.verification_digit = taxInfo.verification_digit;
+              changesDetected.push('verification_digit');
+            }
+            
+            if (sapClient.CardName && sapClient.CardName !== profile.company_name) {
+              updates.company_name = sapClient.CardName;
+              changesDetected.push('company_name');
+            }
+            
+            if (sapClient.Phone1 && sapClient.Phone1 !== profile.contact_phone) {
+              updates.contact_phone = sapClient.Phone1;
+              changesDetected.push('contact_phone');
+            }
+            
+            if (sapClient.EmailAddress && sapClient.EmailAddress !== profile.contact_email) {
+              updates.contact_email = sapClient.EmailAddress;
+              changesDetected.push('contact_email');
+            }
+            
+            if (sapClient.Address && sapClient.Address !== profile.address) {
+              updates.address = sapClient.Address;
+              changesDetected.push('address');
+            }
+            
+            if (sapClient.City && sapClient.City !== profile.city) {
+              updates.city = sapClient.City;
+              changesDetected.push('city');
+            }
+            
+            if (sapClient.Country && sapClient.Country !== profile.country) {
+              updates.country = sapClient.Country;
+              changesDetected.push('country');
+            }
+            
+            // Asegurar que siempre se actualice sap_lead_synced
+            updates.sap_lead_synced = true;
+            updates.updated_at = new Date().toISOString();
+            
+            // Si hay cambios para actualizar, ejecutar la actualización
+            if (Object.keys(updates).length > 0) {
+              const setClauses = Object.keys(updates).map((key, index) => `${key} = $${index + 1}`);
+              const values = Object.values(updates);
+              
+              const updateQuery = `
+                UPDATE client_profiles
+                SET ${setClauses.join(', ')}
+                WHERE client_id = $${values.length + 1}
+                RETURNING *
+              `;
+              
+              values.push(profile.client_id);
+              
+              const updateResult = await dbClient.query(updateQuery, values);
+              
+              this.logger.info('Datos de perfil actualizados desde SAP', {
+                clientId: profile.client_id,
+                userId: profile.user_id,
+                cardCode: sapClient.CardCode,
+                changesDetected: changesDetected.join(', '),
+                cardType: sapClient.CardType
+              });
+            }
+            
+            // Si el cliente ya no es Lead en SAP (CardType !== 'cLid'), activar el usuario si no está activo
             if (sapClient.CardType !== 'cLid' && !profile.is_active) {
               await dbClient.query('UPDATE users SET is_active = true WHERE id = $1', [profile.user_id]);
               this.logger.info('Usuario activado porque ya no es Lead en SAP', {
@@ -827,13 +894,6 @@ class SapClientService extends SapBaseService {
             await dbClient.query('COMMIT');
             
             stats.updated++;
-            
-            this.logger.info('Datos de perfil actualizados desde SAP', {
-              clientId: profile.client_id,
-              userId: profile.user_id,
-              cardCode: sapClient.CardCode,
-              cardType: sapClient.CardType
-            });
           } catch (updateError) {
             await dbClient.query('ROLLBACK');
             stats.errors++;
@@ -895,7 +955,7 @@ class SapClientService extends SapBaseService {
       this.logger.debug('Consultando Business Partner por código Artesa', { artesaCode });
       
       // Construir la consulta con filtro para el campo personalizado U_AR_ArtesaCode
-      const endpoint = `BusinessPartners?$filter=U_AR_ArtesaCode eq '${artesaCode}'`;
+      const endpoint = `BusinessPartners?$filter=U_AR_ArtesaCode eq '${artesaCode}'&$select=CardCode,CardName,CardType,FederalTaxID,Phone1,EmailAddress,Address,City,Country,ContactPerson,U_AR_ArtesaCode`;
       
       // Realizar la consulta a SAP
       const result = await this.request('GET', endpoint);

@@ -1,124 +1,82 @@
 import axios from 'axios';
 import { isNgrok, isDevelopment } from '../utils/environment';
 
-// Función para determinar la URL base (mejorada)
 const determineBaseUrl = () => {
-  // Priorizar VITE_REACT_APP_API_URL para compatibilidad con código existente
-  if (import.meta.env.VITE_REACT_APP_API_URL) {
-    console.log(`Usando VITE_REACT_APP_API_URL: ${import.meta.env.VITE_REACT_APP_API_URL}`);
-    return import.meta.env.VITE_REACT_APP_API_URL;
-  }
+  // Imprimir variables de entorno relevantes
+  console.log("VITE_API_URL:", import.meta.env.VITE_API_URL);
+  console.log("VITE_USE_NGROK:", import.meta.env.VITE_USE_NGROK);
+  console.log("VITE_API_PATH:", import.meta.env.VITE_API_PATH);
   
-  // Luego intentar con VITE_API_URL
-  if (import.meta.env.VITE_API_URL) {
-    console.log(`Usando VITE_API_URL: ${import.meta.env.VITE_API_URL}`);
+  // Cuando usamos ngrok para acceder a la aplicación frontend, 
+  // necesitamos apuntar a la URL pública del backend
+  if (import.meta.env.VITE_USE_NGROK === 'true' && import.meta.env.VITE_API_URL) {
+    console.log("Modo ngrok activo: Usando API URL configurada:", import.meta.env.VITE_API_URL);
     return import.meta.env.VITE_API_URL;
   }
-
-  // Detectar Ngrok automáticamente
-  const currentHost = window.location.hostname;
-  const isNgrokHost = currentHost.includes('ngrok') || currentHost.includes('ngrok-free.app');
-
-  if (isNgrokHost) {
-    console.log(`Detectado host ngrok: ${window.location.origin}`);
-    return `${window.location.origin}`;
+  
+  // Para uso no-ngrok (desarrollo local normal)
+  if (typeof window !== 'undefined' && window.location.hostname.includes('localhost')) {
+    // En desarrollo local normal, usamos rutas relativas para el proxy de Vite
+    console.log("Desarrollo local: Usando rutas API relativas");
+    return '';
   }
-
-  // Fallback para desarrollo local
+  
+  // Si existe una URL de API explícita configurada
+  if (import.meta.env.VITE_API_URL) {
+    console.log(`Usando API URL explícita: ${import.meta.env.VITE_API_URL}`);
+    return import.meta.env.VITE_API_URL;
+  }
+  
+  // Fallback final
+  console.log('Fallback a localhost:3000');
   return 'http://localhost:3000';
 };
 
-// Obtener la URL base
+// Obtener URL base
 const baseURL = determineBaseUrl();
-console.log(`API configurada para usar URL base: ${baseURL}`);
-
-// Definir el path de API (considerar si ya está incluido en baseURL)
+// Determinar si necesitamos añadir /api
 const apiPath = import.meta.env.VITE_API_PATH || '/api';
-const baseURLIncludesApiPath = baseURL.includes(apiPath);
+// Construir la URL completa
+const fullURL = baseURL ? `${baseURL}${apiPath}` : apiPath;
 
-// Crear instancia de axios con configuración mejorada
+console.log(`API configurada con URL final: ${fullURL}`);
+
+// Crear instancia de axios
 const API = axios.create({
-  baseURL: baseURLIncludesApiPath ? baseURL : `${baseURL}${apiPath}`,
+  baseURL: fullURL,
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
-    ...(import.meta.env.VITE_USE_NGROK === 'true' || 
-       window.location.hostname.includes('ngrok') ? {
-      'ngrok-skip-browser-warning': '69420',
-      'Bypass-Tunnel-Reminder': 'true'
-    } : {})
+    'ngrok-skip-browser-warning': '69420',
+    'Bypass-Tunnel-Reminder': 'true'
   },
   withCredentials: false
 });
 
-// Mejorar el interceptor para evitar prefijos duplicados
-API.interceptors.request.use(
-  (config) => {
-    // Si la URL ya comienza con http o https, no modificar
-    if (config.url.startsWith('http')) {
-      console.log(`URL absoluta, no se modifica: ${config.url}`);
-      return config;
-    }
-    
-    // Si baseURL ya incluye apiPath, no necesitamos añadirlo de nuevo
-    if (baseURLIncludesApiPath) {
-      // Asegurar que la URL empiece con /
-      config.url = config.url.startsWith('/') ? config.url : `/${config.url}`;
-      console.log(`URL con baseURL que ya incluye apiPath: ${config.baseURL}${config.url}`);
-      return config;
-    }
-
-    // Si la URL ya incluye el prefijo API, no modificar
-    if (config.url.startsWith(apiPath)) {
-      console.log(`URL ya contiene prefijo API: ${config.url}`);
-      return config;
-    }
-
-    // Normalizar la URL y añadir prefijo API
-    const normalizedUrl = config.url.startsWith('/') ? config.url : `/${config.url}`;
-    // Aquí ya no añadimos apiPath porque ya se incluye en baseURL
-    config.url = normalizedUrl;
-    console.log(`URL normalizada: ${config.baseURL}${config.url}`);
-
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
-
-// Interceptor mejorado para autenticación con manejo de errores
+// Interceptor para añadir token
 API.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
-      console.log("Token de autenticación añadido a la petición");
-    } else {
-      console.warn("No se encontró token de autenticación");
+      console.log("Token añadido a la petición");
     }
+    
+    console.log(`Enviando petición a: ${config.baseURL}${config.url}`);
     return config;
   },
   (error) => Promise.reject(error)
 );
 
-// Interceptor para manejar respuestas de error comunes
+// Interceptor para manejar errores
 API.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Manejar errores específicos como token expirado
     if (error.response && error.response.status === 401) {
       console.error("Sesión expirada o token inválido");
-      // Opcionalmente limpiar localStorage y redirigir a login
-      // localStorage.removeItem('token');
-      // localStorage.removeItem('user');
-      // window.location.href = '/login';
     }
     return Promise.reject(error);
   }
 );
-
-// Mantener los interceptores de debugging si es necesario
-if (isDevelopment || import.meta.env.VITE_DEBUG_API === 'true') {
-  // [código de interceptores de debugging aquí...]
-}
 
 export default API;
