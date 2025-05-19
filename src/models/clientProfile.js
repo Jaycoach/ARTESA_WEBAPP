@@ -323,7 +323,7 @@ static async create(clientData) {
       clientData.listaPrecios || 1, // price_list (valor por defecto: 1)
       clientData.nit_number,   // nit_number
       clientData.verification_digit, // verification_digit
-      clientData.cardcode_sap, // cardcode_sap
+      null, // cardcode_sap
       clientProfileCode        // clientprofilecode_sap
     ];
 
@@ -732,7 +732,7 @@ static async create(clientData) {
                   
     // Construcción del objeto para SAP con exactamente el formato requerido
     const businessPartner = {
-      CardCode: `C${nit_number}`, // Prefijo 'C' seguido del NIT sin DV
+      CardCode: `CI${nit_number}`, // Prefijo 'C' seguido del NIT sin DV
       CardName: companyName,
       CardType: "L", // Lead por defecto (siempre L)
       PriceListNum: 1, // Siempre 1
@@ -742,7 +742,7 @@ static async create(clientData) {
       EmailAddress: email,
       Address: address,
       // Campo adicional para facilitar referencia interna
-      U_AR_ArtesaCode: `C${nit_number}`
+      U_AR_ArtesaCode: `CI${nit_number}`
     };
     
     return businessPartner;

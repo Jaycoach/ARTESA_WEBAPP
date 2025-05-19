@@ -239,29 +239,44 @@ class ClientSyncController {
 
       // Consultar clientes pendientes de activación
       const query = `
-        SELECT 
-          cp.client_id, 
-          cp.user_id, 
-          cp.company_name, 
-          cp.contact_name, 
-          cp.contact_email,
-          cp.cardcode_sap, 
-          cp.tax_id,
-          u.name as user_name,
-          u.mail as user_email
-        FROM client_profiles cp
-        JOIN users u ON cp.user_id = u.id
-        WHERE cp.cardcode_sap IS NOT NULL 
-        AND cp.sap_lead_synced = true
-        AND u.is_active = false
-        ORDER BY cp.updated_at DESC
-      `;
+      SELECT 
+        cp.client_id, 
+        cp.user_id, 
+        cp.company_name, 
+        cp.contact_name, 
+        cp.contact_email,
+        cp.cardcode_sap, 
+        cp.tax_id,
+        cp.nit_number,
+        cp.verification_digit,
+        cp.clientprofilecode_sap,
+        cp.sap_lead_synced,
+        u.name as user_name,
+        u.mail as user_email
+      FROM client_profiles cp
+      JOIN users u ON cp.user_id = u.id
+      WHERE (
+        -- Clientes ya sincronizados pero no activados
+        (cp.cardcode_sap IS NOT NULL AND cp.sap_lead_synced = true AND u.is_active = false)
+        OR 
+        -- Clientes pendientes de sincronización inicial con SAP
+        (cp.nit_number IS NOT NULL AND (cp.cardcode_sap IS NULL OR cp.sap_lead_synced = false) AND u.is_active = false)
+      )
+      ORDER BY cp.updated_at DESC
+    `;
       
       const { rows } = await pool.query(query);
       
+      // Clasificar los resultados
+      const result = {
+        pendingActivation: rows.filter(r => r.cardcode_sap && r.sap_lead_synced && !r.is_active),
+        pendingSynchronization: rows.filter(r => r.nit_number && (!r.cardcode_sap || !r.sap_lead_synced))
+      };
+      
       res.status(200).json({
         success: true,
-        data: rows
+        data: rows,
+        categories: result
       });
     } catch (error) {
       logger.error('Error al obtener clientes pendientes de activación', {
@@ -472,6 +487,103 @@ class ClientSyncController {
       res.status(500).json({
         success: false,
         message: 'Error al iniciar sincronización completa de clientes',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
+
+  /**
+   * Sincroniza un cliente específico con SAP
+   */
+  async syncClient(req, res) {
+    try {
+      const { userId } = req.params;
+      
+      logger.info('Sincronizando cliente específico con SAP', { 
+        userId,
+        adminId: req.user?.id
+      });
+
+      // Verificar que el cliente existe
+      const query = `
+        SELECT 
+          cp.*,
+          u.name,
+          u.mail,
+          u.is_active
+        FROM client_profiles cp
+        JOIN users u ON cp.user_id = u.id
+        WHERE cp.user_id = $1
+      `;
+      
+      const { rows } = await pool.query(query, [userId]);
+      
+      if (rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'Cliente no encontrado'
+        });
+      }
+      
+      const clientProfile = rows[0];
+      
+      // Verificar que tiene datos necesarios para sincronización
+      if (!clientProfile.nit_number || clientProfile.verification_digit === undefined) {
+        return res.status(400).json({
+          success: false,
+          message: 'El cliente no tiene NIT o dígito de verificación, que son requeridos para la sincronización'
+        });
+      }
+      
+      const sapServiceManager = require('../services/SapServiceManager');
+      
+      // Asegurar que el servicio está inicializado
+      if (!sapServiceManager.initialized) {
+        await sapServiceManager.initialize();
+      }
+      
+      // Sincronizar el cliente con SAP
+      const result = await sapServiceManager.createOrUpdateLead(clientProfile);
+      
+      if (result.success) {
+        logger.info('Cliente sincronizado exitosamente con SAP', {
+          userId,
+          cardCode: result.cardCode,
+          isNew: result.isNew
+        });
+        
+        return res.status(200).json({
+          success: true,
+          message: 'Cliente sincronizado exitosamente con SAP',
+          data: {
+            userId: parseInt(userId),
+            cardCode: result.cardCode,
+            isNew: result.isNew
+          }
+        });
+      } else {
+        logger.error('Error al sincronizar cliente con SAP', {
+          userId,
+          error: result.error
+        });
+        
+        return res.status(500).json({
+          success: false,
+          message: 'Error al sincronizar cliente con SAP',
+          error: result.error
+        });
+      }
+    } catch (error) {
+      logger.error('Error al sincronizar cliente con SAP', {
+        error: error.message,
+        stack: error.stack,
+        userId: req.params.userId,
+        adminId: req.user?.id
+      });
+      
+      res.status(500).json({
+        success: false,
+        message: 'Error al sincronizar cliente con SAP',
         error: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }

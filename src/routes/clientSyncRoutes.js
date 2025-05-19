@@ -80,6 +80,24 @@ router.post('/sync', clientSyncController.syncClients);
 router.get('/clients/pending', clientSyncController.getPendingClients);
 
 /**
+ * Sincronizar manualmente un cliente específico con SAP
+ * @route POST /api/client-sync/client/{userId}/sync
+ * @group ClientSync - Operaciones relacionadas con sincronización de clientes
+ * @security bearerAuth
+ * @param {number} userId.path.required - ID del usuario a sincronizar
+ * @returns {object} 200 - Cliente sincronizado exitosamente
+ * @returns {object} 401 - No autorizado
+ * @returns {object} 403 - No tiene permisos para realizar esta acción
+ * @returns {object} 404 - Cliente no encontrado
+ * @returns {object} 500 - Error interno del servidor
+ */
+router.post('/client/:userId/sync', 
+  verifyToken, 
+  checkRole([1]), // Solo administradores
+  clientSyncController.syncClient
+);
+
+/**
  * @swagger
  * /api/client-sync/client/{userId}/activate:
  *   post:

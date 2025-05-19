@@ -254,7 +254,7 @@ class SapClientService extends SapBaseService {
       });
       
       // Crear CardCode único con formato requerido
-      const cardCode = clientProfile.cardcode_sap || `CI${clientProfile.nit_number}`;
+      const cardCode = `CI${clientProfile.nit_number}`;
 
       // Validar requisitos mínimos
       if (!clientProfile.nit_number || clientProfile.verification_digit === undefined) {
@@ -338,22 +338,40 @@ class SapClientService extends SapBaseService {
       });
 
       try {
-        // Realizar petición a SAP
+      // Realizar petición a SAP
         const result = await this.request(method, endpoint, businessPartnerData);
         
-        // Si es creación, extraer el CardCode generado
-        let resultCardCode = clientProfile.cardcode_sap;
+        // Si es creación exitosa, guardar el CardCode real asignado por SAP
         if (!isUpdate && result && result.CardCode) {
           resultCardCode = result.CardCode;
-          this.logger.info('Nuevo socio de negocios Lead creado en SAP', {
-            cardCode: resultCardCode,
+          
+          // Actualizar el perfil del cliente con el código real de SAP y marcar como sincronizado
+          await pool.query(
+            `UPDATE client_profiles 
+            SET cardcode_sap = $1, 
+                sap_lead_synced = true,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE client_id = $2`,
+            [resultCardCode, clientProfile.client_id]
+          );
+          
+          this.logger.info('Perfil de cliente actualizado con CardCode real de SAP', {
             clientId: clientProfile.client_id,
-            resultData: JSON.stringify(result).substring(0, 500) // Log de los primeros 500 caracteres
+            sapCardCode: resultCardCode
           });
         } else if (isUpdate) {
-          this.logger.info('Socio de negocios Lead actualizado en SAP', {
-            cardCode: clientProfile.cardcode_sap,
-            clientId: clientProfile.client_id
+          // Para actualizaciones, simplemente marcar como sincronizado si aún no lo está
+          await pool.query(
+            `UPDATE client_profiles 
+            SET sap_lead_synced = true,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE client_id = $1 AND sap_lead_synced = false`,
+            [clientProfile.client_id]
+          );
+          
+          this.logger.info('Perfil de cliente actualizado en SAP', {
+            clientId: clientProfile.client_id,
+            cardCode: clientProfile.cardcode_sap
           });
         }
         
@@ -362,6 +380,7 @@ class SapClientService extends SapBaseService {
           cardCode: resultCardCode,
           isNew: !isUpdate
         };
+        
       } catch (error) {
         this.logger.error('Error al crear/actualizar socio de negocios Lead en SAP', {
           error: error.message,
