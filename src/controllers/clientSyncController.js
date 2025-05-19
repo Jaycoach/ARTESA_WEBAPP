@@ -599,5 +599,6 @@ module.exports = {
   syncClients: clientSyncController.syncClients,
   syncAllClients: clientSyncController.syncAllClients,
   getPendingClients: clientSyncController.getPendingClients,
-  activateClient: clientSyncController.activateClient
+  activateClient: clientSyncController.activateClient,
+  syncClient: clientSyncController.syncClient
 };
