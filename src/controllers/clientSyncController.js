@@ -588,6 +588,59 @@ class ClientSyncController {
       });
     }
   }
+  /**
+   * @swagger
+   * /api/client-sync/sync-institutional:
+   *   post:
+   *     summary: Iniciar sincronización de clientes institucionales
+   *     description: Sincroniza clientes del grupo Institucional desde SAP B1 con sus sucursales
+   *     tags: [ClientSync]
+   *     security:
+   *       - bearerAuth: []
+   *     responses:
+   *       200:
+   *         description: Sincronización iniciada exitosamente
+   *       401:
+   *         description: No autorizado
+   *       403:
+   *         description: No tiene permisos suficientes
+   *       500:
+   *         description: Error interno del servidor
+   */
+  async syncInstitutionalClients(req, res) {
+    try {
+      logger.info('Iniciando sincronización de clientes institucionales', { 
+        userId: req.user?.id
+      });
+
+      // Verificar que el servicio esté inicializado
+      if (!sapServiceManager.initialized) {
+        logger.debug('Inicializando servicio de SAP antes de sincronización');
+        await sapServiceManager.initialize();
+      }
+
+      // Ejecutar sincronización de clientes institucionales
+      const results = await sapServiceManager.clientService.syncInstitutionalClients();
+      
+      res.status(200).json({
+        success: true,
+        message: 'Sincronización de clientes institucionales completada exitosamente',
+        data: results
+      });
+    } catch (error) {
+      logger.error('Error al sincronizar clientes institucionales', {
+        error: error.message,
+        stack: error.stack,
+        userId: req.user?.id
+      });
+      
+      res.status(500).json({
+        success: false,
+        message: 'Error al sincronizar clientes institucionales',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
 }
 
 // Crear instancia del controlador
@@ -600,5 +653,6 @@ module.exports = {
   syncAllClients: clientSyncController.syncAllClients,
   getPendingClients: clientSyncController.getPendingClients,
   activateClient: clientSyncController.activateClient,
-  syncClient: clientSyncController.syncClient
+  syncClient: clientSyncController.syncClient,
+  syncInstitutionalClients: clientSyncController.syncInstitutionalClients
 };

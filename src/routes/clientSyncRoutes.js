@@ -129,6 +129,30 @@ router.post('/client/:userId/activate', clientSyncController.activateClient);
 
 /**
  * @swagger
+ * /api/client-sync/sync-institutional:
+ *   post:
+ *     summary: Iniciar sincronización de clientes institucionales
+ *     description: Sincroniza clientes del grupo Institucional desde SAP B1 con sus sucursales
+ *     tags: [ClientSync]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Sincronización iniciada exitosamente
+ *       401:
+ *         description: No autorizado
+ *       403:
+ *         description: No tiene permisos suficientes
+ *       500:
+ *         description: Error interno del servidor
+ */
+router.post('/sync-institutional', 
+  checkRole([1]), // Solo administradores
+  clientSyncController.syncInstitutionalClients
+);
+
+/**
+ * @swagger
  * /api/client-sync/sync-all:
  *   post:
  *     summary: Iniciar sincronización manual completa con SAP
