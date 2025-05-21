@@ -1017,7 +1017,7 @@ class SapClientService extends SapBaseService {
       this.logger.info('Obteniendo clientes del grupo Institucional desde SAP');
       
       // Código de grupo para clientes institucionales
-      const institutionalGroupCode = 103; // Cambiar a tu código real
+      const institutionalGroupCode = process.env.SAP_INSTITUTIONAL_GROUP_CODE || 103; // Cambiar a tu código real
       
       // Endpoint para obtener clientes del grupo Institucional
       const endpoint = `BusinessPartners?$filter=GroupCode eq ${institutionalGroupCode} and CardType eq 'C'`;
