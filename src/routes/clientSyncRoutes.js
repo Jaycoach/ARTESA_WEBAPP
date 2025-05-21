@@ -175,4 +175,160 @@ router.post('/sync-all',
   clientSyncController.syncAllClients
 );
 
+/**
+ * @swagger
+ * /api/client-sync/branches/validate:
+ *   get:
+ *     summary: Validar sucursales de clientes institucionales
+ *     description: Obtiene una lista de las sucursales encontradas en SAP para clientes institucionales y compara con las almacenadas localmente
+ *     tags: [ClientSync]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: clientId
+ *         schema:
+ *           type: integer
+ *         description: ID del cliente específico para validar (opcional)
+ *       - in: query
+ *         name: cardCode
+ *         schema:
+ *           type: string
+ *         description: Código SAP del cliente específico para validar (opcional)
+ *     responses:
+ *       200:
+ *         description: Validación de sucursales completada exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     totalClients:
+ *                       type: integer
+ *                       example: 15
+ *                     clientsWithBranches:
+ *                       type: integer
+ *                       example: 12
+ *                     totalSapBranches:
+ *                       type: integer
+ *                       example: 45
+ *                     totalLocalBranches:
+ *                       type: integer
+ *                       example: 40
+ *                     missingBranches:
+ *                       type: integer
+ *                       example: 5
+ *                     extraBranches:
+ *                       type: integer
+ *                       example: 0
+ *                     clientDetails:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           clientId:
+ *                             type: integer
+ *                           cardCode:
+ *                             type: string
+ *                           companyName:
+ *                             type: string
+ *                           sapBranches:
+ *                             type: array
+ *                           localBranches:
+ *                             type: array
+ *                           missing:
+ *                             type: array
+ *                           extra:
+ *                             type: array
+ *       401:
+ *         description: No autorizado
+ *       403:
+ *         description: No tiene permisos suficientes
+ *       500:
+ *         description: Error interno del servidor
+ */
+router.get('/branches/validate', 
+  checkRole([1]), // Solo administradores
+  clientSyncController.validateClientBranches
+);
+
+/**
+ * @swagger
+ * /api/client-sync/branches/sync:
+ *   post:
+ *     summary: Sincronizar sucursales de clientes institucionales
+ *     description: Sincroniza las sucursales de clientes institucionales desde SAP B1 hacia la base de datos local
+ *     tags: [ClientSync]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               clientId:
+ *                 type: integer
+ *                 description: ID del cliente específico para sincronizar (opcional)
+ *               cardCode:
+ *                 type: string
+ *                 description: Código SAP del cliente específico para sincronizar (opcional)
+ *               forceUpdate:
+ *                 type: boolean
+ *                 description: Forzar actualización de sucursales existentes
+ *                 default: false
+ *     responses:
+ *       200:
+ *         description: Sincronización de sucursales completada exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Sincronización de sucursales completada exitosamente"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     totalClients:
+ *                       type: integer
+ *                       example: 15
+ *                     totalBranches:
+ *                       type: integer
+ *                       example: 45
+ *                     created:
+ *                       type: integer
+ *                       example: 5
+ *                     updated:
+ *                       type: integer
+ *                       example: 10
+ *                     errors:
+ *                       type: integer
+ *                       example: 0
+ *                     skipped:
+ *                       type: integer
+ *                       example: 2
+ *       401:
+ *         description: No autorizado
+ *       403:
+ *         description: No tiene permisos suficientes
+ *       500:
+ *         description: Error interno del servidor
+ */
+router.post('/branches/sync', 
+  checkRole([1]), // Solo administradores
+  clientSyncController.syncClientBranches
+);
+
 module.exports = router;

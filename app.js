@@ -307,6 +307,7 @@ app.use(API_PREFIX, productRoutes);
 app.use(API_PREFIX, secureProductRoutes);
 app.use(API_PREFIX, orderRoutes);
 app.use('/client-branches', clientBranchRoutes);
+app.use('/client-branches', require('./src/routes/clientBranchRoutes'));
 // Nueva ruta para SAP
 app.use(`${API_PREFIX}/sap`, sapSyncRoutes);
 app.use(`${API_PREFIX}/admin`, adminRoutes);

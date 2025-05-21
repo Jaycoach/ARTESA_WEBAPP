@@ -641,6 +641,355 @@ class ClientSyncController {
       });
     }
   }
+  /**
+   * @swagger
+   * /api/client-sync/branches/validate:
+   *   get:
+   *     summary: Validar sucursales de clientes institucionales
+   *     description: Obtiene una lista de las sucursales encontradas en SAP para clientes institucionales y compara con las almacenadas localmente
+   *     tags: [ClientSync]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: query
+   *         name: clientId
+   *         schema:
+   *           type: integer
+   *         description: ID del cliente específico para validar (opcional)
+   *       - in: query
+   *         name: cardCode
+   *         schema:
+   *           type: string
+   *         description: Código SAP del cliente específico para validar (opcional)
+   *     responses:
+   *       200:
+   *         description: Validación de sucursales completada exitosamente
+   *       401:
+   *         description: No autorizado
+   *       403:
+   *         description: No tiene permisos suficientes
+   *       500:
+   *         description: Error interno del servidor
+   */
+  async validateClientBranches(req, res) {
+    try {
+      const { clientId, cardCode } = req.query;
+      
+      logger.info('Iniciando validación de sucursales de clientes', { 
+        userId: req.user?.id,
+        clientId,
+        cardCode
+      });
+
+      // Verificar que el servicio esté inicializado
+      if (!sapServiceManager.initialized) {
+        logger.debug('Inicializando servicio de SAP antes de validación');
+        await sapServiceManager.initialize();
+      }
+
+      // Obtener clientes para validar
+      let clientsQuery = `
+        SELECT 
+          cp.client_id, 
+          cp.cardcode_sap, 
+          cp.company_name,
+          cp.user_id
+        FROM client_profiles cp
+        WHERE cp.cardcode_sap IS NOT NULL
+      `;
+      
+      const queryParams = [];
+      
+      if (clientId) {
+        clientsQuery += ` AND cp.client_id = $${queryParams.length + 1}`;
+        queryParams.push(clientId);
+      }
+      
+      if (cardCode) {
+        clientsQuery += ` AND cp.cardcode_sap = $${queryParams.length + 1}`;
+        queryParams.push(cardCode);
+      }
+      
+      clientsQuery += ` ORDER BY cp.company_name`;
+      
+      const { rows: clients } = await pool.query(clientsQuery, queryParams);
+      
+      if (clients.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'No se encontraron clientes para validar'
+        });
+      }
+
+      const validationResults = {
+        totalClients: clients.length,
+        clientsWithBranches: 0,
+        totalSapBranches: 0,
+        totalLocalBranches: 0,
+        missingBranches: 0,
+        extraBranches: 0,
+        clientDetails: []
+      };
+
+      // Validar cada cliente
+      for (const client of clients) {
+        try {
+          // Obtener sucursales de SAP
+          const sapBranches = await sapServiceManager.clientService.getClientBranches(client.cardcode_sap);
+          
+          // Obtener sucursales locales
+          const localBranchesQuery = `
+            SELECT * FROM client_branches 
+            WHERE client_id = $1 
+            ORDER BY branch_name
+          `;
+          const { rows: localBranches } = await pool.query(localBranchesQuery, [client.client_id]);
+          
+          // Comparar sucursales
+          const sapBranchCodes = new Set(sapBranches.map(b => b.AddressName));
+          const localBranchCodes = new Set(localBranches.map(b => b.ship_to_code));
+          
+          const missing = sapBranches.filter(b => !localBranchCodes.has(b.AddressName));
+          const extra = localBranches.filter(b => !sapBranchCodes.has(b.ship_to_code));
+          
+          const clientDetail = {
+            clientId: client.client_id,
+            cardCode: client.cardcode_sap,
+            companyName: client.company_name,
+            sapBranches: sapBranches.map(b => ({
+              addressName: b.AddressName,
+              street: b.Street,
+              city: b.City,
+              state: b.State,
+              country: b.Country,
+              zipCode: b.ZipCode,
+              phone: b.Phone,
+              contactPerson: b.ContactPerson
+            })),
+            localBranches: localBranches.map(b => ({
+              branchId: b.branch_id,
+              shipToCode: b.ship_to_code,
+              branchName: b.branch_name,
+              address: b.address,
+              city: b.city,
+              state: b.state,
+              country: b.country,
+              zipCode: b.zip_code,
+              phone: b.phone,
+              contactPerson: b.contact_person,
+              isDefault: b.is_default
+            })),
+            missing: missing.map(b => ({
+              addressName: b.AddressName,
+              street: b.Street,
+              city: b.City,
+              state: b.State
+            })),
+            extra: extra.map(b => ({
+              branchId: b.branch_id,
+              shipToCode: b.ship_to_code,
+              branchName: b.branch_name
+            }))
+          };
+          
+          validationResults.clientDetails.push(clientDetail);
+          validationResults.totalSapBranches += sapBranches.length;
+          validationResults.totalLocalBranches += localBranches.length;
+          validationResults.missingBranches += missing.length;
+          validationResults.extraBranches += extra.length;
+          
+          if (sapBranches.length > 0) {
+            validationResults.clientsWithBranches++;
+          }
+          
+        } catch (clientError) {
+          logger.error('Error al validar sucursales para cliente', {
+            clientId: client.client_id,
+            cardCode: client.cardcode_sap,
+            error: clientError.message
+          });
+          
+          // Agregar cliente con error a los resultados
+          validationResults.clientDetails.push({
+            clientId: client.client_id,
+            cardCode: client.cardcode_sap,
+            companyName: client.company_name,
+            error: clientError.message,
+            sapBranches: [],
+            localBranches: [],
+            missing: [],
+            extra: []
+          });
+        }
+      }
+      
+      res.status(200).json({
+        success: true,
+        message: 'Validación de sucursales completada exitosamente',
+        data: validationResults
+      });
+    } catch (error) {
+      logger.error('Error al validar sucursales de clientes', {
+        error: error.message,
+        stack: error.stack,
+        userId: req.user?.id
+      });
+      
+      res.status(500).json({
+        success: false,
+        message: 'Error al validar sucursales de clientes',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
+
+  /**
+   * @swagger
+   * /api/client-sync/branches/sync:
+   *   post:
+   *     summary: Sincronizar sucursales de clientes institucionales
+   *     description: Sincroniza las sucursales de clientes institucionales desde SAP B1 hacia la base de datos local
+   *     tags: [ClientSync]
+   *     security:
+   *       - bearerAuth: []
+   *     responses:
+   *       200:
+   *         description: Sincronización de sucursales completada exitosamente
+   *       401:
+   *         description: No autorizado
+   *       403:
+   *         description: No tiene permisos suficientes
+   *       500:
+   *         description: Error interno del servidor
+   */
+  async syncClientBranches(req, res) {
+    try {
+      const { clientId, cardCode, forceUpdate = false } = req.body;
+      
+      logger.info('Iniciando sincronización de sucursales de clientes', { 
+        userId: req.user?.id,
+        clientId,
+        cardCode,
+        forceUpdate
+      });
+
+      // Verificar que el servicio esté inicializado
+      if (!sapServiceManager.initialized) {
+        logger.debug('Inicializando servicio de SAP antes de sincronización');
+        await sapServiceManager.initialize();
+      }
+
+      // Obtener clientes para sincronizar
+      let clientsQuery = `
+        SELECT 
+          cp.client_id, 
+          cp.cardcode_sap, 
+          cp.company_name,
+          cp.user_id
+        FROM client_profiles cp
+        WHERE cp.cardcode_sap IS NOT NULL
+      `;
+      
+      const queryParams = [];
+      
+      if (clientId) {
+        clientsQuery += ` AND cp.client_id = $${queryParams.length + 1}`;
+        queryParams.push(clientId);
+      }
+      
+      if (cardCode) {
+        clientsQuery += ` AND cp.cardcode_sap = $${queryParams.length + 1}`;
+        queryParams.push(cardCode);
+      }
+      
+      clientsQuery += ` ORDER BY cp.company_name`;
+      
+      const { rows: clients } = await pool.query(clientsQuery, queryParams);
+      
+      if (clients.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'No se encontraron clientes para sincronizar'
+        });
+      }
+
+      const syncResults = {
+        totalClients: clients.length,
+        totalBranches: 0,
+        created: 0,
+        updated: 0,
+        errors: 0,
+        skipped: 0,
+        clientDetails: []
+      };
+
+      // Sincronizar cada cliente
+      for (const client of clients) {
+        try {
+          const branchStats = {
+            total: 0,
+            created: 0,
+            updated: 0,
+            errors: 0
+          };
+          
+          // Usar el método existente del servicio SAP
+          await sapServiceManager.clientService.syncClientBranches(
+            client.cardcode_sap, 
+            client.client_id, 
+            branchStats
+          );
+          
+          // Actualizar estadísticas generales
+          syncResults.totalBranches += branchStats.total;
+          syncResults.created += branchStats.created;
+          syncResults.updated += branchStats.updated;
+          syncResults.errors += branchStats.errors;
+          
+          syncResults.clientDetails.push({
+            clientId: client.client_id,
+            cardCode: client.cardcode_sap,
+            companyName: client.company_name,
+            branches: branchStats
+          });
+          
+        } catch (clientError) {
+          syncResults.errors++;
+          logger.error('Error al sincronizar sucursales para cliente', {
+            clientId: client.client_id,
+            cardCode: client.cardcode_sap,
+            error: clientError.message
+          });
+          
+          syncResults.clientDetails.push({
+            clientId: client.client_id,
+            cardCode: client.cardcode_sap,
+            companyName: client.company_name,
+            error: clientError.message,
+            branches: { total: 0, created: 0, updated: 0, errors: 1 }
+          });
+        }
+      }
+      
+      res.status(200).json({
+        success: true,
+        message: 'Sincronización de sucursales completada exitosamente',
+        data: syncResults
+      });
+    } catch (error) {
+      logger.error('Error al sincronizar sucursales de clientes', {
+        error: error.message,
+        stack: error.stack,
+        userId: req.user?.id
+      });
+      
+      res.status(500).json({
+        success: false,
+        message: 'Error al sincronizar sucursales de clientes',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
 }
 
 // Crear instancia del controlador
@@ -654,5 +1003,7 @@ module.exports = {
   getPendingClients: clientSyncController.getPendingClients,
   activateClient: clientSyncController.activateClient,
   syncClient: clientSyncController.syncClient,
-  syncInstitutionalClients: clientSyncController.syncInstitutionalClients
+  syncInstitutionalClients: clientSyncController.syncInstitutionalClients,
+  validateClientBranches: clientSyncController.validateClientBranches,
+  syncClientBranches: clientSyncController.syncClientBranches
 };
