@@ -21,6 +21,7 @@ const Login = () => {
     const { login, requestPasswordReset } = useAuth();
     const { generateRecaptchaToken, loading: recaptchaLoading, error: recaptchaError } = useRecaptcha();
     const [forgotPassword, setForgotPassword] = useState(false);
+    const [formSubmitted, setFormSubmitted] = useState(false);
     
     // Usar hooks de validación
     const { values, setValues, validateField } = useFormValidation({

@@ -23,6 +23,7 @@ const EditOrderForm = lazy(() => import('./Components/Dashboard/Pages/Orders/Edi
 const Invoices = lazy(() => import('./Components/Dashboard/Pages/Invoices/Invoices'));
 const Settings = lazy(() => import('./Components/Dashboard/Pages/Settings/Settings'));
 const AdminPage = lazy(() => import('./Components/Dashboard/Pages/Admin/AdminPage'));
+const Users = lazy(() => import('./Components/Dashboard/Pages/Users/ClientList'));
 const EmailVerification = lazy(() => import('./Components/Register/EmailVerification'));
 const ResendVerification = lazy(() => import('./Components/Register/ResendVerification'));
 const RegistrationSuccess = lazy(() => import('./Components/Register/RegistrationSuccess'));
@@ -222,6 +223,14 @@ const router = createBrowserRouter([
         element: (
           <Suspense fallback={<LoadingScreen />}>
             <AdminPage />
+          </Suspense>
+        ),
+      },
+      {
+        path: "Users",
+        element: (
+          <Suspense fallback={<LoadingScreen />}> 
+            <Users />
           </Suspense>
         ),
       },

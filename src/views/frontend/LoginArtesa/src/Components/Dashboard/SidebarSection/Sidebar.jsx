@@ -4,7 +4,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../../hooks/useAuth";
 import {
   FaHome, FaListAlt, FaFileInvoiceDollar, FaBoxes, FaCog,
-  FaSignOutAlt, FaTools
+  FaSignOutAlt, FaTools, FaUsers
 } from "react-icons/fa";
 
 
@@ -150,6 +150,21 @@ const Sidebar = ({ collapsed, mobileMenuOpen, onCloseMobileMenu, onToggleCollaps
             >
               <FaBoxes className={`text-lg transform transition-transform duration-200 group-hover:scale-110 ${collapsed ? 'mx-auto' : 'mr-3'}`} />
               {!collapsed && <span>Productos</span>}
+            </button>
+          </li>
+          
+          <li>
+            <button
+              onClick={() => handleMenuClick("/dashboard/Users")}
+              title={collapsed ? "Clientes" : undefined}
+              className={`relative w-full flex items-center py-2 px-3 rounded-md transition-all duration-200 ease-in-out group
+      ${isActive('/dashboard/Users')
+                  ? 'bg-accent text-white'
+                  : 'hover:bg-orange-200/20 hover:text-orange-300 text-white'
+                }`}
+            >
+              <FaUsers className={`text-lg transform transition-transform duration-200 group-hover:scale-110 ${collapsed ? 'mx-auto' : 'mr-3'}`} />
+              {!collapsed && <span>Clientes</span>}
             </button>
           </li>
 
