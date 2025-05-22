@@ -76,21 +76,21 @@ export default ({ mode }) => {
     server: {
       hmr: {
         overlay: true,
-        host: mode === 'ngrok' ? 'all' : undefined,
-        clientPort: mode === 'ngrok' ? 443 : undefined,
-        protocol: mode === 'ngrok' ? 'wss' : 'ws',
+        host: 'all',
+        clientPort: 443,
+        protocol: 'wss'
       },
       proxy: {
         '/api': {
           target: 'http://localhost:3000',
           changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/api/, '')
+          secure: false
         }
       },
       host: true,
       cors: true,
-      // Simplificar para permitir cualquier host en ngrok
-      allowedHosts: mode === 'ngrok' ? 'all' : undefined
+      strictPort: false,
+      allowedHosts: 'all'
     },
     build: {
       // Generar source maps incluso en producción
