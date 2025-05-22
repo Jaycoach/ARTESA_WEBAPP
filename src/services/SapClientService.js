@@ -63,6 +63,8 @@ class SapClientService extends SapBaseService {
       try {
         this.logger.info('Iniciando sincronización diaria completa de perfiles');
         await this.syncAllClientsWithSAP();
+        // Sincronizar también clientes institucionales
+        await this.syncInstitutionalClients();
         this.logger.info('Sincronización diaria completa de perfiles finalizada exitosamente');
       } catch (error) {
         this.logger.error('Error en sincronización diaria completa de perfiles', {
@@ -254,7 +256,7 @@ class SapClientService extends SapBaseService {
       });
       
       // Crear CardCode único con formato requerido
-      const cardCode = clientProfile.cardcode_sap || `CI${clientProfile.nit_number}`;
+      const cardCode = `CI${clientProfile.nit_number}`;
 
       // Validar requisitos mínimos
       if (!clientProfile.nit_number || clientProfile.verification_digit === undefined) {
@@ -338,22 +340,40 @@ class SapClientService extends SapBaseService {
       });
 
       try {
-        // Realizar petición a SAP
+      // Realizar petición a SAP
         const result = await this.request(method, endpoint, businessPartnerData);
         
-        // Si es creación, extraer el CardCode generado
-        let resultCardCode = clientProfile.cardcode_sap;
+        // Si es creación exitosa, guardar el CardCode real asignado por SAP
         if (!isUpdate && result && result.CardCode) {
           resultCardCode = result.CardCode;
-          this.logger.info('Nuevo socio de negocios Lead creado en SAP', {
-            cardCode: resultCardCode,
+          
+          // Actualizar el perfil del cliente con el código real de SAP y marcar como sincronizado
+          await pool.query(
+            `UPDATE client_profiles 
+            SET cardcode_sap = $1, 
+                sap_lead_synced = true,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE client_id = $2`,
+            [resultCardCode, clientProfile.client_id]
+          );
+          
+          this.logger.info('Perfil de cliente actualizado con CardCode real de SAP', {
             clientId: clientProfile.client_id,
-            resultData: JSON.stringify(result).substring(0, 500) // Log de los primeros 500 caracteres
+            sapCardCode: resultCardCode
           });
         } else if (isUpdate) {
-          this.logger.info('Socio de negocios Lead actualizado en SAP', {
-            cardCode: clientProfile.cardcode_sap,
-            clientId: clientProfile.client_id
+          // Para actualizaciones, simplemente marcar como sincronizado si aún no lo está
+          await pool.query(
+            `UPDATE client_profiles 
+            SET sap_lead_synced = true,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE client_id = $1 AND sap_lead_synced = false`,
+            [clientProfile.client_id]
+          );
+          
+          this.logger.info('Perfil de cliente actualizado en SAP', {
+            clientId: clientProfile.client_id,
+            cardCode: clientProfile.cardcode_sap
           });
         }
         
@@ -362,6 +382,7 @@ class SapClientService extends SapBaseService {
           cardCode: resultCardCode,
           isNew: !isUpdate
         };
+        
       } catch (error) {
         this.logger.error('Error al crear/actualizar socio de negocios Lead en SAP', {
           error: error.message,
@@ -980,6 +1001,347 @@ class SapClientService extends SapBaseService {
     } catch (error) {
       this.logger.error('Error al consultar Business Partner por código Artesa', {
         artesaCode,
+        error: error.message,
+        stack: error.stack
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Obtiene clientes del grupo Institucional de SAP que no estén ya en la plataforma
+   * @returns {Promise<Array>} Lista de clientes institucionales
+   */
+  async getInstitutionalClients() {
+    try {
+      this.logger.info('Obteniendo clientes del grupo Institucional desde SAP');
+      
+      // Código de grupo para clientes institucionales
+      const institutionalGroupCode = process.env.SAP_INSTITUTIONAL_GROUP_CODE || 103; // Cambiar a tu código real
+      
+      // Endpoint para obtener clientes del grupo Institucional
+      const endpoint = `BusinessPartners?$filter=GroupCode eq ${institutionalGroupCode} and CardType eq 'C'`;
+      
+      const result = await this.request('GET', endpoint);
+      
+      if (!result || !result.value) {
+        this.logger.warn('No se obtuvieron resultados o formato inesperado');
+        return [];
+      }
+      
+      this.logger.info(`Se encontraron ${result.value.length} clientes institucionales en SAP`);
+      return result.value;
+    } catch (error) {
+      this.logger.error('Error al obtener clientes institucionales', {
+        error: error.message,
+        stack: error.stack
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Obtiene las sucursales de un cliente desde SAP
+   * @param {string} cardCode - Código del cliente en SAP
+   * @returns {Promise<Array>} Lista de sucursales
+   */
+  async getClientBranches(cardCode) {
+    try {
+      this.logger.debug('Obteniendo sucursales para cliente', { cardCode });
+      
+      // Usar el endpoint correcto para obtener el Business Partner con todas sus direcciones
+      const endpoint = `BusinessPartners('${cardCode}')?$select=CardCode,CardName,BPAddresses`;
+      
+      const result = await this.request('GET', endpoint);
+      
+      if (!result || !result.BPAddresses) {
+        this.logger.warn('No se obtuvieron direcciones o formato inesperado', { cardCode });
+        return [];
+      }
+      
+      // Filtrar solo las direcciones de tipo "Ship To" (bo_ShipTo)
+      const shipToAddresses = result.BPAddresses.filter(address => 
+        address.AddressType === 'bo_ShipTo'
+      );
+      
+      this.logger.info(`Se encontraron ${shipToAddresses.length} sucursales para el cliente ${cardCode}`);
+      return shipToAddresses;
+    } catch (error) {
+      this.logger.error('Error al obtener sucursales del cliente', {
+        cardCode,
+        error: error.message,
+        stack: error.stack
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Sincroniza los clientes del grupo Institucional y sus sucursales
+   * @returns {Promise<Object>} Estadísticas de la sincronización
+   */
+  async syncInstitutionalClients() {
+    const stats = {
+      total: 0,
+      created: 0,
+      updated: 0,
+      errors: 0,
+      branches: {
+        total: 0,
+        created: 0,
+        updated: 0,
+        errors: 0
+      }
+    };
+
+    try {
+      this.logger.info('Iniciando sincronización de clientes institucionales');
+      
+      // Obtener clientes institucionales de SAP
+      const sapClients = await this.getInstitutionalClients();
+      stats.total = sapClients.length;
+      
+      if (sapClients.length === 0) {
+        return stats;
+      }
+      
+      // Para cada cliente, verificar si existe en la plataforma
+      for (const sapClient of sapClients) {
+        try {
+          // Buscar si el cliente ya existe por CardCode
+          const query = 'SELECT client_id, user_id FROM client_profiles WHERE cardcode_sap = $1';
+          const { rows } = await pool.query(query, [sapClient.CardCode]);
+          
+          let clientId, userId;
+          
+          if (rows.length === 0) {
+            // Cliente no existe, crear usuario y perfil
+            const taxInfo = this.processFederalTaxID(sapClient.FederalTaxID);
+            
+            // Crear un correo electrónico único basado en el CardCode
+            const email = `${sapClient.CardCode.toLowerCase()}@institucional.artesa.com`.replace(/\s+/g, '');
+            
+            // Crear un nombre de usuario basado en CardName
+            let username = sapClient.CardName;
+            if (username.length > 50) {
+              username = username.substring(0, 50);
+            }
+            
+            // Generar contraseña aleatoria
+            const bcrypt = require('bcrypt');
+            const crypto = require('crypto');
+            const randomPassword = crypto.randomBytes(10).toString('hex');
+            const hashedPassword = await bcrypt.hash(randomPassword, 10);
+            
+            // Transacción para crear usuario y perfil
+            const client = await pool.connect();
+            try {
+              await client.query('BEGIN');
+              
+              // Crear usuario
+              const userResult = await client.query(
+                'INSERT INTO users (name, mail, password, rol_id, is_active) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+                [username, email, hashedPassword, 2, true] // rol_id 2 = Usuario regular, ya activo
+              );
+              
+              userId = userResult.rows[0].id;
+              
+              // Crear perfil de cliente
+              const profileResult = await client.query(
+                `INSERT INTO client_profiles 
+                (user_id, company_name, contact_name, contact_phone, contact_email, 
+                address, city, country, tax_id, nit_number, verification_digit, 
+                cardcode_sap, clientprofilecode_sap, sap_lead_synced) 
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) 
+                RETURNING client_id`,
+                [
+                  userId,
+                  sapClient.CardName,
+                  sapClient.ContactPerson || sapClient.CardName,
+                  sapClient.Phone1 || '',
+                  sapClient.EmailAddress || email,
+                  sapClient.Address || '',
+                  sapClient.City || '',
+                  sapClient.Country || 'Colombia',
+                  taxInfo.tax_id || '',
+                  taxInfo.nit_number || '',
+                  taxInfo.verification_digit || '',
+                  sapClient.CardCode,
+                  `CI${taxInfo.nit_number || ''}`,
+                  true // ya sincronizado
+                ]
+              );
+              
+              clientId = profileResult.rows[0].client_id;
+              
+              await client.query('COMMIT');
+              stats.created++;
+              
+              this.logger.info('Cliente institucional creado en la plataforma', {
+                cardCode: sapClient.CardCode,
+                userId,
+                clientId
+              });
+            } catch (txError) {
+              await client.query('ROLLBACK');
+              throw txError;
+            } finally {
+              client.release();
+            }
+          } else {
+            // Cliente ya existe, actualizar información
+            clientId = rows[0].client_id;
+            userId = rows[0].user_id;
+            
+            const taxInfo = this.processFederalTaxID(sapClient.FederalTaxID);
+            
+            await pool.query(
+              `UPDATE client_profiles 
+              SET company_name = $1, 
+                  contact_phone = $2, 
+                  contact_email = $3, 
+                  address = $4,
+                  city = $5,
+                  country = $6,
+                  tax_id = $7,
+                  nit_number = $8,
+                  verification_digit = $9,
+                  updated_at = CURRENT_TIMESTAMP
+              WHERE client_id = $10`,
+              [
+                sapClient.CardName,
+                sapClient.Phone1 || '',
+                sapClient.EmailAddress || '',
+                sapClient.Address || '',
+                sapClient.City || '',
+                sapClient.Country || 'Colombia',
+                taxInfo.tax_id || '',
+                taxInfo.nit_number || '',
+                taxInfo.verification_digit || '',
+                clientId
+              ]
+            );
+            
+            stats.updated++;
+            
+            this.logger.info('Cliente institucional actualizado en la plataforma', {
+              cardCode: sapClient.CardCode,
+              clientId
+            });
+          }
+          
+          // Sincronizar sucursales
+          await this.syncClientBranches(sapClient.CardCode, clientId, stats.branches);
+          
+        } catch (clientError) {
+          stats.errors++;
+          this.logger.error('Error al sincronizar cliente institucional', {
+            cardCode: sapClient.CardCode,
+            error: clientError.message,
+            stack: clientError.stack
+          });
+        }
+      }
+      
+      return stats;
+    } catch (error) {
+      this.logger.error('Error en sincronización de clientes institucionales', {
+        error: error.message,
+        stack: error.stack
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Sincroniza las sucursales de un cliente
+   * @param {string} cardCode - Código del cliente en SAP
+   * @param {number} clientId - ID del cliente en la plataforma
+   * @param {Object} stats - Objeto para actualizar estadísticas
+   */
+  async syncClientBranches(cardCode, clientId, stats) {
+    try {
+      // Obtener sucursales del cliente desde SAP
+      const branches = await this.getClientBranches(cardCode);
+      stats.total += branches.length;
+      
+      for (const branch of branches) {
+        try {
+          // Verificar si la sucursal ya existe
+          const query = 'SELECT branch_id FROM client_branches WHERE client_id = $1 AND ship_to_code = $2';
+          const { rows } = await pool.query(query, [clientId, branch.AddressName]);
+          
+          if (rows.length === 0) {
+            // Crear nueva sucursal
+            await pool.query(
+              `INSERT INTO client_branches 
+              (client_id, ship_to_code, branch_name, address, city, state, country, zip_code, phone, contact_person, is_default) 
+              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+              [
+                clientId,
+                branch.AddressName,
+                branch.AddressName,
+                branch.Street || '',
+                branch.City || '',
+                branch.State || '',
+                branch.Country || 'CO',
+                branch.ZipCode || '',
+                '', // Phone no viene en BPAddresses
+                '', // ContactPerson no viene en BPAddresses
+                branch.AddressName === 'Principal' || branch.AddressName === 'PRINCIPAL'
+              ]
+            );
+            
+            stats.created++;
+            
+            this.logger.debug('Sucursal creada para cliente', {
+              clientId,
+              shipToCode: branch.AddressName
+            });
+          } else {
+            // Actualizar sucursal existente
+            await pool.query(
+              `UPDATE client_branches 
+              SET branch_name = $1, 
+                  address = $2, 
+                  city = $3, 
+                  state = $4, 
+                  country = $5, 
+                  zip_code = $6,
+                  updated_at = CURRENT_TIMESTAMP
+              WHERE branch_id = $7`,
+              [
+                branch.AddressName,
+                branch.Street || '',
+                branch.City || '',
+                branch.State || '',
+                branch.Country || 'CO',
+                branch.ZipCode || '',
+                rows[0].branch_id
+              ]
+            );
+            
+            stats.updated++;
+            
+            this.logger.debug('Sucursal actualizada para cliente', {
+              clientId,
+              branchId: rows[0].branch_id,
+              shipToCode: branch.AddressName
+            });
+          }
+        } catch (branchError) {
+          stats.errors++;
+          this.logger.error('Error al sincronizar sucursal', {
+            clientId,
+            shipToCode: branch.AddressName,
+            error: branchError.message
+          });
+        }
+      }
+    } catch (error) {
+      this.logger.error('Error al sincronizar sucursales del cliente', {
+        cardCode,
+        clientId,
         error: error.message,
         stack: error.stack
       });

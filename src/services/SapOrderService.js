@@ -213,6 +213,23 @@ scheduleInvoiceCheckTask() {
         return new Date(date).toISOString().split('T')[0];
       };
   
+      // Obtener información de la sucursal si está especificada
+      let shipToCode = null;
+      if (orderData.branch_id) {
+        const branchQuery = 'SELECT ship_to_code FROM client_branches WHERE branch_id = $1';
+        const branchResult = await pool.query(branchQuery, [orderData.branch_id]);
+        
+        if (branchResult.rows.length > 0) {
+          shipToCode = branchResult.rows[0].ship_to_code;
+          
+          logger.debug('Sucursal encontrada para orden SAP', {
+            orderId: order.order_id,
+            branchId: orderData.branch_id,
+            shipToCode
+          });
+        }
+      }
+
       // Preparar datos para SAP
       const sapOrder = {
         CardCode: orderData.cardcode_sap,
@@ -222,10 +239,19 @@ scheduleInvoiceCheckTask() {
         U_WebOrderId: order.order_id.toString(),
         DocumentLines: orderItemsResult.rows.map(item => ({
           ItemCode: item.sap_code,
-          Quantity: parseFloat(item.quantity) || 1, // Asegurar que es un número
-          Price: parseFloat(item.unit_price) || 0  // Incluir el precio unitario
+          Quantity: parseFloat(item.quantity) || 1,
+          Price: parseFloat(item.unit_price) || 0
         }))
       };
+
+      // Añadir ShipToCode si existe
+      if (shipToCode) {
+        sapOrder.ShipToCode = shipToCode;
+        logger.debug('ShipToCode añadido a orden SAP', {
+          orderId: order.order_id,
+          shipToCode
+        });
+      }
   
       // Verificar que el objeto cumpla con la estructura esperada por SAP
       this.logger.debug('Datos de orden preparados para SAP:', {

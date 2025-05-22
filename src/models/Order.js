@@ -56,10 +56,11 @@ class Order {
    * @param {Array<OrderDetail>} details - Detalles de la orden
    * @param {Date} [delivery_date=null] - Fecha de entrega programada
    * @param {number} [status_id=1] - Estado inicial de la orden (por defecto: Abierto)
+   * @param {number} [branch_id=null] - ID de la sucursal para entrega
    * @returns {Promise<OrderResponse>} - Información de la orden creada
    * @throws {Error} Si no hay detalles o ocurre un error en la transacción
    */
-  static async createOrder(user_id, total_amount, details, delivery_date = null, status_id = 1) {
+  static async createOrder(user_id, total_amount, details, delivery_date = null, status_id = 1, branch_id = null) {
     if (!details || details.length === 0) {
       logger.warn('Intento de crear orden sin detalles', { user_id });
       throw new Error("No se puede insertar una orden sin detalles.");
@@ -94,6 +95,44 @@ class Order {
       throw new Error("Error al verificar el perfil del cliente.");
     }
 
+    // Validar sucursal si se proporciona
+    if (branch_id !== null && branch_id !== undefined) {
+      try {
+        const branchCheck = await pool.query(
+          `SELECT cb.branch_id, cb.ship_to_code, cb.branch_name
+          FROM client_branches cb
+          JOIN client_profiles cp ON cb.client_id = cp.client_id
+          WHERE cb.branch_id = $1 AND cp.user_id = $2`,
+          [branch_id, user_id]
+        );
+        
+        if (branchCheck.rows.length === 0) {
+          logger.warn('Intento de crear orden con sucursal inválida', { 
+            user_id, 
+            branch_id 
+          });
+          throw new Error("La sucursal especificada no pertenece al usuario o no existe.");
+        }
+        
+        logger.debug('Sucursal validada para orden', {
+          user_id,
+          branch_id,
+          ship_to_code: branchCheck.rows[0].ship_to_code,
+          branch_name: branchCheck.rows[0].branch_name
+        });
+      } catch (branchError) {
+        if (branchError.message.includes("sucursal")) {
+          throw branchError;
+        }
+        logger.error('Error al verificar sucursal', { 
+          error: branchError.message, 
+          user_id,
+          branch_id
+        });
+        throw new Error("Error al verificar la sucursal.");
+      }
+    }
+
     const client = await pool.connect();
     try {
       logger.debug('Iniciando transacción para crear orden', { 
@@ -101,22 +140,24 @@ class Order {
         total_amount, 
         detailsCount: details.length,
         delivery_date,
-        status_id
+        status_id,
+        branch_id
       });
       
       await client.query('BEGIN');
 
-      // Insertar en Orders con fecha de entrega y estado
+      // Insertar en Orders con fecha de entrega, estado y sucursal
       const orderQuery = `
-        INSERT INTO Orders (user_id, total_amount, delivery_date, status_id)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO Orders (user_id, total_amount, delivery_date, status_id, branch_id)
+        VALUES ($1, $2, $3, $4, $5)
         RETURNING order_id;
       `;
       const orderResult = await client.query(orderQuery, [
         user_id, 
         total_amount, 
         delivery_date, 
-        status_id
+        status_id,
+        branch_id
       ]);
       const order_id = orderResult.rows[0].order_id;
 
@@ -152,7 +193,8 @@ class Order {
         user_id, 
         detailsCount: details.length,
         delivery_date,
-        status_id
+        status_id,
+        branch_id
       });
       
       return {
@@ -232,9 +274,12 @@ class Order {
       SELECT o.*, u.name as user_name,
             o.delivered_quantity, o.total_quantity,
             o.invoice_doc_entry, o.invoice_doc_num,
-            o.invoice_date, o.invoice_total, o.invoice_url
+            o.invoice_date, o.invoice_total, o.invoice_url,
+            cb.ship_to_code, cb.branch_name, cb.address as branch_address,
+            cb.city as branch_city, cb.phone as branch_phone
       FROM Orders o
       JOIN users u ON o.user_id = u.id
+      LEFT JOIN client_branches cb ON o.branch_id = cb.branch_id
       WHERE o.order_id = $1
     `;
       
