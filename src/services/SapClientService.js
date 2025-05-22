@@ -1049,18 +1049,23 @@ class SapClientService extends SapBaseService {
     try {
       this.logger.debug('Obteniendo sucursales para cliente', { cardCode });
       
-      // Usar el endpoint para obtener direcciones de envío (ShipTo)
-      const endpoint = `BusinessPartners('${cardCode}')/BPAddresses?$filter=AddressType eq 'bo_ShipTo'`;
+      // Usar el endpoint correcto para obtener el Business Partner con todas sus direcciones
+      const endpoint = `BusinessPartners('${cardCode}')?$select=CardCode,CardName,BPAddresses`;
       
       const result = await this.request('GET', endpoint);
       
-      if (!result || !result.value) {
-        this.logger.warn('No se obtuvieron sucursales o formato inesperado', { cardCode });
+      if (!result || !result.BPAddresses) {
+        this.logger.warn('No se obtuvieron direcciones o formato inesperado', { cardCode });
         return [];
       }
       
-      this.logger.info(`Se encontraron ${result.value.length} sucursales para el cliente ${cardCode}`);
-      return result.value;
+      // Filtrar solo las direcciones de tipo "Ship To" (bo_ShipTo)
+      const shipToAddresses = result.BPAddresses.filter(address => 
+        address.AddressType === 'bo_ShipTo'
+      );
+      
+      this.logger.info(`Se encontraron ${shipToAddresses.length} sucursales para el cliente ${cardCode}`);
+      return shipToAddresses;
     } catch (error) {
       this.logger.error('Error al obtener sucursales del cliente', {
         cardCode,
@@ -1260,10 +1265,6 @@ class SapClientService extends SapBaseService {
       const branches = await this.getClientBranches(cardCode);
       stats.total += branches.length;
       
-      if (branches.length === 0) {
-        return;
-      }
-      
       for (const branch of branches) {
         try {
           // Verificar si la sucursal ya existe
@@ -1285,8 +1286,8 @@ class SapClientService extends SapBaseService {
                 branch.State || '',
                 branch.Country || 'CO',
                 branch.ZipCode || '',
-                branch.Phone || '',
-                branch.ContactPerson || '',
+                '', // Phone no viene en BPAddresses
+                '', // ContactPerson no viene en BPAddresses
                 branch.AddressName === 'Principal' || branch.AddressName === 'PRINCIPAL'
               ]
             );
@@ -1306,11 +1307,9 @@ class SapClientService extends SapBaseService {
                   city = $3, 
                   state = $4, 
                   country = $5, 
-                  zip_code = $6, 
-                  phone = $7, 
-                  contact_person = $8,
+                  zip_code = $6,
                   updated_at = CURRENT_TIMESTAMP
-              WHERE branch_id = $9`,
+              WHERE branch_id = $7`,
               [
                 branch.AddressName,
                 branch.Street || '',
@@ -1318,8 +1317,6 @@ class SapClientService extends SapBaseService {
                 branch.State || '',
                 branch.Country || 'CO',
                 branch.ZipCode || '',
-                branch.Phone || '',
-                branch.ContactPerson || '',
                 rows[0].branch_id
               ]
             );

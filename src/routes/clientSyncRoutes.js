@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const clientSyncController = require('../controllers/clientSyncController');
 const { verifyToken, checkRole } = require('../middleware/auth');
+const pool = require('../config/db');
 
 /**
  * @swagger
@@ -267,23 +268,23 @@ router.get('/branches/validate',
  *     tags: [ClientSync]
  *     security:
  *       - bearerAuth: []
- *     requestBody:
- *       required: false
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               clientId:
- *                 type: integer
- *                 description: ID del cliente específico para sincronizar (opcional)
- *               cardCode:
- *                 type: string
- *                 description: Código SAP del cliente específico para sincronizar (opcional)
- *               forceUpdate:
- *                 type: boolean
- *                 description: Forzar actualización de sucursales existentes
- *                 default: false
+ *     parameters:
+ *       - in: query
+ *         name: clientId
+ *         schema:
+ *           type: integer
+ *         description: ID del cliente específico para sincronizar (opcional)
+ *       - in: query
+ *         name: cardCode
+ *         schema:
+ *           type: string
+ *         description: Código SAP del cliente específico para sincronizar (opcional)
+ *       - in: query
+ *         name: forceUpdate
+ *         schema:
+ *           type: boolean
+ *           default: false
+ *         description: Forzar actualización de sucursales existentes
  *     responses:
  *       200:
  *         description: Sincronización de sucursales completada exitosamente
@@ -329,6 +330,77 @@ router.get('/branches/validate',
 router.post('/branches/sync', 
   checkRole([1]), // Solo administradores
   clientSyncController.syncClientBranches
+);
+
+/**
+ * @swagger
+ * /api/client-sync/client/{cardCode}/branches/sync:
+ *   post:
+ *     summary: Sincronizar sucursales de un cliente específico
+ *     description: Sincroniza las sucursales de un cliente específico desde SAP B1 usando su CardCode
+ *     tags: [ClientSync]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: cardCode
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Código SAP del cliente (CardCode)
+ *     responses:
+ *       200:
+ *         description: Sincronización de sucursales completada exitosamente
+ *       401:
+ *         description: No autorizado
+ *       403:
+ *         description: No tiene permisos suficientes
+ *       404:
+ *         description: Cliente no encontrado
+ *       500:
+ *         description: Error interno del servidor
+ */
+router.post('/client/:cardCode/branches/sync', 
+  checkRole([1]), // Solo administradores
+  async (req, res) => {
+    try {
+      const { cardCode } = req.params;
+      
+      // Buscar el cliente por CardCode
+      const clientQuery = `
+        SELECT client_id, cardcode_sap, company_name
+        FROM client_profiles 
+        WHERE cardcode_sap = $1
+      `;
+      
+      const { rows } = await pool.query(clientQuery, [cardCode]);
+      
+      if (rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: `Cliente con CardCode ${cardCode} no encontrado`
+        });
+      }
+      
+      const client = rows[0];
+      
+      // Configurar req.query para reutilizar el controlador existente
+      req.query = {
+        clientId: client.client_id,
+        cardCode: cardCode,
+        forceUpdate: false
+      };
+      
+      // Llamar al método existente
+      return clientSyncController.syncClientBranches(req, res);
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Error al sincronizar sucursales del cliente',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
 );
 
 module.exports = router;

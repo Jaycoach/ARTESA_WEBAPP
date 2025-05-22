@@ -864,7 +864,8 @@ class ClientSyncController {
    */
   async syncClientBranches(req, res) {
     try {
-      const { clientId, cardCode, forceUpdate = false } = req.body;
+      // Obtener parámetros del query string en lugar del body
+      const { clientId, cardCode, forceUpdate = false } = req.query;
       
       logger.info('Iniciando sincronización de sucursales de clientes', { 
         userId: req.user?.id,
