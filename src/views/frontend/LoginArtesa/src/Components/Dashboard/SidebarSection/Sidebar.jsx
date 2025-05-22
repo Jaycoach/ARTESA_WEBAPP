@@ -60,7 +60,6 @@ const Sidebar = ({ collapsed, mobileMenuOpen, onCloseMobileMenu, onToggleCollaps
     const handleClickOutside = (event) => {
       if (sidebarRef.current && !sidebarRef.current.contains(event.target)) {
         if (mobileMenuOpen && onCloseMobileMenu) onCloseMobileMenu();
-        if (!collapsed && !mobileMenuOpen && onToggleCollapse) onToggleCollapse();
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -78,7 +77,6 @@ const Sidebar = ({ collapsed, mobileMenuOpen, onCloseMobileMenu, onToggleCollaps
   const handleMenuClick = (path) => {
     navigate(path);
     if (mobileMenuOpen && onCloseMobileMenu) onCloseMobileMenu();
-    if (!mobileMenuOpen && onToggleCollapse) onToggleCollapse();
   };
 
   const handleLogout = () => {

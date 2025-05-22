@@ -1,39 +1,53 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  FaEye, FaDownload, FaIdCard, FaFileInvoice, 
-  FaFileAlt, FaSearch, FaChevronDown, FaChevronUp, 
-  FaUser, FaBuilding, FaPiggyBank, FaUniversity 
+  FaEye, FaDownload, FaIdCard, FaFileInvoice, FaFileAlt, FaSearch, 
+  FaChevronDown, FaChevronUp, FaUser, FaBuilding, FaPiggyBank, 
+  FaUniversity, FaPhone 
 } from 'react-icons/fa';
 import API from '../../../../api/config';
+import { useAuth } from '../../../../hooks/useAuth'; // Ajusta la ruta según tu proyecto
 
 const ClientList = () => {
-  // Estados para manejar los datos de la tabla
+  // Obtener usuario y rol
+  const { user } = useAuth(); // O usa localStorage si no tienes contexto de autenticación
+
+  // Estados para manejar los datos
   const [clients, setClients] = useState([]);
+  const [singleClient, setSingleClient] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [expandedRows, setExpandedRows] = useState({});
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
-  const [sortConfig, setSortConfig] = useState({ key: 'nombre', direction: 'ascending' });
+  const [sortConfig, setSortConfig] = useState({ key: 'username', direction: 'ascending' });
 
-  // Efecto para cargar la lista de clientes
+  // Determinar si es admin
+  const isAdmin = user && (user.role?.name === 'ADMIN' || user.rol_id === 1);
+
+  // Cargar datos según el rol
   useEffect(() => {
-    const fetchClients = async () => {
+    const fetchData = async () => {
       try {
         setLoading(true);
-        const response = await API.get('/client-profiles');
-        setClients(response.data.data || response.data);
+        if (isAdmin) {
+          // ADMIN: lista completa de usuarios
+          const response = await API.get('/users');
+          setClients(response.data.data || []);
+        } else if (user && user.id) {
+          // NO ADMIN: solo su perfil
+          const response = await API.get(`/users/${user.id}`);
+          setSingleClient(response.data.data || response.data);
+        }
         setLoading(false);
       } catch (err) {
-        console.error('Error al obtener la lista de clientes:', err);
-        setError('No se pudo cargar la lista de clientes');
+        console.error('Error al obtener datos:', err);
+        setError('No se pudo cargar la información');
         setLoading(false);
       }
     };
-
-    fetchClients();
-  }, []);
+    fetchData();
+  }, [isAdmin, user]);
 
   // Función para manejar la expansión de filas
   const toggleRowExpansion = (clientId) => {
@@ -67,15 +81,14 @@ const ClientList = () => {
     }
   };
 
-  // Filtrar clientes según término de búsqueda
-  const filteredClients = clients.filter(client => 
-    client.nombre?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    client.numeroDocumento?.includes(searchTerm) ||
-    client.email?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Filtrar clientes según término de búsqueda (solo para admin)
+  const filteredClients = isAdmin ? clients.filter(client => 
+    (client.username || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+    (client.email || '').toLowerCase().includes(searchTerm.toLowerCase())
+  ) : [];
 
-  // Ordenar clientes
-  const sortedClients = [...filteredClients].sort((a, b) => {
+  // Ordenar clientes (solo para admin)
+  const sortedClients = isAdmin ? [...filteredClients].sort((a, b) => {
     if (!a[sortConfig.key] || !b[sortConfig.key]) return 0;
     
     if (a[sortConfig.key] < b[sortConfig.key]) {
@@ -85,13 +98,13 @@ const ClientList = () => {
       return sortConfig.direction === 'ascending' ? 1 : -1;
     }
     return 0;
-  });
+  }) : [];
 
-  // Calcular paginación
+  // Calcular paginación (solo para admin)
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentItems = sortedClients.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(sortedClients.length / itemsPerPage);
+  const currentItems = isAdmin ? sortedClients.slice(indexOfFirstItem, indexOfLastItem) : [];
+  const totalPages = isAdmin ? Math.ceil(sortedClients.length / itemsPerPage) : 0;
 
   // Cambiar página
   const paginate = (pageNumber) => setCurrentPage(pageNumber);
@@ -105,6 +118,84 @@ const ClientList = () => {
     setSortConfig({ key, direction });
   };
 
+  // Estado de carga
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2" style={{ borderColor: 'var(--primary-color)' }}></div>
+      </div>
+    );
+  }
+
+  // Estado de error
+  if (error) {
+    return (
+      <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4">
+        {error}
+      </div>
+    );
+  }
+
+  // --- Renderizado para NO ADMIN (perfil individual) ---
+  if (!isAdmin && singleClient) {
+    return (
+      <div className="max-w-2xl mx-auto p-6 bg-white rounded-lg shadow">
+        <h2 className="text-xl font-bold mb-4" style={{ color: 'var(--primary-color)' }}>
+          Mi perfil de cliente
+        </h2>
+        <div className="mb-4">
+          <div className="flex items-center gap-2 mb-2">
+            <FaUser className="text-lg" style={{ color: 'var(--accent-color)' }} />
+            <span className="font-semibold">Nombre:</span>
+            <span>{singleClient.username || singleClient.name || 'N/A'}</span>
+          </div>
+          <div className="flex items-center gap-2 mb-2">
+            <FaIdCard className="text-lg" style={{ color: 'var(--accent-color)' }} />
+            <span className="font-semibold">Documento:</span>
+            <span>N/A</span>
+          </div>
+          <div className="flex items-center gap-2 mb-2">
+            <FaFileAlt className="text-lg" style={{ color: 'var(--accent-color)' }} />
+            <span className="font-semibold">Email:</span>
+            <span>{singleClient.email || 'N/A'}</span>
+          </div>
+          <div className="flex items-center gap-2 mb-2">
+            <FaPhone className="text-lg" style={{ color: 'var(--accent-color)' }} />
+            <span className="font-semibold">Teléfono:</span>
+            <span>N/A</span>
+          </div>
+        </div>
+        <div className="mt-6">
+          <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--primary-color)' }}>
+            Documentos
+          </h3>
+          <div className="flex flex-wrap gap-4">
+            <button
+              onClick={() => downloadDocument(singleClient.id, 'fotocopiaCedula', 'cedula')}
+              className="px-4 py-2 rounded flex items-center"
+              style={{ background: 'var(--accent-color)', color: 'var(--white)' }}
+            >
+              <FaDownload className="mr-2" /> Descargar Cédula
+            </button>
+            <button
+              onClick={() => downloadDocument(singleClient.id, 'fotocopiaRut', 'rut')}
+              className="px-4 py-2 rounded flex items-center"
+              style={{ background: 'var(--accent-color)', color: 'var(--white)' }}
+            >
+              <FaDownload className="mr-2" /> Descargar RUT
+            </button>
+            <button
+              onClick={() => downloadDocument(singleClient.id, 'anexosAdicionales', 'anexos')}
+              className="px-4 py-2 rounded flex items-center"
+              style={{ background: 'var(--accent-color)', color: 'var(--white)' }}
+            >
+              <FaDownload className="mr-2" /> Descargar Anexos
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="client-list-container p-6">
       <h1 className="text-2xl font-semibold text-slate-800 mb-6">Lista de Clientes</h1>
@@ -143,7 +234,7 @@ const ClientList = () => {
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     <button 
                       className="flex items-center space-x-1"
-                      onClick={() => requestSort('nombre')}
+                      onClick={() => requestSort('name')}
                     >
                       <span>Nombre</span>
                       {sortConfig.key === 'nombre' && (

@@ -22,7 +22,16 @@ const CreateOrderForm = ({ onOrderCreated }) => {
   const [loadingSettings, setLoadingSettings] = useState(true);
   const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
+  const [branches, setBranches] = useState([]);
+  const [selectedBranch, setSelectedBranch] = useState(null);
+  const [branchAddress, setBranchAddress] = useState('');
+  const [deliveryAddress, setDeliveryAddress] = useState('');
   const navigate = useNavigate();
+
+  const MIN_ORDER_AMOUNT = 50000;
+  const SHIPPING_CHARGE = 10000;
+  const SHIPPING_LIMIT = 59000;
+  const SHIPPING_FREE_LIMIT = 80000;
 
   /*const mockProducts = [
     {
@@ -118,6 +127,47 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     fetchProducts();
   }, []);
 
+  useEffect(() => {
+    if (!user || !user.id) return;
+    const fetchBranches = async () => {
+      try {
+        const response = await API.get(`/client-branches/user/${user.id}`);
+        if (response.data.success && Array.isArray(response.data.data)) {
+          setBranches(response.data.data);
+        } else {
+          setBranches([]);
+        }
+      } catch (error) {
+        setBranches([]);
+      }
+    };
+    fetchBranches();
+  }, [user]);
+
+  const branchOptions = useMemo(() => {
+    return branches.map(branch => ({
+      value: branch.branch_id,
+      label: branch.branch_name,
+      address: branch.address
+    }));
+  }, [branches]);
+
+  const handleBranchChange = (option) => {
+    if (option) {
+      setSelectedBranch(option);
+      setBranchAddress(option.address || '');
+      setDeliveryAddress(option.address || '');
+    } else {
+      setSelectedBranch(null);
+      setBranchAddress('');
+      setDeliveryAddress('');
+    }
+  };
+
+  const handleDeliveryAddressChange = (e) => {
+    setDeliveryAddress(e.target.value);
+  };
+
   // Función para obtener el precio de un producto según su estructura
   const getProductPrice = (product) => {
     if (!product) return 0;
@@ -128,6 +178,23 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       product.price_list1 ||
       0;
   };
+
+  const calculateSubtotal = () => {
+    return orderDetails.reduce((total, item) => {
+      const itemTotal = item.quantity * item.unit_price;
+      return total + (isNaN(itemTotal) ? 0 : itemTotal);
+    }, 0);
+  };
+
+  const calculateShipping = (subtotal) => {
+    if (subtotal >= SHIPPING_FREE_LIMIT) return 0;
+    if (subtotal >= SHIPPING_LIMIT) return SHIPPING_CHARGE;
+    return null; // Para menos de 59.000, no se permite el pedido
+  };
+
+  const subtotal = calculateSubtotal();
+  const shipping = calculateShipping(subtotal);
+  const total = shipping !== null ? subtotal + shipping : subtotal;
 
   // Formatear precio para visualización
   const formatProductName = (product) => {
@@ -207,6 +274,21 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       return;
     }
 
+    if (!selectedBranch) {
+      showNotification('Debes seleccionar una sucursal para el pedido.', 'error');
+      return;
+    }
+
+    if (subtotal < MIN_ORDER_AMOUNT) {
+      showNotification(`El monto mínimo para crear un pedido es ${formatCurrencyCOP(MIN_ORDER_AMOUNT)}.`, 'error');
+      return;
+    }
+    
+    if (shipping === null) {
+      showNotification('El monto mínimo para aplicar flete es $59.000. Por favor, ajusta tu pedido.', 'error');
+      return;
+    }
+
     // Mostrar modal de confirmación en lugar de crear pedido inmediatamente
     setShowConfirmationModal(true);
   };
@@ -240,9 +322,14 @@ const CreateOrderForm = ({ onOrderCreated }) => {
         delivery_date: deliveryDate,
         notes: orderNotes,
         details: orderDetails.map(detail => ({
-          product_id: parseInt(detail.product_id || 0),
-          quantity: parseInt(detail.quantity || 0),
-          unit_price: parseFloat(detail.unit_price || 0)
+        product_id: parseInt(detail.product_id || 0),
+        quantity: parseInt(detail.quantity || 0),
+        branch_id: selectedBranch ? selectedBranch.value : null,
+        branch_name: selectedBranch ? selectedBranch.label : '',
+        branch_address: branchAddress,
+        delivery_address: branchAddress,
+        shipping_fee: shipping,
+        unit_price: parseFloat(detail.unit_price || 0)
         }))
       };
 
@@ -291,6 +378,9 @@ const CreateOrderForm = ({ onOrderCreated }) => {
         setDeliveryDate('');
         setOrderFile(null);
         setOrderNotes('');
+        setSelectedBranch(null);
+        setBranchAddress('');
+        setDeliveryAddress('');
 
         // Notificar al componente padre
         if (onOrderCreated) onOrderCreated(result.data);
@@ -635,6 +725,60 @@ const CreateOrderForm = ({ onOrderCreated }) => {
             Total: {formatCurrencyCOP(calculateTotal())}
           </div>
         </div>
+
+        {/* NUEVO: Selección de sucursal */}
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-gray-700 mb-1">Sucursal de entrega</label>
+          <Select
+            value={selectedBranch}
+            onChange={handleBranchChange}
+            options={branchOptions}
+            placeholder="Selecciona una sucursal"
+            isClearable
+          />
+          {branchAddress && (
+            <div className="mt-2">
+              <label className="block text-xs text-gray-500 mb-1">Dirección de la sucursal seleccionada</label>
+              <input
+                type="text"
+                value={branchAddress}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-100"
+                readOnly
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="my-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+            <div>
+              <span className="font-semibold text-gray-700">Flete:</span>{" "}
+              {shipping === 0 ? (
+                <span className="text-green-600 font-bold">¡Envío gratis!</span>
+              ) : shipping === SHIPPING_CHARGE ? (
+                <span className="text-blue-700 font-semibold">{formatCurrencyCOP(SHIPPING_CHARGE)} (aplica por subtotal entre $59.000 y $79.999)</span>
+              ) : (
+                <span className="text-red-600 font-semibold">No aplica (pedido insuficiente para envío)</span>
+              )}
+            </div>
+            <div className="text-xl font-bold text-gray-800">
+              Total a pagar: {formatCurrencyCOP(total)}
+            </div>
+          </div>
+        </div>
+
+        {/*
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-gray-700 mb-1">Dirección de entrega</label>
+          <input
+            type="text"
+            value={deliveryAddress}
+            onChange={handleDeliveryAddressChange}
+            className="w-full border border-gray-300 rounded-md px-3 py-2"
+            placeholder="Confirma o edita la dirección de entrega"
+            required
+          />
+        </div>*/}
 
         {/* Notas y Adjuntos */}
         <div className="space-y-4 mt-6 border-t pt-6">
