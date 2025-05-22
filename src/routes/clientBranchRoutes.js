@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const clientBranchController = require('../controllers/clientBranchController');
 const { verifyToken, checkRole } = require('../middleware/auth');
 const { sanitizeParams } = require('../middleware/security');
+const { getBranchesByClientId, getBranchesByUserId } = require('../controllers/clientBranchController');
 
 // Aplicar middleware de sanitización a todas las rutas
 router.use(sanitizeParams);
@@ -27,8 +27,8 @@ router.use(sanitizeParams);
  *           example: 1
  *         client_id:
  *           type: integer
- *           description: ID del cliente al que pertenece
- *           example: 5
+ *           description: ID del cliente asociado
+ *           example: 44
  *         ship_to_code:
  *           type: string
  *           description: Código de dirección de envío en SAP
@@ -36,7 +36,7 @@ router.use(sanitizeParams);
  *         branch_name:
  *           type: string
  *           description: Nombre de la sucursal
- *           example: "Oficina Principal"
+ *           example: "Sede Principal"
  *         address:
  *           type: string
  *           description: Dirección física
@@ -51,8 +51,8 @@ router.use(sanitizeParams);
  *           example: "Cundinamarca"
  *         country:
  *           type: string
- *           description: País (código de 2 letras)
- *           example: "CO"
+ *           description: País
+ *           example: "Colombia"
  *         zip_code:
  *           type: string
  *           description: Código postal
@@ -60,14 +60,14 @@ router.use(sanitizeParams);
  *         phone:
  *           type: string
  *           description: Teléfono de contacto
- *           example: "+57 1 234 5678"
+ *           example: "+57 3001234567"
  *         contact_person:
  *           type: string
  *           description: Persona de contacto
  *           example: "Juan Pérez"
  *         is_default:
  *           type: boolean
- *           description: Indica si es la sucursal principal
+ *           description: Indica si es la sucursal por defecto
  *           example: true
  *         created_at:
  *           type: string
@@ -84,7 +84,7 @@ router.use(sanitizeParams);
  * /api/client-branches/client/{clientId}:
  *   get:
  *     summary: Obtener sucursales por ID de cliente
- *     description: Recupera todas las sucursales de un cliente específico
+ *     description: Recupera todas las sucursales asociadas a un cliente específico
  *     tags: [ClientBranches]
  *     security:
  *       - bearerAuth: []
@@ -112,12 +112,15 @@ router.use(sanitizeParams);
  *                     $ref: '#/components/schemas/ClientBranch'
  *       401:
  *         description: No autorizado
+ *       403:
+ *         description: Prohibido - No tiene permisos suficientes
  *       500:
  *         description: Error interno del servidor
  */
 router.get('/client/:clientId', 
   verifyToken, 
-  clientBranchController.getBranchesByClientId
+  checkRole([1]), // Solo administradores pueden ver sucursales por client_id
+  getBranchesByClientId
 );
 
 /**
@@ -125,7 +128,7 @@ router.get('/client/:clientId',
  * /api/client-branches/user/{userId}:
  *   get:
  *     summary: Obtener sucursales por ID de usuario
- *     description: Recupera todas las sucursales del cliente asociado a un usuario
+ *     description: Recupera todas las sucursales asociadas a un usuario específico
  *     tags: [ClientBranches]
  *     security:
  *       - bearerAuth: []
@@ -154,13 +157,13 @@ router.get('/client/:clientId',
  *       401:
  *         description: No autorizado
  *       403:
- *         description: No tiene permisos para ver estas sucursales
+ *         description: Prohibido - No tiene permisos para ver estas sucursales
  *       500:
  *         description: Error interno del servidor
  */
 router.get('/user/:userId', 
-  verifyToken,
-  clientBranchController.getBranchesByUserId
+  verifyToken, 
+  getBranchesByUserId
 );
 
 module.exports = router;
