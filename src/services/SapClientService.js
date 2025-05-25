@@ -1065,7 +1065,13 @@ class SapClientService extends SapBaseService {
       );
       
       this.logger.info(`Se encontraron ${shipToAddresses.length} sucursales para el cliente ${cardCode}`);
-      return shipToAddresses;
+      // Mapear las direcciones con el campo adicional U_HBT_MunMed
+      const mappedAddresses = shipToAddresses.map(address => ({
+        ...address,
+        MunicipalityCode: address.U_HBT_MunMed || null
+      }));
+
+      return mappedAddresses;
     } catch (error) {
       this.logger.error('Error al obtener sucursales del cliente', {
         cardCode,
@@ -1275,7 +1281,7 @@ class SapClientService extends SapBaseService {
             // Crear nueva sucursal
             await pool.query(
               `INSERT INTO client_branches 
-              (client_id, ship_to_code, branch_name, address, city, state, country, zip_code, phone, contact_person, is_default) 
+              (client_id, ship_to_code, branch_name, address, city, state, country, zip_code, phone, contact_person, is_default, municipality_code) 
               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
               [
                 clientId,
@@ -1288,7 +1294,8 @@ class SapClientService extends SapBaseService {
                 branch.ZipCode || '',
                 '', // Phone no viene en BPAddresses
                 '', // ContactPerson no viene en BPAddresses
-                branch.AddressName === 'Principal' || branch.AddressName === 'PRINCIPAL'
+                branch.AddressName === 'Principal' || branch.AddressName === 'PRINCIPAL',
+                branch.U_HBT_MunMed || null
               ]
             );
             
@@ -1308,8 +1315,9 @@ class SapClientService extends SapBaseService {
                   state = $4, 
                   country = $5, 
                   zip_code = $6,
+                  municipality_code = $7,
                   updated_at = CURRENT_TIMESTAMP
-              WHERE branch_id = $7`,
+              WHERE branch_id = $8`,
               [
                 branch.AddressName,
                 branch.Street || '',
@@ -1317,6 +1325,7 @@ class SapClientService extends SapBaseService {
                 branch.State || '',
                 branch.Country || 'CO',
                 branch.ZipCode || '',
+                branch.U_HBT_MunMed || null,
                 rows[0].branch_id
               ]
             );

@@ -764,7 +764,8 @@ class ClientSyncController {
               country: b.Country,
               zipCode: b.ZipCode,
               phone: b.Phone,
-              contactPerson: b.ContactPerson
+              contactPerson: b.ContactPerson,
+              municipalityCode: b.U_HBT_MunMed || null
             })),
             localBranches: localBranches.map(b => ({
               branchId: b.branch_id,
@@ -777,7 +778,8 @@ class ClientSyncController {
               zipCode: b.zip_code,
               phone: b.phone,
               contactPerson: b.contact_person,
-              isDefault: b.is_default
+              isDefault: b.is_default,
+              municipalityCode: b.municipality_code
             })),
             missing: missing.map(b => ({
               addressName: b.AddressName,

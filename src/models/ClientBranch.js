@@ -32,6 +32,7 @@ class ClientBranch {
           phone,
           contact_person,
           is_default,
+          municipality_code,
           created_at,
           updated_at
         FROM client_branches
@@ -76,6 +77,7 @@ class ClientBranch {
           cb.phone,
           cb.contact_person,
           cb.is_default,
+          municipality_code,
           cb.created_at,
           cb.updated_at
         FROM client_branches cb
@@ -121,6 +123,7 @@ class ClientBranch {
           phone,
           contact_person,
           is_default,
+          municipality_code,
           created_at,
           updated_at
         FROM client_branches

@@ -69,6 +69,11 @@ router.use(sanitizeParams);
  *           type: boolean
  *           description: Indica si es la sucursal por defecto
  *           example: true
+ *         municipality_code:
+ *          type: string
+ *          description: Código de municipio desde SAP (U_HBT_MunMed)
+ *          example: "11001"
+ *          nullable: true
  *         created_at:
  *           type: string
  *           format: date-time
