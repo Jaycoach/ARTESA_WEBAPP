@@ -11,6 +11,10 @@
     "start": "npm run generate-swagger && node app.js",
     "dev": "npm run generate-swagger && nodemon app.js"
   },
+  "engines": {
+    "node": "20.x",
+    "npm": "10.x"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",

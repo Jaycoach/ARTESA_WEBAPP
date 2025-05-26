@@ -37,7 +37,7 @@ app.set('trust proxy', 1); // trust first proxy
 
 // Constantes de configuración
 const API_PREFIX = '/api';
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
 
 // Crear una instancia del logger para app.js
 const appLogger = createContextLogger('App');
@@ -274,7 +274,14 @@ const excludedFromRateLimit = [
   `${API_PREFIX}/orders`,
   `${API_PREFIX}/products`
 ];
-
+// Busca donde defines las rutas y agrega esto ANTES de las rutas existentes:
+app.get('/api/health', (req, res) => {
+  res.status(200).json({
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
 // Middleware que solo aplica rate limiting si la ruta no está excluida
 app.use((req, res, next) => {
   if (process.env.NODE_ENV !== 'production' && 
