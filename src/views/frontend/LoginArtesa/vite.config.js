@@ -113,16 +113,7 @@ export default ({ mode }) => {
           },
         },
       }),
-      // Opciones de rollup para manejo de errores
-      rollupOptions: {
-        onwarn(warning, warn) {
-          // Ignorar advertencias específicas si es necesario
-          if (warning.code === 'SOURCEMAP_ERROR') return;
-          warn(warning);
-        },
-      },
       outDir: 'dist',
-      sourcemap: mode !== 'production',
       assetsDir: 'assets',
       // Optimizaciones para AWS
       chunkSizeWarningLimit: 1000,
