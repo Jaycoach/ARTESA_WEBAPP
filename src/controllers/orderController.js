@@ -101,7 +101,7 @@ const logger = createContextLogger('OrderController');
  */
 const createOrder = async (req, res) => {
   try {
-    const { user_id, total_amount, details, delivery_date, status_id } = req.body;
+    const { user_id, total_amount, details, delivery_date, status_id, branch_id } = req.body;
     
     logger.debug('Iniciando creación de orden', { 
       userId: user_id, 
@@ -239,6 +239,32 @@ const createOrder = async (req, res) => {
         orderTimeLimit
       });
     }
+
+    // Validar sucursal si se proporciona
+    if (branch_id !== undefined && branch_id !== null) {
+      // Verificar que la sucursal pertenece al usuario
+      const branchQuery = `
+        SELECT cb.branch_id, cb.ship_to_code 
+        FROM client_branches cb
+        JOIN client_profiles cp ON cb.client_id = cp.client_id
+        WHERE cb.branch_id = $1 AND cp.user_id = $2
+      `;
+      
+      const branchResult = await pool.query(branchQuery, [branch_id, user_id]);
+      
+      if (branchResult.rows.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'La sucursal especificada no pertenece al usuario o no existe'
+        });
+      }
+      
+      logger.debug('Sucursal validada para orden', {
+        branchId: branch_id,
+        shipToCode: branchResult.rows[0].ship_to_code,
+        userId: user_id
+      });
+    }
     
     // Usar estado predeterminado si no se proporciona
     const initialStatus = status_id || 1; // Por defecto: Abierto
@@ -249,7 +275,8 @@ const createOrder = async (req, res) => {
       total_amount, 
       details, 
       parsedDeliveryDate,
-      initialStatus
+      initialStatus,
+      branch_id
     );
     
     logger.info('Orden creada exitosamente', {

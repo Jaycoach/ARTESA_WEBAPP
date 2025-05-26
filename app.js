@@ -296,6 +296,7 @@ const paymentRoutes = require('./src/routes/paymentRoutes');
 const uploadRoutes = require('./src/routes/uploadRoutes');
 const clientProfileRoutes = require('./src/routes/clientProfileRoutes');
 const adminRoutes = require('./src/routes/adminRoutes');
+const clientBranchRoutes = require('./src/routes/clientBranchRoutes');
 
 // =========================================================================
 // RUTAS DE LA API
@@ -305,6 +306,8 @@ app.use(`${API_PREFIX}/auth`, authRoutes);
 app.use(API_PREFIX, productRoutes);
 app.use(API_PREFIX, secureProductRoutes);
 app.use(API_PREFIX, orderRoutes);
+app.use(`${API_PREFIX}/client-branches`, clientBranchRoutes);
+app.use(`${API_PREFIX}/client-branches`, require('./src/routes/clientBranchRoutes'));
 // Nueva ruta para SAP
 app.use(`${API_PREFIX}/sap`, sapSyncRoutes);
 app.use(`${API_PREFIX}/admin`, adminRoutes);
