@@ -200,7 +200,8 @@ img, video {
   position: absolute;
   height: 100%;
   width: 100%;
-  object-fit: cover;
+  -o-object-fit: cover;
+     object-fit: cover;
   top: 0;
   bottom: 0;
   right: 0;
@@ -231,7 +232,8 @@ img, video {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  backdrop-filter: blur(1px);
+  -webkit-backdrop-filter: blur(1px);
+          backdrop-filter: blur(1px);
 }
 .auth-page__form, .LoginPage .container .formDiv, .RegisterPage .container .formDiv, .ResetPasswordPage .container .formDiv {
   padding: var(--spacing-lg);
@@ -314,3 +316,11 @@ img, video {
   animation: fadeIn 0.5s ease-in-out;
 }
 
+/* Separador opcional para el menú */
+.separator {
+  margin: 10px 15px;
+}
+.separator hr {
+  opacity: 0.3;
+  border-color: var(--white);
+}/*# sourceMappingURL=App.css.map */

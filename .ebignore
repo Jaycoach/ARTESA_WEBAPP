@@ -1,0 +1,10 @@
+node_modules/
+*.log
+.git/
+src/views/frontend/LoginArtesa/node_modules/
+src/views/frontend/LoginArtesa/dist/
+uploads/
+logs/
+.env.development
+.env.local
+.env.ngrok

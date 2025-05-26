@@ -59,7 +59,8 @@
 .admin-page .image-preview img {
   width: 100%;
   height: auto;
-  object-fit: cover;
+  -o-object-fit: cover;
+     object-fit: cover;
 }
 .admin-page .file-upload {
   position: relative;
@@ -141,4 +142,4 @@
   background-color: #fee2e2;
   border-left: 4px solid #ef4444;
   color: #b91c1c;
-}
+}/*# sourceMappingURL=AdminPage.css.map */

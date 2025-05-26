@@ -95,14 +95,14 @@
   color: white;
 }
 .confirmation-modal-footer .confirmation-btn.success-btn:hover {
-  color: rgb(243.5322580645, 79.1612903226, 29.4677419355);
+  color: #f44f1d;
 }
 .confirmation-modal-footer .confirmation-btn.error-btn {
   background-color: #d32f2f;
   color: white;
 }
 .confirmation-modal-footer .confirmation-btn.error-btn:hover {
-  color: rgb(243.5322580645, 79.1612903226, 29.4677419355);
+  color: #f44f1d;
 }
 
 /* Responsive */
@@ -120,4 +120,4 @@
     padding: 8px 25px;
     font-size: 0.9rem;
   }
-}
+}/*# sourceMappingURL=ConfirmationModal.css.map */

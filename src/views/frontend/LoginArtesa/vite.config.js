@@ -9,6 +9,14 @@ export default ({ mode }) => {
   console.log(`Iniciando en modo: ${mode}`);
   const env = loadEnv(mode, process.cwd(), '');
   
+  // Añadir configuración específica para AWS
+  if (mode === 'staging') {
+    env.VITE_API_URL = env.VITE_STAGING_API_URL || 'https://api-staging.tudominio.com';
+  }
+
+  if (mode === 'production') {
+    env.VITE_API_URL = env.VITE_PROD_API_URL || 'https://api.tudominio.com';
+  }
   // Forzar configuración para ngrok
   if (mode === 'ngrok') {
     console.log('Forzando configuración para modo ngrok');
@@ -113,6 +121,20 @@ export default ({ mode }) => {
           warn(warning);
         },
       },
+      outDir: 'dist',
+      sourcemap: mode !== 'production',
+      assetsDir: 'assets',
+      // Optimizaciones para AWS
+      chunkSizeWarningLimit: 1000,
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            vendor: ['react', 'react-dom'],
+            router: ['react-router-dom'],
+            ui: ['framer-motion', 'react-icons']
+          }
+        }
+      }
     },
   });
 };
