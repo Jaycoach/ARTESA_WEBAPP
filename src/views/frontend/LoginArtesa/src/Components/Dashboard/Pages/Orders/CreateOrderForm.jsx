@@ -26,52 +26,171 @@ const CreateOrderForm = ({ onOrderCreated }) => {
   const [selectedBranch, setSelectedBranch] = useState(null);
   const [branchAddress, setBranchAddress] = useState('');
   const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [deliveryZone, setDeliveryZone] = useState(null);
+  const [availableDeliveryDays, setAvailableDeliveryDays] = useState([]);
   const navigate = useNavigate();
 
   const MIN_ORDER_AMOUNT = 50000;
   const SHIPPING_CHARGE = 10000;
-  const SHIPPING_LIMIT = 59000;
+  const SHIPPING_LIMIT = 50000;
   const SHIPPING_FREE_LIMIT = 80000;
 
-  /*const mockProducts = [
-    {
-      product_id: 1,
-      name: "Pan Baguette",
-      price_list1: 5000,
-      image_url: "https://images.unsplash.com/photo-1587495571010-7cf4cc9a9897?w=80&h=80&fit=crop"
+  // CORREGIDA: Configuración de zonas con códigos DANE
+  const DELIVERY_ZONES = {
+    'MIERCOLES_SABADO': {
+      name: 'Miércoles y Sábado',
+      days: [3, 6], // 3 = Miércoles, 6 = Sábado
+      municipalities: [
+        '25175', // CHÍA
+        '25126', // CAJICÁ
+        '25758', // SOPÓ
+        '25899', // ZIPAQUIRÁ
+        '25214', // COTA
+        '25322', // GUASCA
+        '25295', // GACHANCIPÁ
+        '25799'  // TENJO
+      ],
+      cities: ['Chía', 'Cajicá', 'Sopó', 'Zipaquirá', 'Cota', 'Guasca', 'Gachancipá', 'Tenjo']
     },
-    {
-      product_id: 2,
-      name: "Croissant",
-      price_list1: 3500,
-      image_url: "https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=80&h=80&fit=crop"
+    'LUNES_JUEVES': {
+      name: 'Lunes y Jueves',
+      days: [1, 4], // 1 = Lunes, 4 = Jueves
+      municipalities: [
+        '25754'  // SOACHA
+      ],
+      cities: ['Soacha']
     },
-    {
-      product_id: 3,
-      name: "Pan Integral",
-      price_list1: 4500,
-      image_url: "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=80&h=80&fit=crop"
+    'MARTES_VIERNES': {
+      name: 'Martes y Viernes',
+      days: [2, 5], // 2 = Martes, 5 = Viernes
+      municipalities: [
+        '25473', // MOSQUERA
+        '25430', // MADRID
+        '25286', // FUNZA
+        '25214'  // SIBERIA-COTA (mismo código que COTA)
+      ],
+      cities: ['Mosquera', 'Madrid', 'Funza', 'Siberia']
     },
-    {
-      product_id: 4,
-      name: "Pan de Chocolate",
-      price_list1: 6000,
-      image_url: "https://images.unsplash.com/photo-1517686469429-8bdb88b9f907?w=80&h=80&fit=crop"
+    'LUNES_SABADO': {
+      name: 'Lunes a Sábado',
+      days: [1, 2, 3, 4, 5, 6], // Lunes a Sábado
+      municipalities: [
+        '11001'  // BOGOTÁ D.C
+      ],
+      cities: ['Bogotá', 'Bogotá D.C']
     }
-  ];*/
+  };
+
+  // CORREGIDA: Función para determinar la zona de entrega basada en código DANE
+  const getDeliveryZoneByDANECode = (daneCode, cityName = '') => {
+    if (!daneCode && !cityName) return null;
+    
+    // Primero intentar buscar por código DANE (más preciso)
+    if (daneCode) {
+      const normalizedDANE = daneCode.toString().trim();
+      
+      for (const [zoneKey, zoneData] of Object.entries(DELIVERY_ZONES)) {
+        if (zoneData.municipalities.includes(normalizedDANE)) {
+          return { key: zoneKey, ...zoneData };
+        }
+      }
+    }
+    
+    // Si no encuentra por código DANE, intentar por nombre de ciudad (fallback)
+    if (cityName) {
+      const normalizedCity = cityName.toLowerCase().trim();
+      
+      for (const [zoneKey, zoneData] of Object.entries(DELIVERY_ZONES)) {
+        if (zoneData.cities.some(city => normalizedCity.includes(city.toLowerCase()))) {
+          return { key: zoneKey, ...zoneData };
+        }
+      }
+    }
+    
+    return null;
+  };
+
+  // NUEVA: Función para obtener el nombre de la ciudad por código DANE
+  const getCityNameByDANECode = (daneCode) => {
+    const municipalityMap = {
+      '25175': 'Chía',
+      '25126': 'Cajicá', 
+      '25758': 'Sopó',
+      '25899': 'Zipaquirá',
+      '25214': 'Cota',
+      '25322': 'Guasca',
+      '25295': 'Gachancipá',
+      '25799': 'Tenjo',
+      '25754': 'Soacha',
+      '25473': 'Mosquera',
+      '25430': 'Madrid',
+      '25286': 'Funza',
+      '11001': 'Bogotá D.C'
+    };
+    
+    return municipalityMap[daneCode] || 'Ciudad no identificada';
+  };
+
+  // Función para calcular fechas de entrega disponibles según la zona
+  const calculateAvailableDeliveryDates = (zone, orderTimeLimit = '18:00') => {
+    if (!zone) return [];
+    
+    const today = new Date();
+    const currentHour = today.getHours();
+    const currentMinute = today.getMinutes();
+    const [limitHour, limitMinute] = orderTimeLimit.split(':').map(Number);
+    
+    // Determinar si el pedido se hace después del horario límite
+    const isAfterLimit = currentHour > limitHour || 
+                        (currentHour === limitHour && currentMinute > limitMinute);
+    
+    // Determinar días adicionales según el día actual y horario
+    let additionalDays = 2; // Días base de preparación
+    
+    const currentDay = today.getDay(); // 0 = Domingo, 1 = Lunes, ..., 6 = Sábado
+    
+    // Si es después del horario límite, agregar un día extra
+    if (isAfterLimit) {
+      additionalDays += 1;
+    }
+    
+    // Lógica especial para fines de semana
+    if (currentDay === 6) { // Sábado
+      if (isAfterLimit) {
+        additionalDays = 4; // Entrega el miércoles
+      } else {
+        additionalDays = 3; // Entrega el martes
+      }
+    } else if (currentDay === 0) { // Domingo
+      additionalDays = 3; // Entrega el miércoles
+    }
+    
+    const availableDates = [];
+    const maxDaysToCheck = 30; // Buscar fechas en los próximos 30 días
+    
+    for (let i = additionalDays; i <= maxDaysToCheck; i++) {
+      const checkDate = new Date(today);
+      checkDate.setDate(today.getDate() + i);
+      const dayOfWeek = checkDate.getDay();
+      
+      // Verificar si este día está disponible para la zona
+      if (zone.days.includes(dayOfWeek)) {
+        availableDates.push(new Date(checkDate));
+      }
+    }
+    
+    return availableDates;
+  };
 
   useEffect(() => {
-    // Comprobar si el usuario está inactivo
     if (user && user.is_active === false) {
       showNotification('No tienes permisos para crear órdenes', 'error');
       navigate('/dashboard/orders');
     }
   }, [user, navigate]);
 
-
   // Cargar configuración del sitio
   useEffect(() => {
-
     const fetchSettings = async () => {
       try {
         console.log("Obteniendo configuración del sitio...");
@@ -79,7 +198,6 @@ const CreateOrderForm = ({ onOrderCreated }) => {
         console.log("Respuesta de configuración:", response.data);
 
         if (response.data && response.data.success) {
-          // Verificar que los datos contengan orderTimeLimit
           console.log("Configuración obtenida:", response.data.data);
           setSiteSettings(response.data.data);
         } else {
@@ -102,24 +220,19 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       try {
         const response = await API.get('/products');
         if (response.data.success && Array.isArray(response.data.data)) {
-           //Aseguramos que image_url exista o sea null/undefined
           const fetchedProducts = response.data.data.map(p => ({
             ...p,
-            image_url: p.image_url || null // O usa una imagen por defecto si prefieres
+            image_url: p.image_url || null
           }));
           setProducts(fetchedProducts);
-        }  else {
+        } else {
           showNotification('No se pudieron cargar los productos', 'error');
-          setProducts([]); // Inicia vacío si falla
+          setProducts([]);
         }
-
-       //setProducts(mockProducts);
-      //console.log("Usando datos de prueba para productos:", mockProducts);
-      
       } catch (error) {
         console.error('Error fetching products:', error);
         showNotification('Error al cargar productos', 'error');
-        setProducts([]); // Inicia vacío si hay error
+        setProducts([]);
       } finally {
         setLoadingProducts(false);
       }
@@ -127,6 +240,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     fetchProducts();
   }, []);
 
+  // Cargar sucursales
   useEffect(() => {
     if (!user || !user.id) return;
     const fetchBranches = async () => {
@@ -144,23 +258,86 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     fetchBranches();
   }, [user]);
 
+  // CORREGIDO: branchOptions usando municipality_code
   const branchOptions = useMemo(() => {
     return branches.map(branch => ({
       value: branch.branch_id,
       label: branch.branch_name,
-      address: branch.address
+      address: branch.address,
+      city: branch.city || '',
+      municipality_code: branch.municipality_code // Campo correcto de la API
     }));
   }, [branches]);
 
+  // Efecto para actualizar fechas disponibles cuando cambia la zona o configuración
+  useEffect(() => {
+    if (deliveryZone && siteSettings.orderTimeLimit) {
+      const dates = calculateAvailableDeliveryDates(deliveryZone, siteSettings.orderTimeLimit);
+      setAvailableDeliveryDays(dates);
+      
+      // Limpiar fecha seleccionada si no está disponible para la nueva zona
+      if (deliveryDate) {
+        const selectedDate = new Date(deliveryDate);
+        const isDateAvailable = dates.some(date => 
+          date.toDateString() === selectedDate.toDateString()
+        );
+        if (!isDateAvailable) {
+          setDeliveryDate('');
+        }
+      }
+    } else {
+      setAvailableDeliveryDays([]);
+    }
+  }, [deliveryZone, siteSettings.orderTimeLimit, deliveryDate]);
+
+  // CORREGIDA: Función para manejar cambio de sucursal
   const handleBranchChange = (option) => {
     if (option) {
       setSelectedBranch(option);
       setBranchAddress(option.address || '');
       setDeliveryAddress(option.address || '');
+      
+      // CORREGIDO: Usar municipality_code que viene de la API
+      const zone = getDeliveryZoneByDANECode(
+        option.municipality_code, // Campo correcto de la API
+        option.city || ''
+      );
+      setDeliveryZone(zone);
+      
+      // Limpiar fecha de entrega para que el usuario seleccione una nueva
+      setDeliveryDate('');
+      
+      if (zone) {
+        const cityName = getCityNameByDANECode(option.municipality_code);
+        showNotification(
+          `Sucursal en ${cityName} - Zona de entrega: ${zone.name}`, 
+          'info'
+        );
+        
+        console.log('Zona de entrega determinada:', {
+          municipalityCode: option.municipality_code,
+          cityName: cityName,
+          zone: zone.name,
+          deliveryDays: zone.days
+        });
+      } else {
+        showNotification(
+          'No se pudo determinar la zona de entrega para esta sucursal. Verifique el código DANE o contacte soporte.', 
+          'warning'
+        );
+        
+        console.warn('No se pudo determinar zona de entrega:', {
+          municipalityCode: option.municipality_code,
+          city: option.city,
+          address: option.address
+        });
+      }
     } else {
       setSelectedBranch(null);
       setBranchAddress('');
       setDeliveryAddress('');
+      setDeliveryZone(null);
+      setDeliveryDate('');
     }
   };
 
@@ -168,15 +345,9 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     setDeliveryAddress(e.target.value);
   };
 
-  // Función para obtener el precio de un producto según su estructura
   const getProductPrice = (product) => {
     if (!product) return 0;
-
-    // Intentar obtener el precio desde diferentes propiedades posibles
-    return product.price ||
-      product.priceList1 ||
-      product.price_list1 ||
-      0;
+    return product.price || product.priceList1 || product.price_list1 || 0;
   };
 
   const calculateSubtotal = () => {
@@ -189,14 +360,13 @@ const CreateOrderForm = ({ onOrderCreated }) => {
   const calculateShipping = (subtotal) => {
     if (subtotal >= SHIPPING_FREE_LIMIT) return 0;
     if (subtotal >= SHIPPING_LIMIT) return SHIPPING_CHARGE;
-    return null; // Para menos de 59.000, no se permite el pedido
+    return null;
   };
 
   const subtotal = calculateSubtotal();
   const shipping = calculateShipping(subtotal);
   const total = shipping !== null ? subtotal + shipping : subtotal;
 
-  // Formatear precio para visualización
   const formatProductName = (product) => {
     const price = getProductPrice(product);
     return `${product.name} - ${formatCurrencyCOP(price)}`;
@@ -223,7 +393,6 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     if (field === 'product_id') {
       const selectedProduct = products.find(p => p.product_id === parseInt(value));
       if (selectedProduct) {
-        // Usar price_list1 como precio unitario
         newDetails[index].unit_price = selectedProduct.price_list1;
       }
     }
@@ -243,10 +412,10 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     setTimeout(() => setNotification({ show: false, message: '', type: '' }), 5000);
   };
 
+  // CORREGIDA: Validación en handleSubmit
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Validaciones de usuario
     if (!user) {
       showNotification('Debes iniciar sesión para crear un pedido', 'error');
       return;
@@ -258,7 +427,6 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       return;
     }
 
-    // Validar productos y cantidades
     const isValid = orderDetails.every(detail =>
       detail.product_id && detail.quantity > 0 && detail.unit_price > 0
     );
@@ -268,7 +436,6 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       return;
     }
 
-    // Validar fecha de entrega
     if (!deliveryDate) {
       showNotification('Selecciona una fecha de entrega válida', 'error');
       return;
@@ -276,6 +443,23 @@ const CreateOrderForm = ({ onOrderCreated }) => {
 
     if (!selectedBranch) {
       showNotification('Debes seleccionar una sucursal para el pedido.', 'error');
+      return;
+    }
+
+    // NUEVA: Validación de zona de entrega
+    if (!deliveryZone) {
+      showNotification('No se pudo determinar la zona de entrega para la sucursal seleccionada.', 'error');
+      return;
+    }
+
+    // NUEVA: Validar que la fecha seleccionada esté disponible para la zona
+    const selectedDate = new Date(deliveryDate);
+    const isDateAvailable = availableDeliveryDays.some(date => 
+      date.toDateString() === selectedDate.toDateString()
+    );
+
+    if (!isDateAvailable) {
+      showNotification(`La fecha seleccionada no está disponible para entregas en ${deliveryZone.name}`, 'error');
       return;
     }
 
@@ -289,19 +473,17 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       return;
     }
 
-    // Mostrar modal de confirmación en lugar de crear pedido inmediatamente
     setShowConfirmationModal(true);
   };
 
+  // CORREGIDA: handleConfirmCreateOrder con datos de zona y DANE
   const handleConfirmCreateOrder = async () => {
     try {
       setIsSubmitting(true);
       setShowConfirmationModal(false);
 
-      // Calcular total
       const totalAmount = parseFloat(calculateTotal());
 
-      // Validar que tenemos ID de usuario y usuario activo
       if (!user || !user.id) {
         showNotification('Error: No se pudo identificar el ID de usuario', 'error');
         console.error('Error: ID de usuario no disponible al crear orden', user);
@@ -315,57 +497,51 @@ const CreateOrderForm = ({ onOrderCreated }) => {
         return;
       }
 
-      // Preparar datos para la API
+      // ACTUALIZADO: Preparar datos para la API incluyendo código DANE
       const orderData = {
         user_id: user.id,
         total_amount: totalAmount,
         delivery_date: deliveryDate,
         notes: orderNotes,
+        delivery_zone: deliveryZone ? deliveryZone.key : null,
+        delivery_zone_name: deliveryZone ? deliveryZone.name : null, // NUEVO: Nombre de la zona
+        municipality_dane_code: selectedBranch ? selectedBranch.municipality_code : null, // NUEVO: Código DANE
         details: orderDetails.map(detail => ({
-        product_id: parseInt(detail.product_id || 0),
-        quantity: parseInt(detail.quantity || 0),
-        branch_id: selectedBranch ? selectedBranch.value : null,
-        branch_name: selectedBranch ? selectedBranch.label : '',
-        branch_address: branchAddress,
-        delivery_address: branchAddress,
-        shipping_fee: shipping,
-        unit_price: parseFloat(detail.unit_price || 0)
+          product_id: parseInt(detail.product_id || 0),
+          quantity: parseInt(detail.quantity || 0),
+          branch_id: selectedBranch ? selectedBranch.value : null,
+          branch_name: selectedBranch ? selectedBranch.label : '',
+          branch_address: branchAddress,
+          delivery_address: branchAddress,
+          shipping_fee: shipping,
+          unit_price: parseFloat(detail.unit_price || 0),
+          municipality_dane_code: selectedBranch ? selectedBranch.municipality_code : null // NUEVO: Código DANE en detalles
         }))
       };
 
-      console.log('Datos de orden a enviar:', {
+      console.log('Datos de orden a enviar con código DANE:', {
         userId: user.id,
         userActive: user.is_active,
+        deliveryZone: deliveryZone,
+        municipalityDANE: selectedBranch ? selectedBranch.municipality_code : null,
         orderData: orderData
       });
 
-      // Si hay un archivo adjunto, crear FormData para envío multipart
       let formData = null;
       if (orderFile) {
         formData = new FormData();
-
-        // Agregar el archivo
         formData.append('orderFile', orderFile);
-
-        // Agregar el ID de usuario explícitamente
         formData.append('user_id', user.id.toString());
-
-        // Agregar los demás datos como JSON
         formData.append('orderData', JSON.stringify(orderData));
       }
 
-      console.log('Enviando pedido:', orderData);
-
-      // Enviar a la API (usando formData si hay archivo)
       let result;
       if (formData) {
-        // Si usamos formData, asegúrate de que el ID de usuario está incluido
         result = await orderService.createOrder(formData, true);
       } else {
-        // Si enviamos JSON, asegúrate de que el ID de usuario está incluido
         const orderWithUserId = {
           ...orderData,
-          user_id: user.id // Garantizar que user_id siempre está presente
+          user_id: user.id
         };
         result = await orderService.createOrder(orderWithUserId, false);
       }
@@ -373,7 +549,6 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       if (result.success) {
         showNotification('Pedido creado exitosamente', 'success');
 
-        // Resetear formulario
         setOrderDetails([{ product_id: '', quantity: 1, unit_price: 0 }]);
         setDeliveryDate('');
         setOrderFile(null);
@@ -381,8 +556,8 @@ const CreateOrderForm = ({ onOrderCreated }) => {
         setSelectedBranch(null);
         setBranchAddress('');
         setDeliveryAddress('');
+        setDeliveryZone(null); // NUEVO: Limpiar zona
 
-        // Notificar al componente padre
         if (onOrderCreated) onOrderCreated(result.data);
       } else {
         throw new Error(result.message || 'Error al crear el pedido');
@@ -404,7 +579,6 @@ const CreateOrderForm = ({ onOrderCreated }) => {
   };
 
   const handleConfirmCancel = () => {
-    // Redirigir a la página de pedidos
     navigate('/dashboard/orders');
   };
 
@@ -451,38 +625,27 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       </div>
     </div>
   );
-  // Función para formatear valores monetarios en formato colombiano
+
   const formatCurrencyCOP = (value) => {
-    // Aseguramos que value sea un número
     const numValue = parseFloat(value);
     if (isNaN(numValue)) return "$ 0";
 
-    // Convertimos a entero (eliminamos decimales)
     const intValue = Math.floor(numValue);
-
-    // Convertimos a string
     const valueStr = intValue.toString();
 
-    // Para valores menores a un millón, solo usamos puntos para miles
     if (valueStr.length <= 6) {
       return `$ ${valueStr.replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
     }
 
-    // Para valores de un millón o más
-    // Obtenemos la parte de millones y la parte de miles
     const millionsPart = valueStr.slice(0, valueStr.length - 6);
     const thousandsPart = valueStr.slice(valueStr.length - 6);
 
-    // Formateamos millones con puntos si son miles de millones
     const formattedMillions = millionsPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-    // Formateamos miles con puntos
     const formattedThousands = thousandsPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 
-    // Unimos con apóstrofe
     return `$ ${formattedMillions}'${formattedThousands}`;
   };
 
-  // Si están cargando los productos o configuraciones, mostrar indicador
   if (loadingProducts || loadingSettings) {
     return (
       <div className="w-full p-6 bg-white rounded-lg border border-gray-200 shadow-sm">
@@ -506,77 +669,166 @@ const CreateOrderForm = ({ onOrderCreated }) => {
           />
         )}
 
-        {/* Sección de Fecha de Entrega */}
+        {/* Sección de selección de sucursal */}
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 mb-6">
+          <div className="flex items-center mb-4">
+            <span className="text-2xl mr-3">🏢</span>
+            <h3 className="text-xl font-semibold text-gray-800">Sucursal de Entrega</h3>
+          </div>
+
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Selecciona tu sucursal</label>
+            <Select
+              value={selectedBranch}
+              onChange={handleBranchChange}
+              options={branchOptions}
+              placeholder="Selecciona una sucursal"
+              isClearable
+              className="w-full"
+              styles={{
+                control: (base) => ({
+                  ...base,
+                  borderColor: '#D1D5DB',
+                  boxShadow: 'none',
+                  '&:hover': { borderColor: '#4F46E5' }
+                })
+              }}
+            />
+          </div>
+
+          {selectedBranch && (
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Dirección de la sucursal</label>
+                <input
+                  type="text"
+                  value={branchAddress}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-100"
+                  readOnly
+                />
+              </div>
+              
+              {/* ACTUALIZADA: Información de zona de entrega con código DANE */}
+              {deliveryZone && (
+                <div className="bg-blue-50 p-4 rounded-md border-l-4 border-blue-400">
+                  <div className="flex items-center mb-2">
+                    <span className="text-blue-500 mr-2">🚚</span>
+                    <span className="font-medium text-blue-800">
+                      Zona de Entrega: {deliveryZone.name}
+                    </span>
+                  </div>
+                  <p className="text-sm text-blue-700 mb-2">
+                    Las entregas para esta sucursal se realizan los días: {deliveryZone.name}
+                  </p>
+                  {selectedBranch && selectedBranch.municipality_code && (
+                    <div className="text-xs text-blue-600 bg-blue-100 p-2 rounded">
+                      <strong>Código DANE:</strong> {selectedBranch.municipality_code} - 
+                      <strong> Ciudad:</strong> {getCityNameByDANECode(selectedBranch.municipality_code)}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* ACTUALIZADA: Sección de Fecha de Entrega */}
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 mb-6">
           <div className="flex items-center mb-4">
             <span className="text-2xl mr-3">📅</span>
             <h3 className="text-xl font-semibold text-gray-800">Fecha de Entrega</h3>
           </div>
 
-          <div className="bg-blue-50 p-4 rounded-md mb-4 border-l-4 border-blue-400">
-            <p className="text-sm text-gray-700">
-              <span className="flex items-center mb-2">
-                <span className="text-blue-500 mr-2">ℹ️</span>
-                <span className="font-medium">Selecciona cuándo quieres recibir tu pedido</span>
-              </span>
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-6 mb-4">
-            <div className="bg-gray-50 p-4 rounded-md">
-              <h4 className="font-medium text-gray-700 mb-2 flex items-center">
-                <span className="mr-2">🚚</span>Información sobre tu entrega
-              </h4>
-              <ul className="space-y-2 text-sm text-gray-600">
-                <li className="flex items-start">
-                  <span className="text-green-500 mr-2">✨</span>
-                  <span>Los pedidos en una condicion regular llegan en <span className="font-medium">2 días</span>. ¡Queremos que tengas lo mejor!</span>
-                </li>
-                <li className="flex items-start">
-                  <span className="text-amber-500 mr-2">⏰</span>
-                  <span>Si haces tu pedido después de las {siteSettings.orderTimeLimit}, necesitaremos <span className="font-medium">1 día extra</span> para prepararlo con cuidado.</span>
-                </li>
-                <li className="flex items-start">
-                  <span className="text-blue-500 mr-2">📅</span>
-                  <span>Pedidos realizados el sábado por la mañana serán entregados el <span className="font-medium">martes</span>.</span>
-                </li>
-                <li className="flex items-start">
-                  <span className="text-blue-500 mr-2">📅</span>
-                  <span>Pedidos realizados el sábado por la tarde serán entregados el <span className="font-medium">miércoles</span>.</span>
-                </li>
-                <li className="flex items-start">
-                  <span className="text-blue-500 mr-2">📅</span>
-                  <span>Pedidos realizados el domingo serán entregados el <span className="font-medium">miércoles</span>.</span>
-                </li>
-              </ul>
-              <p className="mt-3 text-xs text-gray-500 italic flex items-center">
-                <span className="mr-2">🕒</span>
-                Entregamos de lunes a sábado en horario comercial. ¡Estamos aquí para ti!
+          {!selectedBranch ? (
+            <div className="bg-yellow-50 p-4 rounded-md border-l-4 border-yellow-400">
+              <p className="text-sm text-yellow-700">
+                <span className="flex items-center">
+                  <span className="text-yellow-500 mr-2">⚠️</span>
+                  <span className="font-medium">Primero selecciona una sucursal para ver las fechas de entrega disponibles</span>
+                </span>
               </p>
             </div>
-
-            <div className="bg-gray-50 p-4 rounded-md flex flex-col justify-center">
-              <div className="text-center mb-3">
-                <span className="inline-block bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
-                  Selecciona una fecha disponible
+          ) : !deliveryZone ? (
+            <div className="bg-red-50 p-4 rounded-md border-l-4 border-red-400">
+              <p className="text-sm text-red-700">
+                <span className="flex items-center">
+                  <span className="text-red-500 mr-2">❌</span>
+                  <span className="font-medium">No se pudo determinar la zona de entrega para esta sucursal</span>
                 </span>
-              </div>
-              <DeliveryDatePicker
-                value={deliveryDate}
-                onChange={setDeliveryDate}
-                orderTimeLimit={siteSettings.orderTimeLimit}
-              />
+              </p>
+              {selectedBranch && (
+                <p className="text-xs text-red-600 mt-2">
+                  Código DANE: {selectedBranch.municipality_code || 'No disponible'}
+                </p>
+              )}
             </div>
+          ) : (
+            <>
+              <div className="bg-blue-50 p-4 rounded-md mb-4 border-l-4 border-blue-400">
+                <p className="text-sm text-gray-700">
+                  <span className="flex items-center mb-2">
+                    <span className="text-blue-500 mr-2">ℹ️</span>
+                    <span className="font-medium">Fechas disponibles para {deliveryZone.name}</span>
+                  </span>
+                </p>
+              </div>
 
-          </div>
+              <div className="grid md:grid-cols-2 gap-6 mb-4">
+                <div className="bg-gray-50 p-4 rounded-md">
+                  <h4 className="font-medium text-gray-700 mb-2 flex items-center">
+                    <span className="mr-2">🚚</span>Información sobre tu entrega
+                  </h4>
+                  <ul className="space-y-2 text-sm text-gray-600">
+                    <li className="flex items-start">
+                      <span className="text-green-500 mr-2">✨</span>
+                      <span>Entregas para <strong>{deliveryZone.name}</strong></span>
+                    </li>
+                    <li className="flex items-start">
+                      <span className="text-amber-500 mr-2">⏰</span>
+                      <span>Si haces tu pedido después de las {siteSettings.orderTimeLimit}, necesitaremos <span className="font-medium">1 día extra</span> para prepararlo con cuidado.</span>
+                    </li>
+                    <li className="flex items-start">
+                      <span className="text-blue-500 mr-2">📅</span>
+                      <span>Solo se muestran fechas disponibles para tu zona de entrega.</span>
+                    </li>
+                    {selectedBranch && selectedBranch.municipality_code && (
+                      <li className="flex items-start">
+                        <span className="text-purple-500 mr-2">🏷️</span>
+                        <span>Código DANE: <strong>{selectedBranch.municipality_code}</strong></span>
+                      </li>
+                    )}
+                  </ul>
+                  <p className="mt-3 text-xs text-gray-500 italic flex items-center">
+                    <span className="mr-2">🕒</span>
+                    Entregamos en horario comercial. ¡Estamos aquí para ti!
+                  </p>
+                </div>
 
-          <div className="text-xs text-gray-500 italic mt-2 flex items-center">
-            <span className="mr-2">🚚</span>
-            <span>Las entregas se realizan de lunes a sábado en horario comercial</span>
-          </div>
+                <div className="bg-gray-50 p-4 rounded-md flex flex-col justify-center">
+                  <div className="text-center mb-3">
+                    <span className="inline-block bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
+                      Selecciona una fecha disponible
+                    </span>
+                  </div>
+                  <DeliveryDatePicker
+                    value={deliveryDate}
+                    onChange={setDeliveryDate}
+                    orderTimeLimit={siteSettings.orderTimeLimit}
+                    availableDates={availableDeliveryDays}
+                    deliveryZone={deliveryZone}
+                  />
+                </div>
+              </div>
+
+              <div className="text-xs text-gray-500 italic mt-2 flex items-center">
+                <span className="mr-2">🚚</span>
+                <span>Las entregas se realizan en horario comercial según la zona seleccionada</span>
+              </div>
+            </>
+          )}
         </div>
 
-        {/* Productos */}
+        {/* Sección de productos */}
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -607,7 +859,6 @@ const CreateOrderForm = ({ onOrderCreated }) => {
 
                 return (
                   <tr key={index}>
-                    {/* Imagen del producto */}
                     <td className="px-6 py-4 whitespace-nowrap">
                       {selectedProduct?.image_url ? (
                         <div className="w-16 h-16">
@@ -624,7 +875,6 @@ const CreateOrderForm = ({ onOrderCreated }) => {
                       )}
                     </td>
 
-                    {/* Selector de producto */}
                     <td className="px-6 py-4 whitespace-nowrap">
                       <Select
                         value={productOptionsForSelect.find(option => option.value === parseInt(detail.product_id))}
@@ -632,7 +882,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
                         options={productOptionsForSelect}
                         formatOptionLabel={formatOptionLabel}
                         placeholder="Seleccionar producto"
-                        className="w-full" // Cambia esto
+                        className="w-full"
                         classNamePrefix="select"
                         isClearable
                         isSearchable
@@ -644,21 +894,21 @@ const CreateOrderForm = ({ onOrderCreated }) => {
                             ...base,
                             borderColor: '#D1D5DB',
                             boxShadow: 'none',
-                            minWidth: '300px',  // Ancho mínimo fijo
-                            width: '100%',      // Ocupar todo el espacio disponible
+                            minWidth: '300px',
+                            width: '100%',
                             '&:hover': { borderColor: '#4F46E5' }
                           }),
                           container: (base) => ({
                             ...base,
-                            width: '300px',    // Ancho fijo del contenedor
-                            minWidth: '300px', // Ancho mínimo
-                            maxWidth: '400px'  // Ancho máximo opcional
+                            width: '300px',
+                            minWidth: '300px',
+                            maxWidth: '400px'
                           }),
                           menu: (base) => ({
                             ...base,
                             zIndex: 9999,
-                            width: '300px',    // Ancho fijo del menú desplegable
-                            minWidth: '300px'  // Asegurar que no sea más pequeño
+                            width: '300px',
+                            minWidth: '300px'
                           }),
                           menuPortal: (base) => ({
                             ...base,
@@ -668,7 +918,6 @@ const CreateOrderForm = ({ onOrderCreated }) => {
                       />
                     </td>
 
-                    {/* Cantidad */}
                     <td className="px-6 py-4 whitespace-nowrap">
                       <input
                         type="number"
@@ -680,17 +929,14 @@ const CreateOrderForm = ({ onOrderCreated }) => {
                       />
                     </td>
 
-                    {/* Precio unitario */}
                     <td className="px-6 py-4 whitespace-nowrap">
                       {formatCurrencyCOP(detail.unit_price)}
                     </td>
 
-                    {/* Subtotal */}
                     <td className="px-6 py-4 whitespace-nowrap">
                       {formatCurrencyCOP(detail.quantity * detail.unit_price)}
                     </td>
 
-                    {/* Acciones */}
                     <td className="px-6 py-4 whitespace-nowrap">
                       <button
                         type="button"
@@ -707,7 +953,6 @@ const CreateOrderForm = ({ onOrderCreated }) => {
                 );
               })}
             </tbody>
-
           </table>
         </div>
 
@@ -724,29 +969,6 @@ const CreateOrderForm = ({ onOrderCreated }) => {
           <div className="text-xl font-bold" style={{ color: '#2c3e50' }}>
             Total: {formatCurrencyCOP(calculateTotal())}
           </div>
-        </div>
-
-        {/* NUEVO: Selección de sucursal */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Sucursal de entrega</label>
-          <Select
-            value={selectedBranch}
-            onChange={handleBranchChange}
-            options={branchOptions}
-            placeholder="Selecciona una sucursal"
-            isClearable
-          />
-          {branchAddress && (
-            <div className="mt-2">
-              <label className="block text-xs text-gray-500 mb-1">Dirección de la sucursal seleccionada</label>
-              <input
-                type="text"
-                value={branchAddress}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-100"
-                readOnly
-              />
-            </div>
-          )}
         </div>
 
         <div className="my-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
@@ -766,19 +988,6 @@ const CreateOrderForm = ({ onOrderCreated }) => {
             </div>
           </div>
         </div>
-
-        {/*
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Dirección de entrega</label>
-          <input
-            type="text"
-            value={deliveryAddress}
-            onChange={handleDeliveryAddressChange}
-            className="w-full border border-gray-300 rounded-md px-3 py-2"
-            placeholder="Confirma o edita la dirección de entrega"
-            required
-          />
-        </div>*/}
 
         {/* Notas y Adjuntos */}
         <div className="space-y-4 mt-6 border-t pt-6">
@@ -819,7 +1028,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
           <button
             type="submit"
             className={`flex-1 py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 ${isSubmitting ? 'opacity-75 cursor-not-allowed' : ''}`}
-            disabled={isSubmitting}
+            disabled={isSubmitting || !selectedBranch || !deliveryZone}
           >
             {isSubmitting ? (
               <span className="flex justify-center items-center">
@@ -833,7 +1042,8 @@ const CreateOrderForm = ({ onOrderCreated }) => {
           </button>
         </div>
       </form>
-      {/* Modal de confirmación para cancelar */}
+
+      {/* Modales de confirmación */}
       {showCancelConfirmation && (
         <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-sm mx-auto">
@@ -859,13 +1069,21 @@ const CreateOrderForm = ({ onOrderCreated }) => {
           </div>
         </div>
       )}
-      {/* Modal de confirmación para crear pedido */}
+
       {showConfirmationModal && (
         <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md mx-auto">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Confirmar pedido</h3>
             <p className="text-gray-500 mb-2">¿Estás seguro de que deseas crear este pedido?</p>
-            <p className="text-gray-700 font-medium mb-4">Total: {formatCurrencyCOP(calculateTotal())}</p>
+            <p className="text-gray-700 font-medium mb-2">Total: {formatCurrencyCOP(calculateTotal())}</p>
+            {deliveryZone && (
+              <div className="text-gray-600 text-sm mb-4">
+                <p>Zona de entrega: {deliveryZone.name}</p>
+                {selectedBranch && selectedBranch.municipality_code && (
+                  <p>Código DANE: {selectedBranch.municipality_code}</p>
+                )}
+              </div>
+            )}
 
             <div className="flex justify-end gap-3">
               <button
