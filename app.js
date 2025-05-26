@@ -275,11 +275,12 @@ const excludedFromRateLimit = [
   `${API_PREFIX}/products`
 ];
 // Busca donde defines las rutas y agrega esto ANTES de las rutas existentes:
+// Ruta de health check para Elastic Beanstalk
 app.get('/api/health', (req, res) => {
-  res.status(200).json({
-    status: 'OK',
+  res.status(200).json({ 
+    status: 'OK', 
     timestamp: new Date().toISOString(),
-    uptime: process.uptime()
+    version: process.env.npm_package_version || '1.0.0'
   });
 });
 // Middleware que solo aplica rate limiting si la ruta no está excluida
