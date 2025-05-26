@@ -72,3 +72,5 @@ npm-debug.log*
 *.key
 *.cert
 *.p12
+
+laartesa-backend-v2.zip
