@@ -73,4 +73,6 @@ npm-debug.log*
 *.cert
 *.p12
 
-/laartesa-backend-v2.zip
+# Ignorar archivos zip grandes
+laartesa-backend.zip
+laartesa-backend-v2.zip
