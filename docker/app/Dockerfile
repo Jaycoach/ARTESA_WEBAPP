@@ -19,6 +19,10 @@ WORKDIR /app
 # Copiar archivos de dependencias primero (para cache de Docker)
 COPY package*.json ./
 
+# Crear directorios antes de cambiar de usuario
+RUN mkdir -p uploads tmp logs && \
+    chown -R 1001:1001 uploads tmp logs
+
 # Instalar dependencias como root, luego cambiar permisos
 RUN npm ci --only=production && \
     npm cache clean --force && \
@@ -30,20 +34,17 @@ USER artesa
 # Copiar código fuente (excluyendo archivos innecesarios via .dockerignore)
 COPY --chown=artesa:artesa . .
 
-# Crear directorios necesarios
-RUN mkdir -p uploads tmp logs && \
-    chmod 755 uploads tmp logs
-
 # Generar documentación Swagger
 RUN npm run generate-swagger
 
 # Exponer puerto de la aplicación
 EXPOSE 3000
 
-# Usar script de entrada personalizado
-COPY docker/scripts/entrypoint.sh /entrypoint.sh
+# Copiar y configurar script de entrada
+COPY --chown=root:root docker/scripts/entrypoint.sh /entrypoint.sh
 USER root
-RUN chmod +x /entrypoint.sh
+RUN chmod +x /entrypoint.sh && \
+    chown artesa:artesa /entrypoint.sh
 USER artesa
 
 # Health check

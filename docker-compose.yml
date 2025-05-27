@@ -44,10 +44,12 @@ services:
       - RECAPTCHA_SECRET_KEY=${RECAPTCHA_SECRET_KEY}
       - RECAPTCHA_MIN_SCORE=${RECAPTCHA_MIN_SCORE}
       - CORS_ALLOW_ALL_IN_DEV=${CORS_ALLOW_ALL_IN_DEV}
+      - CORS_ALLOW_ALL_IN_DEV=true
+      - DEV_FRONTEND_URL=https://d1bqegutwmfn98.cloudfront.net
     volumes:
-      - ./uploads:/app/uploads
-      - ./logs:/app/logs
-      - ./tmp:/app/tmp
+      - artesa-uploads:/app/uploads
+      - artesa-logs:/app/logs
+      - artesa-tmp:/app/tmp
     ports:
       - "3000:3000"
     healthcheck:
@@ -84,5 +86,8 @@ networks:
 
 volumes:
   artesa-uploads:
+    driver: local
   artesa-logs:
+    driver: local
   artesa-tmp:
+    driver: local

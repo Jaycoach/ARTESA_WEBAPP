@@ -108,7 +108,9 @@ app.use(cors({
       'http://localhost:5173',
       'http://localhost:5174',
       'http://192.168.8.165:5173',
-      'https://api.artesa.com'
+      'https://api.artesa.com',
+      'https://d1bqegutwmfn98.cloudfront.net', // Añade tu URL de frontend
+      'https://api-staging.tudominio.com' // Tu futura URL de API
     ];
     
     // Check if origin matches any allowed origin or is a subdomain we want to allow
