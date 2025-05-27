@@ -15,3 +15,6 @@ docs/
 scripts/
 tests/
 tmp/
+.DS_Store
+coverage/
+.nyc_output/

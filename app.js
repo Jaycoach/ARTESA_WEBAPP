@@ -33,7 +33,7 @@ const swaggerSpecs = require('./src/config/swagger');
 
 // Inicializar la aplicación Express
 const app = express();
-app.set('trust proxy', 1); // trust first proxy
+app.set('trust proxy', true); // trust proxy for load balancer
 
 // Constantes de configuración
 const API_PREFIX = '/api';
@@ -274,15 +274,6 @@ const excludedFromRateLimit = [
   `${API_PREFIX}/orders`,
   `${API_PREFIX}/products`
 ];
-// Busca donde defines las rutas y agrega esto ANTES de las rutas existentes:
-// Ruta de health check para Elastic Beanstalk
-app.get('/api/health', (req, res) => {
-  res.status(200).json({ 
-    status: 'OK', 
-    timestamp: new Date().toISOString(),
-    version: process.env.npm_package_version || '1.0.0'
-  });
-});
 // Middleware que solo aplica rate limiting si la ruta no está excluida
 app.use((req, res, next) => {
   if (process.env.NODE_ENV !== 'production' && 
@@ -309,6 +300,16 @@ const clientBranchRoutes = require('./src/routes/clientBranchRoutes');
 // =========================================================================
 // RUTAS DE LA API
 // =========================================================================
+// Health check endpoint para Elastic Beanstalk (debe ir antes de otras rutas)
+app.get('/api/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'healthy', 
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    version: process.env.npm_package_version || '1.0.0',
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
 app.use(API_PREFIX, userRoutes);
 app.use(`${API_PREFIX}/auth`, authRoutes);
 app.use(API_PREFIX, productRoutes);
@@ -331,10 +332,12 @@ app.use(`${API_PREFIX}/payments`, paymentRoutes);
 
 // Ruta de prueba/estado para verificar que el servidor está funcionando
 app.get('/', (req, res) => {
-  res.json({ 
+  res.status(200).json({ 
     message: 'API LA ARTESA funcionando correctamente', 
     version: '1.2.1',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development',
+    port: PORT
   });
 });
 
@@ -388,7 +391,7 @@ orderScheduler.initialize()
 // =========================================================================
 // INICIAR SERVIDOR
 // =========================================================================
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`=======================================================`);
   console.log(`Servidor LA ARTESA iniciado en http://localhost:${PORT}`);
   console.log(`Documentación API: http://localhost:${PORT}/api-docs`);
@@ -398,3 +401,13 @@ app.listen(PORT, () => {
 });
 
 module.exports = app;
+// Manejo de señales del sistema para Elastic Beanstalk
+process.on('SIGTERM', () => {
+  console.log('SIGTERM recibido, cerrando servidor gracefully');
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT recibido, cerrando servidor gracefully');
+  process.exit(0);
+});
