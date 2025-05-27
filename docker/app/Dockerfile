@@ -41,7 +41,7 @@ RUN npm run generate-swagger
 EXPOSE 3000
 
 # Usar script de entrada personalizado
-COPY docker/scripts/entrypoint.sh /app/docker/scripts/entrypoint.sh
+COPY docker/scripts/entrypoint.sh /entrypoint.sh
 USER root
 RUN chmod +x /entrypoint.sh
 USER artesa

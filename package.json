@@ -10,7 +10,12 @@
     "generate-swagger": "node scripts/generate-swagger.js",
     "start": "npm run generate-swagger && node app.js",
     "dev": "npm run generate-swagger && NODE_ENV=development PORT=3000 nodemon app.js",
-    "local": "NODE_ENV=development PORT=3000 npm run generate-swagger && nodemon app.js"
+    "local": "NODE_ENV=development PORT=3000 npm run generate-swagger && nodemon app.js",
+    "docker:build": "docker-compose build",
+    "docker:dev": "docker-compose up --build",
+    "docker:prod": "docker-compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d",
+    "docker:stop": "docker-compose down",
+    "docker:logs": "docker-compose logs -f"
   },
   "engines": {
     "node": "22.x",

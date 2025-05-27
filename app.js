@@ -39,10 +39,7 @@ app.set('trust proxy', true); // trust proxy for load balancer
 const API_PREFIX = '/api';
 // Configuración de puerto según el entorno
 const getPort = () => {
-  if (process.env.NODE_ENV === 'production') {
-    return process.env.PORT || 8080;
-  }
-  // Para desarrollo local
+  // En Docker, usar siempre el puerto desde la variable de entorno
   return process.env.PORT || 3000;
 };
 

@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  app:
+    build: 
+      context: .
+      dockerfile: docker/app/Dockerfile
+    container_name: artesa-app-prod
+    restart: always
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - WAIT_FOR_DB=true
+    env_file:
+      - .env.docker
+    volumes:
+      - artesa-uploads:/app/uploads
+      - artesa-logs:/app/logs
+      - artesa-tmp:/app/tmp
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - artesa-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  nginx:
+    image: nginx:alpine
+    container_name: artesa-nginx-prod
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - artesa-nginx-logs:/var/log/nginx
+      # Para SSL, agregar certificados:
+      # - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - artesa-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  artesa-network:
+    driver: bridge
+
+volumes:
+  artesa-uploads:
+    driver: local
+  artesa-logs:
+    driver: local
+  artesa-tmp:
+    driver: local
+  artesa-nginx-logs:
+    driver: local
