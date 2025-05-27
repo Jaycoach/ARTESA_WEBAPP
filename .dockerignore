@@ -1,0 +1,58 @@
+# Archivos de Node.js
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Archivos de desarrollo
+.git
+.gitignore
+README.md
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# Archivos específicos de Elastic Beanstalk (ya no necesarios)
+.ebextensions/
+.elasticbeanstalk/
+.platform/
+
+# Archivos temporales
+tmp/
+logs/
+*.log
+
+# Archivos de IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Archivos de sistema
+.DS_Store
+Thumbs.db
+
+# Archivos de prueba
+test/
+tests/
+coverage/
+
+# Documentación
+docs/
+*.md
+!README.md
+
+# Frontend (si está en el mismo repo)
+frontend/
+public/
+
+# Archivos de deployment anteriores
+*.zip
+*.tar.gz
+
+# Archivos específicos de desarrollo local
+uploads/
+backup*/
