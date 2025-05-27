@@ -37,7 +37,16 @@ app.set('trust proxy', true); // trust proxy for load balancer
 
 // Constantes de configuración
 const API_PREFIX = '/api';
-const PORT = process.env.PORT || 8080;
+// Configuración de puerto según el entorno
+const getPort = () => {
+  if (process.env.NODE_ENV === 'production') {
+    return process.env.PORT || 8080;
+  }
+  // Para desarrollo local
+  return process.env.PORT || 3000;
+};
+
+const PORT = getPort();
 
 // Crear una instancia del logger para app.js
 const appLogger = createContextLogger('App');

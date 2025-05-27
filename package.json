@@ -4,15 +4,16 @@
   "main": "app.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start:dev": "NODE_ENV=development nodemon app.js",
-    "start:ngrok": "NODE_ENV=development nodemon app.js",
+    "start:dev": "NODE_ENV=development PORT=3000 nodemon app.js",
+    "start:ngrok": "NODE_ENV=development PORT=3000 nodemon app.js",
     "start:prod": "NODE_ENV=production node app.js",
     "generate-swagger": "node scripts/generate-swagger.js",
     "start": "npm run generate-swagger && node app.js",
-    "dev": "npm run generate-swagger && nodemon app.js"
+    "dev": "npm run generate-swagger && NODE_ENV=development PORT=3000 nodemon app.js",
+    "local": "NODE_ENV=development PORT=3000 npm run generate-swagger && nodemon app.js"
   },
   "engines": {
-    "node": "20.x",
+    "node": "22.x",
     "npm": "10.x"
   },
   "keywords": [],
