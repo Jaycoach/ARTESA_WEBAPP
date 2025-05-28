@@ -11,7 +11,7 @@ export default ({ mode }) => {
   
   // Añadir configuración específica para AWS
   if (mode === 'staging') {
-    env.VITE_API_URL = env.VITE_STAGING_API_URL || 'https://api-staging.tudominio.com';
+    env.VITE_API_URL = env.VITE_STAGING_API_URL || 'https://ec2-44-216-131-63.compute-1.amazonaws.com';
   }
 
   if (mode === 'production') {
