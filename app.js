@@ -33,7 +33,7 @@ const swaggerSpecs = require('./src/config/swagger');
 
 // Inicializar la aplicación Express
 const app = express();
-app.set('trust proxy', true); // trust proxy for load balancer
+app.set('trust proxy', 1); // trust proxy for load balancer
 
 // Constantes de configuración
 const API_PREFIX = '/api';
@@ -110,8 +110,8 @@ app.use(cors({
       'http://192.168.8.165:5173',
       'https://api.artesa.com',
       'https://d1bqegutwmfn98.cloudfront.net', // Añade tu URL de frontend
-      'https://ec2-44-216-131-63.compute-1.amazonaws.com',
-      'https://ec2-44-216-131-63.compute-1.amazonaws.com:3000' // URL de API AWS
+      'https://ec2-44-216-131-63.compute-1.amazonaws.com', // Agregar esta línea
+      'http://ec2-44-216-131-63.compute-1.amazonaws.com' // URL de API AWS
     ];
     
     // Check if origin matches any allowed origin or is a subdomain we want to allow
