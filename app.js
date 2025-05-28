@@ -110,7 +110,7 @@ app.use(cors({
       'http://192.168.8.165:5173',
       'https://api.artesa.com',
       'https://d1bqegutwmfn98.cloudfront.net', // Añade tu URL de frontend
-      'https://api-staging.tudominio.com' // Tu futura URL de API
+      'ec2-44-216-131-63.compute-1.amazonaws.com' // URL de API AWS
     ];
     
     // Check if origin matches any allowed origin or is a subdomain we want to allow
