@@ -23,6 +23,8 @@ export default ({ mode }) => {
     console.log('Configurando variables para staging');
     env.VITE_API_URL = env.VITE_API_URL || 'https://ec2-44-216-131-63.compute-1.amazonaws.com';
     env.VITE_API_PATH = '/api';
+    env.VITE_FRONTEND_URL = 'https://d1bqegutwmfn98.cloudfront.net';
+    env.VITE_USE_NGROK = 'false';
   }
   // Forzar configuración para ngrok
   if (mode === 'ngrok') {
@@ -42,33 +44,8 @@ export default ({ mode }) => {
       'import.meta.env.VITE_APP_VERSION': JSON.stringify(env.VITE_APP_VERSION),
       'import.meta.env.VITE_APP_NAME': JSON.stringify(env.VITE_APP_NAME),
       'import.meta.env.VITE_API_PATH': JSON.stringify(env.VITE_API_PATH || '/api'),
+      'import.meta.env.VITE_FRONTEND_URL': JSON.stringify(env.VITE_FRONTEND_URL),
       '__MODE__': JSON.stringify(mode),
-    },
-
-    theme: {
-      extend: {
-        colors: {
-          primary: 'var(--primary-color)',
-          secondary: 'var(--secondary-color)',
-          hover: 'var(--hover-color)',
-          accent: 'var(--accent-color)',
-          white: 'var(--whiteColor)',
-          black: 'var(--blackColor)',
-          grey: 'var(--greyText)',
-          bg: 'var(--bgColor)',
-          input: 'var(--inputColor)',
-          button: 'var(--buttonColor)',
-        },
-        fontSize: {
-          biggest: 'var(--biggestFontSize)',
-          h1: 'var(--h1FontSize)',
-          h2: 'var(--h2FontSize)',
-          h3: 'var(--h3FontSize)',
-          normal: 'var(--normalFontSize)',
-          small: 'var(--smallFontSize)',
-          smallest: 'var(--smallestFontSize)',
-        },
-      },
     },
     css: {
       preprocessorOptions: {
@@ -115,13 +92,28 @@ export default ({ mode }) => {
         }
       },
       host: true,
-      cors: true,
+      cors: {
+        origin: [
+          'https://d1bqegutwmfn98.cloudfront.net',
+          'https://ec2-44-216-131-63.compute-1.amazonaws.com',
+          'http://localhost:5173',
+          'http://localhost:3000'
+        ],
+        credentials: true,
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning', 'Bypass-Tunnel-Reminder']
+      },
       strictPort: false,
       allowedHosts: 'all'
     },
     build: {
       // Generar source maps incluso en producción
       sourcemap: mode !== 'production',
+      // Configuración específica para staging
+      ...(mode === 'staging' && {
+        minify: 'esbuild',
+        sourcemap: true,
+      }),
       // Opciones específicas para producción
       ...(mode === 'production' && {
         minify: 'terser',
@@ -146,5 +138,29 @@ export default ({ mode }) => {
         }
       }
     },
+    optimizeDeps: {
+      include: [
+        'react',
+        'react-dom',
+        'react-router-dom',
+        'framer-motion',
+        'react-icons',
+        'axios'
+      ],
+      esbuildOptions: {
+        target: 'esnext',
+        keepNames: true,
+      }
+    },
+    test: {
+      globals: true,
+      environment: 'jsdom',
+      setupFiles: './src/setupTests.js',
+      coverage: {
+        provider: 'v8',
+        reporter: ['text', 'json', 'html'],
+        exclude: ['**/node_modules/**', '**/dist/**', '**/src/setupTests.js']
+      }
+    }
   });
 };

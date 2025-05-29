@@ -1,5 +1,4 @@
 import axios from 'axios';
-import { isNgrok, isDevelopment } from '../utils/environment';
 import { isNgrok, isDevelopment, determineBaseUrl as envDetermineBaseUrl } from '../utils/environment';
 
 const determineBaseUrl = () => {
@@ -30,8 +29,11 @@ const API = axios.create({
     'Accept': 'application/json',
     'ngrok-skip-browser-warning': '69420',
     'Bypass-Tunnel-Reminder': 'true',
-    // Headers adicionales para CloudFront
-    'Origin': typeof window !== 'undefined' ? window.location.origin : undefined
+    // Headers adicionales para CloudFront y AWS
+    'Origin': typeof window !== 'undefined' ? window.location.origin : undefined,
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization'
   },
   withCredentials: true
 });
