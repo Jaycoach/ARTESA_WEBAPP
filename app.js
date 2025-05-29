@@ -90,29 +90,43 @@ app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
-
 // =========================================================================
 // CONFIGURACIÓN DE CORS
 // =========================================================================
-app.use(cors({
+const corsOptions = {
   origin: function(origin, callback) {
-    // Allow requests with no origin (mobile apps, Postman, etc.)
-    if (!origin) {
-      return callback(null, true);
-    }
+    console.log('🔍 CORS Check - Origin:', origin);
     
-    // Lista simplificada de orígenes permitidos
+    // Lista de orígenes permitidos
     const allowedOrigins = [
       'https://d1bqegutwmfn98.cloudfront.net',
+      'https://ec2-44-216-131-63.compute-1.amazonaws.com', // Para Swagger
+      'http://ec2-44-216-131-63.compute-1.amazonaws.com',  // Para Swagger HTTP
       'http://localhost:3000',
       'http://localhost:5173',
       'http://localhost:5174'
     ];
     
-    if (allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
+    // Permitir solicitudes sin origin (apps móviles, Postman, etc.)
+    if (!origin) {
+      console.log('✅ CORS - Permitiendo solicitud sin origin');
+      return callback(null, true);
+    }
+    
+    // Verificar si el origin está permitido
+    if (allowedOrigins.includes(origin)) {
+      console.log('✅ CORS - Origin permitido:', origin);
       callback(null, true);
     } else {
-      callback(new Error('No permitido por CORS'));
+      // En lugar de rechazar inmediatamente, verificar si es desarrollo/staging
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('⚠️ CORS - Origin no en lista pero permitido por ser desarrollo:', origin);
+        callback(null, true);
+      } else {
+        console.log('❌ CORS - Origin no permitido:', origin);
+        console.log('📋 Origins permitidos:', allowedOrigins);
+        callback(new Error(`CORS: Origin ${origin} no permitido`));
+      }
     }
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH', 'HEAD'],
@@ -121,33 +135,33 @@ app.use(cors({
     'Authorization',
     'X-Requested-With',
     'g-recaptcha-response',
-    'recaptchatoken'
+    'recaptchatoken',
+    'bypass-tunnel-reminder',
+    'ngrok-skip-browser-warning',
+    'dnt',
+    'sec-ch-ua',
+    'sec-ch-ua-mobile',
+    'sec-ch-ua-platform'
   ],
   credentials: true,
-  optionsSuccessStatus: 204
-}));
+  optionsSuccessStatus: 204,
+  preflightContinue: false
+};
 
-// Middleware de logging específico para rutas de API y Swagger
+app.use(cors(corsOptions));
+// Middleware de debugging CORS específico
 app.use((req, res, next) => {
-  const isApiRoute = req.path.startsWith('/api');
-  const isSwaggerRoute = req.path.includes('swagger') || req.path.includes('api-docs');
-  
-  if (isApiRoute || isSwaggerRoute) {
-    console.log('\n=== REQUEST LOG ===');
-    console.log('Método:', req.method);
-    console.log('Ruta:', req.path);
-    console.log('Origin:', req.headers.origin || 'Sin origin');
-    console.log('User-Agent:', req.headers['user-agent']?.substring(0, 100) || 'No disponible');
-    console.log('Content-Type:', req.headers['content-type'] || 'No especificado');
-    console.log('Authorization:', req.headers.authorization ? 'Presente' : 'No presente');
-    console.log('Referer:', req.headers.referer || 'No especificado');
-    console.log('X-Requested-With:', req.headers['x-requested-with'] || 'No presente');
+  if (req.path.startsWith('/api')) {
+    console.log('\n🔍 === CORS DEBUG ===');
+    console.log('Method:', req.method);
+    console.log('Path:', req.path);
+    console.log('Origin:', req.headers.origin);
+    console.log('Referer:', req.headers.referer);
+    console.log('User-Agent:', req.headers['user-agent']?.substring(0, 100));
     console.log('==================\n');
   }
-  
   next();
 });
-
 // =========================================================================
 // CARGA DE ARCHIVOS - Configurado pero NO aplicado globalmente
 // =========================================================================
@@ -197,7 +211,7 @@ app.use(security.validateQueryParams);
 app.use(enhancedSecurityHeaders);
 
 // Aplicar tracker de actividad sospechosa
-app.use(suspiciousActivityTracker);
+//app.use(suspiciousActivityTracker);
 
 // Middleware para asegurar respuestas JSON
 app.use(ensureJsonResponse);
