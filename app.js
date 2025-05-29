@@ -194,23 +194,38 @@ app.use(cors({
 }));
 
 // CORS adicional para rutas de autenticación
+// Agregar después de la configuración de CORS y antes de las rutas
 app.use('/api/auth', (req, res, next) => {
-  const origin = req.headers.origin;
-  if (origin && (
-    origin.includes('d1bqegutwmfn98.cloudfront.net') ||
-    origin.includes('ec2-44-216-131-63.compute-1.amazonaws.com') ||
-    origin.includes('localhost')
-  )) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, g-recaptcha-response, recaptchatoken');
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-  }
+  console.log('\n=== DIAGNÓSTICO CORS AUTH ===');
+  console.log('Método:', req.method);
+  console.log('Origin:', req.headers.origin);
+  console.log('Referer:', req.headers.referer);
+  console.log('User-Agent:', req.headers['user-agent']?.substring(0, 100));
+  console.log('Headers completos:', JSON.stringify(req.headers, null, 2));
+  console.log('Timestamp:', new Date().toISOString());
   
+  // Verificar si es una solicitud preflight
   if (req.method === 'OPTIONS') {
+    console.log('🔄 Es solicitud preflight OPTIONS');
+    res.setHeader('Access-Control-Allow-Origin', 'https://d1bqegutwmfn98.cloudfront.net');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, g-recaptcha-response, recaptchatoken, bypass-tunnel-reminder, ngrok-skip-browser-warning, dnt, sec-ch-ua, sec-ch-ua-mobile, sec-ch-ua-platform');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Max-Age', '86400');
+    console.log('✅ Headers OPTIONS configurados');
+    console.log('============================\n');
     return res.status(204).end();
   }
   
+  // Para solicitudes normales, asegurar headers CORS
+  const origin = req.headers.origin;
+  if (origin === 'https://d1bqegutwmfn98.cloudfront.net') {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    console.log('✅ Headers CORS configurados para solicitud normal');
+  }
+  
+  console.log('============================\n');
   next();
 });
 
