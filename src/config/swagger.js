@@ -39,7 +39,25 @@ const options = {
       {
         bearerAuth: []
       }
-    ]
+    ],
+    servers: [
+      {
+        url: process.env.NODE_ENV === 'production' 
+          ? 'https://ec2-44-216-131-63.compute-1.amazonaws.com'
+          : `http://localhost:${process.env.PORT || 3000}`,
+        description: process.env.NODE_ENV === 'production' 
+          ? 'Servidor de Producción'
+          : 'Servidor Local'
+      },
+      {
+        url: 'https://ec2-44-216-131-63.compute-1.amazonaws.com',
+        description: 'Servidor HTTPS'
+      },
+      {
+        url: 'http://ec2-44-216-131-63.compute-1.amazonaws.com',
+        description: 'Servidor HTTP'
+      }
+    ],
   },
   // Archivos a escanear para anotaciones
   apis: [

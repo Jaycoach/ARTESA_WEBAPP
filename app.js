@@ -74,7 +74,7 @@ app.use(helmet({
     directives: {
       ...helmet.contentSecurityPolicy.getDefaultDirectives(),
       "img-src": ["'self'", "data:", "https:"],
-      "script-src": ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com"]
+      "script-src": ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdnjs.cloudflare.com"]
     }
   }
 }));
@@ -99,11 +99,7 @@ app.use(morgan('dev'));
 // Then, update your cors middleware configuration
 app.use(cors({
   origin: function(origin, callback) {
-    // Allow requests with no origin (like mobile apps, Postman, etc.)
-    if (!origin) return callback(null, true);
-    
-    // Define allowed origins explicitly
-    // Define allowed origins explicitly
+    // Lista explícita de orígenes permitidos
     const allowedOrigins = [
       'http://localhost:3000',
       'http://localhost:5173',
@@ -116,39 +112,47 @@ app.use(cors({
       'http://ec2-44-216-131-63.compute-1.amazonaws.com',
       'https://ec2-44-216-131-63.compute-1.amazonaws.com:3000',
       'http://ec2-44-216-131-63.compute-1.amazonaws.com:3000',
-      // Agregar también sin puerto para pruebas
       'http://ec2-44-216-131-63.compute-1.amazonaws.com:80'
     ];
     
-    // Check if origin matches any allowed origin or is a subdomain we want to allow
-    const isAllowed = allowedOrigins.includes(origin) ||
-                 origin.includes('localhost') ||
-                 origin.includes('ngrok-free.app') ||
-                 origin.includes('127.0.0.1') ||
-                 origin.includes('ec2-44-216-131-63.compute-1.amazonaws.com') ||
-                 origin.includes('cloudfront.net') ||
-                 origin.includes('d1bqegutwmfn98.cloudfront.net') ||
-                 (origin && origin.match(/^https?:\/\/.*\.cloudfront\.net$/)) ||
-                 (origin && origin.match(/^https?:\/\/.*\.amazonaws\.com/));
-
     // Agregar orígenes desde variables de entorno
     if (process.env.CORS_ALLOWED_ORIGINS) {
       const envOrigins = process.env.CORS_ALLOWED_ORIGINS.split(',').map(origin => origin.trim());
       allowedOrigins.push(...envOrigins);
     }
 
-    if (isAllowed) {
-      callback(null, true);
-    } else {
-      console.log('CORS rechazado para origen:', origin);
-      // En desarrollo, permitir todo para facilitar pruebas
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Permitiendo en desarrollo de todos modos');
-        callback(null, true);
-      } else {
-        callback(new Error('No permitido por CORS'));
-      }
+    // Permitir requests sin origen (Postman, móviles, etc.)
+    if (!origin) {
+      return callback(null, true);
     }
+
+    // Verificar si el origen está en la lista permitida
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    // Verificar patrones dinámicos
+    const isAllowed = origin.includes('localhost') ||
+                    origin.includes('ngrok-free.app') ||
+                    origin.includes('127.0.0.1') ||
+                    origin.includes('ec2-44-216-131-63.compute-1.amazonaws.com') ||
+                    origin.includes('d1bqegutwmfn98.cloudfront.net') ||
+                    origin.match(/^https?:\/\/.*\.cloudfront\.net$/) ||
+                    origin.match(/^https?:\/\/.*\.amazonaws\.com$/);
+
+    if (isAllowed) {
+      return callback(null, true);
+    }
+
+    // En desarrollo, ser más permisivo
+    if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'staging') {
+      console.log('CORS: Permitiendo origen en modo desarrollo/staging:', origin);
+      return callback(null, true);
+    }
+
+    // Rechazar en producción
+    console.log('CORS rechazado para origen:', origin);
+    callback(new Error('No permitido por CORS'));
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH', 'HEAD'],
   allowedHeaders: [
@@ -167,18 +171,31 @@ app.use(cors({
     'Accept-Encoding'
   ],
   credentials: true,
-  optionsSuccessStatus: 204
+  optionsSuccessStatus: 204,
+  preflightContinue: false,
+  maxAge: 86400
 }));
 
-// Manejar solicitudes preflight CORS explícitamente
-// Comentado porque nginx maneja OPTIONS directamente
-//app.options('*', (req, res) => {
-//  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
-//  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD');
-//  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Bypass-Tunnel-Reminder, ngrok-skip-browser-warning, g-recaptcha-response, recaptchatoken');
-//  res.header('Access-Control-Allow-Credentials', 'true');
-//  res.status(204).send();
-//});
+// CORS adicional para rutas de autenticación
+app.use('/api/auth', (req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && (
+    origin.includes('d1bqegutwmfn98.cloudfront.net') ||
+    origin.includes('ec2-44-216-131-63.compute-1.amazonaws.com') ||
+    origin.includes('localhost')
+  )) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, g-recaptcha-response, recaptchatoken');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  }
+  
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+  
+  next();
+});
 
 // =========================================================================
 // CARGA DE ARCHIVOS - Configurado pero NO aplicado globalmente
@@ -309,6 +326,15 @@ const swaggerUiOptions = {
     }
   `,
   customSiteTitle: "API LAARTESA - Documentación",
+  swaggerOptions: {
+    requestInterceptor: (request) => {
+      // Forzar HTTPS para requests desde Swagger
+      if (request.url.startsWith('http://ec2-44-216-131-63')) {
+        request.url = request.url.replace('http://', 'https://');
+      }
+      return request;
+    }
+  },
 };
 
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpecs, swaggerUiOptions));
