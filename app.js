@@ -118,6 +118,7 @@ app.use(cors({
       'http://localhost:5174',
       'http://192.168.8.165:5173',
       'https://api.artesa.com',
+      'https://d1nkfheaf642r6.cloudfront.net', // producción
       'https://d1bqegutwmfn98.cloudfront.net',
       'http://d1bqegutwmfn98.cloudfront.net',
       'https://ec2-44-216-131-63.compute-1.amazonaws.com',
