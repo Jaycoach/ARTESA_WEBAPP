@@ -125,8 +125,10 @@ app.use(cors({
                  origin.includes('127.0.0.1') ||
                  origin.includes('ec2-44-216-131-63.compute-1.amazonaws.com') ||
                  origin.includes('cloudfront.net') ||
+                 origin.includes('d1bqegutwmfn98.cloudfront.net') ||
+                 (origin && origin.match(/^https?:\/\/.*\.cloudfront\.net$/)) ||
                  (origin && origin.match(/^https?:\/\/.*\.amazonaws\.com/));
-                 
+
     // Agregar orígenes desde variables de entorno
     if (process.env.CORS_ALLOWED_ORIGINS) {
       const envOrigins = process.env.CORS_ALLOWED_ORIGINS.split(',').map(origin => origin.trim());
@@ -161,13 +163,14 @@ app.use(cors({
 }));
 
 // Manejar solicitudes preflight CORS explícitamente
-app.options('*', (req, res) => {
-  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Bypass-Tunnel-Reminder, ngrok-skip-browser-warning, g-recaptcha-response, recaptchatoken');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.status(204).send();
-});
+// Comentado porque nginx maneja OPTIONS directamente
+//app.options('*', (req, res) => {
+//  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+//  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD');
+//  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Bypass-Tunnel-Reminder, ngrok-skip-browser-warning, g-recaptcha-response, recaptchatoken');
+//  res.header('Access-Control-Allow-Credentials', 'true');
+//  res.status(204).send();
+//});
 
 // =========================================================================
 // CARGA DE ARCHIVOS - Configurado pero NO aplicado globalmente
