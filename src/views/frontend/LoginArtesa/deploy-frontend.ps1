@@ -24,25 +24,9 @@ if ($Environment -eq "production") {
     $BucketName = "artesa-frontend-staging"
     $Mode = "staging"
     $CloudFrontUrl = "https://d1bqegutwmfn98.cloudfront.net"
-    $env:VITE_API_URL = "https://ec2-44-216-131-63.compute-1.amazonaws.com"
-    $env:VITE_API_PATH = "/api"
-    $env:VITE_FRONTEND_URL = "https://d1bqegutwmfn98.cloudfront.net"
 }
 
 Write-Host "Construyendo aplicación en modo: $Mode" -ForegroundColor Yellow
-
-# Configurar variables de entorno según el ambiente
-if ($Environment -eq "production") {
-    $env:VITE_API_URL = "https://tu-api-produccion.com/api"
-    $env:VITE_FRONTEND_URL = "https://d1nkfheaf642r6.cloudfront.net"
-} else {
-    $env:VITE_API_URL = "https://ec2-44-216-131-63.compute-1.amazonaws.com/api"
-    $env:VITE_FRONTEND_URL = "https://d1bqegutwmfn98.cloudfront.net"
-}
-
-Write-Host "Variables configuradas:" -ForegroundColor Cyan
-Write-Host "- VITE_API_URL: $env:VITE_API_URL" -ForegroundColor White
-Write-Host "- VITE_FRONTEND_URL: $env:VITE_FRONTEND_URL" -ForegroundColor White
 
 # Build
 npm run build:$Mode

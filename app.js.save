@@ -33,7 +33,7 @@ const swaggerSpecs = require('./src/config/swagger');
 
 // Inicializar la aplicación Express
 const app = express();
-app.set('trust proxy', 1); // Solo confiar en el primer proxy (nginx)
+app.set('trust proxy', 1); // trust proxy for load balancer
 
 // Constantes de configuración
 const API_PREFIX = '/api';
@@ -74,7 +74,7 @@ app.use(helmet({
     directives: {
       ...helmet.contentSecurityPolicy.getDefaultDirectives(),
       "img-src": ["'self'", "data:", "https:"],
-      "script-src": ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdnjs.cloudflare.com"]
+      "script-src": ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com"]
     }
   }
 }));
@@ -90,69 +90,68 @@ app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
+
 // =========================================================================
 // CONFIGURACIÓN DE CORS
 // =========================================================================
+// First, remove the custom middleware that manually sets CORS headers
+
+// Then, update your cors middleware configuration
 app.use(cors({
   origin: function(origin, callback) {
-    console.log('🔍 CORS Check - Origin:', origin);
+    // Allow requests with no origin (like mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
     
-    // Allow requests with no origin (mobile apps, Postman, etc.)
-    if (!origin) {
-      console.log('✅ CORS - Permitiendo solicitud sin origin');
-      return callback(null, true);
-    }
-    
-    // Lista simplificada de orígenes permitidos
+    // Define allowed origins explicitly
     const allowedOrigins = [
-      'https://d1bqegutwmfn98.cloudfront.net',
-      'https://ec2-44-216-131-63.compute-1.amazonaws.com', // Para Swagger
-      'http://ec2-44-216-131-63.compute-1.amazonaws.com',  // Para desarrollo
       'http://localhost:3000',
       'http://localhost:5173',
-      'http://localhost:5174'
+      'http://localhost:5174',
+      'http://192.168.8.165:5173',
+      'https://api.artesa.com',
+      'https://d1bqegutwmfn98.cloudfront.net',
+      'http://d1bqegutwmfn98.cloudfront.net',
+      'https://ec2-44-216-131-63.compute-1.amazonaws.com',
+      'http://ec2-44-216-131-63.compute-1.amazonaws.com',
+      'http://ec2-44-216-131-63.compute-1.amazonaws.com:3000',
+      'https://ec2-44-216-131-63.compute-1.amazonaws.com:3000' // URL de API AWS
     ];
     
-    if (allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
-      console.log('✅ CORS - Origin permitido:', origin);
+    // Check if origin matches any allowed origin or is a subdomain we want to allow
+    // Check if origin matches any allowed origin or is a subdomain we want to allow
+    const isAllowed = allowedOrigins.includes(origin) || 
+                   origin.includes('localhost') || 
+                 origin.includes('ngrok-free.app') ||
+                 origin.includes('127.0.0.1') ||
+                 origin.includes('ec2-44-216-131-63.compute-1.amazonaws.com');
+    
+    if (isAllowed) {
       callback(null, true);
     } else {
-      console.log('❌ CORS - Origin no permitido:', origin);
-      console.log('📋 Origins permitidos:', allowedOrigins);
-      callback(new Error('No permitido por CORS'));
+      console.log('CORS rechazado para origen:', origin);
+      // En desarrollo, permitir todo para facilitar pruebas
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Permitiendo en desarrollo de todos modos');
+        callback(null, true);
+      } else {
+        callback(new Error('No permitido por CORS'));
+      }
     }
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH', 'HEAD'],
   allowedHeaders: [
-    'Content-Type',
-    'Authorization',
-    'X-Requested-With',
-    'g-recaptcha-response',
-    'recaptchatoken',
-    'bypass-tunnel-reminder',
+    'Content-Type', 
+    'Authorization', 
+    'X-Requested-With', 
+    'Bypass-Tunnel-Reminder', 
     'ngrok-skip-browser-warning',
-    'dnt',
-    'sec-ch-ua',
-    'sec-ch-ua-mobile',
-    'sec-ch-ua-platform'
+    'g-recaptcha-response',
+    'recaptchatoken'
   ],
   credentials: true,
   optionsSuccessStatus: 204
 }));
 
-// Middleware de debugging CORS específico
-app.use((req, res, next) => {
-  if (req.path.startsWith('/api')) {
-    console.log('\n🔍 === CORS DEBUG ===');
-    console.log('Method:', req.method);
-    console.log('Path:', req.path);
-    console.log('Origin:', req.headers.origin);
-    console.log('Referer:', req.headers.referer);
-    console.log('User-Agent:', req.headers['user-agent']?.substring(0, 100));
-    console.log('==================\n');
-  }
-  next();
-});
 // =========================================================================
 // CARGA DE ARCHIVOS - Configurado pero NO aplicado globalmente
 // =========================================================================
@@ -202,7 +201,7 @@ app.use(security.validateQueryParams);
 app.use(enhancedSecurityHeaders);
 
 // Aplicar tracker de actividad sospechosa
-//app.use(suspiciousActivityTracker); // Comentado temporalmente para debugging
+app.use(suspiciousActivityTracker);
 
 // Middleware para asegurar respuestas JSON
 app.use(ensureJsonResponse);
@@ -227,47 +226,6 @@ const swaggerUiOptions = {
     filter: true,
     tryItOutEnabled: true,
     supportedSubmitMethods: ['get', 'post', 'put', 'delete', 'patch', 'options', 'head'],
-    url: '/swagger.json',
-    dom_id: '#swagger-ui',
-    deepLinking: true,
-    validatorUrl: null,
-    requestInterceptor: function(request) {
-      console.log('\n=== SWAGGER REQUEST INTERCEPTOR ===');
-      console.log('Request URL:', request.url);
-      console.log('Request method:', request.method);
-      console.log('Request headers:', request.headers);
-      console.log('Window location:', window.location.href);
-      console.log('============================\n');
-      
-      // Asegurar que use la URL correcta del servidor
-      if (request.url.includes('localhost:3000') && window.location.hostname !== 'localhost') {
-        const newUrl = request.url.replace('localhost:3000', window.location.host);
-        console.log('🔄 URL modificada de:', request.url, 'a:', newUrl);
-        request.url = newUrl;
-      }
-      
-      return request;
-    },
-    responseInterceptor: function(response) {
-      console.log('\n=== SWAGGER RESPONSE INTERCEPTOR ===');
-      console.log('Response status:', response.status);
-      console.log('Response URL:', response.url);
-      console.log('Response headers:', response.headers);
-      if (response.status >= 400) {
-        console.log('❌ Response error body:', response.body);
-        console.log('❌ Response text:', response.text);
-      }
-      console.log('==============================\n');
-      return response;
-    },
-    onComplete: function() {
-      console.log('✅ Swagger UI cargado exitosamente');
-      console.log('Current URL:', window.location.href);
-      console.log('Base URL detected:', window.location.origin);
-    },
-    onFailure: function(error) {
-      console.error('❌ Error cargando Swagger UI:', error);
-    }
   },
   customCss: `
     .swagger-ui .topbar { display: none }
@@ -304,35 +262,9 @@ const swaggerUiOptions = {
 };
 
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpecs, swaggerUiOptions));
-
-// Mejorar el endpoint de swagger.json con CORS
 app.get('/swagger.json', (req, res) => {
-  console.log('\n=== SWAGGER.JSON REQUEST ===');
-  console.log('Origin:', req.headers.origin);
-  console.log('Referer:', req.headers.referer);
-  console.log('User-Agent:', req.headers['user-agent']?.substring(0, 80));
-  console.log('Accept:', req.headers.accept);
-  console.log('Method:', req.method);
-  console.log('URL completa:', req.url);
-  console.log('Query params:', req.query);
-  
-  try {
-    res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Cache-Control', 'no-cache');
-    
-    console.log('✅ Enviando swagger.json exitosamente');
-    console.log('========================\n');
-    
-    res.send(swaggerSpecs);
-  } catch (error) {
-    console.log('❌ Error enviando swagger.json:', error.message);
-    console.log('========================\n');
-    res.status(500).json({ error: 'Error generando swagger.json' });
-  }
+  res.setHeader('Content-Type', 'application/json');
+  res.send(swaggerSpecs);
 });
 
 // =========================================================================
@@ -384,37 +316,12 @@ const clientBranchRoutes = require('./src/routes/clientBranchRoutes');
 // =========================================================================
 // Health check endpoint para Elastic Beanstalk (debe ir antes de otras rutas)
 app.get('/api/health', (req, res) => {
-  console.log('\n=== HEALTH CHECK ===');
-  console.log('Origin:', req.headers.origin || 'Sin origin');
-  console.log('User-Agent:', req.headers['user-agent']?.substring(0, 50) || 'No disponible');
-  console.log('===================\n');
-  
   res.status(200).json({ 
     status: 'healthy', 
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     version: process.env.npm_package_version || '1.0.0',
-    environment: process.env.NODE_ENV || 'development',
-    cors_debug: {
-      origin: req.headers.origin,
-      allowed_origins: process.env.CORS_ALLOWED_ORIGINS?.split(',') || []
-    }
-  });
-});
-// Endpoint específico para debugging CORS
-app.get('/api/cors-debug', (req, res) => {
-  console.log('\n=== CORS DEBUG ENDPOINT ===');
-  console.log('Headers completos:', JSON.stringify(req.headers, null, 2));
-  console.log('========================\n');
-  
-  res.json({
-    origin: req.headers.origin,
-    referer: req.headers.referer,
-    userAgent: req.headers['user-agent'],
-    allHeaders: req.headers,
-    environment: process.env.NODE_ENV,
-    corsAllowedOrigins: process.env.CORS_ALLOWED_ORIGINS?.split(',') || [],
-    timestamp: new Date().toISOString()
+    environment: process.env.NODE_ENV || 'development'
   });
 });
 app.use(API_PREFIX, userRoutes);

@@ -11,20 +11,11 @@ export default ({ mode }) => {
   
   // Añadir configuración específica para AWS
   if (mode === 'staging') {
-    env.VITE_API_URL = env.VITE_STAGING_API_URL || 'https://ec2-44-216-131-63.compute-1.amazonaws.com/api';
+    env.VITE_API_URL = env.VITE_STAGING_API_URL || 'https://ec2-44-216-131-63.compute-1.amazonaws.com';
   }
 
   if (mode === 'production') {
     env.VITE_API_URL = env.VITE_PROD_API_URL || 'https://api.tudominio.com';
-  }
-
-  // Configuración específica para staging
-  if (mode === 'staging') {
-    console.log('Configurando variables para staging');
-    env.VITE_API_URL = env.VITE_API_URL || 'https://ec2-44-216-131-63.compute-1.amazonaws.com';
-    env.VITE_API_PATH = '/api';
-    env.VITE_FRONTEND_URL = 'https://d1bqegutwmfn98.cloudfront.net';
-    env.VITE_USE_NGROK = 'false';
   }
   // Forzar configuración para ngrok
   if (mode === 'ngrok') {
@@ -138,29 +129,5 @@ export default ({ mode }) => {
         }
       }
     },
-    optimizeDeps: {
-      include: [
-        'react',
-        'react-dom',
-        'react-router-dom',
-        'framer-motion',
-        'react-icons',
-        'axios'
-      ],
-      esbuildOptions: {
-        target: 'esnext',
-        keepNames: true,
-      }
-    },
-    test: {
-      globals: true,
-      environment: 'jsdom',
-      setupFiles: './src/setupTests.js',
-      coverage: {
-        provider: 'v8',
-        reporter: ['text', 'json', 'html'],
-        exclude: ['**/node_modules/**', '**/dist/**', '**/src/setupTests.js']
-      }
-    }
   });
 };

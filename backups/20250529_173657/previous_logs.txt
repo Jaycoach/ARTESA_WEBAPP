@@ -1,0 +1,1000 @@
+artesa-nginx-staging  | /docker-entrypoint.sh: /docker-entrypoint.d/ is not empty, will attempt to perform configuration
+artesa-nginx-staging  | /docker-entrypoint.sh: Looking for shell scripts in /docker-entrypoint.d/
+artesa-nginx-staging  | /docker-entrypoint.sh: Launching /docker-entrypoint.d/10-listen-on-ipv6-by-default.sh
+artesa-nginx-staging  | 10-listen-on-ipv6-by-default.sh: info: can not modify /etc/nginx/conf.d/default.conf (read-only file system?)
+artesa-nginx-staging  | /docker-entrypoint.sh: Launching /docker-entrypoint.d/20-envsubst-on-templates.sh
+artesa-nginx-staging  | /docker-entrypoint.sh: Launching /docker-entrypoint.d/30-tune-worker-processes.sh
+artesa-nginx-staging  | /docker-entrypoint.sh: Configuration complete; ready for start up
+artesa-api-staging    | 🚀 Iniciando LA ARTESA API...
+artesa-api-staging    | Entorno: staging
+artesa-api-staging    | Puerto: 3000
+artesa-api-staging    | [2025-05-29 17:24:56] ✅ Variables de entorno verificadas
+artesa-api-staging    | [2025-05-29 17:24:56] 📁 Directorios preparados
+artesa-api-staging    | [2025-05-29 17:24:56] 📖 Generando documentación Swagger...
+artesa-api-staging    | 
+artesa-api-staging    | > laartesa@1.0.0 generate-swagger
+artesa-api-staging    | > node scripts/generate-swagger.js
+artesa-api-staging    | 
+artesa-api-staging    | Archivo Swagger generado exitosamente en: /app/public/swagger.json
+artesa-api-staging    | [2025-05-29 17:24:57] 🎯 Iniciando aplicación...
+artesa-api-staging    | 
+artesa-api-staging    | > laartesa@1.0.0 start
+artesa-api-staging    | > npm run generate-swagger && node app.js
+artesa-api-staging    | 
+artesa-api-staging    | 
+artesa-api-staging    | > laartesa@1.0.0 generate-swagger
+artesa-api-staging    | > node scripts/generate-swagger.js
+artesa-api-staging    | 
+artesa-api-staging    | Archivo Swagger generado exitosamente en: /app/public/swagger.json
+artesa-api-staging    | [32minfo[39m: S3Service inicializado correctamente {"bucket":"artesa-documents-staging","context":"S3Service","region":"us-east-1","timestamp":"2025-05-29 17:24:59"}
+artesa-api-staging    | Rate limiting configurado en modo permisivo para desarrollo
+artesa-api-staging    | [34mdebug[39m: Inicializando singleton de Roles {"context":"RolesModel","timestamp":"2025-05-29 17:24:59"}
+artesa-api-staging    | [34mdebug[39m: Cargando roles desde la base de datos {"context":"RolesModel","timestamp":"2025-05-29 17:24:59"}
+artesa-api-staging    | [34mdebug[39m: Inicializando EmailService {"context":"EmailService","smtpHost":"sandbox.smtp.mailtrap.io","smtpPort":2525,"timestamp":"2025-05-29 17:24:59"}
+artesa-api-staging    | [32minfo[39m: Iniciando gestor de servicios SAP {"context":"App","timestamp":"2025-05-29 17:24:59"}
+artesa-api-staging    | [32minfo[39m: Inicializando gestor de servicios SAP {"context":"SapServiceManager","timestamp":"2025-05-29 17:24:59"}
+artesa-api-staging    | [34mdebug[39m: Iniciando autenticación con SAP B1 Service Layer {"context":"SapProductService","timestamp":"2025-05-29 17:24:59"}
+artesa-api-staging    | [34mdebug[39m: Intentando conexión con SAP B1 {"baseUrl":"https://solidda-sl.heinsohncloud.com.co:50000/b1s/v2","companyDB":"MOVII_PRUEBAS","context":"SapProductService","timestamp":"2025-05-29 17:24:59","username":"manager"}
+artesa-api-staging    | [34mdebug[39m: Intentando login con SAP (intento 1/3) {"baseUrl":"https://solidda-sl.heinsohncloud.com.co:50000/b1s/v2","companyDB":"MOVII_PRUEBAS","context":"SapProductService","timestamp":"2025-05-29 17:24:59","username":"manager"}
+artesa-api-staging    | [32minfo[39m: Inicializando servicio S3 {"timestamp":"2025-05-29 17:24:59"}
+artesa-api-staging    | [32minfo[39m: S3Service inicializado correctamente {"bucket":"artesa-documents-staging","context":"S3Service","region":"us-east-1","timestamp":"2025-05-29 17:24:59"}
+artesa-api-staging    | [32minfo[39m: Inicializando servicio de programación de órdenes {"timestamp":"2025-05-29 17:24:59"}
+artesa-api-staging    | [32minfo[39m: Inicializando servicio de programación de órdenes {"context":"OrderScheduler","timestamp":"2025-05-29 17:24:59"}
+artesa-api-staging    | [34mdebug[39m: Obteniendo configuración actual del portal {"context":"AdminSettingsModel","timestamp":"2025-05-29 17:24:59"}
+artesa-api-staging    | =======================================================
+artesa-api-staging    | Servidor LA ARTESA iniciado en http://localhost:3000
+artesa-api-staging    | Documentación API: http://localhost:3000/api-docs
+artesa-api-staging    | Swagger JSON: http://localhost:3000/swagger.json
+artesa-api-staging    | Modo: staging
+artesa-api-staging    | =======================================================
+artesa-api-staging    | (node:43) NOTE: The AWS SDK for JavaScript (v2) is in maintenance mode.
+artesa-api-staging    |  SDK releases are limited to address critical bug fixes and security issues only.
+artesa-api-staging    | 
+artesa-api-staging    | Please migrate your code to use AWS SDK for JavaScript (v3).
+artesa-api-staging    | For more information, check the blog post at https://a.co/cUPnyil
+artesa-api-staging    | (Use `node --trace-warnings ...` to show where the warning was created)
+artesa-api-staging    | [34mdebug[39m: Nueva conexión a la base de datos establecida {"context":"DatabaseConfig","timestamp":"2025-05-29 17:24:59"}
+artesa-api-staging    | [34mdebug[39m: Nueva conexión a la base de datos establecida {"context":"DatabaseConfig","timestamp":"2025-05-29 17:24:59"}
+artesa-api-staging    | [32minfo[39m: Conexión a la base de datos establecida exitosamente {"context":"DatabaseConfig","database":"artesadb_dev","environment":"staging","host":"laartesa-db.csbsswgcszct.us-east-1.rds.amazonaws.com","port":"5432","timestamp":"2025-05-29 17:24:59"}
+artesa-api-staging    | [32minfo[39m: Roles cargados exitosamente {"context":"RolesModel","roleCount":3,"timestamp":"2025-05-29 17:24:59"}
+artesa-api-staging    | [34mdebug[39m: Roles disponibles: {"context":"RolesModel","roles":{"ADMINISTRADOR":1,"Administrador":1,"CLIENTE":3,"Cliente":3,"USUARIO":2,"Usuario":2},"timestamp":"2025-05-29 17:24:59"}
+artesa-api-staging    | [34mdebug[39m: Nueva conexión a la base de datos establecida {"context":"DatabaseConfig","timestamp":"2025-05-29 17:24:59"}
+artesa-api-staging    | [34mdebug[39m: Configuración obtenida exitosamente {"context":"AdminSettingsModel","timestamp":"2025-05-29 17:24:59"}
+artesa-api-staging    | [32minfo[39m: Configurando tarea programada para actualizar estados de órdenes {"context":"OrderScheduler","cronExpression":"5 18 * * 1-5","orderTimeLimit":"18:00","timestamp":"2025-05-29 17:24:59"}
+artesa-api-staging    | [32minfo[39m: Servicio de programación de órdenes inicializado correctamente {"context":"OrderScheduler","orderTimeLimit":"18:00","timestamp":"2025-05-29 17:24:59"}
+artesa-api-staging    | [32minfo[39m: Servicio de programación de órdenes iniciado exitosamente {"timestamp":"2025-05-29 17:24:59"}
+artesa-api-staging    | [32minfo[39m: Conexión SMTP verificada exitosamente {"context":"EmailService","timestamp":"2025-05-29 17:24:59"}
+artesa-api-staging    | [33mwarn[39m: Reintentando conexión en 2000ms {"attempt":1,"context":"SapProductService","error":"timeout of 10000ms exceeded","maxRetries":3,"timestamp":"2025-05-29 17:25:09"}
+artesa-api-staging    | [34mdebug[39m: Intentando login con SAP (intento 2/3) {"baseUrl":"https://solidda-sl.heinsohncloud.com.co:50000/b1s/v2","companyDB":"MOVII_PRUEBAS","context":"SapProductService","timestamp":"2025-05-29 17:25:11","username":"manager"}
+artesa-api-staging    | [33mwarn[39m: Reintentando conexión en 4000ms {"attempt":2,"context":"SapProductService","error":"timeout of 10000ms exceeded","maxRetries":3,"timestamp":"2025-05-29 17:25:21"}
+artesa-api-staging    | [34mdebug[39m: Intentando login con SAP (intento 3/3) {"baseUrl":"https://solidda-sl.heinsohncloud.com.co:50000/b1s/v2","companyDB":"MOVII_PRUEBAS","context":"SapProductService","timestamp":"2025-05-29 17:25:25","username":"manager"}
+artesa-api-staging    | 
+artesa-api-staging    | === CORS DEBUG ===
+artesa-api-staging    | Origin recibido: undefined
+artesa-api-staging    | Timestamp: 2025-05-29T17:25:26.618Z
+artesa-api-staging    | User-Agent: No disponible
+artesa-api-staging    | ✅ Permitido: Sin origen (mobile/Postman)
+artesa-api-staging    | 
+artesa-api-staging    | === REQUEST LOG ===
+artesa-api-staging    | Método: GET
+artesa-api-staging    | Ruta: /api/health
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: curl/8.12.1
+artesa-api-staging    | Content-Type: No especificado
+artesa-api-staging    | Authorization: No presente
+artesa-api-staging    | Referer: No especificado
+artesa-api-staging    | X-Requested-With: No presente
+artesa-api-staging    | ==================
+artesa-api-staging    | 
+artesa-api-staging    | [33mwarn[39m: Actividad sospechosa detectada {"context":"EnhancedSecurity","headers":{"accept":"*/*","host":"localhost:3000","user-agent":"curl/8.12.1"},"ip":"127.0.0.1","method":"GET","path":"/api/health","timestamp":"2025-05-29T17:25:26.621Z"}
+artesa-api-staging    | ValidationError: The Express 'trust proxy' setting is true, which allows anyone to trivially bypass IP-based rate limiting. See https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/ for more information.
+artesa-api-staging    |     at Object.trustProxy (/app/node_modules/express-rate-limit/dist/index.cjs:169:13)
+artesa-api-staging    |     at wrappedValidations.<computed> [as trustProxy] (/app/node_modules/express-rate-limit/dist/index.cjs:398:22)
+artesa-api-staging    |     at Object.keyGenerator (/app/node_modules/express-rate-limit/dist/index.cjs:670:20)
+artesa-api-staging    |     at /app/node_modules/express-rate-limit/dist/index.cjs:724:32
+artesa-api-staging    |     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+artesa-api-staging    |     at async /app/node_modules/express-rate-limit/dist/index.cjs:704:5 {
+artesa-api-staging    |   code: 'ERR_ERL_PERMISSIVE_TRUST_PROXY',
+artesa-api-staging    |   help: 'https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/'
+artesa-api-staging    | }
+artesa-api-staging    | 
+artesa-api-staging    | === HEALTH CHECK ===
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: curl/8.12.1
+artesa-api-staging    | ===================
+artesa-api-staging    | 
+artesa-api-staging    | [0mGET /api/health [32m200[0m 8.783 ms - 414[0m
+artesa-api-staging    | [0mGET /api/health [32m200[0m 8.783 ms - 414[0m
+artesa-api-staging    | [31merror[39m: Autenticación fallida después de 3 intentos {"code":"ECONNABORTED","context":"SapProductService","error":"timeout of 10000ms exceeded","timestamp":"2025-05-29 17:25:35"}
+artesa-api-staging    | [31merror[39m: Error en autenticación con SAP B1 {"context":"SapProductService","error":"timeout of 10000ms exceeded","stack":"AxiosError: timeout of 10000ms exceeded\n    at RedirectableRequest.handleRequestTimeout (/app/node_modules/axios/dist/node/axios.cjs:3206:16)\n    at RedirectableRequest.emit (node:events:518:28)\n    at RedirectableRequest.emit (node:domain:489:12)\n    at Timeout.<anonymous> (/app/node_modules/follow-redirects/index.js:221:12)\n    at listOnTimeout (node:internal/timers:588:17)\n    at process.processTimers (node:internal/timers:523:7)\n    at Axios.request (/app/node_modules/axios/dist/node/axios.cjs:4258:41)\n    at async SapProductService.login (/app/src/services/SapBaseService.js:115:22)\n    at async SapServiceManager.initialize (/app/src/services/SapServiceManager.js:34:28)","timestamp":"2025-05-29 17:25:35"}
+artesa-api-staging    | [31merror[39m: Error al verificar conexión con SAP B1 {"context":"SapServiceManager","error":"Error de autenticación con SAP B1: timeout of 10000ms exceeded","stack":"Error: Error de autenticación con SAP B1: timeout of 10000ms exceeded\n    at SapProductService.login (/app/src/services/SapBaseService.js:172:13)\n    at async SapServiceManager.initialize (/app/src/services/SapServiceManager.js:34:28)","timestamp":"2025-05-29 17:25:35"}
+artesa-api-staging    | [32minfo[39m: Inicializando servicio de integración con SAP B1 {"context":"SapProductService","timestamp":"2025-05-29 17:25:35"}
+artesa-api-staging    | [32minfo[39m: Servicio de integración con SAP B1 inicializado correctamente {"context":"SapProductService","timestamp":"2025-05-29 17:25:35"}
+artesa-api-staging    | [32minfo[39m: Inicializando servicio de integración con SAP B1 {"context":"SapClientService","timestamp":"2025-05-29 17:25:35"}
+artesa-api-staging    | [32minfo[39m: Servicio de integración con SAP B1 inicializado correctamente {"context":"SapClientService","timestamp":"2025-05-29 17:25:35"}
+artesa-api-staging    | [32minfo[39m: Inicializando servicio de integración con SAP B1 {"context":"SapOrderService","timestamp":"2025-05-29 17:25:35"}
+artesa-api-staging    | [32minfo[39m: Servicio de integración con SAP B1 inicializado correctamente {"context":"SapOrderService","timestamp":"2025-05-29 17:25:35"}
+artesa-api-staging    | [32minfo[39m: Programando sincronización periódica de productos {"context":"SapProductService","schedule":"0 0 * * *","timestamp":"2025-05-29 17:25:35"}
+artesa-api-staging    | [32minfo[39m: Configurando sincronización de grupo específico {"context":"SapProductService","groupCode":"127","schedule":"0 */6 * * *","timestamp":"2025-05-29 17:25:35"}
+artesa-api-staging    | [32minfo[39m: Programando sincronización periódica de productos por grupo {"context":"SapProductService","groupCode":"127","schedule":"0 */6 * * *","timestamp":"2025-05-29 17:25:35"}
+artesa-api-staging    | [32minfo[39m: Programando sincronización periódica de clientes {"context":"SapClientService","schedule":"0 */2 6-20 * *","timestamp":"2025-05-29 17:25:35"}
+artesa-api-staging    | [32minfo[39m: Programando sincronización diaria completa de perfiles {"context":"SapClientService","schedule":"0 3 * * *","timestamp":"2025-05-29 17:25:35"}
+artesa-api-staging    | [32minfo[39m: Registrando callback para sincronización posterior a actualización automática {"context":"SapOrderService","timestamp":"2025-05-29 17:25:35"}
+artesa-api-staging    | [32minfo[39m: Registrando callback post-actualización {"context":"OrderScheduler","timestamp":"2025-05-29 17:25:35"}
+artesa-api-staging    | [32minfo[39m: Programando sincronización periódica de órdenes {"context":"SapOrderService","schedule":"0 */3 * * *","timestamp":"2025-05-29 17:25:35"}
+artesa-api-staging    | [32minfo[39m: Programando verificación periódica de órdenes entregadas y facturadas en SAP {"context":"SapOrderService","schedule":"0 8,12,16 * * *","timestamp":"2025-05-29 17:25:35"}
+artesa-api-staging    | [32minfo[39m: Programando verificación diaria de órdenes facturadas en SAP {"context":"SapOrderService","schedule":"0 23 * * *","timestamp":"2025-05-29 17:25:35"}
+artesa-api-staging    | [32minfo[39m: Servicio de productos SAP inicializado correctamente {"context":"SapServiceManager","timestamp":"2025-05-29 17:25:35"}
+artesa-api-staging    | [32minfo[39m: Servicio de clientes SAP inicializado correctamente {"context":"SapServiceManager","timestamp":"2025-05-29 17:25:35"}
+artesa-api-staging    | [32minfo[39m: Servicio de órdenes SAP inicializado correctamente {"context":"SapServiceManager","timestamp":"2025-05-29 17:25:35"}
+artesa-api-staging    | [32minfo[39m: Gestor de servicios SAP inicializado correctamente {"context":"SapServiceManager","timestamp":"2025-05-29 17:25:35"}
+artesa-api-staging    | [32minfo[39m: Gestor de servicios SAP iniciado exitosamente {"context":"App","timestamp":"2025-05-29 17:25:35"}
+artesa-api-staging    | 
+artesa-api-staging    | === CORS DEBUG ===
+artesa-api-staging    | Origin recibido: undefined
+artesa-api-staging    | Timestamp: 2025-05-29T17:25:42.439Z
+artesa-api-staging    | User-Agent: No disponible
+artesa-api-staging    | ✅ Permitido: Sin origen (mobile/Postman)
+artesa-api-staging    | 
+artesa-api-staging    | === REQUEST LOG ===
+artesa-api-staging    | Método: GET
+artesa-api-staging    | Ruta: /api/health
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: curl/8.5.0
+artesa-api-staging    | Content-Type: No especificado
+artesa-api-staging    | Authorization: No presente
+artesa-api-staging    | Referer: No especificado
+artesa-api-staging    | X-Requested-With: No presente
+artesa-api-staging    | ==================
+artesa-api-staging    | 
+artesa-api-staging    | [33mwarn[39m: Actividad sospechosa detectada {"context":"EnhancedSecurity","headers":{"accept":"*/*","connection":"close","host":"localhost","user-agent":"curl/8.5.0","x-forwarded-for":"192.168.176.1","x-forwarded-proto":"http","x-real-ip":"192.168.176.1"},"ip":"192.168.176.1","method":"GET","path":"/api/health","timestamp":"2025-05-29T17:25:42.440Z"}
+artesa-api-staging    | 
+artesa-api-staging    | === HEALTH CHECK ===
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: curl/8.5.0
+artesa-api-staging    | ===================
+artesa-api-staging    | 
+artesa-api-staging    | [0mGET /api/health [32m200[0m 2.519 ms - 414[0m
+artesa-api-staging    | [0mGET /api/health [32m200[0m 2.519 ms - 414[0m
+artesa-api-staging    | 
+artesa-api-staging    | === CORS DEBUG ===
+artesa-api-staging    | Origin recibido: undefined
+artesa-api-staging    | Timestamp: 2025-05-29T17:25:56.715Z
+artesa-api-staging    | User-Agent: No disponible
+artesa-api-staging    | ✅ Permitido: Sin origen (mobile/Postman)
+artesa-api-staging    | 
+artesa-api-staging    | === REQUEST LOG ===
+artesa-api-staging    | Método: GET
+artesa-api-staging    | Ruta: /api/health
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: curl/8.12.1
+artesa-api-staging    | Content-Type: No especificado
+artesa-api-staging    | Authorization: No presente
+artesa-api-staging    | Referer: No especificado
+artesa-api-staging    | X-Requested-With: No presente
+artesa-api-staging    | ==================
+artesa-api-staging    | 
+artesa-api-staging    | [33mwarn[39m: Actividad sospechosa detectada {"context":"EnhancedSecurity","headers":{"accept":"*/*","host":"localhost:3000","user-agent":"curl/8.12.1"},"ip":"127.0.0.1","method":"GET","path":"/api/health","timestamp":"2025-05-29T17:25:56.715Z"}
+artesa-api-staging    | 
+artesa-api-staging    | === HEALTH CHECK ===
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: curl/8.12.1
+artesa-api-staging    | ===================
+artesa-api-staging    | 
+artesa-api-staging    | [0mGET /api/health [32m200[0m 0.988 ms - 414[0m
+artesa-api-staging    | [0mGET /api/health [32m200[0m 0.988 ms - 414[0m
+artesa-api-staging    | 
+artesa-api-staging    | === CORS DEBUG ===
+artesa-api-staging    | Origin recibido: undefined
+artesa-api-staging    | Timestamp: 2025-05-29T17:26:22.620Z
+artesa-api-staging    | User-Agent: No disponible
+artesa-api-staging    | ✅ Permitido: Sin origen (mobile/Postman)
+artesa-api-staging    | 
+artesa-api-staging    | === REQUEST LOG ===
+artesa-api-staging    | Método: GET
+artesa-api-staging    | Ruta: /api/cors-debug
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Sa
+artesa-api-staging    | Content-Type: No especificado
+artesa-api-staging    | Authorization: No presente
+artesa-api-staging    | Referer: No especificado
+artesa-api-staging    | X-Requested-With: No presente
+artesa-api-staging    | ==================
+artesa-api-staging    | 
+artesa-api-staging    | 
+artesa-api-staging    | === CORS DEBUG ENDPOINT ===
+artesa-api-staging    | Headers completos: {
+artesa-api-staging    |   "host": "ec2-44-216-131-63.compute-1.amazonaws.com",
+artesa-api-staging    |   "x-real-ip": "91.126.182.219",
+artesa-api-staging    |   "x-forwarded-for": "91.126.182.219",
+artesa-api-staging    |   "x-forwarded-proto": "http",
+artesa-api-staging    |   "connection": "close",
+artesa-api-staging    |   "dnt": "1",
+artesa-api-staging    |   "upgrade-insecure-requests": "1",
+artesa-api-staging    |   "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36 AVG/136.0.0.0",
+artesa-api-staging    |   "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+artesa-api-staging    |   "accept-encoding": "gzip, deflate",
+artesa-api-staging    |   "accept-language": "es-CO,es;q=0.9,en-US;q=0.8,en;q=0.7"
+artesa-api-staging    | }
+artesa-api-staging    | ========================
+artesa-api-staging    | 
+artesa-api-staging    | [0mGET /api/cors-debug [32m200[0m 1.032 ms - 1081[0m
+artesa-api-staging    | [0mGET /api/cors-debug [32m200[0m 1.032 ms - 1081[0m
+artesa-api-staging    | 
+artesa-api-staging    | === CORS DEBUG ===
+artesa-api-staging    | Origin recibido: undefined
+artesa-api-staging    | Timestamp: 2025-05-29T17:26:23.508Z
+artesa-api-staging    | User-Agent: No disponible
+artesa-api-staging    | ✅ Permitido: Sin origen (mobile/Postman)
+artesa-api-staging    | [33mwarn[39m: Ruta no encontrada: /favicon.ico {"context":"ErrorMiddleware","ip":"91.126.182.219","method":"GET","timestamp":"2025-05-29 17:26:23","userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36 AVG/136.0.0.0"}
+artesa-api-staging    | [31merror[39m: Error: Ruta no encontrada - /favicon.ico {"context":"ErrorMiddleware","ip":"91.126.182.219","method":"GET","path":"/favicon.ico","stack":"Error: Ruta no encontrada - /favicon.ico\n    at notFound (/app/src/middleware/errorMiddleware.js:12:17)\n    at Layer.handle [as handle_request] (/app/node_modules/express/lib/router/layer.js:95:5)\n    at trim_prefix (/app/node_modules/express/lib/router/index.js:328:13)\n    at /app/node_modules/express/lib/router/index.js:286:9\n    at Function.process_params (/app/node_modules/express/lib/router/index.js:346:12)\n    at next (/app/node_modules/express/lib/router/index.js:280:10)\n    at /app/node_modules/express-rate-limit/dist/index.cjs:822:7\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async /app/node_modules/express-rate-limit/dist/index.cjs:704:5","statusCode":404,"timestamp":"2025-05-29 17:26:23"}
+artesa-api-staging    | [0mGET /favicon.ico [33m404[0m 3.289 ms - 785[0m
+artesa-api-staging    | [0mGET /favicon.ico [33m404[0m 3.289 ms - 785[0m
+artesa-api-staging    | 
+artesa-api-staging    | === CORS DEBUG ===
+artesa-api-staging    | Origin recibido: undefined
+artesa-api-staging    | Timestamp: 2025-05-29T17:26:26.817Z
+artesa-api-staging    | User-Agent: No disponible
+artesa-api-staging    | ✅ Permitido: Sin origen (mobile/Postman)
+artesa-api-staging    | 
+artesa-api-staging    | === REQUEST LOG ===
+artesa-api-staging    | Método: GET
+artesa-api-staging    | Ruta: /api/health
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: curl/8.12.1
+artesa-api-staging    | Content-Type: No especificado
+artesa-api-staging    | Authorization: No presente
+artesa-api-staging    | Referer: No especificado
+artesa-api-staging    | X-Requested-With: No presente
+artesa-api-staging    | ==================
+artesa-api-staging    | 
+artesa-api-staging    | [33mwarn[39m: Actividad sospechosa detectada {"context":"EnhancedSecurity","headers":{"accept":"*/*","host":"localhost:3000","user-agent":"curl/8.12.1"},"ip":"127.0.0.1","method":"GET","path":"/api/health","timestamp":"2025-05-29T17:26:26.817Z"}
+artesa-api-staging    | 
+artesa-api-staging    | === HEALTH CHECK ===
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: curl/8.12.1
+artesa-api-staging    | ===================
+artesa-api-staging    | 
+artesa-api-staging    | [0mGET /api/health [32m200[0m 0.906 ms - 414[0m
+artesa-api-staging    | [0mGET /api/health [32m200[0m 0.906 ms - 414[0m
+artesa-api-staging    | 
+artesa-api-staging    | === CORS DEBUG ===
+artesa-api-staging    | Origin recibido: undefined
+artesa-api-staging    | Timestamp: 2025-05-29T17:26:56.914Z
+artesa-api-staging    | User-Agent: No disponible
+artesa-api-staging    | ✅ Permitido: Sin origen (mobile/Postman)
+artesa-api-staging    | 
+artesa-api-staging    | === REQUEST LOG ===
+artesa-api-staging    | Método: GET
+artesa-api-staging    | Ruta: /api/health
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: curl/8.12.1
+artesa-api-staging    | Content-Type: No especificado
+artesa-api-staging    | Authorization: No presente
+artesa-api-staging    | Referer: No especificado
+artesa-api-staging    | X-Requested-With: No presente
+artesa-api-staging    | ==================
+artesa-api-staging    | 
+artesa-api-staging    | [33mwarn[39m: Actividad sospechosa detectada {"context":"EnhancedSecurity","headers":{"accept":"*/*","host":"localhost:3000","user-agent":"curl/8.12.1"},"ip":"127.0.0.1","method":"GET","path":"/api/health","timestamp":"2025-05-29T17:26:56.915Z"}
+artesa-api-staging    | 
+artesa-api-staging    | === HEALTH CHECK ===
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: curl/8.12.1
+artesa-api-staging    | ===================
+artesa-api-staging    | 
+artesa-api-staging    | [0mGET /api/health [32m200[0m 0.852 ms - 415[0m
+artesa-api-staging    | [0mGET /api/health [32m200[0m 0.852 ms - 415[0m
+artesa-api-staging    | 
+artesa-api-staging    | === CORS DEBUG ===
+artesa-api-staging    | Origin recibido: undefined
+artesa-api-staging    | Timestamp: 2025-05-29T17:27:27.015Z
+artesa-api-staging    | User-Agent: No disponible
+artesa-api-staging    | ✅ Permitido: Sin origen (mobile/Postman)
+artesa-api-staging    | 
+artesa-api-staging    | === REQUEST LOG ===
+artesa-api-staging    | Método: GET
+artesa-api-staging    | Ruta: /api/health
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: curl/8.12.1
+artesa-api-staging    | Content-Type: No especificado
+artesa-api-staging    | Authorization: No presente
+artesa-api-staging    | Referer: No especificado
+artesa-api-staging    | X-Requested-With: No presente
+artesa-api-staging    | ==================
+artesa-api-staging    | 
+artesa-api-staging    | [33mwarn[39m: Actividad sospechosa detectada {"context":"EnhancedSecurity","headers":{"accept":"*/*","host":"localhost:3000","user-agent":"curl/8.12.1"},"ip":"127.0.0.1","method":"GET","path":"/api/health","timestamp":"2025-05-29T17:27:27.015Z"}
+artesa-api-staging    | 
+artesa-api-staging    | === HEALTH CHECK ===
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: curl/8.12.1
+artesa-api-staging    | ===================
+artesa-api-staging    | 
+artesa-api-staging    | [0mGET /api/health [32m200[0m 1.040 ms - 415[0m
+artesa-api-staging    | [0mGET /api/health [32m200[0m 1.040 ms - 415[0m
+artesa-api-staging    | 
+artesa-api-staging    | === CORS DEBUG ===
+artesa-api-staging    | Origin recibido: undefined
+artesa-api-staging    | Timestamp: 2025-05-29T17:27:48.028Z
+artesa-api-staging    | User-Agent: No disponible
+artesa-api-staging    | ✅ Permitido: Sin origen (mobile/Postman)
+artesa-api-staging    | 
+artesa-api-staging    | === REQUEST LOG ===
+artesa-api-staging    | Método: GET
+artesa-api-staging    | Ruta: /api-docs/
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Sa
+artesa-api-staging    | Content-Type: No especificado
+artesa-api-staging    | Authorization: No presente
+artesa-api-staging    | Referer: No especificado
+artesa-api-staging    | X-Requested-With: No presente
+artesa-api-staging    | ==================
+artesa-api-staging    | 
+artesa-api-staging    | [0mGET /api-docs/ [32m200[0m 3.064 ms - 3686[0m
+artesa-api-staging    | [0mGET /api-docs/ [32m200[0m 3.064 ms - 3686[0m
+artesa-api-staging    | 
+artesa-api-staging    | === CORS DEBUG ===
+artesa-api-staging    | Origin recibido: undefined
+artesa-api-staging    | Timestamp: 2025-05-29T17:27:48.164Z
+artesa-api-staging    | User-Agent: No disponible
+artesa-api-staging    | ✅ Permitido: Sin origen (mobile/Postman)
+artesa-api-staging    | 
+artesa-api-staging    | === REQUEST LOG ===
+artesa-api-staging    | Método: GET
+artesa-api-staging    | Ruta: /api-docs/swagger-ui.css
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Sa
+artesa-api-staging    | Content-Type: No especificado
+artesa-api-staging    | Authorization: No presente
+artesa-api-staging    | Referer: https://ec2-44-216-131-63.compute-1.amazonaws.com/api-docs/
+artesa-api-staging    | X-Requested-With: No presente
+artesa-api-staging    | ==================
+artesa-api-staging    | 
+artesa-api-staging    | 
+artesa-api-staging    | === CORS DEBUG ===
+artesa-api-staging    | Origin recibido: undefined
+artesa-api-staging    | Timestamp: 2025-05-29T17:27:48.167Z
+artesa-api-staging    | User-Agent: No disponible
+artesa-api-staging    | ✅ Permitido: Sin origen (mobile/Postman)
+artesa-api-staging    | 
+artesa-api-staging    | === REQUEST LOG ===
+artesa-api-staging    | Método: GET
+artesa-api-staging    | Ruta: /api-docs/swagger-ui-bundle.js
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Sa
+artesa-api-staging    | Content-Type: No especificado
+artesa-api-staging    | Authorization: No presente
+artesa-api-staging    | Referer: https://ec2-44-216-131-63.compute-1.amazonaws.com/api-docs/
+artesa-api-staging    | X-Requested-With: No presente
+artesa-api-staging    | ==================
+artesa-api-staging    | 
+artesa-api-staging    | 
+artesa-api-staging    | === CORS DEBUG ===
+artesa-api-staging    | Origin recibido: undefined
+artesa-api-staging    | Timestamp: 2025-05-29T17:27:48.170Z
+artesa-api-staging    | User-Agent: No disponible
+artesa-api-staging    | ✅ Permitido: Sin origen (mobile/Postman)
+artesa-api-staging    | 
+artesa-api-staging    | === REQUEST LOG ===
+artesa-api-staging    | Método: GET
+artesa-api-staging    | Ruta: /api-docs/swagger-ui-standalone-preset.js
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Sa
+artesa-api-staging    | Content-Type: No especificado
+artesa-api-staging    | Authorization: No presente
+artesa-api-staging    | Referer: https://ec2-44-216-131-63.compute-1.amazonaws.com/api-docs/
+artesa-api-staging    | X-Requested-With: No presente
+artesa-api-staging    | ==================
+artesa-api-staging    | 
+artesa-api-staging    | 
+artesa-api-staging    | === CORS DEBUG ===
+artesa-api-staging    | Origin recibido: undefined
+artesa-api-staging    | Timestamp: 2025-05-29T17:27:48.172Z
+artesa-api-staging    | User-Agent: No disponible
+artesa-api-staging    | ✅ Permitido: Sin origen (mobile/Postman)
+artesa-api-staging    | 
+artesa-api-staging    | === REQUEST LOG ===
+artesa-api-staging    | Método: GET
+artesa-api-staging    | Ruta: /api-docs/swagger-ui-init.js
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Sa
+artesa-api-staging    | Content-Type: No especificado
+artesa-api-staging    | Authorization: No presente
+artesa-api-staging    | Referer: https://ec2-44-216-131-63.compute-1.amazonaws.com/api-docs/
+artesa-api-staging    | X-Requested-With: No presente
+artesa-api-staging    | ==================
+artesa-api-staging    | 
+artesa-api-staging    | [0mGET /api-docs/swagger-ui.css [32m200[0m 5.888 ms - 152072[0m
+artesa-api-staging    | [0mGET /api-docs/swagger-ui.css [32m200[0m 5.888 ms - 152072[0m
+artesa-api-staging    | [0mGET /api-docs/swagger-ui-init.js [32m200[0m 1.472 ms - 178012[0m
+artesa-api-staging    | [0mGET /api-docs/swagger-ui-init.js [32m200[0m 1.472 ms - 178012[0m
+artesa-api-staging    | [0mGET /api-docs/swagger-ui-bundle.js [32m200[0m 8.305 ms - 1458834[0m
+artesa-api-staging    | [0mGET /api-docs/swagger-ui-bundle.js [32m200[0m 8.305 ms - 1458834[0m
+artesa-api-staging    | [0mGET /api-docs/swagger-ui-standalone-preset.js [32m200[0m 7.513 ms - 230007[0m
+artesa-api-staging    | [0mGET /api-docs/swagger-ui-standalone-preset.js [32m200[0m 7.513 ms - 230007[0m
+artesa-api-staging    | 
+artesa-api-staging    | === CORS DEBUG ===
+artesa-api-staging    | Origin recibido: https://ec2-44-216-131-63.compute-1.amazonaws.com
+artesa-api-staging    | Timestamp: 2025-05-29T17:27:53.014Z
+artesa-api-staging    | User-Agent: No disponible
+artesa-api-staging    | Orígenes permitidos: [
+artesa-api-staging    |   'http://localhost:3000',
+artesa-api-staging    |   'http://localhost:5173',
+artesa-api-staging    |   'http://localhost:5174',
+artesa-api-staging    |   'http://192.168.8.165:5173',
+artesa-api-staging    |   'https://api.artesa.com',
+artesa-api-staging    |   'https://d1nkfheaf642r6.cloudfront.net',
+artesa-api-staging    |   'https://d1bqegutwmfn98.cloudfront.net',
+artesa-api-staging    |   'http://d1bqegutwmfn98.cloudfront.net',
+artesa-api-staging    |   'https://ec2-44-216-131-63.compute-1.amazonaws.com',
+artesa-api-staging    |   'http://ec2-44-216-131-63.compute-1.amazonaws.com',
+artesa-api-staging    |   'https://ec2-44-216-131-63.compute-1.amazonaws.com:3000',
+artesa-api-staging    |   'http://ec2-44-216-131-63.compute-1.amazonaws.com:3000',
+artesa-api-staging    |   'http://ec2-44-216-131-63.compute-1.amazonaws.com:80',
+artesa-api-staging    |   'https://ec2-44-216-131-63.compute-1.amazonaws.com',
+artesa-api-staging    |   'http://ec2-44-216-131-63.compute-1.amazonaws.com'
+artesa-api-staging    | ]
+artesa-api-staging    | Orígenes adicionales desde ENV: [
+artesa-api-staging    |   'https://d1bqegutwmfn98.cloudfront.net',
+artesa-api-staging    |   'http://ec2-44-216-131-63.compute-1.amazonaws.com',
+artesa-api-staging    |   'https://ec2-44-216-131-63.compute-1.amazonaws.com',
+artesa-api-staging    |   'http://ec2-44-216-131-63.compute-1.amazonaws.com:3000',
+artesa-api-staging    |   'https://ec2-44-216-131-63.compute-1.amazonaws.com:3000'
+artesa-api-staging    | ]
+artesa-api-staging    | ¿Directamente permitido?: true
+artesa-api-staging    | ¿Permitido por patrón?: true
+artesa-api-staging    | ✅ CORS PERMITIDO para: https://ec2-44-216-131-63.compute-1.amazonaws.com
+artesa-api-staging    | ==================
+artesa-api-staging    | 
+artesa-api-staging    | 
+artesa-api-staging    | === DIAGNÓSTICO CORS AUTH ===
+artesa-api-staging    | Método: POST
+artesa-api-staging    | Origin: https://ec2-44-216-131-63.compute-1.amazonaws.com
+artesa-api-staging    | Referer: https://ec2-44-216-131-63.compute-1.amazonaws.com/api-docs/
+artesa-api-staging    | User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Sa
+artesa-api-staging    | Headers completos: {
+artesa-api-staging    |   "connection": "upgrade",
+artesa-api-staging    |   "host": "ec2-44-216-131-63.compute-1.amazonaws.com",
+artesa-api-staging    |   "x-real-ip": "91.126.182.219",
+artesa-api-staging    |   "x-forwarded-for": "91.126.182.219",
+artesa-api-staging    |   "x-forwarded-proto": "https",
+artesa-api-staging    |   "content-length": "86",
+artesa-api-staging    |   "sec-ch-ua-platform": "\"Windows\"",
+artesa-api-staging    |   "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36 AVG/136.0.0.0",
+artesa-api-staging    |   "accept": "application/json",
+artesa-api-staging    |   "sec-ch-ua": "\"Chromium\";v=\"136\", \"AVG Secure Browser\";v=\"136\", \"Not.A/Brand\";v=\"99\"",
+artesa-api-staging    |   "content-type": "application/json",
+artesa-api-staging    |   "dnt": "1",
+artesa-api-staging    |   "sec-ch-ua-mobile": "?0",
+artesa-api-staging    |   "origin": "https://ec2-44-216-131-63.compute-1.amazonaws.com",
+artesa-api-staging    |   "sec-fetch-site": "same-origin",
+artesa-api-staging    |   "sec-fetch-mode": "cors",
+artesa-api-staging    |   "sec-fetch-dest": "empty",
+artesa-api-staging    |   "referer": "https://ec2-44-216-131-63.compute-1.amazonaws.com/api-docs/",
+artesa-api-staging    |   "accept-encoding": "gzip, deflate, br, zstd",
+artesa-api-staging    |   "accept-language": "es-CO,es;q=0.9,en-US;q=0.8,en;q=0.7",
+artesa-api-staging    |   "priority": "u=1, i"
+artesa-api-staging    | }
+artesa-api-staging    | Timestamp: 2025-05-29T17:27:53.015Z
+artesa-api-staging    | ============================
+artesa-api-staging    | 
+artesa-api-staging    | 
+artesa-api-staging    | === REQUEST LOG ===
+artesa-api-staging    | Método: POST
+artesa-api-staging    | Ruta: /api/auth/register
+artesa-api-staging    | Origin: https://ec2-44-216-131-63.compute-1.amazonaws.com
+artesa-api-staging    | User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Sa
+artesa-api-staging    | Content-Type: application/json
+artesa-api-staging    | Authorization: No presente
+artesa-api-staging    | Referer: https://ec2-44-216-131-63.compute-1.amazonaws.com/api-docs/
+artesa-api-staging    | X-Requested-With: No presente
+artesa-api-staging    | ==================
+artesa-api-staging    | 
+artesa-api-staging    | ValidationError: The Express 'trust proxy' setting is true, which allows anyone to trivially bypass IP-based rate limiting. See https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/ for more information.
+artesa-api-staging    |     at Object.trustProxy (/app/node_modules/express-rate-limit/dist/index.cjs:169:13)
+artesa-api-staging    |     at wrappedValidations.<computed> [as trustProxy] (/app/node_modules/express-rate-limit/dist/index.cjs:398:22)
+artesa-api-staging    |     at Object.keyGenerator (/app/node_modules/express-rate-limit/dist/index.cjs:670:20)
+artesa-api-staging    |     at /app/node_modules/express-rate-limit/dist/index.cjs:724:32
+artesa-api-staging    |     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+artesa-api-staging    |     at async /app/node_modules/express-rate-limit/dist/index.cjs:704:5 {
+artesa-api-staging    |   code: 'ERR_ERL_PERMISSIVE_TRUST_PROXY',
+artesa-api-staging    |   help: 'https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/'
+artesa-api-staging    | }
+artesa-api-staging    | [34mdebug[39m: Iniciando proceso de registro {"context":"AuthController","mail":"john@example.com","timestamp":"2025-05-29 17:27:53"}
+artesa-api-staging    | [33mwarn[39m: Intento de login sin token reCAPTCHA {"context":"AuthController","ip":"91.126.182.219","mail":"john@example.com","timestamp":"2025-05-29 17:27:53"}
+artesa-api-staging    | [0mPOST /api/auth/register [33m400[0m 8.843 ms - 79[0m
+artesa-api-staging    | [0mPOST /api/auth/register [33m400[0m 8.843 ms - 79[0m
+artesa-api-staging    | 
+artesa-api-staging    | === CORS DEBUG ===
+artesa-api-staging    | Origin recibido: undefined
+artesa-api-staging    | Timestamp: 2025-05-29T17:27:57.106Z
+artesa-api-staging    | User-Agent: No disponible
+artesa-api-staging    | ✅ Permitido: Sin origen (mobile/Postman)
+artesa-api-staging    | 
+artesa-api-staging    | === REQUEST LOG ===
+artesa-api-staging    | Método: GET
+artesa-api-staging    | Ruta: /api/health
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: curl/8.12.1
+artesa-api-staging    | Content-Type: No especificado
+artesa-api-staging    | Authorization: No presente
+artesa-api-staging    | Referer: No especificado
+artesa-api-staging    | X-Requested-With: No presente
+artesa-api-staging    | ==================
+artesa-api-staging    | 
+artesa-api-staging    | [33mwarn[39m: Actividad sospechosa detectada {"context":"EnhancedSecurity","headers":{"accept":"*/*","host":"localhost:3000","user-agent":"curl/8.12.1"},"ip":"127.0.0.1","method":"GET","path":"/api/health","timestamp":"2025-05-29T17:27:57.108Z"}
+artesa-api-staging    | 
+artesa-api-staging    | === HEALTH CHECK ===
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: curl/8.12.1
+artesa-api-staging    | ===================
+artesa-api-staging    | 
+artesa-api-staging    | [0mGET /api/health [32m200[0m 2.759 ms - 415[0m
+artesa-api-staging    | [0mGET /api/health [32m200[0m 2.759 ms - 415[0m
+artesa-api-staging    | 
+artesa-api-staging    | === CORS DEBUG ===
+artesa-api-staging    | Origin recibido: undefined
+artesa-api-staging    | Timestamp: 2025-05-29T17:28:27.226Z
+artesa-api-staging    | User-Agent: No disponible
+artesa-api-staging    | ✅ Permitido: Sin origen (mobile/Postman)
+artesa-api-staging    | 
+artesa-api-staging    | === REQUEST LOG ===
+artesa-api-staging    | Método: GET
+artesa-api-staging    | Ruta: /api/health
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: curl/8.12.1
+artesa-api-staging    | Content-Type: No especificado
+artesa-api-staging    | Authorization: No presente
+artesa-api-staging    | Referer: No especificado
+artesa-api-staging    | X-Requested-With: No presente
+artesa-api-staging    | ==================
+artesa-api-staging    | 
+artesa-api-staging    | [33mwarn[39m: Actividad sospechosa detectada {"context":"EnhancedSecurity","headers":{"accept":"*/*","host":"localhost:3000","user-agent":"curl/8.12.1"},"ip":"127.0.0.1","method":"GET","path":"/api/health","timestamp":"2025-05-29T17:28:27.227Z"}
+artesa-api-staging    | 
+artesa-api-staging    | === HEALTH CHECK ===
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: curl/8.12.1
+artesa-api-staging    | ===================
+artesa-api-staging    | 
+artesa-api-staging    | [0mGET /api/health [32m200[0m 1.513 ms - 413[0m
+artesa-api-staging    | [0mGET /api/health [32m200[0m 1.513 ms - 413[0m
+artesa-api-staging    | 
+artesa-api-staging    | === CORS DEBUG ===
+artesa-api-staging    | Origin recibido: undefined
+artesa-api-staging    | Timestamp: 2025-05-29T17:28:57.314Z
+artesa-api-staging    | User-Agent: No disponible
+artesa-api-staging    | ✅ Permitido: Sin origen (mobile/Postman)
+artesa-api-staging    | 
+artesa-api-staging    | === REQUEST LOG ===
+artesa-api-staging    | Método: GET
+artesa-api-staging    | Ruta: /api/health
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: curl/8.12.1
+artesa-api-staging    | Content-Type: No especificado
+artesa-api-staging    | Authorization: No presente
+artesa-api-staging    | Referer: No especificado
+artesa-api-staging    | X-Requested-With: No presente
+artesa-api-staging    | ==================
+artesa-api-staging    | 
+artesa-api-staging    | [33mwarn[39m: Actividad sospechosa detectada {"context":"EnhancedSecurity","headers":{"accept":"*/*","host":"localhost:3000","user-agent":"curl/8.12.1"},"ip":"127.0.0.1","method":"GET","path":"/api/health","timestamp":"2025-05-29T17:28:57.314Z"}
+artesa-api-staging    | 
+artesa-api-staging    | === HEALTH CHECK ===
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: curl/8.12.1
+artesa-api-staging    | ===================
+artesa-api-staging    | 
+artesa-api-staging    | [0mGET /api/health [32m200[0m 1.427 ms - 415[0m
+artesa-api-staging    | [0mGET /api/health [32m200[0m 1.427 ms - 415[0m
+artesa-api-staging    | 
+artesa-api-staging    | === CORS DEBUG ===
+artesa-api-staging    | Origin recibido: undefined
+artesa-api-staging    | Timestamp: 2025-05-29T17:29:27.395Z
+artesa-api-staging    | User-Agent: No disponible
+artesa-api-staging    | ✅ Permitido: Sin origen (mobile/Postman)
+artesa-api-staging    | 
+artesa-api-staging    | === REQUEST LOG ===
+artesa-api-staging    | Método: GET
+artesa-api-staging    | Ruta: /api/health
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: curl/8.12.1
+artesa-api-staging    | Content-Type: No especificado
+artesa-api-staging    | Authorization: No presente
+artesa-api-staging    | Referer: No especificado
+artesa-api-staging    | X-Requested-With: No presente
+artesa-api-staging    | ==================
+artesa-api-staging    | 
+artesa-api-staging    | [33mwarn[39m: Actividad sospechosa detectada {"context":"EnhancedSecurity","headers":{"accept":"*/*","host":"localhost:3000","user-agent":"curl/8.12.1"},"ip":"127.0.0.1","method":"GET","path":"/api/health","timestamp":"2025-05-29T17:29:27.396Z"}
+artesa-api-staging    | 
+artesa-api-staging    | === HEALTH CHECK ===
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: curl/8.12.1
+artesa-api-staging    | ===================
+artesa-api-staging    | 
+artesa-api-staging    | [0mGET /api/health [32m200[0m 1.287 ms - 415[0m
+artesa-api-staging    | [0mGET /api/health [32m200[0m 1.287 ms - 415[0m
+artesa-api-staging    | 
+artesa-api-staging    | === CORS DEBUG ===
+artesa-api-staging    | Origin recibido: undefined
+artesa-api-staging    | Timestamp: 2025-05-29T17:29:57.474Z
+artesa-api-staging    | User-Agent: No disponible
+artesa-api-staging    | ✅ Permitido: Sin origen (mobile/Postman)
+artesa-api-staging    | 
+artesa-api-staging    | === REQUEST LOG ===
+artesa-api-staging    | Método: GET
+artesa-api-staging    | Ruta: /api/health
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: curl/8.12.1
+artesa-api-staging    | Content-Type: No especificado
+artesa-api-staging    | Authorization: No presente
+artesa-api-staging    | Referer: No especificado
+artesa-api-staging    | X-Requested-With: No presente
+artesa-api-staging    | ==================
+artesa-api-staging    | 
+artesa-api-staging    | [33mwarn[39m: Actividad sospechosa detectada {"context":"EnhancedSecurity","headers":{"accept":"*/*","host":"localhost:3000","user-agent":"curl/8.12.1"},"ip":"127.0.0.1","method":"GET","path":"/api/health","timestamp":"2025-05-29T17:29:57.475Z"}
+artesa-api-staging    | 
+artesa-api-staging    | === HEALTH CHECK ===
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: curl/8.12.1
+artesa-api-staging    | ===================
+artesa-api-staging    | 
+artesa-api-staging    | [0mGET /api/health [32m200[0m 0.781 ms - 415[0m
+artesa-api-staging    | [0mGET /api/health [32m200[0m 0.781 ms - 415[0m
+artesa-api-staging    | 
+artesa-api-staging    | === CORS DEBUG ===
+artesa-api-staging    | Origin recibido: undefined
+artesa-api-staging    | Timestamp: 2025-05-29T17:30:27.583Z
+artesa-api-staging    | User-Agent: No disponible
+artesa-api-staging    | ✅ Permitido: Sin origen (mobile/Postman)
+artesa-api-staging    | 
+artesa-api-staging    | === REQUEST LOG ===
+artesa-api-staging    | Método: GET
+artesa-api-staging    | Ruta: /api/health
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: curl/8.12.1
+artesa-api-staging    | Content-Type: No especificado
+artesa-api-staging    | Authorization: No presente
+artesa-api-staging    | Referer: No especificado
+artesa-api-staging    | X-Requested-With: No presente
+artesa-api-staging    | ==================
+artesa-api-staging    | 
+artesa-api-staging    | [33mwarn[39m: Actividad sospechosa detectada {"context":"EnhancedSecurity","headers":{"accept":"*/*","host":"localhost:3000","user-agent":"curl/8.12.1"},"ip":"127.0.0.1","method":"GET","path":"/api/health","timestamp":"2025-05-29T17:30:27.583Z"}
+artesa-api-staging    | 
+artesa-api-staging    | === HEALTH CHECK ===
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: curl/8.12.1
+artesa-api-staging    | ===================
+artesa-api-staging    | 
+artesa-api-staging    | [0mGET /api/health [32m200[0m 2.297 ms - 415[0m
+artesa-api-staging    | [0mGET /api/health [32m200[0m 2.297 ms - 415[0m
+artesa-api-staging    | 
+artesa-api-staging    | === CORS DEBUG ===
+artesa-api-staging    | Origin recibido: undefined
+artesa-api-staging    | Timestamp: 2025-05-29T17:30:57.666Z
+artesa-api-staging    | User-Agent: No disponible
+artesa-api-staging    | ✅ Permitido: Sin origen (mobile/Postman)
+artesa-api-staging    | 
+artesa-api-staging    | === REQUEST LOG ===
+artesa-api-staging    | Método: GET
+artesa-api-staging    | Ruta: /api/health
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: curl/8.12.1
+artesa-api-staging    | Content-Type: No especificado
+artesa-api-staging    | Authorization: No presente
+artesa-api-staging    | Referer: No especificado
+artesa-api-staging    | X-Requested-With: No presente
+artesa-api-staging    | ==================
+artesa-api-staging    | 
+artesa-api-staging    | [33mwarn[39m: Actividad sospechosa detectada {"context":"EnhancedSecurity","headers":{"accept":"*/*","host":"localhost:3000","user-agent":"curl/8.12.1"},"ip":"127.0.0.1","method":"GET","path":"/api/health","timestamp":"2025-05-29T17:30:57.667Z"}
+artesa-api-staging    | 
+artesa-api-staging    | === HEALTH CHECK ===
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: curl/8.12.1
+artesa-api-staging    | ===================
+artesa-api-staging    | 
+artesa-api-staging    | [0mGET /api/health [32m200[0m 3.643 ms - 415[0m
+artesa-api-staging    | [0mGET /api/health [32m200[0m 3.643 ms - 415[0m
+artesa-api-staging    | 
+artesa-api-staging    | === CORS DEBUG ===
+artesa-api-staging    | Origin recibido: undefined
+artesa-api-staging    | Timestamp: 2025-05-29T17:31:27.767Z
+artesa-api-staging    | User-Agent: No disponible
+artesa-api-staging    | ✅ Permitido: Sin origen (mobile/Postman)
+artesa-api-staging    | 
+artesa-api-staging    | === REQUEST LOG ===
+artesa-api-staging    | Método: GET
+artesa-api-staging    | Ruta: /api/health
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: curl/8.12.1
+artesa-api-staging    | Content-Type: No especificado
+artesa-api-staging    | Authorization: No presente
+artesa-api-staging    | Referer: No especificado
+artesa-api-staging    | X-Requested-With: No presente
+artesa-api-staging    | ==================
+artesa-api-staging    | 
+artesa-api-staging    | [33mwarn[39m: Actividad sospechosa detectada {"context":"EnhancedSecurity","headers":{"accept":"*/*","host":"localhost:3000","user-agent":"curl/8.12.1"},"ip":"127.0.0.1","method":"GET","path":"/api/health","timestamp":"2025-05-29T17:31:27.767Z"}
+artesa-api-staging    | 
+artesa-api-staging    | === HEALTH CHECK ===
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: curl/8.12.1
+artesa-api-staging    | ===================
+artesa-api-staging    | 
+artesa-api-staging    | [0mGET /api/health [32m200[0m 1.372 ms - 415[0m
+artesa-api-staging    | [0mGET /api/health [32m200[0m 1.372 ms - 415[0m
+artesa-api-staging    | 
+artesa-api-staging    | === CORS DEBUG ===
+artesa-api-staging    | Origin recibido: undefined
+artesa-api-staging    | Timestamp: 2025-05-29T17:31:57.855Z
+artesa-api-staging    | User-Agent: No disponible
+artesa-api-staging    | ✅ Permitido: Sin origen (mobile/Postman)
+artesa-api-staging    | 
+artesa-api-staging    | === REQUEST LOG ===
+artesa-api-staging    | Método: GET
+artesa-api-staging    | Ruta: /api/health
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: curl/8.12.1
+artesa-api-staging    | Content-Type: No especificado
+artesa-api-staging    | Authorization: No presente
+artesa-api-staging    | Referer: No especificado
+artesa-api-staging    | X-Requested-With: No presente
+artesa-api-staging    | ==================
+artesa-api-staging    | 
+artesa-api-staging    | [33mwarn[39m: Actividad sospechosa detectada {"context":"EnhancedSecurity","headers":{"accept":"*/*","host":"localhost:3000","user-agent":"curl/8.12.1"},"ip":"127.0.0.1","method":"GET","path":"/api/health","timestamp":"2025-05-29T17:31:57.856Z"}
+artesa-api-staging    | 
+artesa-api-staging    | === HEALTH CHECK ===
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: curl/8.12.1
+artesa-api-staging    | ===================
+artesa-api-staging    | 
+artesa-api-staging    | [0mGET /api/health [32m200[0m 1.863 ms - 415[0m
+artesa-api-staging    | [0mGET /api/health [32m200[0m 1.863 ms - 415[0m
+artesa-api-staging    | 
+artesa-api-staging    | === CORS DEBUG ===
+artesa-api-staging    | Origin recibido: undefined
+artesa-api-staging    | Timestamp: 2025-05-29T17:32:27.944Z
+artesa-api-staging    | User-Agent: No disponible
+artesa-api-staging    | ✅ Permitido: Sin origen (mobile/Postman)
+artesa-api-staging    | 
+artesa-api-staging    | === REQUEST LOG ===
+artesa-api-staging    | Método: GET
+artesa-api-staging    | Ruta: /api/health
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: curl/8.12.1
+artesa-api-staging    | Content-Type: No especificado
+artesa-api-staging    | Authorization: No presente
+artesa-api-staging    | Referer: No especificado
+artesa-api-staging    | X-Requested-With: No presente
+artesa-api-staging    | ==================
+artesa-api-staging    | 
+artesa-api-staging    | [33mwarn[39m: Actividad sospechosa detectada {"context":"EnhancedSecurity","headers":{"accept":"*/*","host":"localhost:3000","user-agent":"curl/8.12.1"},"ip":"127.0.0.1","method":"GET","path":"/api/health","timestamp":"2025-05-29T17:32:27.945Z"}
+artesa-api-staging    | 
+artesa-api-staging    | === HEALTH CHECK ===
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: curl/8.12.1
+artesa-api-staging    | ===================
+artesa-api-staging    | 
+artesa-api-staging    | [0mGET /api/health [32m200[0m 0.736 ms - 415[0m
+artesa-api-staging    | [0mGET /api/health [32m200[0m 0.736 ms - 415[0m
+artesa-api-staging    | 
+artesa-api-staging    | === CORS DEBUG ===
+artesa-api-staging    | Origin recibido: undefined
+artesa-api-staging    | Timestamp: 2025-05-29T17:32:58.026Z
+artesa-api-staging    | User-Agent: No disponible
+artesa-api-staging    | ✅ Permitido: Sin origen (mobile/Postman)
+artesa-api-staging    | 
+artesa-api-staging    | === REQUEST LOG ===
+artesa-api-staging    | Método: GET
+artesa-api-staging    | Ruta: /api/health
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: curl/8.12.1
+artesa-api-staging    | Content-Type: No especificado
+artesa-api-staging    | Authorization: No presente
+artesa-api-staging    | Referer: No especificado
+artesa-api-staging    | X-Requested-With: No presente
+artesa-api-staging    | ==================
+artesa-api-staging    | 
+artesa-api-staging    | [33mwarn[39m: Actividad sospechosa detectada {"context":"EnhancedSecurity","headers":{"accept":"*/*","host":"localhost:3000","user-agent":"curl/8.12.1"},"ip":"127.0.0.1","method":"GET","path":"/api/health","timestamp":"2025-05-29T17:32:58.026Z"}
+artesa-api-staging    | 
+artesa-api-staging    | === HEALTH CHECK ===
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: curl/8.12.1
+artesa-api-staging    | ===================
+artesa-api-staging    | 
+artesa-api-staging    | [0mGET /api/health [32m200[0m 0.795 ms - 415[0m
+artesa-api-staging    | [0mGET /api/health [32m200[0m 0.795 ms - 415[0m
+artesa-api-staging    | 
+artesa-api-staging    | === CORS DEBUG ===
+artesa-api-staging    | Origin recibido: undefined
+artesa-api-staging    | Timestamp: 2025-05-29T17:33:28.145Z
+artesa-api-staging    | User-Agent: No disponible
+artesa-api-staging    | ✅ Permitido: Sin origen (mobile/Postman)
+artesa-api-staging    | 
+artesa-api-staging    | === REQUEST LOG ===
+artesa-api-staging    | Método: GET
+artesa-api-staging    | Ruta: /api/health
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: curl/8.12.1
+artesa-api-staging    | Content-Type: No especificado
+artesa-api-staging    | Authorization: No presente
+artesa-api-staging    | Referer: No especificado
+artesa-api-staging    | X-Requested-With: No presente
+artesa-api-staging    | ==================
+artesa-api-staging    | 
+artesa-api-staging    | [33mwarn[39m: Actividad sospechosa detectada {"context":"EnhancedSecurity","headers":{"accept":"*/*","host":"localhost:3000","user-agent":"curl/8.12.1"},"ip":"127.0.0.1","method":"GET","path":"/api/health","timestamp":"2025-05-29T17:33:28.145Z"}
+artesa-api-staging    | 
+artesa-api-staging    | === HEALTH CHECK ===
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: curl/8.12.1
+artesa-api-staging    | ===================
+artesa-api-staging    | 
+artesa-api-staging    | [0mGET /api/health [32m200[0m 0.944 ms - 415[0m
+artesa-api-staging    | [0mGET /api/health [32m200[0m 0.944 ms - 415[0m
+artesa-api-staging    | 
+artesa-api-staging    | === CORS DEBUG ===
+artesa-api-staging    | Origin recibido: undefined
+artesa-api-staging    | Timestamp: 2025-05-29T17:33:58.235Z
+artesa-api-staging    | User-Agent: No disponible
+artesa-api-staging    | ✅ Permitido: Sin origen (mobile/Postman)
+artesa-api-staging    | 
+artesa-api-staging    | === REQUEST LOG ===
+artesa-api-staging    | Método: GET
+artesa-api-staging    | Ruta: /api/health
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: curl/8.12.1
+artesa-api-staging    | Content-Type: No especificado
+artesa-api-staging    | Authorization: No presente
+artesa-api-staging    | Referer: No especificado
+artesa-api-staging    | X-Requested-With: No presente
+artesa-api-staging    | ==================
+artesa-api-staging    | 
+artesa-api-staging    | [33mwarn[39m: Actividad sospechosa detectada {"context":"EnhancedSecurity","headers":{"accept":"*/*","host":"localhost:3000","user-agent":"curl/8.12.1"},"ip":"127.0.0.1","method":"GET","path":"/api/health","timestamp":"2025-05-29T17:33:58.235Z"}
+artesa-api-staging    | 
+artesa-api-staging    | === HEALTH CHECK ===
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: curl/8.12.1
+artesa-api-staging    | ===================
+artesa-api-staging    | 
+artesa-api-staging    | [0mGET /api/health [32m200[0m 1.223 ms - 415[0m
+artesa-api-staging    | [0mGET /api/health [32m200[0m 1.223 ms - 415[0m
+artesa-api-staging    | 
+artesa-api-staging    | === CORS DEBUG ===
+artesa-api-staging    | Origin recibido: undefined
+artesa-api-staging    | Timestamp: 2025-05-29T17:34:13.263Z
+artesa-api-staging    | User-Agent: No disponible
+artesa-api-staging    | ✅ Permitido: Sin origen (mobile/Postman)
+artesa-api-staging    | [33mwarn[39m: Actividad sospechosa detectada {"context":"EnhancedSecurity","headers":{"accept":"*/*","baggage":"sentry-environment=production,sentry-public_key=e6210d6b5d3246c29d5667b356d11c63,sentry-release=ha_github_commits_consumer@429983,sentry-trace_id=28b792f86eea47d08a709da99b42a5ed","connection":"close","cookie":"edge_tid=3ed2e79a4cd547613f7f0cc507; trv_wbs=1078; trv_wb=1078; edge_tid_s=3ed2e79a4cd547613f7f0cc507; optimizelyEndUserId=860c0317125f1100178d1d68120300003eab0100","host":"ec2-44-216-131-63.compute-1.amazonaws.com","range":"bytes: 0-22","traceparent":"00-a93df4fafa6b6c3c8d570a899b02db99-f1318ddd0655890f-00","user-agent":"Mozilla/5.0 (compatible)","x-forwarded-for":"54.156.251.192","x-forwarded-proto":"https","x-real-ip":"54.156.251.192"},"ip":"54.156.251.192","method":"GET","path":"/","timestamp":"2025-05-29T17:34:13.264Z"}
+artesa-api-staging    | [0mGET / [32m200[0m 1.195 ms - 148[0m
+artesa-api-staging    | [0mGET / [32m200[0m 1.195 ms - 148[0m
+artesa-api-staging    | 
+artesa-api-staging    | === CORS DEBUG ===
+artesa-api-staging    | Origin recibido: undefined
+artesa-api-staging    | Timestamp: 2025-05-29T17:34:28.346Z
+artesa-api-staging    | User-Agent: No disponible
+artesa-api-staging    | ✅ Permitido: Sin origen (mobile/Postman)
+artesa-api-staging    | 
+artesa-api-staging    | === REQUEST LOG ===
+artesa-api-staging    | Método: GET
+artesa-api-staging    | Ruta: /api/health
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: curl/8.12.1
+artesa-api-staging    | Content-Type: No especificado
+artesa-api-staging    | Authorization: No presente
+artesa-api-staging    | Referer: No especificado
+artesa-api-staging    | X-Requested-With: No presente
+artesa-api-staging    | ==================
+artesa-api-staging    | 
+artesa-api-staging    | [33mwarn[39m: Actividad sospechosa detectada {"context":"EnhancedSecurity","headers":{"accept":"*/*","host":"localhost:3000","user-agent":"curl/8.12.1"},"ip":"127.0.0.1","method":"GET","path":"/api/health","timestamp":"2025-05-29T17:34:28.346Z"}
+artesa-api-staging    | 
+artesa-api-staging    | === HEALTH CHECK ===
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: curl/8.12.1
+artesa-api-staging    | ===================
+artesa-api-staging    | 
+artesa-api-staging    | [0mGET /api/health [32m200[0m 0.749 ms - 415[0m
+artesa-api-staging    | [0mGET /api/health [32m200[0m 0.749 ms - 415[0m
+artesa-api-staging    | 
+artesa-api-staging    | === CORS DEBUG ===
+artesa-api-staging    | Origin recibido: undefined
+artesa-api-staging    | Timestamp: 2025-05-29T17:34:58.429Z
+artesa-api-staging    | User-Agent: No disponible
+artesa-api-staging    | ✅ Permitido: Sin origen (mobile/Postman)
+artesa-api-staging    | 
+artesa-api-staging    | === REQUEST LOG ===
+artesa-api-staging    | Método: GET
+artesa-api-staging    | Ruta: /api/health
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: curl/8.12.1
+artesa-api-staging    | Content-Type: No especificado
+artesa-api-staging    | Authorization: No presente
+artesa-api-staging    | Referer: No especificado
+artesa-api-staging    | X-Requested-With: No presente
+artesa-api-staging    | ==================
+artesa-api-staging    | 
+artesa-api-staging    | [33mwarn[39m: Actividad sospechosa detectada {"context":"EnhancedSecurity","headers":{"accept":"*/*","host":"localhost:3000","user-agent":"curl/8.12.1"},"ip":"127.0.0.1","method":"GET","path":"/api/health","timestamp":"2025-05-29T17:34:58.430Z"}
+artesa-api-staging    | 
+artesa-api-staging    | === HEALTH CHECK ===
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: curl/8.12.1
+artesa-api-staging    | ===================
+artesa-api-staging    | 
+artesa-api-staging    | [0mGET /api/health [32m200[0m 2.578 ms - 415[0m
+artesa-api-staging    | [0mGET /api/health [32m200[0m 2.578 ms - 415[0m
+artesa-api-staging    | 
+artesa-api-staging    | === CORS DEBUG ===
+artesa-api-staging    | Origin recibido: undefined
+artesa-api-staging    | Timestamp: 2025-05-29T17:35:28.514Z
+artesa-api-staging    | User-Agent: No disponible
+artesa-api-staging    | ✅ Permitido: Sin origen (mobile/Postman)
+artesa-api-staging    | 
+artesa-api-staging    | === REQUEST LOG ===
+artesa-api-staging    | Método: GET
+artesa-api-staging    | Ruta: /api/health
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: curl/8.12.1
+artesa-api-staging    | Content-Type: No especificado
+artesa-api-staging    | Authorization: No presente
+artesa-api-staging    | Referer: No especificado
+artesa-api-staging    | X-Requested-With: No presente
+artesa-api-staging    | ==================
+artesa-api-staging    | 
+artesa-api-staging    | [33mwarn[39m: Actividad sospechosa detectada {"context":"EnhancedSecurity","headers":{"accept":"*/*","host":"localhost:3000","user-agent":"curl/8.12.1"},"ip":"127.0.0.1","method":"GET","path":"/api/health","timestamp":"2025-05-29T17:35:28.514Z"}
+artesa-api-staging    | 
+artesa-api-staging    | === HEALTH CHECK ===
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: curl/8.12.1
+artesa-api-staging    | ===================
+artesa-api-staging    | 
+artesa-api-staging    | [0mGET /api/health [32m200[0m 0.752 ms - 415[0m
+artesa-api-staging    | [0mGET /api/health [32m200[0m 0.752 ms - 415[0m
+artesa-api-staging    | 
+artesa-api-staging    | === CORS DEBUG ===
+artesa-api-staging    | Origin recibido: undefined
+artesa-api-staging    | Timestamp: 2025-05-29T17:35:58.605Z
+artesa-api-staging    | User-Agent: No disponible
+artesa-api-staging    | ✅ Permitido: Sin origen (mobile/Postman)
+artesa-api-staging    | 
+artesa-api-staging    | === REQUEST LOG ===
+artesa-api-staging    | Método: GET
+artesa-api-staging    | Ruta: /api/health
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: curl/8.12.1
+artesa-api-staging    | Content-Type: No especificado
+artesa-api-staging    | Authorization: No presente
+artesa-api-staging    | Referer: No especificado
+artesa-api-staging    | X-Requested-With: No presente
+artesa-api-staging    | ==================
+artesa-api-staging    | 
+artesa-api-staging    | [33mwarn[39m: Actividad sospechosa detectada {"context":"EnhancedSecurity","headers":{"accept":"*/*","host":"localhost:3000","user-agent":"curl/8.12.1"},"ip":"127.0.0.1","method":"GET","path":"/api/health","timestamp":"2025-05-29T17:35:58.605Z"}
+artesa-api-staging    | 
+artesa-api-staging    | === HEALTH CHECK ===
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: curl/8.12.1
+artesa-api-staging    | ===================
+artesa-api-staging    | 
+artesa-api-staging    | [0mGET /api/health [32m200[0m 1.040 ms - 415[0m
+artesa-api-staging    | [0mGET /api/health [32m200[0m 1.040 ms - 415[0m
+artesa-api-staging    | 
+artesa-api-staging    | === CORS DEBUG ===
+artesa-api-staging    | Origin recibido: undefined
+artesa-api-staging    | Timestamp: 2025-05-29T17:36:28.707Z
+artesa-api-staging    | User-Agent: No disponible
+artesa-api-staging    | ✅ Permitido: Sin origen (mobile/Postman)
+artesa-api-staging    | 
+artesa-api-staging    | === REQUEST LOG ===
+artesa-api-staging    | Método: GET
+artesa-api-staging    | Ruta: /api/health
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: curl/8.12.1
+artesa-api-staging    | Content-Type: No especificado
+artesa-api-staging    | Authorization: No presente
+artesa-api-staging    | Referer: No especificado
+artesa-api-staging    | X-Requested-With: No presente
+artesa-api-staging    | ==================
+artesa-api-staging    | 
+artesa-api-staging    | [33mwarn[39m: Actividad sospechosa detectada {"context":"EnhancedSecurity","headers":{"accept":"*/*","host":"localhost:3000","user-agent":"curl/8.12.1"},"ip":"127.0.0.1","method":"GET","path":"/api/health","timestamp":"2025-05-29T17:36:28.707Z"}
+artesa-api-staging    | 
+artesa-api-staging    | === HEALTH CHECK ===
+artesa-api-staging    | Origin: Sin origin
+artesa-api-staging    | User-Agent: curl/8.12.1
+artesa-api-staging    | ===================
+artesa-api-staging    | 
+artesa-api-staging    | [0mGET /api/health [32m200[0m 0.950 ms - 415[0m
+artesa-api-staging    | [0mGET /api/health [32m200[0m 0.950 ms - 415[0m
