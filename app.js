@@ -115,7 +115,9 @@ app.use(cors({
       'https://ec2-44-216-131-63.compute-1.amazonaws.com',
       'http://ec2-44-216-131-63.compute-1.amazonaws.com',
       'https://ec2-44-216-131-63.compute-1.amazonaws.com:3000',
-      'http://ec2-44-216-131-63.compute-1.amazonaws.com:3000'
+      'http://ec2-44-216-131-63.compute-1.amazonaws.com:3000',
+      // Agregar también sin puerto para pruebas
+      'http://ec2-44-216-131-63.compute-1.amazonaws.com:80'
     ];
     
     // Check if origin matches any allowed origin or is a subdomain we want to allow

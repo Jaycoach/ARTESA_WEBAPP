@@ -15,6 +15,14 @@ const options = {
       {
         url: `http://localhost:${process.env.PORT || 3000}`,
         description: 'Servidor Local'
+      },
+      {
+        url: 'http://ec2-44-216-131-63.compute-1.amazonaws.com',
+        description: 'Servidor Staging HTTP'
+      },
+      {
+        url: 'https://ec2-44-216-131-63.compute-1.amazonaws.com',
+        description: 'Servidor Staging HTTPS'
       }
     ],
     components: {
