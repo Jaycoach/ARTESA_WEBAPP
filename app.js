@@ -33,7 +33,7 @@ const swaggerSpecs = require('./src/config/swagger');
 
 // Inicializar la aplicación Express
 const app = express();
-app.set('trust proxy', true); // trust proxy for load balancer
+app.set('trust proxy', 1); // trust first proxy
 
 // Constantes de configuración
 const API_PREFIX = '/api';
@@ -124,7 +124,13 @@ app.use(cors({
                     origin.includes('ngrok-free.app') ||
                     origin.includes('127.0.0.1') ||
                     origin.includes('ec2-44-216-131-63.compute-1.amazonaws.com');
-    
+
+    // Agregar orígenes desde variables de entorno
+    if (process.env.CORS_ALLOWED_ORIGINS) {
+      const envOrigins = process.env.CORS_ALLOWED_ORIGINS.split(',').map(origin => origin.trim());
+      allowedOrigins.push(...envOrigins);
+    }
+
     if (isAllowed) {
       callback(null, true);
     } else {
@@ -235,6 +241,28 @@ const swaggerUiOptions = {
     filter: true,
     tryItOutEnabled: true,
     supportedSubmitMethods: ['get', 'post', 'put', 'delete', 'patch', 'options', 'head'],
+    url: '/swagger.json',
+    dom_id: '#swagger-ui',
+    deepLinking: true,
+    validatorUrl: null,
+    requestInterceptor: function(request) {
+      // Interceptar requests para debug
+      console.log('Swagger request URL:', request.url);
+      
+      // Asegurar que use la URL correcta del servidor
+      if (request.url.includes('localhost:3000') && window.location.hostname !== 'localhost') {
+        request.url = request.url.replace('localhost:3000', window.location.host);
+      }
+      
+      return request;
+    },
+    responseInterceptor: function(response) {
+      console.log('Swagger response:', response.status, response.url);
+      return response;
+    },
+    onComplete: function() {
+      console.log('Swagger UI loaded successfully');
+    }
   },
   customCss: `
     .swagger-ui .topbar { display: none }
@@ -271,8 +299,12 @@ const swaggerUiOptions = {
 };
 
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpecs, swaggerUiOptions));
+
+// Mejorar el endpoint de swagger.json con CORS
 app.get('/swagger.json', (req, res) => {
   res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET');
   res.send(swaggerSpecs);
 });
 
