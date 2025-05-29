@@ -94,84 +94,34 @@ app.use(morgan('dev'));
 // =========================================================================
 // CONFIGURACIÓN DE CORS
 // =========================================================================
-// First, remove the custom middleware that manually sets CORS headers
-
-// Then, update your cors middleware configuration
 app.use(cors({
-  // Busca la línea: origin: function(origin, callback) {
-// Y actualiza la función completa:
-
-origin: function(origin, callback) {
-  console.log('\n=== CORS DEBUG ===');
-  console.log('Origin recibido:', origin);
-  console.log('Timestamp:', new Date().toISOString());
-  
-  // Allow requests with no origin (like mobile apps, Postman, etc.)
-  if (!origin) {
-    console.log('✅ Permitido: Sin origen (mobile/Postman)');
-    return callback(null, true);
-  }
-  
-  // Define allowed origins explicitly
-  const allowedOrigins = [
-    'http://localhost:3000',
-    'http://localhost:5173',
-    'http://localhost:5174',
-    'https://d1bqegutwmfn98.cloudfront.net',
-    'http://d1bqegutwmfn98.cloudfront.net',
-    'https://ec2-44-216-131-63.compute-1.amazonaws.com',
-    'http://ec2-44-216-131-63.compute-1.amazonaws.com'
-  ];
-  
-  // Agregar orígenes desde variables de entorno
-  if (process.env.CORS_ALLOWED_ORIGINS) {
-    const envOrigins = process.env.CORS_ALLOWED_ORIGINS.split(',').map(origin => origin.trim());
-    allowedOrigins.push(...envOrigins);
-  }
-  
-  const isDirectlyAllowed = allowedOrigins.includes(origin);
-  const isPatternAllowed = origin.includes('cloudfront.net') || 
-                          origin.includes('localhost') ||
-                          origin.includes('ec2-44-216-131-63.compute-1.amazonaws.com');
-
-  console.log('¿Directamente permitido?:', isDirectlyAllowed);
-  console.log('¿Permitido por patrón?:', isPatternAllowed);
-  
-  const isAllowed = isDirectlyAllowed || isPatternAllowed;
-
-  if (isAllowed) {
-    console.log('✅ CORS PERMITIDO para:', origin);
-    console.log('==================\n');
-    callback(null, true);
-  } else {
-    console.log('❌ CORS RECHAZADO para:', origin);
-    // En desarrollo, permitir todo
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('⚠️  Permitiendo en desarrollo de todos modos');
-      console.log('==================\n');
+  origin: function(origin, callback) {
+    // Allow requests with no origin (mobile apps, Postman, etc.)
+    if (!origin) {
+      return callback(null, true);
+    }
+    
+    // Lista simplificada de orígenes permitidos
+    const allowedOrigins = [
+      'https://d1bqegutwmfn98.cloudfront.net',
+      'http://localhost:3000',
+      'http://localhost:5173',
+      'http://localhost:5174'
+    ];
+    
+    if (allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
       callback(null, true);
     } else {
-      console.log('🚫 CORS definitivamente rechazado');
-      console.log('==================\n');
       callback(new Error('No permitido por CORS'));
     }
-  }
-},
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH', 'HEAD'],
   allowedHeaders: [
     'Content-Type',
     'Authorization',
     'X-Requested-With',
-    'Bypass-Tunnel-Reminder',
-    'ngrok-skip-browser-warning',
     'g-recaptcha-response',
-    'recaptchatoken',
-    'Accept',
-    'Cache-Control',
-    'Pragma',
-    'Origin',
-    'Accept-Language',
-    'Accept-Encoding'
+    'recaptchatoken'
   ],
   credentials: true,
   optionsSuccessStatus: 204
