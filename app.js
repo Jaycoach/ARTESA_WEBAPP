@@ -127,51 +127,6 @@ app.use(cors({
   optionsSuccessStatus: 204
 }));
 
-// CORS adicional para rutas de autenticación
-// Agregar después de la configuración de CORS y antes de las rutas
-app.use('/api/auth', (req, res, next) => {
-  console.log('\n=== DIAGNÓSTICO CORS AUTH ===');
-  console.log('Método:', req.method);
-  console.log('Origin:', req.headers.origin);
-  console.log('Referer:', req.headers.referer);
-  console.log('User-Agent:', req.headers['user-agent']?.substring(0, 100));
-  console.log('X-Real-IP:', req.headers['x-real-ip']);
-  console.log('X-Forwarded-For:', req.headers['x-forwarded-for']);
-  console.log('Timestamp:', new Date().toISOString());
-  
-  // Detectar si viene de CloudFront por el referer
-  const isFromCloudFront = req.headers.referer && req.headers.referer.includes('d1bqegutwmfn98.cloudfront.net');
-  const originToUse = req.headers.origin || (isFromCloudFront ? 'https://d1bqegutwmfn98.cloudfront.net' : null);
-  
-  console.log('¿Viene de CloudFront?:', isFromCloudFront);
-  console.log('Origin a usar:', originToUse);
-  
-  // Verificar si es una solicitud preflight
-  if (req.method === 'OPTIONS') {
-    console.log('🔄 Es solicitud preflight OPTIONS');
-    res.setHeader('Access-Control-Allow-Origin', 'https://d1bqegutwmfn98.cloudfront.net');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, g-recaptcha-response, recaptchatoken, bypass-tunnel-reminder, ngrok-skip-browser-warning, dnt, sec-ch-ua, sec-ch-ua-mobile, sec-ch-ua-platform');
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Access-Control-Max-Age', '86400');
-    console.log('✅ Headers OPTIONS configurados');
-    console.log('============================\n');
-    return res.status(204).end();
-  }
-  
-  // Para solicitudes normales, configurar CORS si viene de CloudFront
-  if (isFromCloudFront || originToUse === 'https://d1bqegutwmfn98.cloudfront.net') {
-    res.setHeader('Access-Control-Allow-Origin', 'https://d1bqegutwmfn98.cloudfront.net');
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, g-recaptcha-response, recaptchatoken');
-    console.log('✅ Headers CORS configurados para CloudFront');
-  }
-  
-  console.log('============================\n');
-  next();
-});
-
 // Middleware de logging específico para rutas de API y Swagger
 app.use((req, res, next) => {
   const isApiRoute = req.path.startsWith('/api');
