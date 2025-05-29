@@ -42,10 +42,14 @@ const options = {
     ],
     servers: [
       {
-        url: process.env.NODE_ENV === 'production' 
+        url: process.env.NODE_ENV === 'staging' 
+          ? 'https://ec2-44-216-131-63.compute-1.amazonaws.com'
+          : process.env.NODE_ENV === 'production' 
           ? 'https://ec2-44-216-131-63.compute-1.amazonaws.com'
           : `http://localhost:${process.env.PORT || 3000}`,
-        description: process.env.NODE_ENV === 'production' 
+        description: process.env.NODE_ENV === 'staging' 
+          ? 'Servidor Staging'
+          : process.env.NODE_ENV === 'production' 
           ? 'Servidor de Producción'
           : 'Servidor Local'
       },
