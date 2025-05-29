@@ -17,6 +17,13 @@ export default ({ mode }) => {
   if (mode === 'production') {
     env.VITE_API_URL = env.VITE_PROD_API_URL || 'https://api.tudominio.com';
   }
+
+  // Configuración específica para staging
+  if (mode === 'staging') {
+    console.log('Configurando variables para staging');
+    env.VITE_API_URL = env.VITE_API_URL || 'https://ec2-44-216-131-63.compute-1.amazonaws.com';
+    env.VITE_API_PATH = '/api';
+  }
   // Forzar configuración para ngrok
   if (mode === 'ngrok') {
     console.log('Forzando configuración para modo ngrok');
@@ -35,6 +42,7 @@ export default ({ mode }) => {
       'import.meta.env.VITE_APP_VERSION': JSON.stringify(env.VITE_APP_VERSION),
       'import.meta.env.VITE_APP_NAME': JSON.stringify(env.VITE_APP_NAME),
       'import.meta.env.VITE_API_PATH': JSON.stringify(env.VITE_API_PATH || '/api'),
+      '__MODE__': JSON.stringify(mode),
     },
 
     theme: {

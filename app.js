@@ -150,13 +150,19 @@ app.use(cors({
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH', 'HEAD'],
   allowedHeaders: [
-    'Content-Type', 
-    'Authorization', 
-    'X-Requested-With', 
-    'Bypass-Tunnel-Reminder', 
+    'Content-Type',
+    'Authorization',
+    'X-Requested-With',
+    'Bypass-Tunnel-Reminder',
     'ngrok-skip-browser-warning',
     'g-recaptcha-response',
-    'recaptchatoken'
+    'recaptchatoken',
+    'Accept',
+    'Cache-Control',
+    'Pragma',
+    'Origin',
+    'Accept-Language',
+    'Accept-Encoding'
   ],
   credentials: true,
   optionsSuccessStatus: 204

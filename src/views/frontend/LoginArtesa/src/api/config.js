@@ -1,35 +1,16 @@
 import axios from 'axios';
 import { isNgrok, isDevelopment } from '../utils/environment';
+import { isNgrok, isDevelopment, determineBaseUrl as envDetermineBaseUrl } from '../utils/environment';
 
 const determineBaseUrl = () => {
   // Imprimir variables de entorno relevantes
   console.log("VITE_API_URL:", import.meta.env.VITE_API_URL);
   console.log("VITE_USE_NGROK:", import.meta.env.VITE_USE_NGROK);
   console.log("VITE_API_PATH:", import.meta.env.VITE_API_PATH);
+  console.log("Current mode:", import.meta.env.MODE);
   
-  // Cuando usamos ngrok para acceder a la aplicación frontend, 
-  // necesitamos apuntar a la URL pública del backend
-  if (import.meta.env.VITE_USE_NGROK === 'true' && import.meta.env.VITE_API_URL) {
-    console.log("Modo ngrok activo: Usando API URL configurada:", import.meta.env.VITE_API_URL);
-    return import.meta.env.VITE_API_URL;
-  }
-  
-  // Para uso no-ngrok (desarrollo local normal)
-  if (typeof window !== 'undefined' && window.location.hostname.includes('localhost')) {
-    // En desarrollo local normal, usamos rutas relativas para el proxy de Vite
-    console.log("Desarrollo local: Usando rutas API relativas");
-    return '';
-  }
-  
-  // Si existe una URL de API explícita configurada
-  if (import.meta.env.VITE_API_URL) {
-    console.log(`Usando API URL explícita: ${import.meta.env.VITE_API_URL}`);
-    return import.meta.env.VITE_API_URL;
-  }
-  
-  // Fallback final
-  console.log('Fallback a localhost:3000');
-  return 'http://localhost:3000';
+  // Usar la función del archivo environment.js
+  return envDetermineBaseUrl();
 };
 
 // Obtener URL base
@@ -48,9 +29,11 @@ const API = axios.create({
     'Content-Type': 'application/json',
     'Accept': 'application/json',
     'ngrok-skip-browser-warning': '69420',
-    'Bypass-Tunnel-Reminder': 'true'
+    'Bypass-Tunnel-Reminder': 'true',
+    // Headers adicionales para CloudFront
+    'Origin': typeof window !== 'undefined' ? window.location.origin : undefined
   },
-  withCredentials: false
+  withCredentials: true
 });
 
 // Interceptor para añadir token
