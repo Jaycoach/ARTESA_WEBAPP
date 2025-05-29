@@ -33,7 +33,7 @@ const swaggerSpecs = require('./src/config/swagger');
 
 // Inicializar la aplicación Express
 const app = express();
-app.set('trust proxy', 1); // trust first proxy
+app.set('trust proxy', true); // trust all proxies for AWS ALB/CloudFront
 
 // Constantes de configuración
 const API_PREFIX = '/api';
@@ -112,19 +112,21 @@ app.use(cors({
       'https://api.artesa.com',
       'https://d1bqegutwmfn98.cloudfront.net',
       'http://d1bqegutwmfn98.cloudfront.net',
-      'http://ec2-44-216-131-63.compute-1.amazonaws.com',
-      'http://ec2-44-216-131-63.compute-1.amazonaws.com:3000',
       'https://ec2-44-216-131-63.compute-1.amazonaws.com',
-      'https://ec2-44-216-131-63.compute-1.amazonaws.com:3000'
+      'http://ec2-44-216-131-63.compute-1.amazonaws.com',
+      'https://ec2-44-216-131-63.compute-1.amazonaws.com:3000',
+      'http://ec2-44-216-131-63.compute-1.amazonaws.com:3000'
     ];
     
     // Check if origin matches any allowed origin or is a subdomain we want to allow
-    const isAllowed = allowedOrigins.includes(origin) || 
-                    origin.includes('localhost') || 
-                    origin.includes('ngrok-free.app') ||
-                    origin.includes('127.0.0.1') ||
-                    origin.includes('ec2-44-216-131-63.compute-1.amazonaws.com');
-
+    const isAllowed = allowedOrigins.includes(origin) ||
+                 origin.includes('localhost') ||
+                 origin.includes('ngrok-free.app') ||
+                 origin.includes('127.0.0.1') ||
+                 origin.includes('ec2-44-216-131-63.compute-1.amazonaws.com') ||
+                 origin.includes('cloudfront.net') ||
+                 (origin && origin.match(/^https?:\/\/.*\.amazonaws\.com/));
+                 
     // Agregar orígenes desde variables de entorno
     if (process.env.CORS_ALLOWED_ORIGINS) {
       const envOrigins = process.env.CORS_ALLOWED_ORIGINS.split(',').map(origin => origin.trim());
