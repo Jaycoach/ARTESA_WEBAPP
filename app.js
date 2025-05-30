@@ -103,6 +103,9 @@ app.use((req, res, next) => {
     console.log('Origin:', req.headers.origin);
     console.log('Referer:', req.headers.referer);
     console.log('User-Agent:', req.headers['user-agent']?.substring(0, 100));
+    console.log('Headers completos:', JSON.stringify(req.headers, null, 2));
+    console.log('IP Real:', req.ip);
+    console.log('X-Forwarded-For:', req.headers['x-forwarded-for']);
     console.log('==================\n');
   }
   next();
