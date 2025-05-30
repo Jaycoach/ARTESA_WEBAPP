@@ -202,25 +202,67 @@ export const AuthProvider = ({ children }) => {
 
   
   // Función para el reenvío de verificación
+  // Función para el reenvío de verificación
   const resendVerificationEmail = async (email, recaptchaToken = null) => {
     setLoading(true);
     setError(null);
     
     try {
-        const verificationData = { email };
-        
-        // Añadir token de reCAPTCHA si está disponible
-        if (recaptchaToken) {
-          verificationData.recaptchaToken = recaptchaToken;
-        }
-        
-        const response = await API.post("/auth/resend-verification", verificationData);
-        return response.data;
+      const verificationData = { mail: email }; // Usar 'mail' para consistencia con la API
+      
+      // Añadir token de reCAPTCHA si está disponible
+      if (recaptchaToken) {
+        verificationData.recaptchaToken = recaptchaToken;
+      }
+      
+      console.log("Enviando datos de reenvío:", verificationData);
+      const response = await API.post("/auth/resend-verification", verificationData);
+      
+      console.log("Respuesta de reenvío en AuthContext:", response);
+      console.log("Status de respuesta:", response.status);
+      console.log("Data de respuesta:", response.data);
+      
+      // Verificar si la respuesta es exitosa
+      if (response.status === 200) {
+        return {
+          success: true,
+          message: response.data?.message || 'Correo de verificación enviado exitosamente'
+        };
+      } else {
+        throw new Error(response.data?.message || 'Error al reenviar verificación');
+      }
     } catch (error) {
-        setError(error.response?.data?.message || "Error al reenviar verificación");
-        throw error;
+      console.error('Error en resendVerificationEmail:', error);
+      console.error('Response del error:', error.response);
+      console.error('Data del error:', error.response?.data);
+      
+      // Si hay respuesta del servidor con mensaje específico
+      if (error.response?.data?.message) {
+        const apiMessage = error.response.data.message;
+        console.log("Mensaje de la API en AuthContext:", apiMessage, "Status:", error.response?.status);
+        
+        // Verificar si es realmente un éxito disfrazado de error
+        if (
+          error.response.status === 200 ||
+          apiMessage.includes('ya verificado') ||
+          apiMessage.includes('already verified') ||
+          apiMessage.includes('enviado exitosamente') ||
+          apiMessage.includes('sent successfully') ||
+          apiMessage.includes('correo enviado')
+        ) {
+          console.log("Convertido a éxito en AuthContext:", apiMessage);
+          return {
+            success: true,
+            message: apiMessage
+          };
+        }
+      }
+      
+      const errorMessage = error.response?.data?.message || error.message || "Error al reenviar verificación";
+      setError(errorMessage);
+      throw new Error(errorMessage);
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
   };
 

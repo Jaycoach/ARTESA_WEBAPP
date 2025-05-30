@@ -16,50 +16,91 @@ const EmailVerification = () => {
   useEffect(() => {
     // Función para verificar el token de correo electrónico
     const verifyEmail = async () => {
-      // Evitar doble verificación
-      if (verificationAttempted.current) {
-        return;
+    // Evitar doble verificación
+    if (verificationAttempted.current) {
+      return;
+    }
+    
+    if (!token) {
+      setStatus('error');
+      setMessage('Token de verificación no proporcionado');
+      return;
+    }
+
+    // Marcar la verificación como intentada
+    verificationAttempted.current = true;
+
+    try {
+      // Llamada a la API para verificar el correo electrónico
+      console.log("Verificando email con token:", token);
+      const response = await API.get(`/auth/verify-email/${token}`);
+      
+      console.log("Respuesta completa de verify-email:", response);
+      console.log("Status de respuesta:", response.status);
+      console.log("Data de respuesta:", response.data);
+      
+      // Verificar si la respuesta es exitosa basándose en el status HTTP
+      if (response.status === 200) {
+        setStatus('success');
+        // Usar el mensaje del servidor o uno por defecto
+        const successMessage = response.data?.message || 'Correo verificado con éxito';
+        setMessage(successMessage);
+        console.log("Verificación de email exitosa:", successMessage);
+        
+        // Si hay un token de autenticación en la respuesta, lo guardamos
+        if (response.data?.token) {
+          localStorage.setItem('token', response.data.token);
+          console.log("Token de autenticación guardado");
+          
+          // Si hay información de usuario, la guardamos también
+          if (response.data?.user) {
+            localStorage.setItem('user', JSON.stringify(response.data.user));
+            console.log("Información de usuario guardada");
+          }
+        }
+      } else {
+        // Si el status no es 200, tratar como error
+        throw new Error(response.data?.message || 'Error al verificar el correo');
+      }
+    } catch (error) {
+      console.error('Error completo al verificar el correo:', error);
+      console.error('Response del error:', error.response);
+      console.error('Data del error:', error.response?.data);
+      
+      setStatus('error');
+      
+      // Determinar el mensaje de error apropiado
+      let errorMessage = 'Error al verificar el correo. El enlace puede ser inválido o haber expirado.';
+      
+      // Si hay un mensaje específico del servidor
+      if (error.response?.data?.message) {
+        const apiMessage = error.response.data.message;
+        console.log("Mensaje de la API:", apiMessage, "Status:", error.response?.status);
+        
+        // Verificar si realmente es un error o una respuesta informativa
+        if (
+          error.response.status === 200 ||
+          apiMessage.includes('ya verificado') ||
+          apiMessage.includes('already verified') ||
+          apiMessage.includes('verificado exitosamente') ||
+          apiMessage.includes('verificación exitosa') ||
+          apiMessage.includes('cuenta activada')
+        ) {
+          setStatus('success');
+          setMessage(apiMessage);
+          console.log("Convertido a éxito:", apiMessage);
+          return;
+        }
+        
+        errorMessage = apiMessage;
+      } else if (error.message) {
+        errorMessage = error.message;
       }
       
-      if (!token) {
-        setStatus('error');
-        setMessage('Token de verificación no proporcionado');
-        return;
-      }
-
-      // Marcar la verificación como intentada
-      verificationAttempted.current = true;
-
-      try {
-        // Llamada a la API para verificar el correo electrónico
-        const response = await API.get(`/auth/verify-email/${token}`);
-        
-        if (response.data.success) {
-          setStatus('success');
-          setMessage(response.data.message || 'Correo verificado con éxito');
-          
-          // Si hay un token de autenticación en la respuesta, lo guardamos
-          if (response.data.token) {
-            localStorage.setItem('token', response.data.token);
-            
-            // Si hay información de usuario, la guardamos también
-            if (response.data.user) {
-              localStorage.setItem('user', JSON.stringify(response.data.user));
-            }
-          }
-        } else {
-          setStatus('error');
-          setMessage(response.data.message || 'Error al verificar el correo');
-        }
-      } catch (error) {
-        console.error('Error al verificar el correo:', error);
-        setStatus('error');
-        setMessage(
-          error.response?.data?.message || 
-          'Error al verificar el correo. El enlace puede ser inválido o haber expirado.'
-        );
-      }
-    };
+      setMessage(errorMessage);
+      console.log("Error en verificación de email:", errorMessage);
+    }
+  };
 
     verifyEmail();
   }, [token]);
