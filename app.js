@@ -93,7 +93,24 @@ app.use(morgan('dev'));
 // =========================================================================
 // CONFIGURACIÓN DE CORS
 // =========================================================================
-// CORS deshabilitado en Express - manejado por Nginx para evitar conflictos
+// Configuración CORS específica para staging
+if (process.env.NODE_ENV === 'staging') {
+  const corsOptions = {
+    origin: function (origin, callback) {
+      const allowedOrigins = ['https://d1bqegutwmfn98.cloudfront.net'];
+      if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+        callback(null, true);
+      } else {
+        callback(new Error('No permitido por CORS'));
+      }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH', 'HEAD'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'g-recaptcha-response', 'recaptchatoken']
+  };
+  
+  app.use(require('cors')(corsOptions));
+}
 
 // Middleware de debugging CORS específico
 app.use((req, res, next) => {
