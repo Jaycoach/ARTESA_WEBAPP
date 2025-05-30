@@ -221,42 +221,16 @@ export const AuthProvider = ({ children }) => {
       console.log("Respuesta de reenvío en AuthContext:", response);
       console.log("Status de respuesta:", response.status);
       console.log("Data de respuesta:", response.data);
-      
-      // Verificar si la respuesta es exitosa
-      if (response.status === 200) {
-        return {
-          success: true,
-          message: response.data?.message || 'Correo de verificación enviado exitosamente'
-        };
-      } else {
-        throw new Error(response.data?.message || 'Error al reenviar verificación');
-      }
+
+      // Si llegamos aquí, la respuesta fue exitosa
+      return {
+        success: true,
+        message: response.data?.message || 'Correo de verificación enviado exitosamente'
+      };
     } catch (error) {
       console.error('Error en resendVerificationEmail:', error);
       console.error('Response del error:', error.response);
       console.error('Data del error:', error.response?.data);
-      
-      // Si hay respuesta del servidor con mensaje específico
-      if (error.response?.data?.message) {
-        const apiMessage = error.response.data.message;
-        console.log("Mensaje de la API en AuthContext:", apiMessage, "Status:", error.response?.status);
-        
-        // Verificar si es realmente un éxito disfrazado de error
-        if (
-          error.response.status === 200 ||
-          apiMessage.includes('ya verificado') ||
-          apiMessage.includes('already verified') ||
-          apiMessage.includes('enviado exitosamente') ||
-          apiMessage.includes('sent successfully') ||
-          apiMessage.includes('correo enviado')
-        ) {
-          console.log("Convertido a éxito en AuthContext:", apiMessage);
-          return {
-            success: true,
-            message: apiMessage
-          };
-        }
-      }
       
       const errorMessage = error.response?.data?.message || error.message || "Error al reenviar verificación";
       setError(errorMessage);

@@ -54,20 +54,14 @@ const ResendVerification = () => {
         mail: email,
         recaptchaToken
       });
-
       console.log("Respuesta completa de resend-verification:", response);
       console.log("Datos de respuesta:", response.data);
       console.log("Status de respuesta:", response.status);
 
-      // Verificar la respuesta del servidor
-      if (response.status === 200) {
-        // Si el status es 200, considerarlo como éxito
-        setSuccess(true);
-        setMessage(response.data?.message || 'Correo de verificación enviado con éxito');
-        console.log("Reenvío de verificación exitoso");
-      } else {
-          throw new Error(response.data?.message || 'Error al enviar el correo de verificación');
-        }
+      // La respuesta llega aquí significa que fue exitosa (status 200)
+      setSuccess(true);
+      setMessage(response.data?.message || 'Correo de verificación enviado con éxito');
+      console.log("Reenvío de verificación exitoso");
     } catch (error) {
       console.error('Error completo al reenviar verificación:', error);
       console.error('Response del error:', error.response);
@@ -76,9 +70,10 @@ const ResendVerification = () => {
       // Manejar errores específicos de reCAPTCHA
       if (error.response?.data?.code === 'RECAPTCHA_FAILED') {
         setError('Verificación de seguridad fallida. Por favor, intenta nuevamente.');
+        return;
       }
       // Manejar error de límite de intentos (429)
-      else if (error.response && error.response.status === 429) {
+      if (error.response && error.response.status === 429) {
         setIsBlocked(true);
         const retryAfter = error.response.headers['retry-after'] || 60;
         setCountdown(parseInt(retryAfter, 10));
@@ -96,77 +91,33 @@ const ResendVerification = () => {
         }, 1000);
 
         setError('Has excedido el límite de intentos. Por favor espera antes de intentar nuevamente.');
+        return;
       }
-      // Casos donde hay un mensaje específico de la API
-      else if (error.response?.data?.message) {
-        const apiMessage = error.response.data.message;
-        console.log("Mensaje de la API:", apiMessage, "Status:", error.response.status);
+      // Para cualquier otro error real
+      const errorMessage = error.response?.data?.message || 'Error al enviar el correo de verificación';
+      setError(errorMessage);
 
-        // Verificar si es información, no error real
-        if (
-          apiMessage.includes('ya verificado') ||
-          apiMessage.includes('already verified') ||
-          apiMessage.includes('ya fue verificado') ||
-          apiMessage.includes('enviado exitosamente') ||
-          apiMessage.includes('sent successfully') ||
-          error.response.status === 200
-        ) {
-          setSuccess(true);
-          setMessage(apiMessage);
-        } else {
-          setError(apiMessage);
+      // Incrementar contador de intentos
+      setAttempts(prev => {
+        const newAttempts = prev + 1;
+        if (newAttempts >= 3) {
+          setIsBlocked(true);
+          setCountdown(30);
 
-          // Solo incrementar intentos si es un error real (no status 200)
-          if (error.response.status !== 200) {
-            setAttempts(prev => {
-              const newAttempts = prev + 1;
-              if (newAttempts >= 3) {
-                setIsBlocked(true);
-                setCountdown(30);
-
-                const timer = setInterval(() => {
-                  setCountdown(prevCountdown => {
-                    if (prevCountdown <= 1) {
-                      clearInterval(timer);
-                      setIsBlocked(false);
-                      setAttempts(0);
-                      return 0;
-                    }
-                    return prevCountdown - 1;
-                  });
-                }, 1000);
+          const timer = setInterval(() => {
+            setCountdown(prevCountdown => {
+              if (prevCountdown <= 1) {
+                clearInterval(timer);
+                setIsBlocked(false);
+                setAttempts(0);
+                return 0;
               }
-              return newAttempts;
+              return prevCountdown - 1;
             });
-          }
+          }, 1000);
         }
-      } else {
-        setError('Error al enviar el correo de verificación');
-
-        // Incrementar contador de intentos solo para errores reales
-        setAttempts(prev => {
-          const newAttempts = prev + 1;
-          if (newAttempts >= 3) {
-            setIsBlocked(true);
-            setCountdown(30);
-
-            const timer = setInterval(() => {
-              setCountdown(prevCountdown => {
-                if (prevCountdown <= 1) {
-                  clearInterval(timer);
-                  setIsBlocked(false);
-                  setAttempts(0);
-                  return 0;
-                }
-                return prevCountdown - 1;
-              });
-            }, 1000);
-          }
-          return newAttempts;
-        });
-      }
-    } finally {
-      setIsLoading(false);
+        return newAttempts;
+      });
     }
   };
 
