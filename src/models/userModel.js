@@ -30,7 +30,7 @@
  */
 
 const pool = require('../config/db');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const { createContextLogger } = require('../config/logger');
 
 // Crear una instancia del logger con contexto
