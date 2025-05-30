@@ -8,6 +8,38 @@ Este proyecto es una API RESTful para la aplicación web **LA ARTESA**, que perm
 
 ---
 
+## **Alcance de esta Documentación**
+
+> **Nota:** Esta documentación cubre exclusivamente la API backend de LA ARTESA. El desarrollo y documentación del frontend (ubicado en `src/views/frontend/LoginArtesa/`) es responsabilidad de otro equipo y no se detalla aquí.
+
+---
+
+## **Tecnologías Principales**
+
+- **Node.js** (v18.x)
+- **Express.js**
+- **PostgreSQL** (v13.x)
+- **JWT** para autenticación
+- **AWS S3** para almacenamiento de archivos
+- **Swagger** para documentación de API
+- **Winston** para logging
+- **SAP Business One Service Layer** para integración empresarial
+
+---
+
+## **Patrones y Buenas Prácticas**
+
+- **Arquitectura en capas** siguiendo el patrón MVC adaptado para APIs.
+- **Singleton** para conexión a base de datos y modelo de roles.
+- **Middleware Chain** para autenticación, validación, auditoría y seguridad.
+- **Factory Method** para creación de loggers y servicios.
+- **Facade** en utilidades de base de datos.
+- **Validación exhaustiva** de datos de entrada y sanitización.
+- **Rate limiting** y protección contra ataques comunes.
+- **Auditoría centralizada** de eventos críticos y anomalías.
+
+---
+
 ## **Tabla de Contenidos**
 1. [Novedades](#novedades)
 2. [Requisitos](#requisitos)
@@ -31,6 +63,13 @@ Este proyecto es una API RESTful para la aplicación web **LA ARTESA**, que perm
 14. [Documentación de la API](#documentación-de-la-api)
 15. [Logs y Monitoreo](#logs-y-monitoreo)
 16. [Seguridad](#seguridad)
+17. [Ejemplo de Uso de Endpoints](#ejemplo-de-uso-de-endpoints)
+18. [Flujos de Autenticación y Seguridad](#flujos-de-autenticación-y-seguridad)
+19. [Scripts y Utilidades](#scripts-y-utilidades)
+20. [Despliegue y Entornos](#despliegue-y-entornos)
+21. [Consideraciones de Seguridad](#consideraciones-de-seguridad)
+22. [Referencias y Documentación Técnica](#referencias-y-documentación-técnica)
+23. [Preguntas Frecuentes (FAQ)](#preguntas-frecuentes-faq)
 
 ---
 
@@ -642,6 +681,161 @@ El proyecto implementa múltiples capas de seguridad:
 - Registro de intentos de login fallidos
 - Alertas sobre anomalías en transacciones
 - Auditoría completa de acciones sensibles
+
+---
+
+## **Ejemplo de Uso de Endpoints**
+
+### Autenticación (Login)
+```bash
+curl -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"mail":"usuario@dominio.com","password":"tu_contraseña"}'
+```
+
+### Crear un Pedido
+```bash
+curl -X POST http://localhost:3000/api/orders \
+  -H "Authorization: Bearer <TOKEN_JWT>" \
+  -H "Content-Type: application/json" \
+  -d '{"user_id":1,"total_amount":150.00,"details":[{"product_id":1,"quantity":2,"unit_price":75.00}]}'
+```
+
+### Subir Documento de Perfil
+```bash
+curl -X POST http://localhost:3000/api/client-profiles/123/documents/cedula \
+  -H "Authorization: Bearer <TOKEN_JWT>" \
+  -F "file=@/ruta/a/cedula.pdf"
+```
+
+### Obtener Productos
+```bash
+curl -X GET http://localhost:3000/api/products \
+  -H "Authorization: Bearer <TOKEN_JWT>"
+```
+
+---
+
+## **Flujos de Autenticación y Seguridad**
+
+- **Login:** El usuario envía credenciales, recibe un JWT válido por 24h.
+- **Recuperación de contraseña:** Solicitud, envío de token por email, cambio de contraseña.
+- **Roles:** El middleware verifica permisos antes de cada endpoint sensible.
+- **Auditoría:** Cada intento de login, acceso a documentos y operación crítica queda registrado.
+- **Revocación de tokens:** Los tokens pueden ser revocados individualmente o en bloque por usuario.
+- **Rate limiting:** Protección automática contra ataques de fuerza bruta.
+
+---
+
+## **Scripts y Utilidades**
+
+- `scripts/generate-swagger.js`: Genera la documentación Swagger.
+- `scripts/generateDbDocs.js`: Documenta la estructura de la base de datos.
+- `scripts/hashPasswords.js`: Hashea contraseñas existentes.
+- `scripts/migrateToS3.js`: Migra archivos locales a AWS S3.
+- `analizar-proyecto.ps1`: Analiza la estructura y dependencias del proyecto.
+
+### Uso de Scripts
+```bash
+# Generar documentación
+npm run generate-swagger
+
+# Migrar archivos (simulación)
+node scripts/migrateToS3.js --simulation
+
+# Migrar archivos (real)
+node scripts/migrateToS3.js
+
+# Documentar base de datos
+node scripts/generateDbDocs.js
+```
+
+---
+
+## **Despliegue y Entornos**
+
+### **Docker**
+```bash
+# Desarrollo
+npm run docker:dev
+
+# Producción
+npm run docker:prod
+
+# Detener contenedores
+npm run docker:stop
+```
+
+### **Variables de Entorno por Ambiente**
+- **Desarrollo**: Ver sección de configuración para variables completas.
+- **Staging**: Utiliza `.env.staging` con configuraciones específicas.
+- **Producción**: Configuración optimizada para rendimiento y seguridad.
+
+### **Elastic Beanstalk**
+- Archivos `.ebignore` y `.ebextensions` incluidos para despliegue en AWS.
+- Health check configurado en `/api/health`.
+- Soporte para SSL automático.
+
+### **SSL**
+- Script `setup-ssl.sh` para configuración de certificados.
+- Configuración de Nginx para HTTPS.
+- Redirección automática HTTP a HTTPS en producción.
+
+---
+
+## **Consideraciones de Seguridad**
+
+- **Contraseñas**: Siempre hasheadas con bcrypt (10 rounds).
+- **JWT**: Tokens con expiración y sistema de revocación.
+- **Archivos sensibles**: Acceso solo mediante URLs firmadas y temporales.
+- **Logs**: Rotación automática y sin datos sensibles expuestos.
+- **Headers HTTP**: Configuración completa de seguridad y CORS.
+- **Auditoría**: Registro de accesos y operaciones críticas.
+- **Rate limiting**: Protección contra ataques de fuerza bruta.
+- **Validación**: Sanitización exhaustiva de datos de entrada.
+- **SQL Injection**: Uso exclusivo de consultas parametrizadas.
+
+---
+
+## **Referencias y Documentación Técnica**
+
+- [Documentación técnica de arquitectura](scripts/docs/ARCHITECTURE.md)
+- [Documentación de autenticación](scripts/docs/API_AUTHENTICATION.md)
+- [Estructura de base de datos](docs/database-structure.md)
+- [Historial de cambios](CHANGELOG.md)
+- [Documentación de Swagger](http://localhost:3000/api-docs)
+- [Repositorio del proyecto](https://github.com/Jaycoach/ARTESA_WEBAPP)
+
+---
+
+## **Preguntas Frecuentes (FAQ)**
+
+### **¿Cómo genero la documentación Swagger?**
+Ejecuta `npm run generate-swagger` y accede a `/api-docs`.
+
+### **¿Cómo migro archivos a S3?**
+Ejecuta `node scripts/migrateToS3.js --simulation` para simular, o sin el flag para migrar realmente.
+
+### **¿Cómo configuro el entorno de desarrollo?**
+1. Clona el repositorio
+2. Instala dependencias con `npm install`
+3. Configura las variables de entorno en `.env`
+4. Ejecuta `npm run dev`
+
+### **¿Cómo actualizo la estructura de la base de datos?**
+Consulta la documentación en `database-structure.md` y ejecuta `node scripts/generateDbDocs.js` para regenerar la documentación.
+
+### **¿Dónde reporto bugs o solicito soporte?**
+Utiliza el repositorio de GitHub para crear issues o contacta al responsable del backend.
+
+### **¿Cómo funciona la integración con SAP?**
+El sistema se conecta a SAP Business One a través de Service Layer. Consulta la sección de "Integración con SAP B1" para detalles de configuración.
+
+### **¿Qué hago si tengo problemas con CORS?**
+Verifica la configuración de `CORS_ALLOWED_ORIGINS` en las variables de entorno y asegúrate de que tu dominio esté incluido.
+
+### **¿Cómo cambio de almacenamiento local a S3?**
+Modifica `STORAGE_MODE=s3` en tu archivo `.env` y configura las variables de AWS S3. Luego ejecuta el script de migración.
 
 ---
 
