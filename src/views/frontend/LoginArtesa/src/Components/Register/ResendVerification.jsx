@@ -21,25 +21,25 @@ const ResendVerification = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (isBlocked) {
       return;
     }
-    
+
     if (!email) {
       setError('Por favor ingresa tu dirección de correo electrónico');
       return;
     }
-    
+
     setError('');
     setMessage('');
     setIsLoading(true);
-    
+
     try {
       // Generar token de reCAPTCHA
       console.log("Generando token reCAPTCHA para resend_verification");
       const recaptchaToken = await generateRecaptchaToken('resend_verification');
-      
+
       if (!recaptchaToken) {
         setError(recaptchaError || 'No se pudo completar la verificación de seguridad. Por favor, recargue la página e intente nuevamente.');
         console.error("No se pudo obtener token reCAPTCHA para resend_verification");
@@ -49,33 +49,49 @@ const ResendVerification = () => {
 
       console.log("Token reCAPTCHA obtenido correctamente para resend_verification");
 
-        console.log("Enviando solicitud de reenvío de verificación con token reCAPTCHA");
-        const response = await API.post('/auth/resend-verification', { 
-            mail: email,
-            recaptchaToken
-        });
-      
-        if (response.data.success) {
-          setSuccess(true);
-          setMessage(response.data.message || 'Correo de verificación enviado con éxito');
+      console.log("Enviando solicitud de reenvío de verificación con token reCAPTCHA");
+      const response = await API.post('/auth/resend-verification', {
+        mail: email,
+        recaptchaToken
+      });
+
+      if (response.data.success) {
+        setSuccess(true);
+        setMessage(response.data.message || 'Correo de verificación enviado con éxito');
       } else {
-          setError(response.data.message || 'Error al enviar el correo de verificación');
+        // Si hay un mensaje específico de la API, usarlo como información, no como error
+        const apiMessage = response.data.message;
+
+        // Verificar si es un caso especial (correo ya verificado, etc.)
+        if (
+          apiMessage &&
+          (
+            apiMessage.includes('ya verificado') ||
+            apiMessage.includes('already verified') ||
+            apiMessage.includes('ya fue verificado')
+          )
+        ) {
+          // Mostrar como información, no como error
+          setSuccess(true);
+          setMessage(apiMessage);
+        } else {
+          // Casos reales de error
+          setError(apiMessage || 'Error al enviar el correo de verificación');
+        }
       }
     } catch (error) {
       console.error('Error al reenviar verificación:', error);
-      
-      // Manejo de errores específicos de reCAPTCHA
+
+      // Manejar errores específicos de reCAPTCHA
       if (error.response?.data?.code === 'RECAPTCHA_FAILED') {
         setError('Verificación de seguridad fallida. Por favor, intenta nuevamente.');
-      } 
+      }
       // Manejar error de límite de intentos (429)
       else if (error.response && error.response.status === 429) {
         setIsBlocked(true);
-        // Obtener el tiempo de espera de las cabeceras o usar un valor predeterminado
         const retryAfter = error.response.headers['retry-after'] || 60;
         setCountdown(parseInt(retryAfter, 10));
-        
-        // Iniciar cuenta regresiva
+
         const timer = setInterval(() => {
           setCountdown(prev => {
             if (prev <= 1) {
@@ -86,31 +102,48 @@ const ResendVerification = () => {
             return prev - 1;
           });
         }, 1000);
-        
+
         setError('Has excedido el límite de intentos. Por favor espera antes de intentar nuevamente.');
-      } else {
-        setError(error.response?.data?.message || 'Error al enviar el correo de verificación');
-        
-        // Incrementar contador de intentos
-        setAttempts(prev => prev + 1);
-        
-        // Bloquear después de 3 intentos
-        if (attempts >= 2) { // Bloquear en el tercer intento (índice 2)
-          setIsBlocked(true);
-          setCountdown(30); // 30 segundos de bloqueo
-          
-          const timer = setInterval(() => {
-            setCountdown(prev => {
-              if (prev <= 1) {
-                clearInterval(timer);
-                setIsBlocked(false);
-                setAttempts(0);
-                return 0;
-              }
-              return prev - 1;
-            });
-          }, 1000);
+      }
+      // Casos donde hay un mensaje específico de la API
+      else if (error.response?.data?.message) {
+        const apiMessage = error.response.data.message;
+
+        // Verificar si es información, no error real
+        if (
+          apiMessage.includes('ya verificado') ||
+          apiMessage.includes('already verified') ||
+          apiMessage.includes('ya fue verificado')
+        ) {
+          setSuccess(true);
+          setMessage(apiMessage);
+        } else {
+          setError(apiMessage);
         }
+      } else {
+        setError('Error al enviar el correo de verificación');
+
+        // Incrementar contador de intentos solo para errores reales
+        setAttempts(prev => {
+          const newAttempts = prev + 1;
+          if (newAttempts >= 3) {
+            setIsBlocked(true);
+            setCountdown(30);
+
+            const timer = setInterval(() => {
+              setCountdown(prevCountdown => {
+                if (prevCountdown <= 1) {
+                  clearInterval(timer);
+                  setIsBlocked(false);
+                  setAttempts(0);
+                  return 0;
+                }
+                return prevCountdown - 1;
+              });
+            }, 1000);
+          }
+          return newAttempts;
+        });
       }
     } finally {
       setIsLoading(false);

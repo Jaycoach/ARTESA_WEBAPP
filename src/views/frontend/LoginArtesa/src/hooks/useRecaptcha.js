@@ -78,10 +78,15 @@ const generateRecaptchaToken = useCallback(async (action = 'submit') => {
     return !!executeRecaptcha;
   }, [executeRecaptcha]);
 
+  const isRecaptchaReady = useCallback(() => {
+    return !!executeRecaptcha;
+  }, [executeRecaptcha]);
+
   // Retornamos las funciones y estados que proporciona este hook
   return {
     generateRecaptchaToken,
     isRecaptchaAvailable,
+    isRecaptchaReady,
     loading,
     error
   };
