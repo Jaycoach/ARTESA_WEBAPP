@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { FaPaperPlane, FaEnvelope, FaSpinner } from 'react-icons/fa';
 import { useRecaptcha } from "../../hooks/useRecaptcha"; // Importar el hook de reCAPTCHA
 import API from '../../api/config';
-import { testResendVerification } from '../../utils/apiTest';
 import '../../App.scss';
 
 const ResendVerification = () => {
@@ -51,10 +50,6 @@ const ResendVerification = () => {
       console.log("Token reCAPTCHA obtenido correctamente para resend_verification");
       console.log("Enviando solicitud de reenvío de verificación con token reCAPTCHA");
 
-      // Probar primero con axios directo
-      const directTest = await testResendVerification(email);
-      console.log("Resultado test directo:", directTest);
-
       // Ahora usar la API normal
       const response = await API.post('/auth/resend-verification', { 
         mail: email,
@@ -78,19 +73,7 @@ const ResendVerification = () => {
       // Verificar si realmente es un error de red/CORS
       if (!error.response && error.request) {
         setError('Error de conexión. Verificando conectividad con el servidor...');
-        
-        // Hacer prueba directa para confirmar si es problema de CORS
-        try {
-          const directTest = await testResendVerification(email);
-          if (directTest.success) {
-            setSuccess(true);
-            setMessage('Correo enviado exitosamente (conexión directa)');
-            setIsLoading(false);
-            return;
-          }
-        } catch (directError) {
-          console.error("También falló el test directo:", directError);
-        }
+
       }
 
       // Manejar errores específicos de reCAPTCHA
