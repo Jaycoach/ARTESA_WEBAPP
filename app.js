@@ -4,7 +4,7 @@ require('dotenv').config();
 // Importaciones principales
 const express = require('express');
 const path = require('path');
-const cors = require('cors');
+//const cors = require('cors'); //Deshabilitado - CORS manejado por Nginx
 const fs = require('fs');
 const helmet = require('helmet');
 const morgan = require('morgan');
@@ -93,52 +93,7 @@ app.use(morgan('dev'));
 // =========================================================================
 // CONFIGURACIÓN DE CORS
 // =========================================================================
-app.use(cors({
-  origin: function(origin, callback) {
-    console.log('🔍 CORS Check - Origin:', origin);
-    
-    // Allow requests with no origin (mobile apps, Postman, etc.)
-    if (!origin) {
-      console.log('✅ CORS - Permitiendo solicitud sin origin');
-      return callback(null, true);
-    }
-    
-    // Lista simplificada de orígenes permitidos
-    const allowedOrigins = [
-      'https://d1bqegutwmfn98.cloudfront.net',
-      'https://ec2-44-216-131-63.compute-1.amazonaws.com', // Para Swagger
-      'http://ec2-44-216-131-63.compute-1.amazonaws.com',  // Para desarrollo
-      'http://localhost:3000',
-      'http://localhost:5173',
-      'http://localhost:5174'
-    ];
-    
-    if (allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
-      console.log('✅ CORS - Origin permitido:', origin);
-      callback(null, true);
-    } else {
-      console.log('❌ CORS - Origin no permitido:', origin);
-      console.log('📋 Origins permitidos:', allowedOrigins);
-      callback(new Error('No permitido por CORS'));
-    }
-  },
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH', 'HEAD'],
-  allowedHeaders: [
-    'Content-Type',
-    'Authorization',
-    'X-Requested-With',
-    'g-recaptcha-response',
-    'recaptchatoken',
-    'bypass-tunnel-reminder',
-    'ngrok-skip-browser-warning',
-    'dnt',
-    'sec-ch-ua',
-    'sec-ch-ua-mobile',
-    'sec-ch-ua-platform'
-  ],
-  credentials: true,
-  optionsSuccessStatus: 204
-}));
+// CORS deshabilitado en Express - manejado por Nginx para evitar conflictos
 
 // Middleware de debugging CORS específico
 app.use((req, res, next) => {
