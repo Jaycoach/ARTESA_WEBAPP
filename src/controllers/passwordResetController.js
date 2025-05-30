@@ -1,5 +1,5 @@
 const crypto = require('crypto');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const userModel = require('../models/userModel');
 const PasswordReset = require('../models/PasswordReset');
 const { createContextLogger } = require('../config/logger');
