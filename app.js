@@ -97,16 +97,20 @@ app.use(morgan('dev'));
 // Middleware de debugging CORS específico
 app.use((req, res, next) => {
   if (req.path.startsWith('/api')) {
-    console.log('\n🔍 === CORS DEBUG ===');
+    console.log('\n🔍 === CORS DEBUG COMPLETO ===');
+    console.log('Timestamp:', new Date().toISOString());
     console.log('Method:', req.method);
     console.log('Path:', req.path);
     console.log('Origin:', req.headers.origin);
     console.log('Referer:', req.headers.referer);
-    console.log('User-Agent:', req.headers['user-agent']?.substring(0, 100));
-    console.log('Headers completos:', JSON.stringify(req.headers, null, 2));
+    console.log('User-Agent:', req.headers['user-agent']);
     console.log('IP Real:', req.ip);
     console.log('X-Forwarded-For:', req.headers['x-forwarded-for']);
-    console.log('==================\n');
+    console.log('X-Real-IP:', req.headers['x-real-ip']);
+    console.log('Access-Control-Request-Method:', req.headers['access-control-request-method']);
+    console.log('Access-Control-Request-Headers:', req.headers['access-control-request-headers']);
+    console.log('Content-Type:', req.headers['content-type']);
+    console.log('==============================\n');
   }
   next();
 });
