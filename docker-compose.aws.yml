@@ -1,0 +1,26 @@
+## version: '3.8'
+
+services:
+  app:
+    build: 
+      context: .
+      dockerfile: docker/app/Dockerfile
+    container_name: artesa-api
+    restart: always
+    environment:
+      - NODE_ENV=staging
+      - PORT=3000
+      - DB_HOST=${DB_HOST}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_DATABASE=${DB_DATABASE}
+      - DB_PORT=5432
+      - JWT_SECRET=${JWT_SECRET}
+      - CORS_ORIGIN=https://tu-frontend-url.aws.com
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

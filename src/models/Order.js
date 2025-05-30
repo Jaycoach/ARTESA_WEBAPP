@@ -1113,13 +1113,13 @@ static async getMonthlyStats(userId, months = 6) {
       // Asegurarse de que los campos numéricos sean números
       processedOrder.order_id = parseInt(order.order_id, 10);
       processedOrder.user_id = parseInt(order.user_id, 10);
-      processedOrder.total_amount = order.total_amount.toString();
+      processedOrder.total_amount = order.total_amount ? order.total_amount.toString() : "0";
       processedOrder.status_id = parseInt(order.status_id, 10);
       processedOrder.sap_sync_attempts = parseInt(order.sap_sync_attempts || 0, 10);
       
-      // Campos de conteo
-      processedOrder.item_count = order.item_count.toString();
-      processedOrder.total_items = order.total_items.toString();
+      // Campos de conteo - verificar que no sean null antes de convertir
+      processedOrder.item_count = order.item_count ? order.item_count.toString() : "0";
+      processedOrder.total_items = order.total_items ? order.total_items.toString() : "0";
       
       // Campos de entrega
       processedOrder.delivered_quantity = order.delivered_quantity ? order.delivered_quantity.toString() : "0";

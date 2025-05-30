@@ -9,6 +9,14 @@ export default ({ mode }) => {
   console.log(`Iniciando en modo: ${mode}`);
   const env = loadEnv(mode, process.cwd(), '');
   
+  // Añadir configuración específica para AWS
+  if (mode === 'staging') {
+    env.VITE_API_URL = env.VITE_STAGING_API_URL || 'https://ec2-44-216-131-63.compute-1.amazonaws.com';
+  }
+
+  if (mode === 'production') {
+    env.VITE_API_URL = env.VITE_PROD_API_URL || 'https://api.tudominio.com';
+  }
   // Forzar configuración para ngrok
   if (mode === 'ngrok') {
     console.log('Forzando configuración para modo ngrok');
@@ -27,32 +35,8 @@ export default ({ mode }) => {
       'import.meta.env.VITE_APP_VERSION': JSON.stringify(env.VITE_APP_VERSION),
       'import.meta.env.VITE_APP_NAME': JSON.stringify(env.VITE_APP_NAME),
       'import.meta.env.VITE_API_PATH': JSON.stringify(env.VITE_API_PATH || '/api'),
-    },
-
-    theme: {
-      extend: {
-        colors: {
-          primary: 'var(--primary-color)',
-          secondary: 'var(--secondary-color)',
-          hover: 'var(--hover-color)',
-          accent: 'var(--accent-color)',
-          white: 'var(--whiteColor)',
-          black: 'var(--blackColor)',
-          grey: 'var(--greyText)',
-          bg: 'var(--bgColor)',
-          input: 'var(--inputColor)',
-          button: 'var(--buttonColor)',
-        },
-        fontSize: {
-          biggest: 'var(--biggestFontSize)',
-          h1: 'var(--h1FontSize)',
-          h2: 'var(--h2FontSize)',
-          h3: 'var(--h3FontSize)',
-          normal: 'var(--normalFontSize)',
-          small: 'var(--smallFontSize)',
-          smallest: 'var(--smallestFontSize)',
-        },
-      },
+      'import.meta.env.VITE_FRONTEND_URL': JSON.stringify(env.VITE_FRONTEND_URL),
+      '__MODE__': JSON.stringify(mode),
     },
     css: {
       preprocessorOptions: {
@@ -82,19 +66,45 @@ export default ({ mode }) => {
       },
       proxy: {
         '/api': {
-          target: 'http://localhost:3000',
+          target: 'https://ec2-44-216-131-63.compute-1.amazonaws.com',
           changeOrigin: true,
-          secure: false
+          secure: false,
+          configure: (proxy, _options) => {
+            proxy.on('error', (err, _req, _res) => {
+              console.log('proxy error', err);
+            });
+            proxy.on('proxyReq', (proxyReq, req, _res) => {
+              console.log('Sending Request to the Target:', req.method, req.url);
+            });
+            proxy.on('proxyRes', (proxyRes, req, _res) => {
+              console.log('Received Response from the Target:', proxyRes.statusCode, req.url);
+            });
+          },
         }
       },
       host: true,
-      cors: true,
+      cors: {
+        origin: [
+          'https://d1bqegutwmfn98.cloudfront.net',
+          'https://ec2-44-216-131-63.compute-1.amazonaws.com',
+          'http://localhost:5173',
+          'http://localhost:3000'
+        ],
+        credentials: true,
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning', 'Bypass-Tunnel-Reminder']
+      },
       strictPort: false,
       allowedHosts: 'all'
     },
     build: {
       // Generar source maps incluso en producción
       sourcemap: mode !== 'production',
+      // Configuración específica para staging
+      ...(mode === 'staging' && {
+        minify: 'esbuild',
+        sourcemap: true,
+      }),
       // Opciones específicas para producción
       ...(mode === 'production' && {
         minify: 'terser',
@@ -105,14 +115,19 @@ export default ({ mode }) => {
           },
         },
       }),
-      // Opciones de rollup para manejo de errores
+      outDir: 'dist',
+      assetsDir: 'assets',
+      // Optimizaciones para AWS
+      chunkSizeWarningLimit: 1000,
       rollupOptions: {
-        onwarn(warning, warn) {
-          // Ignorar advertencias específicas si es necesario
-          if (warning.code === 'SOURCEMAP_ERROR') return;
-          warn(warning);
-        },
-      },
+        output: {
+          manualChunks: {
+            vendor: ['react', 'react-dom'],
+            router: ['react-router-dom'],
+            ui: ['framer-motion', 'react-icons']
+          }
+        }
+      }
     },
   });
 };

@@ -1,0 +1,162 @@
+========================================
+ESTRUCTURA DEL PROYECTO LAARTESA
+========================================
+Generado el: 26/05/2025 16:02:51
+Ruta del proyecto: C:\Users\jayco\OneDrive\CLIENTES\MASORG\Desarrollo\LaArtesa
+========================================
+
+├── .ebextensions/
+├── backend/
+├── docs/
+├── frontend/
+│   ├── scripts/
+│   ├── src/
+│   │   ├── api/
+│   │   ├── Components/
+│   │   │   ├── Dashboard/
+│   │   │   ├── Home/
+│   │   │   ├── Login/
+│   │   │   ├── NotFound/
+│   │   │   ├── Register/
+│   │   │   ├── resetPassword/
+│   │   │   └── ui/
+│   │   ├── config/
+│   │   ├── context/
+│   │   ├── DashboardAssets/
+│   │   ├── HomeAssets/
+│   │   ├── hooks/
+│   │   ├── LoginsAssets/
+│   │   ├── routes/
+│   │   ├── services/
+│   │   ├── styles/
+│   │   └── utils/
+│   ├── .env
+│   ├── package.json
+│   ├── README.md
+├── public/
+├── scripts/
+│   ├── docs/
+│   │   ├── images/
+├── src/
+│   ├── config/
+│   ├── constants/
+│   ├── controllers/
+│   ├── middleware/
+│   ├── models/
+│   ├── routes/
+│   ├── services/
+│   ├── utils/
+│   ├── validators/
+│   └── views/
+│       └── frontend/
+│           └── LoginArtesa/
+├── tests/
+├── tmp/
+├── .env
+├── app.js
+├── CHANGELOG.md
+├── package-lock.json
+├── package.json
+└── README.md
+
+
+ARCHIVOS RELEVANTES POR CARPETA:
+==================================================
+
+src/config/:
+  - db.js
+  - express-swagger.js
+  - logger.js
+  - swagger-definitions.js
+  - swagger.js
+
+src/controllers/:
+  - adminController.js
+  - authController.js
+  - clientBranchController.js
+  - clientProfileController.js
+  - clientSyncController.js
+  - logoutController.js
+  - orderController.js
+  - passwordResetController.js
+  - productController.js
+  - sapSyncController.js
+  - uploadController.js
+  - userController.js
+
+src/models/:
+  - AdminSettings.js
+  - ClientBranch.js
+  - clientProfile.js
+  - Order.js
+  - PasswordReset.js
+  - Product.js
+  - ProductImage.js
+  - Roles.js
+  - userModel.js
+
+src/routes/:
+  - adminRoutes.js
+  - authRoutes.js
+  - clientBranchRoutes.js
+  - clientProfileRoutes.js
+  - clientSyncRoutes.js
+  - orderRoutes.js
+  - passwordResetRoutes.js
+  - paymentRoutes.js
+  - productRoutes.js
+  - sapSyncRoutes.js
+  - secureProductRoutes.js
+  - uploadRoutes.js
+  - userRoutes.js
+
+src/services/:
+  - AuditService.js
+  - EmailService.js
+  - OrderScheduler.js
+  - S3Service.js
+  - SapBaseService.js
+  - SapClientService.js
+  - SapOrderService.js
+  - SapProductService.js
+  - SapServiceManager.js
+
+src/middleware/:
+  - auditMiddleware.js
+  - auth.js
+  - authorize.js
+  - enhancedSecurity.js
+  - ensureJsonResponse.js
+  - errorMiddleware.js
+  - paymentSanitization.js
+  - security.js
+  - tokenRevocation.js
+
+src/utils/:
+  - colombianHolidays.js
+  - dbUtils.js
+  - recaptchaValidator.js
+  - S3UrlManager.js
+
+src/validators/:
+  - authValidators.js
+  - paymentValidators.js
+
+docs/:
+  - database-structure.md
+
+scripts/:
+  - dbdocs.config.js
+  - debug-swagger.js
+  - generate-swagger.js
+  - generateDbDocs.js
+  - migrateToS3.js
+  - test-delivery-dates.js
+
+Archivos en raíz:
+  - .env
+  - app.js
+  - CHANGELOG.md
+  - package-lock.json
+  - package.json
+  - README.md

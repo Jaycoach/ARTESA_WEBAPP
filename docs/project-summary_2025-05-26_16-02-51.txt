@@ -1,0 +1,53 @@
+========================================
+RESUMEN DE LA ESTRUCTURA - LAARTESA
+========================================
+Generado el: 26/05/2025 16:02:51
+
+ESTRUCTURA PRINCIPAL:
+├── src/                    # Código fuente del backend
+│   ├── config/            # Configuraciones (DB, Swagger, Logger)
+│   ├── controllers/       # Controladores de rutas
+│   ├── middleware/        # Middlewares de autenticación y seguridad
+│   ├── models/           # Modelos de datos y lógica de negocio
+│   ├── routes/           # Definiciones de rutas
+│   ├── services/         # Servicios (SAP, S3, etc.)
+│   ├── utils/            # Utilidades y helpers
+│   └── validators/       # Validadores de datos
+├── docs/                 # Documentación del proyecto
+├── scripts/              # Scripts de utilidad
+├── uploads/              # Archivos subidos localmente (excluido)
+└── logs/                 # Archivos de log (excluido)
+
+ARCHIVOS CLAVE DEL PROYECTO:
+├── app.js               # Punto de entrada de la aplicación
+├── package.json         # Dependencias y scripts
+├── .env                 # Variables de entorno
+├── README.md           # Documentación principal
+└── .gitignore          # Archivos ignorados por Git
+
+ARCHIVOS RELEVANTES POR MÓDULO:
+├── config/
+│   ├── db.js           # Configuración de PostgreSQL
+│   ├── logger.js       # Configuración de Winston
+│   └── swagger.js      # Configuración de documentación API
+├── models/
+│   ├── User.js         # Modelo de usuarios
+│   ├── Order.js        # Modelo de órdenes
+│   ├── Product.js      # Modelo de productos
+│   └── ClientProfile.js # Modelo de perfiles de cliente
+├── services/
+│   ├── SapBaseService.js    # Servicio base para SAP
+│   ├── SapProductService.js # Sincronización de productos
+│   ├── SapClientService.js  # Sincronización de clientes
+│   └── SapOrderService.js   # Sincronización de órdenes
+
+TECNOLOGÍAS UTILIZADAS:
+- Backend: Node.js + Express
+- Base de datos: PostgreSQL
+- Autenticación: JWT
+- Integración: SAP Business One
+- Storage: AWS S3
+- Documentación: Swagger
+- Logging: Winston
+
+========================================

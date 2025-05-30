@@ -11,7 +11,11 @@
     "dev:ngrok-env": "vite --mode ngrok --config vite.config.ngrok.js --env-file .env.ngrok",
     "build": "vite build",
     "build:ngrok": "vite build --mode ngrok",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:staging": "vite build --mode staging",
+    "build:production": "vite build --mode production",
+    "deploy:staging": "npm run build:staging && aws s3 sync dist/ s3://tu-bucket-staging --delete",
+    "deploy:production": "npm run build:production && aws s3 sync dist/ s3://tu-bucket-production --delete"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.0.12",

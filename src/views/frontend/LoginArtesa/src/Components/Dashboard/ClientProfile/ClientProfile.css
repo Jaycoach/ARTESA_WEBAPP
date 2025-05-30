@@ -154,6 +154,9 @@
   transition: border-color 0.3s;
   color: #000000 !important;
 }
+.form-group input::-moz-placeholder, .form-group select::-moz-placeholder {
+  color: #666666 !important;
+}
 .form-group input::placeholder, .form-group select::placeholder {
   color: #666666 !important;
 }
@@ -229,7 +232,7 @@
   color: var(--whiteColor);
 }
 .form-actions .submit-btn:hover {
-  background-color: rgb(243.5322580645, 79.1612903226, 29.4677419355);
+  background-color: #f44f1d;
 }
 .form-actions .submit-btn:disabled {
   opacity: 0.7;
@@ -287,4 +290,4 @@
   .form-actions button {
     width: 100%;
   }
-}
+}/*# sourceMappingURL=ClientProfile.css.map */

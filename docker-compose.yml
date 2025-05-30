@@ -1,0 +1,94 @@
+## version: '3.8'
+
+services:
+  app:
+    build: 
+      context: .
+      dockerfile: docker/app/Dockerfile
+    container_name: artesa-app
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - DB_HOST=${DB_HOST}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_DATABASE=${DB_DATABASE}
+      - DB_PORT=${DB_PORT}
+      - JWT_SECRET=${JWT_SECRET}
+      - STORAGE_MODE=${STORAGE_MODE}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION}
+      - AWS_S3_BUCKET_NAME=${AWS_S3_BUCKET_NAME}
+      - S3_URL_EXPIRATION=${S3_URL_EXPIRATION}
+      - SAP_SERVICE_LAYER_URL=${SAP_SERVICE_LAYER_URL}
+      - SAP_USERNAME=${SAP_USERNAME}
+      - SAP_PASSWORD=${SAP_PASSWORD}
+      - SAP_COMPANY_DB=${SAP_COMPANY_DB}
+      - SAP_SYNC_SCHEDULE=${SAP_SYNC_SCHEDULE}
+      - SAP_IMAGES_BASE_URL=${SAP_IMAGES_BASE_URL}
+      - SAP_SYNC_BATCH_SIZE=${SAP_SYNC_BATCH_SIZE}
+      - SAP_GROUP_CODE=${SAP_GROUP_CODE}
+      - SAP_INSTITUTIONAL_GROUP_CODE=${SAP_INSTITUTIONAL_GROUP_CODE}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASS=${SMTP_PASS}
+      - SMTP_FROM=${SMTP_FROM}
+      - FRONTEND_URL=${FRONTEND_URL}
+      - RATE_LIMIT_STANDARD=${RATE_LIMIT_STANDARD}
+      - RATE_LIMIT_SENSITIVE=${RATE_LIMIT_SENSITIVE}
+      - RATE_LIMIT_WINDOW=${RATE_LIMIT_WINDOW}
+      - RECAPTCHA_ENABLED=${RECAPTCHA_ENABLED}
+      - RECAPTCHA_SECRET_KEY=${RECAPTCHA_SECRET_KEY}
+      - RECAPTCHA_MIN_SCORE=${RECAPTCHA_MIN_SCORE}
+      - CORS_ALLOW_ALL_IN_DEV=${CORS_ALLOW_ALL_IN_DEV}
+      - CORS_ALLOW_ALL_IN_DEV=true
+      - DEV_FRONTEND_URL=https://d1bqegutwmfn98.cloudfront.net
+      - CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173,https://d1bqegutwmfn98.cloudfront.net,http://ec2-44-216-131-63.compute-1.amazonaws.com,https://ec2-44-216-131-63.compute-1.amazonaws.com
+    volumes:
+      - artesa-uploads:/app/uploads
+      - artesa-logs:/app/logs
+      - artesa-tmp:/app/tmp
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - artesa-network
+
+  nginx:
+    image: nginx:alpine
+    container_name: artesa-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./logs/nginx:/var/log/nginx
+      # Para SSL en producción, descomentar:
+      # - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - artesa-network
+
+networks:
+  artesa-network:
+    driver: bridge
+
+volumes:
+  artesa-uploads:
+    driver: local
+  artesa-logs:
+    driver: local
+  artesa-tmp:
+    driver: local

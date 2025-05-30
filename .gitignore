@@ -72,3 +72,8 @@ npm-debug.log*
 *.key
 *.cert
 *.p12
+
+# Ignorar archivos zip grandes
+laartesa-backend.zip
+laartesa-backend-v2.zip
+artesa-api-docker.zip
