@@ -49,47 +49,49 @@ API.interceptors.request.use(
 );
 
 // Interceptor para manejar errores
+// Interceptor para manejar errores
 API.interceptors.response.use(
   (response) => {
     // Log para debugging
-    console.log(`✅ Respuesta exitosa de: ${response.config.url}`, {
-      status: response.status,
-      statusText: response.statusText,
-      data: response.data
-    });
+    if (import.meta.env.DEV || import.meta.env.VITE_DEBUG_API === 'true') {
+      console.log(`✅ Respuesta exitosa de: ${response.config.url}`, {
+        status: response.status,
+        statusText: response.statusText,
+        data: response.data
+      });
+      console.log("Headers de respuesta:", response.headers);
+      console.log("Content-Type:", response.headers['content-type']);
+    }
     return response;
   },
   (error) => {
-    console.error("❌ Error en interceptor de respuesta:", error);
-    
+    if (import.meta.env.DEV || import.meta.env.VITE_DEBUG_API === 'true') {
+      console.error("❌ Error en interceptor de respuesta:", error);
+    }
+
     if (error.response) {
-      // El servidor respondió con un status code fuera del rango 2xx
-      console.error("📡 Error de respuesta del servidor:", {
-        status: error.response.status,
-        statusText: error.response.statusText,
-        data: error.response.data,
-        url: error.config?.url
-      });
+      if (import.meta.env.DEV || import.meta.env.VITE_DEBUG_API === 'true') {
+        console.error("📡 Error de respuesta del servidor:", {
+          status: error.response.status,
+          statusText: error.response.statusText,
+          data: error.response.data,
+          url: error.config?.url
+        });
+      }
       
-      // Solo manejar 401 como error de autenticación real
       if (error.response.status === 401) {
         console.error("🔒 Sesión expirada o token inválido");
-        // No eliminar automáticamente para permitir manejo específico en componentes
-      }
-      
-      // Para respuestas 200 que lleguen aquí (no deberían), convertir en éxito
-      if (error.response.status === 200) {
-        console.warn("⚠️ Respuesta 200 manejada como error, convirtiendo a éxito");
-        return Promise.resolve(error.response);
       }
     } else if (error.request) {
-      // La solicitud fue hecha pero no se recibió respuesta
-      console.error("🌐 No se recibió respuesta del servidor:", error.request);
+      if (import.meta.env.DEV || import.meta.env.VITE_DEBUG_API === 'true') {
+        console.error("🌐 No se recibió respuesta del servidor:", error.request);
+      }
     } else {
-      // Algo pasó al configurar la solicitud
-      console.error("⚙️ Error al configurar la solicitud:", error.message);
+      if (import.meta.env.DEV || import.meta.env.VITE_DEBUG_API === 'true') {
+        console.error("⚙️ Error al configurar la solicitud:", error.message);
+      }
     }
-    
+
     return Promise.reject(error);
   }
 );

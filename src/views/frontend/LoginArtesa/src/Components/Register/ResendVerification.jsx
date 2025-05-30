@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { FaPaperPlane, FaEnvelope, FaSpinner } from 'react-icons/fa';
 import { useRecaptcha } from "../../hooks/useRecaptcha"; // Importar el hook de reCAPTCHA
 import API from '../../api/config';
+import { testResendVerification } from '../../utils/apiTest';
 import '../../App.scss';
 
 const ResendVerification = () => {
@@ -50,35 +51,61 @@ const ResendVerification = () => {
       console.log("Token reCAPTCHA obtenido correctamente para resend_verification");
       console.log("Enviando solicitud de reenvío de verificación con token reCAPTCHA");
 
+      // Probar primero con axios directo
+      const directTest = await testResendVerification(email);
+      console.log("Resultado test directo:", directTest);
+
+      // Ahora usar la API normal
       const response = await API.post('/auth/resend-verification', { 
         mail: email,
         recaptchaToken
       });
-      console.log("Respuesta completa de resend-verification:", response);
-      console.log("Datos de respuesta:", response.data);
-      console.log("Status de respuesta:", response.status);
 
-      // La respuesta llega aquí significa que fue exitosa (status 200)
+      console.log("Respuesta de API normal:", response);
+      
+      // Si llegamos aquí, fue exitoso
       setSuccess(true);
       setMessage(response.data?.message || 'Correo de verificación enviado con éxito');
       console.log("Reenvío de verificación exitoso");
+
     } catch (error) {
       console.error('Error completo al reenviar verificación:', error);
       console.error('Response del error:', error.response);
       console.error('Data del error:', error.response?.data);
+      console.error('Headers del error:', error.response?.headers);
+      console.error('Config del error:', error.config);
+
+      // Verificar si realmente es un error de red/CORS
+      if (!error.response && error.request) {
+        setError('Error de conexión. Verificando conectividad con el servidor...');
+        
+        // Hacer prueba directa para confirmar si es problema de CORS
+        try {
+          const directTest = await testResendVerification(email);
+          if (directTest.success) {
+            setSuccess(true);
+            setMessage('Correo enviado exitosamente (conexión directa)');
+            setIsLoading(false);
+            return;
+          }
+        } catch (directError) {
+          console.error("También falló el test directo:", directError);
+        }
+      }
 
       // Manejar errores específicos de reCAPTCHA
       if (error.response?.data?.code === 'RECAPTCHA_FAILED') {
         setError('Verificación de seguridad fallida. Por favor, intenta nuevamente.');
+        setIsLoading(false);
         return;
       }
+
       // Manejar error de límite de intentos (429)
       if (error.response && error.response.status === 429) {
         setIsBlocked(true);
         const retryAfter = error.response.headers['retry-after'] || 60;
         setCountdown(parseInt(retryAfter, 10));
 
-        // Iniciar cuenta regresiva
         const timer = setInterval(() => {
           setCountdown(prev => {
             if (prev <= 1) {
@@ -91,10 +118,12 @@ const ResendVerification = () => {
         }, 1000);
 
         setError('Has excedido el límite de intentos. Por favor espera antes de intentar nuevamente.');
+        setIsLoading(false);
         return;
       }
+
       // Para cualquier otro error real
-      const errorMessage = error.response?.data?.message || 'Error al enviar el correo de verificación';
+      const errorMessage = error.response?.data?.message || error.message || 'Error al enviar el correo de verificación';
       setError(errorMessage);
 
       // Incrementar contador de intentos
@@ -118,6 +147,8 @@ const ResendVerification = () => {
         }
         return newAttempts;
       });
+      
+      setIsLoading(false);
     }
   };
 
