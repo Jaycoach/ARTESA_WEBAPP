@@ -9,6 +9,17 @@ console.log("Modo de ejecución:", import.meta.env.MODE);
 console.log("API URL:", import.meta.env.VITE_API_URL);
 console.log("Usando ngrok:", import.meta.env.VITE_USE_NGROK);
 console.log("URL de ngrok:", import.meta.env.VITE_NGROK_URL);
+// Verificar conectividad API con HTTPS
+import { testApiConnection } from './utils/apiHelper';
+
+// Test de conectividad automático
+testApiConnection().then(success => {
+  if (success) {
+    console.log('🟢 API HTTPS connection verified');
+  } else {
+    console.warn('🔴 API HTTPS connection failed - check certificate acceptance');
+  }
+});
 import { RECAPTCHA_SITE_KEY, RECAPTCHA_DEV_MODE } from './config/env';
 import './App.css';
 

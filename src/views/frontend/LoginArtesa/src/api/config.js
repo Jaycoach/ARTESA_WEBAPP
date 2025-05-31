@@ -30,7 +30,8 @@ const API = axios.create({
     'ngrok-skip-browser-warning': '69420',
     'Bypass-Tunnel-Reminder': 'true'
   },
-  withCredentials: true
+  withCredentials: true,
+  timeout: 10000 // Añadir timeout para certificados autofirmados
 });
 
 // Interceptor para añadir token

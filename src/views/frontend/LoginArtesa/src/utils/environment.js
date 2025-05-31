@@ -74,5 +74,5 @@ export const determineBaseUrl = () => {
   }
   
   // Para desarrollo local como último recurso
-  return 'http://localhost:3000';
+  return 'https://localhost:3000';
 };
