@@ -28,6 +28,8 @@ const CreateOrderForm = ({ onOrderCreated }) => {
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [deliveryZone, setDeliveryZone] = useState(null);
   const [availableDeliveryDays, setAvailableDeliveryDays] = useState([]);
+  const [userValidated, setUserValidated] = useState(false);
+  const [validationError, setValidationError] = useState(null);
   const navigate = useNavigate();
 
   const MIN_ORDER_AMOUNT = 50000;
@@ -183,14 +185,80 @@ const CreateOrderForm = ({ onOrderCreated }) => {
   };
 
   useEffect(() => {
-    if (user && user.is_active === false) {
-      showNotification('No tienes permisos para crear órdenes', 'error');
-      navigate('/dashboard/orders');
-    }
+    const validateUser = async () => {
+      console.log('Validando usuario:', user);
+      
+      // Verificar si el usuario existe
+      if (!user) {
+        console.log('Usuario no encontrado, redirigiendo al login');
+        setValidationError('Debes iniciar sesión para crear pedidos');
+        setTimeout(() => {
+          navigate('/login');
+        }, 2000);
+        return;
+      }
+
+      // Verificar si el usuario tiene ID
+      if (!user.id) {
+        console.log('Usuario sin ID válido:', user);
+        setValidationError('Error en la sesión de usuario. Por favor, cierra sesión y vuelve a ingresar');
+        setTimeout(() => {
+          navigate('/dashboard/orders');
+        }, 3000);
+        return;
+      }
+
+      // VALIDACIÓN PRINCIPAL: Verificar si el usuario está activo
+      if (user.is_active === false || user.is_active === 0 || user.is_active === '0') {
+        console.log('Usuario inactivo detectado:', {
+          userId: user.id,
+          isActive: user.is_active,
+          userStatus: user.status
+        });
+        
+        setValidationError('Tu cuenta no está activa. No puedes crear pedidos en este momento. Contacta al administrador para activar tu cuenta.');
+        showNotification('Tu cuenta no está activa. Contacta al administrador para activar tu cuenta.', 'error');
+        
+        setTimeout(() => {
+          navigate('/dashboard/orders');
+        }, 4000);
+        return;
+      }
+
+      // NUEVA: Verificación adicional del estado del usuario
+      if (user.status && (user.status === 'inactive' || user.status === 'suspended' || user.status === 'blocked')) {
+        console.log('Usuario con estado inválido:', {
+          userId: user.id,
+          status: user.status
+        });
+        
+        setValidationError(`Tu cuenta está ${user.status}. No puedes crear pedidos.`);
+        showNotification(`Tu cuenta está ${user.status}. Contacta al administrador.`, 'error');
+        
+        setTimeout(() => {
+          navigate('/dashboard/orders');
+        }, 4000);
+        return;
+      }
+
+      // Si todas las validaciones pasan
+      console.log('Usuario validado correctamente:', {
+        userId: user.id,
+        isActive: user.is_active,
+        status: user.status
+      });
+      
+      setUserValidated(true);
+      setValidationError(null);
+    };
+
+    validateUser();
   }, [user, navigate]);
 
-  // Cargar configuración del sitio
+  // Cargar configuración del sitio (solo si el usuario está validado)
   useEffect(() => {
+    if (!userValidated) return;
+    
     const fetchSettings = async () => {
       try {
         console.log("Obteniendo configuración del sitio...");
@@ -211,10 +279,12 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     };
 
     fetchSettings();
-  }, []);
+  }, [userValidated]);
 
-  // Cargar productos disponibles
+  // Cargar productos disponibles (solo si el usuario está validado)
   useEffect(() => {
+    if (!userValidated) return;
+    
     const fetchProducts = async () => {
       setLoadingProducts(true);
       try {
@@ -238,11 +308,12 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       }
     };
     fetchProducts();
-  }, []);
+  }, [userValidated]);
 
-  // Cargar sucursales
+  // Cargar sucursales (solo si el usuario está validado)
   useEffect(() => {
-    if (!user || !user.id) return;
+    if (!userValidated || !user || !user.id) return;
+    
     const fetchBranches = async () => {
       try {
         const response = await API.get(`/client-branches/user/${user.id}`);
@@ -256,16 +327,32 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       }
     };
     fetchBranches();
-  }, [user]);
+  }, [user, userValidated]);
 
-  // CORREGIDO: branchOptions usando municipality_code
+  // NUEVO: Función para formatear opciones de sucursales con nombres de municipios
+  const formatBranchOptionLabel = ({ value, label, address, municipality_code, city }) => {
+    const municipalityName = getCityNameByDANECode(municipality_code);
+    
+    return (
+      <div className="flex flex-col">
+        <div className="font-medium text-sm text-gray-800">{label}</div>
+        <div className="text-xs text-gray-500">{address}</div>
+        <div className="text-xs text-blue-600">
+          {municipalityName || city || 'Municipio no identificado'}
+        </div>
+      </div>
+    );
+  };
+
+  // ACTUALIZADO: branchOptions con nombre del municipio
   const branchOptions = useMemo(() => {
     return branches.map(branch => ({
       value: branch.branch_id,
       label: branch.branch_name,
       address: branch.address,
       city: branch.city || '',
-      municipality_code: branch.municipality_code // Campo correcto de la API
+      municipality_code: branch.municipality_code,
+      municipality_name: getCityNameByDANECode(branch.municipality_code)
     }));
   }, [branches]);
 
@@ -427,6 +514,16 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       return;
     }
 
+    // VALIDACIÓN REFORZADA: Verificar estado activo del usuario
+    if (user.is_active === false || user.is_active === 0 || user.is_active === '0') {
+      showNotification('Tu cuenta no está activa. No puedes crear pedidos.', 'error');
+      console.error('Intento de crear orden con usuario inactivo:', {
+        userId: user.id,
+        isActive: user.is_active
+      });
+      return;
+    }
+
     const isValid = orderDetails.every(detail =>
       detail.product_id && detail.quantity > 0 && detail.unit_price > 0
     );
@@ -476,14 +573,14 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     setShowConfirmationModal(true);
   };
 
-  // CORREGIDA: handleConfirmCreateOrder con datos de zona y DANE
-  const handleConfirmCreateOrder = async () => {
+ const handleConfirmCreateOrder = async () => {
     try {
       setIsSubmitting(true);
       setShowConfirmationModal(false);
 
       const totalAmount = parseFloat(calculateTotal());
 
+      // VALIDACIÓN FINAL antes de enviar
       if (!user || !user.id) {
         showNotification('Error: No se pudo identificar el ID de usuario', 'error');
         console.error('Error: ID de usuario no disponible al crear orden', user);
@@ -491,21 +588,26 @@ const CreateOrderForm = ({ onOrderCreated }) => {
         return;
       }
 
-      if (user.is_active === false) {
+      // VALIDACIÓN CRÍTICA: Verificar usuario activo una vez más
+      if (user.is_active === false || user.is_active === 0 || user.is_active === '0') {
         showNotification('Tu usuario no está activo. No puedes crear pedidos', 'error');
+        console.error('Usuario inactivo intentando crear orden:', {
+          userId: user.id,
+          isActive: user.is_active,
+          timestamp: new Date().toISOString()
+        });
         setIsSubmitting(false);
         return;
       }
 
-      // ACTUALIZADO: Preparar datos para la API incluyendo código DANE
       const orderData = {
         user_id: user.id,
         total_amount: totalAmount,
         delivery_date: deliveryDate,
         notes: orderNotes,
         delivery_zone: deliveryZone ? deliveryZone.key : null,
-        delivery_zone_name: deliveryZone ? deliveryZone.name : null, // NUEVO: Nombre de la zona
-        municipality_dane_code: selectedBranch ? selectedBranch.municipality_code : null, // NUEVO: Código DANE
+        delivery_zone_name: deliveryZone ? deliveryZone.name : null,
+        municipality_dane_code: selectedBranch ? selectedBranch.municipality_code : null,
         details: orderDetails.map(detail => ({
           product_id: parseInt(detail.product_id || 0),
           quantity: parseInt(detail.quantity || 0),
@@ -515,7 +617,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
           delivery_address: branchAddress,
           shipping_fee: shipping,
           unit_price: parseFloat(detail.unit_price || 0),
-          municipality_dane_code: selectedBranch ? selectedBranch.municipality_code : null // NUEVO: Código DANE en detalles
+          municipality_dane_code: selectedBranch ? selectedBranch.municipality_code : null
         }))
       };
 
@@ -556,7 +658,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
         setSelectedBranch(null);
         setBranchAddress('');
         setDeliveryAddress('');
-        setDeliveryZone(null); // NUEVO: Limpiar zona
+        setDeliveryZone(null);
 
         if (onOrderCreated) onOrderCreated(result.data);
       } else {
@@ -645,6 +747,49 @@ const CreateOrderForm = ({ onOrderCreated }) => {
 
     return `$ ${formattedMillions}'${formattedThousands}`;
   };
+
+ //// NUEVO: Renderizado condicional para errores de validación
+  if (validationError) {
+    return (
+      <div className="w-full p-6 bg-white rounded-lg border border-red-200 shadow-sm">
+        <div className="text-center">
+          <div className="mb-4">
+            <span className="text-6xl">🚫</span>
+          </div>
+          <h2 className="text-xl font-semibold text-red-800 mb-4">Acceso Restringido</h2>
+          <p className="text-red-600 mb-6">{validationError}</p>
+          <div className="flex justify-center space-x-4">
+            <button
+              onClick={() => navigate('/dashboard/orders')}
+              className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+            >
+              Volver a Órdenes
+            </button>
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            >
+              Ir al Dashboard
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // NUEVO: Renderizado condicional para usuario no validado
+  if (!userValidated) {
+    return (
+      <div className="w-full p-6 bg-white rounded-lg border border-gray-200 shadow-sm">
+        <div className="flex justify-center items-center h-40">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
+            <p className="text-gray-600">Validando permisos de usuario...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (loadingProducts || loadingSettings) {
     return (
