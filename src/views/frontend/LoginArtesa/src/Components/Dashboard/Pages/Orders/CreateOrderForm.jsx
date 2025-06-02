@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Select from 'react-select';
 import { useAuth } from '../../../../hooks/useAuth';
 import { orderService } from '../../../../services/orderService';
+import { useOrderFormValidation } from '../../../../hooks/useOrderFormValidation';
+import UserActivationStatus from '../../../UserActivationStatus';
 import API from '../../../../api/config';
 import DeliveryDatePicker from './DeliveryDatePicker';
 import OrderFileUpload from './OrderFileUpload';
@@ -10,6 +12,7 @@ import { useNavigate } from 'react-router-dom';
 
 const CreateOrderForm = ({ onOrderCreated }) => {
   const { user } = useAuth();
+  const { isValidating, canAccessForm, validationResult, retryValidation } = useOrderFormValidation();
   const [products, setProducts] = useState([]);
   const [orderDetails, setOrderDetails] = useState([{ product_id: '', quantity: 1, unit_price: 0 }]);
   const [deliveryDate, setDeliveryDate] = useState('');
@@ -28,8 +31,6 @@ const CreateOrderForm = ({ onOrderCreated }) => {
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [deliveryZone, setDeliveryZone] = useState(null);
   const [availableDeliveryDays, setAvailableDeliveryDays] = useState([]);
-  const [userValidated, setUserValidated] = useState(false);
-  const [validationError, setValidationError] = useState(null);
   const navigate = useNavigate();
 
   const MIN_ORDER_AMOUNT = 50000;
@@ -37,86 +38,65 @@ const CreateOrderForm = ({ onOrderCreated }) => {
   const SHIPPING_LIMIT = 50000;
   const SHIPPING_FREE_LIMIT = 80000;
 
-  // CORREGIDA: Configuración de zonas con códigos DANE
   const DELIVERY_ZONES = {
     'MIERCOLES_SABADO': {
       name: 'Miércoles y Sábado',
-      days: [3, 6], // 3 = Miércoles, 6 = Sábado
+      days: [3, 6],
       municipalities: [
-        '25175', // CHÍA
-        '25126', // CAJICÁ
-        '25758', // SOPÓ
-        '25899', // ZIPAQUIRÁ
-        '25214', // COTA
-        '25322', // GUASCA
-        '25295', // GACHANCIPÁ
-        '25799'  // TENJO
+        '25175', '25126', '25758', '25899', '25214', '25322', '25295', '25799'
       ],
       cities: ['Chía', 'Cajicá', 'Sopó', 'Zipaquirá', 'Cota', 'Guasca', 'Gachancipá', 'Tenjo']
     },
     'LUNES_JUEVES': {
       name: 'Lunes y Jueves',
-      days: [1, 4], // 1 = Lunes, 4 = Jueves
-      municipalities: [
-        '25754'  // SOACHA
-      ],
+      days: [1, 4],
+      municipalities: ['25754'],
       cities: ['Soacha']
     },
     'MARTES_VIERNES': {
       name: 'Martes y Viernes',
-      days: [2, 5], // 2 = Martes, 5 = Viernes
-      municipalities: [
-        '25473', // MOSQUERA
-        '25430', // MADRID
-        '25286', // FUNZA
-        '25214'  // SIBERIA-COTA (mismo código que COTA)
-      ],
+      days: [2, 5],
+      municipalities: ['25473', '25430', '25286', '25214'],
       cities: ['Mosquera', 'Madrid', 'Funza', 'Siberia']
     },
     'LUNES_SABADO': {
       name: 'Lunes a Sábado',
-      days: [1, 2, 3, 4, 5, 6], // Lunes a Sábado
-      municipalities: [
-        '11001'  // BOGOTÁ D.C
-      ],
+      days: [1, 2, 3, 4, 5, 6],
+      municipalities: ['11001'],
       cities: ['Bogotá', 'Bogotá D.C']
     }
   };
 
-  // CORREGIDA: Función para determinar la zona de entrega basada en código DANE
   const getDeliveryZoneByDANECode = (daneCode, cityName = '') => {
     if (!daneCode && !cityName) return null;
-    
-    // Primero intentar buscar por código DANE (más preciso)
+
     if (daneCode) {
       const normalizedDANE = daneCode.toString().trim();
-      
+
       for (const [zoneKey, zoneData] of Object.entries(DELIVERY_ZONES)) {
         if (zoneData.municipalities.includes(normalizedDANE)) {
           return { key: zoneKey, ...zoneData };
         }
       }
     }
-    
-    // Si no encuentra por código DANE, intentar por nombre de ciudad (fallback)
+
     if (cityName) {
       const normalizedCity = cityName.toLowerCase().trim();
-      
+
       for (const [zoneKey, zoneData] of Object.entries(DELIVERY_ZONES)) {
         if (zoneData.cities.some(city => normalizedCity.includes(city.toLowerCase()))) {
           return { key: zoneKey, ...zoneData };
         }
       }
     }
-    
+
     return null;
   };
 
-  // NUEVA: Función para obtener el nombre de la ciudad por código DANE
   const getCityNameByDANECode = (daneCode) => {
     const municipalityMap = {
       '25175': 'Chía',
-      '25126': 'Cajicá', 
+      '25126': 'Cajicá',
       '25758': 'Sopó',
       '25899': 'Zipaquirá',
       '25214': 'Cota',
@@ -129,135 +109,70 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       '25286': 'Funza',
       '11001': 'Bogotá D.C'
     };
-    
+
     return municipalityMap[daneCode] || 'Ciudad no identificada';
   };
 
-  // Función para calcular fechas de entrega disponibles según la zona
   const calculateAvailableDeliveryDates = (zone, orderTimeLimit = '18:00') => {
     if (!zone) return [];
-    
+
     const today = new Date();
     const currentHour = today.getHours();
     const currentMinute = today.getMinutes();
     const [limitHour, limitMinute] = orderTimeLimit.split(':').map(Number);
-    
-    // Determinar si el pedido se hace después del horario límite
-    const isAfterLimit = currentHour > limitHour || 
-                        (currentHour === limitHour && currentMinute > limitMinute);
-    
-    // Determinar días adicionales según el día actual y horario
-    let additionalDays = 2; // Días base de preparación
-    
-    const currentDay = today.getDay(); // 0 = Domingo, 1 = Lunes, ..., 6 = Sábado
-    
-    // Si es después del horario límite, agregar un día extra
+
+    const isAfterLimit = currentHour > limitHour ||
+      (currentHour === limitHour && currentMinute > limitMinute);
+
+    let additionalDays = 2;
+    const currentDay = today.getDay();
+
     if (isAfterLimit) {
       additionalDays += 1;
     }
-    
-    // Lógica especial para fines de semana
-    if (currentDay === 6) { // Sábado
+
+    if (currentDay === 6) {
       if (isAfterLimit) {
-        additionalDays = 4; // Entrega el miércoles
+        additionalDays = 4;
       } else {
-        additionalDays = 3; // Entrega el martes
+        additionalDays = 3;
       }
-    } else if (currentDay === 0) { // Domingo
-      additionalDays = 3; // Entrega el miércoles
+    } else if (currentDay === 0) {
+      additionalDays = 3;
     }
-    
+
     const availableDates = [];
-    const maxDaysToCheck = 30; // Buscar fechas en los próximos 30 días
-    
+    const maxDaysToCheck = 30;
+
     for (let i = additionalDays; i <= maxDaysToCheck; i++) {
       const checkDate = new Date(today);
       checkDate.setDate(today.getDate() + i);
       const dayOfWeek = checkDate.getDay();
-      
-      // Verificar si este día está disponible para la zona
+
       if (zone.days.includes(dayOfWeek)) {
         availableDates.push(new Date(checkDate));
       }
     }
-    
+
     return availableDates;
   };
 
+  const formatBranchOptionLabel = ({ value, label, address, municipality_code, city }) => {
+    const municipalityName = getCityNameByDANECode(municipality_code);
+
+    return (
+      <div className="flex flex-col">
+        <div className="font-medium text-sm text-gray-800">{label}</div>
+        <div className="text-xs text-gray-500">{address}</div>
+        <div className="text-xs text-blue-600">
+          {municipalityName || city || 'Municipio no identificado'}
+        </div>
+      </div>
+    );
+  };
+
   useEffect(() => {
-    const validateUser = async () => {
-      console.log('Validando usuario:', user);
-      
-      // Verificar si el usuario existe
-      if (!user) {
-        console.log('Usuario no encontrado, redirigiendo al login');
-        setValidationError('Debes iniciar sesión para crear pedidos');
-        setTimeout(() => {
-          navigate('/login');
-        }, 2000);
-        return;
-      }
-
-      // Verificar si el usuario tiene ID
-      if (!user.id) {
-        console.log('Usuario sin ID válido:', user);
-        setValidationError('Error en la sesión de usuario. Por favor, cierra sesión y vuelve a ingresar');
-        setTimeout(() => {
-          navigate('/dashboard/orders');
-        }, 3000);
-        return;
-      }
-
-      // VALIDACIÓN PRINCIPAL: Verificar si el usuario está activo
-      if (user.is_active === false || user.is_active === 0 || user.is_active === '0') {
-        console.log('Usuario inactivo detectado:', {
-          userId: user.id,
-          isActive: user.is_active,
-          userStatus: user.status
-        });
-        
-        setValidationError('Tu cuenta no está activa. No puedes crear pedidos en este momento. Contacta al administrador para activar tu cuenta.');
-        showNotification('Tu cuenta no está activa. Contacta al administrador para activar tu cuenta.', 'error');
-        
-        setTimeout(() => {
-          navigate('/dashboard/orders');
-        }, 4000);
-        return;
-      }
-
-      // NUEVA: Verificación adicional del estado del usuario
-      if (user.status && (user.status === 'inactive' || user.status === 'suspended' || user.status === 'blocked')) {
-        console.log('Usuario con estado inválido:', {
-          userId: user.id,
-          status: user.status
-        });
-        
-        setValidationError(`Tu cuenta está ${user.status}. No puedes crear pedidos.`);
-        showNotification(`Tu cuenta está ${user.status}. Contacta al administrador.`, 'error');
-        
-        setTimeout(() => {
-          navigate('/dashboard/orders');
-        }, 4000);
-        return;
-      }
-
-      // Si todas las validaciones pasan
-      console.log('Usuario validado correctamente:', {
-        userId: user.id,
-        isActive: user.is_active,
-        status: user.status
-      });
-      
-      setUserValidated(true);
-      setValidationError(null);
-    };
-
-    validateUser();
-  }, [user, navigate]);
-
-  // Cargar configuración del sitio (solo si el usuario está validado)
-  useEffect(() => {
-    if (!userValidated) return;
+    if (!canAccessForm) return;
     
     const fetchSettings = async () => {
       try {
@@ -279,12 +194,11 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     };
 
     fetchSettings();
-  }, [userValidated]);
+  }, [canAccessForm]);
 
-  // Cargar productos disponibles (solo si el usuario está validado)
   useEffect(() => {
-    if (!userValidated) return;
-    
+    if (!canAccessForm) return;
+
     const fetchProducts = async () => {
       setLoadingProducts(true);
       try {
@@ -308,12 +222,11 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       }
     };
     fetchProducts();
-  }, [userValidated]);
+  }, [canAccessForm]);
 
-  // Cargar sucursales (solo si el usuario está validado)
   useEffect(() => {
-    if (!userValidated || !user || !user.id) return;
-    
+    if (!canAccessForm || !user || !user.id) return;
+
     const fetchBranches = async () => {
       try {
         const response = await API.get(`/client-branches/user/${user.id}`);
@@ -327,24 +240,8 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       }
     };
     fetchBranches();
-  }, [user, userValidated]);
+  }, [user, canAccessForm]);
 
-  // NUEVO: Función para formatear opciones de sucursales con nombres de municipios
-  const formatBranchOptionLabel = ({ value, label, address, municipality_code, city }) => {
-    const municipalityName = getCityNameByDANECode(municipality_code);
-    
-    return (
-      <div className="flex flex-col">
-        <div className="font-medium text-sm text-gray-800">{label}</div>
-        <div className="text-xs text-gray-500">{address}</div>
-        <div className="text-xs text-blue-600">
-          {municipalityName || city || 'Municipio no identificado'}
-        </div>
-      </div>
-    );
-  };
-
-  // ACTUALIZADO: branchOptions con nombre del municipio
   const branchOptions = useMemo(() => {
     return branches.map(branch => ({
       value: branch.branch_id,
@@ -356,16 +253,14 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     }));
   }, [branches]);
 
-  // Efecto para actualizar fechas disponibles cuando cambia la zona o configuración
   useEffect(() => {
     if (deliveryZone && siteSettings.orderTimeLimit) {
       const dates = calculateAvailableDeliveryDates(deliveryZone, siteSettings.orderTimeLimit);
       setAvailableDeliveryDays(dates);
-      
-      // Limpiar fecha seleccionada si no está disponible para la nueva zona
+
       if (deliveryDate) {
         const selectedDate = new Date(deliveryDate);
-        const isDateAvailable = dates.some(date => 
+        const isDateAvailable = dates.some(date =>
           date.toDateString() === selectedDate.toDateString()
         );
         if (!isDateAvailable) {
@@ -377,30 +272,26 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     }
   }, [deliveryZone, siteSettings.orderTimeLimit, deliveryDate]);
 
-  // CORREGIDA: Función para manejar cambio de sucursal
   const handleBranchChange = (option) => {
     if (option) {
       setSelectedBranch(option);
       setBranchAddress(option.address || '');
       setDeliveryAddress(option.address || '');
-      
-      // CORREGIDO: Usar municipality_code que viene de la API
+
       const zone = getDeliveryZoneByDANECode(
-        option.municipality_code, // Campo correcto de la API
+        option.municipality_code,
         option.city || ''
       );
       setDeliveryZone(zone);
-      
-      // Limpiar fecha de entrega para que el usuario seleccione una nueva
       setDeliveryDate('');
-      
+
       if (zone) {
         const cityName = getCityNameByDANECode(option.municipality_code);
         showNotification(
-          `Sucursal en ${cityName} - Zona de entrega: ${zone.name}`, 
+          `Sucursal en ${cityName} - Zona de entrega: ${zone.name}`,
           'info'
         );
-        
+
         console.log('Zona de entrega determinada:', {
           municipalityCode: option.municipality_code,
           cityName: cityName,
@@ -409,10 +300,10 @@ const CreateOrderForm = ({ onOrderCreated }) => {
         });
       } else {
         showNotification(
-          'No se pudo determinar la zona de entrega para esta sucursal. Verifique el código DANE o contacte soporte.', 
+          'No se pudo determinar la zona de entrega para esta sucursal. Verifique el código DANE o contacte soporte.',
           'warning'
         );
-        
+
         console.warn('No se pudo determinar zona de entrega:', {
           municipalityCode: option.municipality_code,
           city: option.city,
@@ -499,30 +390,8 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     setTimeout(() => setNotification({ show: false, message: '', type: '' }), 5000);
   };
 
-  // CORREGIDA: Validación en handleSubmit
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    if (!user) {
-      showNotification('Debes iniciar sesión para crear un pedido', 'error');
-      return;
-    }
-
-    if (!user.id) {
-      showNotification('No se puede identificar tu usuario. Por favor, cierra sesión y vuelve a ingresar', 'error');
-      console.error('Error: user.id no disponible', user);
-      return;
-    }
-
-    // VALIDACIÓN REFORZADA: Verificar estado activo del usuario
-    if (user.is_active === false || user.is_active === 0 || user.is_active === '0') {
-      showNotification('Tu cuenta no está activa. No puedes crear pedidos.', 'error');
-      console.error('Intento de crear orden con usuario inactivo:', {
-        userId: user.id,
-        isActive: user.is_active
-      });
-      return;
-    }
 
     const isValid = orderDetails.every(detail =>
       detail.product_id && detail.quantity > 0 && detail.unit_price > 0
@@ -543,15 +412,13 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       return;
     }
 
-    // NUEVA: Validación de zona de entrega
     if (!deliveryZone) {
       showNotification('No se pudo determinar la zona de entrega para la sucursal seleccionada.', 'error');
       return;
     }
 
-    // NUEVA: Validar que la fecha seleccionada esté disponible para la zona
     const selectedDate = new Date(deliveryDate);
-    const isDateAvailable = availableDeliveryDays.some(date => 
+    const isDateAvailable = availableDeliveryDays.some(date =>
       date.toDateString() === selectedDate.toDateString()
     );
 
@@ -564,41 +431,21 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       showNotification(`El monto mínimo para crear un pedido es ${formatCurrencyCOP(MIN_ORDER_AMOUNT)}.`, 'error');
       return;
     }
-    
+
     if (shipping === null) {
-      showNotification('El monto mínimo para aplicar flete es $59.000. Por favor, ajusta tu pedido.', 'error');
+      showNotification('El monto mínimo para aplicar flete es $50.000. Por favor, ajusta tu pedido.', 'error');
       return;
     }
 
     setShowConfirmationModal(true);
   };
 
- const handleConfirmCreateOrder = async () => {
+  const handleConfirmCreateOrder = async () => {
     try {
       setIsSubmitting(true);
       setShowConfirmationModal(false);
 
       const totalAmount = parseFloat(calculateTotal());
-
-      // VALIDACIÓN FINAL antes de enviar
-      if (!user || !user.id) {
-        showNotification('Error: No se pudo identificar el ID de usuario', 'error');
-        console.error('Error: ID de usuario no disponible al crear orden', user);
-        setIsSubmitting(false);
-        return;
-      }
-
-      // VALIDACIÓN CRÍTICA: Verificar usuario activo una vez más
-      if (user.is_active === false || user.is_active === 0 || user.is_active === '0') {
-        showNotification('Tu usuario no está activo. No puedes crear pedidos', 'error');
-        console.error('Usuario inactivo intentando crear orden:', {
-          userId: user.id,
-          isActive: user.is_active,
-          timestamp: new Date().toISOString()
-        });
-        setIsSubmitting(false);
-        return;
-      }
 
       const orderData = {
         user_id: user.id,
@@ -748,37 +595,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     return `$ ${formattedMillions}'${formattedThousands}`;
   };
 
- //// NUEVO: Renderizado condicional para errores de validación
-  if (validationError) {
-    return (
-      <div className="w-full p-6 bg-white rounded-lg border border-red-200 shadow-sm">
-        <div className="text-center">
-          <div className="mb-4">
-            <span className="text-6xl">🚫</span>
-          </div>
-          <h2 className="text-xl font-semibold text-red-800 mb-4">Acceso Restringido</h2>
-          <p className="text-red-600 mb-6">{validationError}</p>
-          <div className="flex justify-center space-x-4">
-            <button
-              onClick={() => navigate('/dashboard/orders')}
-              className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
-            >
-              Volver a Órdenes
-            </button>
-            <button
-              onClick={() => navigate('/dashboard')}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-            >
-              Ir al Dashboard
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // NUEVO: Renderizado condicional para usuario no validado
-  if (!userValidated) {
+  if (isValidating) {
     return (
       <div className="w-full p-6 bg-white rounded-lg border border-gray-200 shadow-sm">
         <div className="flex justify-center items-center h-40">
@@ -786,6 +603,83 @@ const CreateOrderForm = ({ onOrderCreated }) => {
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
             <p className="text-gray-600">Validando permisos de usuario...</p>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!canAccessForm) {
+    return (
+      <div className="w-full p-6 bg-white rounded-lg border border-gray-200 shadow-sm">
+        <div className="text-center mb-6">
+          <h2 className="text-xl font-semibold text-gray-800 mb-4">Crear Nuevo Pedido</h2>
+          <UserActivationStatus showDetailedStatus={true} allowManualActions={false} />
+        </div>
+
+        {validationResult?.errors && (
+          <div className="mt-6 space-y-3">
+            {validationResult.errors.map((error, index) => (
+              <div key={index} className="bg-red-50 border border-red-200 rounded-md p-4">
+                <div className="flex items-start">
+                  <span className="text-red-500 mr-2 mt-0.5">❌</span>
+                  <div className="flex-1">
+                    <span className="text-red-700 font-medium block">{error.message}</span>
+                    {error.action === 'COMPLETE_PROFILE' && (
+                      <button
+                        onClick={() => navigate(error.redirectTo)}
+                        className="mt-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
+                      >
+                        Completar perfil de cliente
+                      </button>
+                    )}
+                    {error.action === 'CONTACT_SUPPORT' && (
+                      <button
+                        onClick={() => navigate('/dashboard/support')}
+                        className="mt-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
+                      >
+                        Contactar soporte
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {validationResult?.warnings && validationResult.warnings.length > 0 && (
+          <div className="mt-4 space-y-3">
+            {validationResult.warnings.map((warning, index) => (
+              <div key={index} className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
+                <div className="flex items-start">
+                  <span className="text-yellow-500 mr-2 mt-0.5">⚠️</span>
+                  <div className="flex-1">
+                    <span className="text-yellow-700 font-medium block">{warning.message}</span>
+                    {warning.estimatedTime && (
+                      <span className="text-yellow-600 text-sm">
+                        Tiempo estimado: {warning.estimatedTime}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="mt-6 flex justify-center space-x-4">
+          <button
+            onClick={() => navigate('/dashboard/orders')}
+            className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
+          >
+            Volver a órdenes
+          </button>
+          <button
+            onClick={retryValidation}
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Verificar nuevamente
+          </button>
         </div>
       </div>
     );
@@ -814,7 +708,6 @@ const CreateOrderForm = ({ onOrderCreated }) => {
           />
         )}
 
-        {/* Sección de selección de sucursal */}
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 mb-6">
           <div className="flex items-center mb-4">
             <span className="text-2xl mr-3">🏢</span>
@@ -827,6 +720,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
               value={selectedBranch}
               onChange={handleBranchChange}
               options={branchOptions}
+              formatOptionLabel={formatBranchOptionLabel}
               placeholder="Selecciona una sucursal"
               isClearable
               className="w-full"
@@ -836,6 +730,10 @@ const CreateOrderForm = ({ onOrderCreated }) => {
                   borderColor: '#D1D5DB',
                   boxShadow: 'none',
                   '&:hover': { borderColor: '#4F46E5' }
+                }),
+                option: (base) => ({
+                  ...base,
+                  padding: '12px 16px'
                 })
               }}
             />
@@ -852,8 +750,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
                   readOnly
                 />
               </div>
-              
-              {/* ACTUALIZADA: Información de zona de entrega con código DANE */}
+
               {deliveryZone && (
                 <div className="bg-blue-50 p-4 rounded-md border-l-4 border-blue-400">
                   <div className="flex items-center mb-2">
@@ -867,8 +764,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
                   </p>
                   {selectedBranch && selectedBranch.municipality_code && (
                     <div className="text-xs text-blue-600 bg-blue-100 p-2 rounded">
-                      <strong>Código DANE:</strong> {selectedBranch.municipality_code} - 
-                      <strong> Ciudad:</strong> {getCityNameByDANECode(selectedBranch.municipality_code)}
+                      <strong>Municipio:</strong> {getCityNameByDANECode(selectedBranch.municipality_code)}
                     </div>
                   )}
                 </div>
@@ -877,7 +773,6 @@ const CreateOrderForm = ({ onOrderCreated }) => {
           )}
         </div>
 
-        {/* ACTUALIZADA: Sección de Fecha de Entrega */}
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 mb-6">
           <div className="flex items-center mb-4">
             <span className="text-2xl mr-3">📅</span>
@@ -901,11 +796,6 @@ const CreateOrderForm = ({ onOrderCreated }) => {
                   <span className="font-medium">No se pudo determinar la zona de entrega para esta sucursal</span>
                 </span>
               </p>
-              {selectedBranch && (
-                <p className="text-xs text-red-600 mt-2">
-                  Código DANE: {selectedBranch.municipality_code || 'No disponible'}
-                </p>
-              )}
             </div>
           ) : (
             <>
@@ -939,7 +829,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
                     {selectedBranch && selectedBranch.municipality_code && (
                       <li className="flex items-start">
                         <span className="text-purple-500 mr-2">🏷️</span>
-                        <span>Código DANE: <strong>{selectedBranch.municipality_code}</strong></span>
+                        <span>Municipio: <strong>{getCityNameByDANECode(selectedBranch.municipality_code)}</strong></span>
                       </li>
                     )}
                   </ul>
@@ -973,7 +863,6 @@ const CreateOrderForm = ({ onOrderCreated }) => {
           )}
         </div>
 
-        {/* Sección de productos */}
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -1123,7 +1012,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
               {shipping === 0 ? (
                 <span className="text-green-600 font-bold">¡Envío gratis!</span>
               ) : shipping === SHIPPING_CHARGE ? (
-                <span className="text-blue-700 font-semibold">{formatCurrencyCOP(SHIPPING_CHARGE)} (aplica por subtotal entre $59.000 y $79.999)</span>
+                <span className="text-blue-700 font-semibold">{formatCurrencyCOP(SHIPPING_CHARGE)} (aplica por subtotal entre $50.000 y $79.999)</span>
               ) : (
                 <span className="text-red-600 font-semibold">No aplica (pedido insuficiente para envío)</span>
               )}
@@ -1134,7 +1023,6 @@ const CreateOrderForm = ({ onOrderCreated }) => {
           </div>
         </div>
 
-        {/* Notas y Adjuntos */}
         <div className="space-y-4 mt-6 border-t pt-6">
           <div>
             <label htmlFor="orderNotes" className="block text-sm font-medium text-gray-700 mb-1">
@@ -1188,7 +1076,6 @@ const CreateOrderForm = ({ onOrderCreated }) => {
         </div>
       </form>
 
-      {/* Modales de confirmación */}
       {showCancelConfirmation && (
         <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-sm mx-auto">
@@ -1225,7 +1112,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
               <div className="text-gray-600 text-sm mb-4">
                 <p>Zona de entrega: {deliveryZone.name}</p>
                 {selectedBranch && selectedBranch.municipality_code && (
-                  <p>Código DANE: {selectedBranch.municipality_code}</p>
+                  <p>Municipio: {getCityNameByDANECode(selectedBranch.municipality_code)}</p>
                 )}
               </div>
             )}

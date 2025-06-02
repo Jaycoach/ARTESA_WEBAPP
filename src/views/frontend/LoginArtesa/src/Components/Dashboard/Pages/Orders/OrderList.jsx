@@ -651,7 +651,7 @@ const OrderList = () => {
           <div className="sm:ml-3 text-sm text-blue-700">
             <h3 className="font-medium text-blue-800">Información sobre edición de pedidos</h3>
             <p className="mt-1 sm:mt-2 text-xs sm:text-sm">
-              Solo puedes editar pedidos en estado "Abierto" y antes de las {orderTimeLimit}, dos días antes de la fecha
+              Solo puedes editar pedidos en estado Abierto y antes de las {orderTimeLimit}, dos días antes de la fecha
               de entrega.
             </p>
             <p className="mt-1 text-xs sm:text-sm">Si necesitas modificar un pedido fuera de este tiempo, contacta a atención al cliente.</p>
