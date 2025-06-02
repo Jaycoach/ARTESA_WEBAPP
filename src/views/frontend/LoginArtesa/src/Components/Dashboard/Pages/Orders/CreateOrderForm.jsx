@@ -634,10 +634,10 @@ const CreateOrderForm = ({ onOrderCreated }) => {
                     )}
                     {error.action === 'CONTACT_SUPPORT' && (
                       <button
-                        onClick={() => navigate('/dashboard/support')}
-                        className="mt-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
+                        onClick={() => alert('Contacta con el administrador para activar tu cuenta')}
+                        className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
                       >
-                        Contactar soporte
+                        Contactar administrador
                       </button>
                     )}
                   </div>

@@ -1,4 +1,5 @@
 @use "sass:color";
+
 :root {
   --primary-color: #687e8d;
   --secondary-color: #f6db8e;
@@ -11,174 +12,270 @@
   --inputColor: #f6db8e;
 }
 
+/* ===== ESTILOS BASE DEL MODAL ===== */
 /* Overlay para el modal */
 .client-profile-overlay {
-  color: #000000 !important;
+  color: #1f2937 !important; // Cambio a un color más consistente
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.7);
+  background-color: rgba(0, 0, 0, 0.75); // Aumentar opacidad para mejor contraste
   display: flex;
   justify-content: center;
-  align-items: flex-start; /* Cambiado a flex-start para mejor scroll */
+  align-items: flex-start;
   z-index: 2000;
   overflow-y: auto;
   padding: 20px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
 }
 
 /* Contenedor principal del formulario */
 .client-profile-container {
-  color: #000000 !important;
-  background-color: var(--whiteColor);
-  border-radius: 10px;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+  color: #1f2937 !important; // Color más consistente
+  background-color: var(--whiteColor) !important;
+  border-radius: 12px; // Bordes más redondeados
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25) !important; // Sombra más moderna
   width: 90%;
-  max-width: 900px; /* Reducido para mejor visualización */
-  max-height: 85vh; /* Reducido para permitir scroll */
-  overflow-y: auto;
+  max-width: 900px;
+  max-height: 90vh; // Aumentar altura máxima
+  overflow: hidden; // Cambiar para mejor manejo del scroll
   position: relative;
-  margin: 30px 0; /* Añadir margen para mejor visualización */
+  margin: 20px 0; // Reducir margen
+  border: 1px solid #e5e7eb; // Añadir borde sutil
 }
 
-/* Cabecera del formulario */
+/* ===== CABECERA DEL MODAL ===== */
 .client-profile-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 15px 20px;
-  border-bottom: 1px solid #eee;
+  padding: 20px 24px; // Aumentar padding
+  border-bottom: 2px solid #f3f4f6; // Borde más grueso
   position: sticky;
   top: 0;
-  background-color: var(--whiteColor);
+  background-color: var(--whiteColor) !important;
   z-index: 10;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); // Añadir sombra sutil
   
   h2 {
     margin: 0;
-    font-size: 1.5rem;
-    color: #000000 !important;
+    font-size: 1.75rem; // Aumentar tamaño
+    font-weight: 700; // Más bold
+    color: #1f2937 !important;
+    line-height: 1.2;
   }
   
   .close-button {
     background: none;
     border: none;
-    font-size: 1.5rem;
+    font-size: 1.75rem; // Aumentar tamaño
     cursor: pointer;
-    color: var(--greyText);
+    color: #6b7280 !important; // Color más suave
+    padding: 8px;
+    border-radius: 6px;
+    transition: all 0.2s ease;
     
     &:hover {
-      color: var(--blackColor);
+      color: #374151 !important;
+      background-color: #f3f4f6;
     }
   }
 }
 
-/* Contenido del formulario */
+/* ===== CONTENIDO DEL FORMULARIO ===== */
 .client-profile-content {
-  color: #000000 !important;
-  padding: 20px;
-}
-
-/* Mensajes de error y éxito */
-.profile-error-message,
-.profile-success-message {
-  padding: 10px 15px;
-  margin-bottom: 20px;
-  border-radius: 5px;
-  font-weight: 500;
-}
-
-.profile-error-message {
-  background-color: #ffe6e6;
-  color: #d32f2f;
-  border-left: 4px solid #d32f2f;
-}
-
-.profile-success-message {
-  background-color: #e7f6e7;
-  color: #2e7d32;
-  border-left: 4px solid #2e7d32;
-}
-
-/* Estilos del formulario */
-.client-profile-form {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-/* Secciones del formulario */
-.form-section {
-  background-color: #f9f9f9;
-  border-radius: 8px;
-  padding: 15px;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+  color: #1f2937 !important;
+  padding: 24px;
+  max-height: calc(90vh - 140px); // Altura calculada
+  overflow-y: auto;
   
-  .section-title {
-    margin-top: 0;
-    margin-bottom: 15px;
-    font-size: 1.2rem;
-    font-weight: 600;
-    color: #000000 !important;
-    border-bottom: 1px solid #eee;
-    padding-bottom: 10px;
+  // Resetear estilos heredados
+  * {
+    box-sizing: border-box;
+    font-family: inherit !important;
   }
 }
 
-/* Filas de campos */
+/* ===== MENSAJES DE ESTADO ===== */
+.profile-error-message,
+.profile-success-message {
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.profile-error-message {
+  background-color: #fef2f2 !important;
+  color: #dc2626 !important;
+  border: 1px solid #fecaca;
+  border-left: 4px solid #dc2626;
+}
+
+.profile-success-message {
+  background-color: #f0fdf4 !important;
+  color: #16a34a !important;
+  border: 1px solid #bbf7d0;
+  border-left: 4px solid #16a34a;
+}
+
+/* ===== ESTILOS DEL FORMULARIO ===== */
+.client-profile-form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* ===== SECCIONES DEL FORMULARIO ===== */
+.form-section {
+  background-color: #f9fafb !important;
+  border-radius: 10px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e5e7eb;
+  
+  .section-title {
+    margin-top: 0;
+    margin-bottom: 18px;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #1f2937 !important;
+    border-bottom: 2px solid #e5e7eb;
+    padding-bottom: 12px;
+  }
+}
+
+/* ===== FILAS DE CAMPOS ===== */
 .form-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 15px;
-  margin-bottom: 15px;
+  gap: 16px;
+  margin-bottom: 16px;
   
   &:last-child {
     margin-bottom: 0;
   }
 }
 
-/* Grupos de campos */
+/* ===== GRUPOS DE CAMPOS ===== */
 .form-group {
   flex: 1;
   min-width: 200px;
   
   label {
     display: block;
-    margin-bottom: 6px;
+    margin-bottom: 8px;
     font-weight: 500;
-    font-size: 0.9rem;
-    color: #000000 !important;
+    font-size: 0.875rem;
+    color: #374151 !important;
+    line-height: 1.25;
   }
   
-  input, select {
-    width: 100%;
-    padding: 8px 12px;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    background-color: var(--whiteColor);
-    font-size: 0.95rem;
-    transition: border-color 0.3s;
-    color: #000000 !important;
+  input, select, textarea {
+    width: 100% !important;
+    padding: 10px 12px !important;
+    border: 1px solid #d1d5db !important;
+    border-radius: 6px !important;
+    background-color: var(--whiteColor) !important;
+    font-size: 0.875rem !important;
+    line-height: 1.5 !important;
+    transition: all 0.2s ease !important;
+    color: #1f2937 !important;
+    font-family: inherit !important;
+    box-sizing: border-box !important;
+    
     &::placeholder {
-      color: #666666 !important;
+      color: #9ca3af !important;
+      opacity: 1 !important;
     }
     
     &:focus {
-      outline: none;
-      border-color: var(--accent-color);
-      box-shadow: 0 0 3px rgba(246, 117, 78, 0.3);
+      outline: none !important;
+      border-color: #3b82f6 !important;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
+      background-color: #ffffff !important;
+    }
+    
+    &:disabled {
+      background-color: #f9fafb !important;
+      color: #6b7280 !important;
+      cursor: not-allowed;
+    }
+  }
+  
+  // Estilos específicos para select
+  select {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e") !important;
+    background-position: right 8px center !important;
+    background-repeat: no-repeat !important;
+    background-size: 16px 12px !important;
+    padding-right: 36px !important;
+    appearance: none !important;
+  }
+}
+
+/* ===== CAMPOS CON ERROR ===== */
+.form-group.error {
+  label {
+    color: #dc2626 !important;
+  }
+  
+  input, select, textarea {
+    border-color: #dc2626 !important;
+    background-color: #fef2f2 !important;
+    
+    &:focus {
+      border-color: #dc2626 !important;
+      box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1) !important;
     }
   }
 }
 
-/* Estilos para los campos de carga de archivos */
+.input-error {
+  border-color: #dc2626 !important;
+  background-color: #fef2f2 !important;
+}
+
+.error-text {
+  color: #dc2626 !important;
+  font-size: 0.75rem;
+  margin-top: 4px;
+  line-height: 1.25;
+}
+
+.error-summary {
+  background-color: #fef2f2 !important;
+  border: 1px solid #fecaca;
+  border-left: 4px solid #dc2626;
+  border-radius: 6px;
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  
+  ul {
+    margin: 0;
+    padding-left: 20px;
+  }
+  
+  li {
+    color: #dc2626 !important;
+    margin-bottom: 4px;
+    font-size: 0.875rem;
+  }
+}
+
+/* ===== CAMPOS DE CARGA DE ARCHIVOS ===== */
 .file-upload {
-  margin-bottom: 15px;
+  margin-bottom: 16px;
   
   .file-selected {
-    color: #2e7d32;
-    font-size: 0.8rem;
-    margin-left: 5px;
+    color: #16a34a !important;
+    font-size: 0.75rem;
+    margin-left: 8px;
+    font-weight: 500;
   }
   
   .file-input-container {
@@ -200,114 +297,314 @@
       display: flex;
       align-items: center;
       gap: 8px;
-      padding: 8px 12px;
-      background-color: #f0f0f0;
+      padding: 10px 12px;
+      background-color: #f3f4f6 !important;
+      border: 1px solid #d1d5db;
       border-radius: 6px;
-      font-size: 0.9rem;
+      font-size: 0.875rem;
       cursor: pointer;
-      transition: background-color 0.3s;
+      transition: all 0.2s ease;
       width: 100%;
+      color: #374151 !important;
       
       &:hover {
-        background-color: #e0e0e0;
+        background-color: #e5e7eb !important;
+        border-color: #9ca3af;
       }
     }
   }
 }
 
-/* Botones de acción del formulario */
+/* ===== BOTONES DE ACCIÓN ===== */
 .form-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 15px;
-  margin-top: 20px;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid #e5e7eb;
   
   button {
-    padding: 10px 20px;
-    border-radius: 6px;
-    font-weight: 500;
+    padding: 12px 24px !important;
+    border-radius: 6px !important;
+    font-weight: 500 !important;
+    font-size: 0.875rem !important;
     cursor: pointer;
-    transition: all 0.3s ease;
-    border: none;
+    transition: all 0.2s ease !important;
+    border: none !important;
+    outline: none !important;
+    line-height: 1.25 !important;
+    text-align: center;
+    text-decoration: none;
+    min-width: 100px;
   }
   
   .cancel-btn {
-    background-color: #e0e0e0;
-    color: #333;
+    background-color: #f3f4f6 !important;
+    color: #374151 !important;
+    border: 1px solid #d1d5db !important;
     
     &:hover {
-      background-color: #d0d0d0;
+      background-color: #e5e7eb !important;
+      color: #1f2937 !important;
+    }
+    
+    &:focus {
+      box-shadow: 0 0 0 3px rgba(156, 163, 175, 0.2) !important;
     }
   }
   
   .submit-btn {
-    background-color: var(--accent-color);
-    color: var(--whiteColor);
+    background-color: var(--accent-color) !important;
+    color: var(--whiteColor) !important;
     
     &:hover {
-      background-color: color.adjust(#f6754e, $lightness: -10%);
+      background-color: color.adjust(#f6754e, $lightness: -8%) !important;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(246, 117, 78, 0.3);
+    }
+    
+    &:focus {
+      box-shadow: 0 0 0 3px rgba(246, 117, 78, 0.2) !important;
     }
     
     &:disabled {
-      opacity: 0.7;
-      cursor: not-allowed;
+      opacity: 0.6 !important;
+      cursor: not-allowed !important;
+      transform: none !important;
+      box-shadow: none !important;
+      
+      &:hover {
+        background-color: var(--accent-color) !important;
+        transform: none !important;
+      }
     }
   }
 }
 
-/* Estilos para campos con error */
-.form-group.error label {
-  color: #d32f2f;
+/* ===== SECCIÓN DE INFORMACIÓN BLOQUEADA ===== */
+.form-locked-message {
+  background-color: #fffbeb !important;
+  border: 1px solid #fde68a;
+  border-left: 4px solid #f59e0b;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 20px;
+  
+  h3 {
+    color: #92400e !important;
+    margin: 0 0 8px 0;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+  
+  p {
+    color: #b45309 !important;
+    margin: 0;
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
 }
 
-.input-error {
-  border-color: #d32f2f !important;
-  background-color: rgba(211, 47, 47, 0.05) !important;
+/* ===== INDICADOR DE CARGA ===== */
+.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  
+  .loading-content {
+    text-align: center;
+    color: #374151 !important;
+    
+    .loading-spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid #e5e7eb;
+      border-top: 3px solid var(--accent-color);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 12px;
+    }
+    
+    p {
+      margin: 0;
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+  }
 }
 
-.error-text {
-  color: #d32f2f;
-  font-size: 0.75rem;
-  margin-top: 4px;
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
-.error-summary {
-  background-color: #ffe6e6;
-  border-left: 4px solid #d32f2f;
-}
-
-.error-summary ul {
-  margin: 0;
-  padding-left: 20px;
-}
-
-.error-summary li {
-  color: #d32f2f;
-  margin-bottom: 4px;
-}
-
-/* Media queries para responsive */
+/* ===== RESPONSIVE DESIGN ===== */
 @media (max-width: 768px) {
+  .client-profile-overlay {
+    padding: 10px;
+  }
+  
   .client-profile-container {
     width: 95%;
     margin: 10px 0;
-    max-height: 90vh;
+    max-height: 95vh;
+    border-radius: 8px;
+  }
+  
+  .client-profile-header {
+    padding: 16px;
+    
+    h2 {
+      font-size: 1.5rem;
+    }
+    
+    .close-button {
+      font-size: 1.5rem;
+    }
+  }
+  
+  .client-profile-content {
+    padding: 16px;
   }
   
   .form-row {
     flex-direction: column;
-    gap: 10px;
+    gap: 12px;
   }
   
   .form-group {
     width: 100%;
+    min-width: auto;
   }
   
   .form-actions {
     flex-direction: column;
+    gap: 8px;
     
     button {
-      width: 100%;
+      width: 100% !important;
+      justify-content: center;
     }
+  }
+  
+  .form-section {
+    padding: 16px;
+    
+    .section-title {
+      font-size: 1.125rem;
+    }
+  }
+}
+
+@media (max-width: 480px) {
+  .client-profile-container {
+    width: 100%;
+    margin: 0;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+  
+  .client-profile-header {
+    padding: 12px 16px;
+    
+    h2 {
+      font-size: 1.25rem;
+    }
+  }
+  
+  .client-profile-content {
+    padding: 12px;
+  }
+}
+
+/* ===== COMPATIBILIDAD CON REACT SELECT (si se usa) ===== */
+.client-profile-container {
+  .react-select__control {
+    border: 1px solid #d1d5db !important;
+    background-color: white !important;
+    
+    &:hover {
+      border-color: #9ca3af !important;
+    }
+    
+    &--is-focused {
+      border-color: #3b82f6 !important;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
+    }
+  }
+  
+  .react-select__single-value,
+  .react-select__input-container {
+    color: #1f2937 !important;
+  }
+  
+  .react-select__placeholder {
+    color: #9ca3af !important;
+  }
+  
+  .react-select__option {
+    color: #1f2937 !important;
+    background-color: white !important;
+    
+    &--is-focused {
+      background-color: #f3f4f6 !important;
+    }
+    
+    &--is-selected {
+      background-color: #3b82f6 !important;
+      color: white !important;
+    }
+  }
+}
+
+/* ===== RESETEO DE ESTILOS GLOBALES ===== */
+.client-profile-container {
+  // Resetear estilos que puedan estar interfiriendo
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+  
+  // Asegurar que todos los elementos heredan el color correcto
+  *, *::before, *::after {
+    color: inherit;
+    font-family: inherit !important;
+  }
+  
+  // Resetear enlaces que puedan estar interfiriendo
+  a {
+    color: #3b82f6 !important;
+    text-decoration: underline;
+    
+    &:hover {
+      color: #2563eb !important;
+    }
+  }
+  
+  // Resetear listas
+  ul, ol {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  
+  // Resetear encabezados
+  h1, h2, h3, h4, h5, h6 {
+    color: #1f2937 !important;
+    font-weight: 600;
+    line-height: 1.25;
+    margin: 0;
+  }
+  
+  // Resetear párrafos
+  p {
+    color: #374151 !important;
+    line-height: 1.5;
+    margin: 0;
   }
 }

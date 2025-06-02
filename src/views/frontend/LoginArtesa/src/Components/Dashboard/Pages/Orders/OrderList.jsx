@@ -2,12 +2,14 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { orderService } from '../../../../services/orderService';
 import { useAuth } from '../../../../hooks/useAuth';
+import { useUserActivation } from '../../../../hooks/useUserActivation'; // NUEVO
 import OrderStatusBadge from './OrderStatusBadge';
-import { FaEdit, FaEye, FaExclamationTriangle, FaTrashAlt, FaFilter } from 'react-icons/fa';
+import { FaEdit, FaEye, FaExclamationTriangle, FaTrashAlt, FaFilter, FaUserCheck, FaUserClock, FaUserTimes } from 'react-icons/fa';
 import API from '../../../../api/config';
 
 const OrderList = () => {
   const { user } = useAuth();
+  const { userStatus, error: userError, refresh: refreshUserStatus } = useUserActivation(); // NUEVO
   const [orders, setOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -19,15 +21,156 @@ const OrderList = () => {
 
   // Configuración global y estados
   const [orderTimeLimit, setOrderTimeLimit] = useState(null);
-  const [orderStatuses, setOrderStatuses] = useState({}); // Mapeo ID → Nombre
+  const [orderStatuses, setOrderStatuses] = useState({});
 
-  // Filtros del panel: Queremos fecha exacta y estado
+  // Filtros del panel
   const [filters, setFilters] = useState({ deliveryDate: '', statusId: '' });
   const [tempFilters, setTempFilters] = useState({ deliveryDate: '', statusId: '' });
-
   const [showFilterPanel, setShowFilterPanel] = useState(false);
-  const isAdmin = user?.role === 1; // Ajustar si tu backend define '1' como Admin
+  const isAdmin = user?.role === 1;
 
+  // NUEVO: Componente para mostrar el estado del usuario
+  const UserStatusMessage = () => {
+    if (userStatus.loading) {
+      return (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+          <div className="flex items-center">
+            <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-blue-500 mr-3"></div>
+            <span className="text-blue-700 font-medium">Verificando estado de tu cuenta...</span>
+          </div>
+        </div>
+      );
+    }
+
+    if (userError) {
+      return (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+          <div className="flex items-start">
+            <FaUserTimes className="text-red-500 mr-3 mt-1 flex-shrink-0" />
+            <div className="flex-1">
+              <h3 className="font-medium text-red-800 mb-1">Error de validación</h3>
+              <p className="text-red-700 text-sm mb-3">{userError}</p>
+              <button
+                onClick={refreshUserStatus}
+                className="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700"
+              >
+                Reintentar
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (!userStatus.hasClientProfile) {
+      return (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+          <div className="flex items-start">
+            <FaUserClock className="text-yellow-500 mr-3 mt-1 flex-shrink-0" />
+            <div className="flex-1">
+              <h3 className="font-medium text-yellow-800 mb-1">Perfil de cliente incompleto</h3>
+              <p className="text-yellow-700 text-sm mb-3">
+                Para crear pedidos necesitas completar tu perfil de cliente con la información de facturación.
+              </p>
+              <button
+                onClick={() => openModal(() => refreshUserStatus())}
+                className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700 text-sm font-medium"
+              >
+                Completar perfil de cliente
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (userStatus.isPendingSync) {
+      return (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+          <div className="flex items-start">
+            <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-blue-500 mr-3 mt-1 flex-shrink-0"></div>
+            <div className="flex-1">
+              <h3 className="font-medium text-blue-800 mb-1">Sincronización en progreso</h3>
+              <p className="text-blue-700 text-sm mb-3">
+                Tu perfil está siendo sincronizado con nuestro sistema. Este proceso puede tomar algunos minutos.
+              </p>
+              <div className="flex space-x-2">
+                <button
+                  onClick={refreshUserStatus}
+                  className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
+                >
+                  Verificar estado
+                </button>
+              </div>
+              <div className="mt-2 text-xs text-blue-600">
+                <p>⏱️ Tiempo estimado: 2-5 minutos</p>
+                <p>🔄 Esta página se actualiza automáticamente</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (!userStatus.isActive) {
+      return (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+          <div className="flex items-start">
+            <FaUserTimes className="text-red-500 mr-3 mt-1 flex-shrink-0" />
+            <div className="flex-1">
+              <h3 className="font-medium text-red-800 mb-1">Cuenta no activa</h3>
+              <p className="text-red-700 text-sm mb-3">
+                Tu perfil está completo pero tu cuenta aún no ha sido activada por nuestro equipo.
+              </p>
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => alert('Contacta con el administrador para activar tu cuenta')}
+                  className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+                >
+                  Contactar administrador
+                </button>
+                <button
+                  onClick={refreshUserStatus}
+                  className="px-3 py-1 border border-red-300 text-red-700 rounded hover:bg-red-100 text-sm"
+                >
+                  Verificar estado
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Usuario activo - mostrar mensaje de éxito discreto
+    return (
+      <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
+        <div className="flex items-center">
+          <FaUserCheck className="text-green-500 mr-2 flex-shrink-0" />
+          <span className="text-green-700 text-sm font-medium">Tu cuenta está activa y puedes crear pedidos</span>
+        </div>
+      </div>
+    );
+  };
+
+  // NUEVO: Botón condicional para crear pedido
+  const CreateOrderButton = ({ className = "", showIcon = true }) => {
+    if (!userStatus.canCreateOrders) {
+      return null; // No mostrar botón si no puede crear pedidos
+    }
+
+    return (
+      <Link
+        to="/dashboard/orders/new"
+        className={`inline-flex items-center justify-center px-4 py-2 text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 transition-colors ${className}`}
+      >
+        {showIcon && <span className="mr-2">+</span>}
+        Nuevo Pedido
+      </Link>
+    );
+  };
+
+  // Componentes auxiliares existentes
   const ProductDetailsList = ({ details }) => {
     if (!details || details.length === 0) {
       return <span className="text-gray-500">No hay productos</span>;
@@ -37,7 +180,6 @@ const OrderList = () => {
       <div className="space-y-2">
         {details.map((detail, index) => (
           <div key={index} className="text-sm">
-            {/* Solo nombre del producto */}
             <span className="text-gray-800 font-medium">{detail.product_name}</span>
           </div>
         ))}
@@ -61,12 +203,10 @@ const OrderList = () => {
     );
   };
 
-
-  // 1. Cargar configuración (orderTimeLimit) y la lista de estados
+  // useEffects existentes (mantener iguales)
   useEffect(() => {
     const fetchSettingsAndStatuses = async () => {
       try {
-        // Obtener los estados de pedidos
         const statusResp = await API.get('/orders/statuses');
         if (statusResp.data.success) {
           const statusMap = {};
@@ -76,7 +216,6 @@ const OrderList = () => {
           setOrderStatuses(statusMap);
         }
 
-        // Configuración sitio (para orderTimeLimit)
         const configResp = await API.get('/admin/settings');
         if (configResp.data?.success) {
           setOrderTimeLimit(configResp.data.data.orderTimeLimit || '18:00');
@@ -88,7 +227,7 @@ const OrderList = () => {
     fetchSettingsAndStatuses();
   }, []);
 
-  // 2. Función principal para cargar las órdenes según rol y filtros
+  // fetchOrders function (mantener igual)
   const fetchOrders = useCallback(async () => {
     if (!user?.id) {
       setError('Usuario no identificado');
@@ -103,45 +242,29 @@ const OrderList = () => {
       let data = [];
 
       if (isAdmin) {
-        // Órdenes del usuario admin
         const userOrders = await orderService.getUserOrders(user.id);
-
-        // Órdenes del día actual
         const todayISO = new Date().toISOString().split('T')[0];
         const todayOrders = await orderService.getOrdersByDeliveryDate(todayISO);
-
-        // 1) Unimos ambos arreglos
         const combined = [...userOrders, ...todayOrders];
-
-
-        // 2) Eliminamos duplicados usando un Map
         const uniqueMap = new Map();
         for (const o of combined) {
           uniqueMap.set(o.order_id, o);
         }
-        // 3) data final sin duplicados
         data = Array.from(uniqueMap.values());
-
       } else {
-        // Usuario normal: solo sus órdenes
         data = await orderService.getUserOrders(user.id);
       }
 
-      // Filtramos las órdenes por estados "activos" (no canceladas ni cerradas):
       const active = data.filter(o => {
-        const invalidStates = [6]; // 6 => Cancelado
+        const invalidStates = [6];
         if (invalidStates.includes(o.status_id)) return false;
         if (['cancelado', 'canceled', 'cerrado'].includes(o.status?.toLowerCase())) return false;
         return true;
       });
 
-      setOrders(active);
-
-      // Para cada orden, obtener los detalles de productos
       const ordersWithDetails = await Promise.all(
         active.map(async (order) => {
           try {
-            // Solicitar detalles de productos para esta orden
             const detailsResponse = await API.get(`/orders/${order.order_id}`);
             if (detailsResponse.data.success) {
               return {
@@ -158,8 +281,6 @@ const OrderList = () => {
       );
       setOrders(ordersWithDetails);
 
-
-      // Comprobamos cuáles pedidos son editables
       const editMap = {};
       for (const order of active) {
         const check = await orderService.canEditOrder(order.order_id, orderTimeLimit);
@@ -175,12 +296,11 @@ const OrderList = () => {
     }
   }, [user, isAdmin, filters, orderTimeLimit]);
 
-  // 3. useEffect para cargar órdenes al montar o cambiar dependencias
   useEffect(() => {
     fetchOrders();
   }, [fetchOrders]);
 
-  // Cancelar pedido
+  // Resto de funciones existentes (mantener iguales)
   const handleCancelOrder = async (orderId) => {
     if (!window.confirm('¿Estás seguro que deseas cancelar este pedido?')) return;
     try {
@@ -196,28 +316,24 @@ const OrderList = () => {
     }
   };
 
-  // Helpers
   const formatDate = (dateStr) => {
     if (!dateStr) return 'Fecha no disponible';
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return 'Fecha inválida';
 
-    // Forzar formato en UTC, ignorando zona horaria local
     return new Intl.DateTimeFormat('es-CO', {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
-      timeZone: 'UTC' // Esta es la clave de la solución
+      timeZone: 'UTC'
     }).format(d);
   };
 
-  // Paginación
   const indexOfLastOrder = currentPage * ordersPerPage;
   const indexOfFirstOrder = indexOfLastOrder - ordersPerPage;
   const currentOrders = orders.slice(indexOfFirstOrder, indexOfLastOrder);
   const paginate = (page) => setCurrentPage(page);
 
-  // 4. Manejo del panel de filtros (fecha + estado)
   const handleFilterChange = (e) => {
     const { name, value } = e.target;
     setTempFilters((prev) => ({ ...prev, [name]: value }));
@@ -228,7 +344,16 @@ const OrderList = () => {
     setShowFilterPanel(false);
   };
 
-  // Renderizado condicional
+  const formatColombianCurrency = (amount) => {
+    if (!amount) return "$0";
+    const formattedAmount = Math.round(parseFloat(amount))
+      .toString()
+      .replace(/\B(?=(\d{3})+(?!\d))/g, ".")
+      .replace(/(\d+)\.(\d{3})\.(\d{3})$/, "$1'$2.$3");
+    return `$${formattedAmount}`;
+  };
+
+  // Renderizado condicional de carga
   if (isLoading) {
     return (
       <div className="bg-white p-6 rounded-lg border shadow-sm">
@@ -248,40 +373,13 @@ const OrderList = () => {
     );
   }
 
-  if (orders.length === 0) {
-    return (
-      <div className="bg-white p-6 rounded-lg border shadow-sm">
-        <p className="text-gray-500 text-center p-6">No tienes pedidos registrados.</p>
-        <div className="flex justify-center">
-          <Link
-            to="/dashboard/orders/new"
-            className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
-          >
-            Realizar un nuevo pedido
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
-  const formatColombianCurrency = (amount) => {
-    if (!amount) return "$0";
-
-    // Convertir el número a string y usar expresiones regulares para formatear
-    const formattedAmount = Math.round(parseFloat(amount))
-      .toString()
-      .replace(/\B(?=(\d{3})+(?!\d))/g, ".") // Separador de miles con punto
-      .replace(/(\d+)\.(\d{3})\.(\d{3})$/, "$1'$2.$3"); // Separador de millones con comilla
-
-    return `$${formattedAmount}`;
-  };
-
-  // 5. Render principal
   return (
     <div className="bg-white p-3 sm:p-6 rounded-lg border shadow-sm w-full max-w-[98%] mx-auto">
+      {/* NUEVO: Mostrar estado del usuario */}
+      <UserStatusMessage />
+
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6 gap-3">
         <h2 className="text-xl font-semibold text-gray-800">Mis Pedidos</h2>
-
         <div className="flex gap-2 items-center w-full sm:w-auto">
           <button
             onClick={() => setShowFilterPanel(!showFilterPanel)}
@@ -290,16 +388,12 @@ const OrderList = () => {
             <FaFilter className="mr-1.5" />
             {showFilterPanel ? 'Ocultar Filtros' : 'Mostrar Filtros'}
           </button>
-          <Link
-            to="/dashboard/orders/new"
-            className="inline-flex items-center justify-center px-3 py-1.5 text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 flex-1 sm:flex-none"
-          >
-            Nuevo Pedido
-          </Link>
+          {/* MODIFICADO: Botón condicional */}
+          <CreateOrderButton className="flex-1 sm:flex-none" />
         </div>
       </div>
 
-      {/* Filtros: fecha y estado */}
+      {/* Panel de filtros (mantener igual) */}
       {showFilterPanel && (
         <div
           className="fixed inset-0 z-50 bg-black bg-opacity-40 flex justify-end"
@@ -320,7 +414,6 @@ const OrderList = () => {
             <h2 className="text-lg font-semibold text-gray-800 mb-4">Filtrar pedidos</h2>
 
             <div className="space-y-4">
-              {/* Fecha exacta */}
               <div>
                 <label className="block text-sm font-medium text-gray-700">Fecha de entrega</label>
                 <input
@@ -332,7 +425,6 @@ const OrderList = () => {
                 />
               </div>
 
-              {/* Estado */}
               <div>
                 <label className="block text-sm font-medium text-gray-700">Estado</label>
                 <select
@@ -342,7 +434,6 @@ const OrderList = () => {
                   className="w-full border px-3 py-2 rounded-md mt-1"
                 >
                   <option value="">-- Todos --</option>
-                  {/* Mapeamos los estados disponibles */}
                   {Object.entries(orderStatuses).map(([id, name]) => (
                     <option key={id} value={id}>
                       {`${id} - ${name}`}
@@ -364,38 +455,25 @@ const OrderList = () => {
         </div>
       )}
 
-      {/* Contenido condicional - Cargando/Error/Sin pedidos */}
-      {isLoading && (
-        <div className="flex justify-center items-center h-40">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-        </div>
-      )}
-
-      {error && (
-        <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md">
-          <p className="font-medium">Error al cargar los pedidos</p>
-          <p>{error}</p>
-        </div>
-      )}
-
-      {!isLoading && !error && orders.length === 0 && (
+      {/* MODIFICADO: Renderizado condicional sin pedidos */}
+      {orders.length === 0 ? (
         <div>
           <p className="text-gray-500 text-center p-6">No tienes pedidos registrados.</p>
           <div className="flex justify-center">
-            <Link
-              to="/dashboard/orders/new"
-              className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
-            >
-              Realizar un nuevo pedido
-            </Link>
+            <CreateOrderButton />
+            {!userStatus.canCreateOrders && (
+              <div className="text-center">
+                <p className="text-gray-500 text-sm mt-2">
+                  Completa la configuración de tu cuenta para crear pedidos
+                </p>
+              </div>
+            )}
           </div>
         </div>
-      )}
-
-
-      {/* Tabla de pedidos */}
-      {!isLoading && !error && orders.length > 0 && (
+      ) : (
+        // Resto del renderizado de la tabla (mantener igual)
         <>
+          {/* Versión móvil */}
           <div className="block md:hidden">
             {currentOrders.map((order) => (
               <div key={order.order_id} className="mb-4 bg-white rounded-lg shadow-sm p-3 border border-gray-200">
@@ -480,7 +558,7 @@ const OrderList = () => {
             ))}
           </div>
 
-          {/* Tabla de pedidos - Versión desktop */}
+          {/* Tabla desktop (mantener igual el resto del código) */}
           <div className="hidden md:block w-full overflow-x-auto">
             <table className="w-full table-fixed divide-y divide-gray-200">
               <thead className="bg-gray-50">
@@ -498,7 +576,6 @@ const OrderList = () => {
                   <th className="w-[20%] px-3 py-3 text-xs font-medium text-gray-500 uppercase text-center">Acciones</th>
                 </tr>
               </thead>
-
               <tbody className="bg-white divide-y divide-gray-200">
                 {currentOrders.map((order) => (
                   <tr key={order.order_id} className="hover:bg-gray-50">
@@ -598,8 +675,9 @@ const OrderList = () => {
           </div>
         </>
       )}
-  {/* Paginación */ }
-  {orders.length > ordersPerPage && (
+
+      {/* Paginación (mantener igual) */}
+      {orders.length > ordersPerPage && (
         <div className="flex justify-center mt-4 overflow-x-auto py-2">
           <nav className="inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
             <button
@@ -640,8 +718,9 @@ const OrderList = () => {
           </nav>
         </div>
       )}
-{/* Mensaje informativo - version adaptativa */}
-<div className="mt-6 bg-blue-50 rounded-lg p-3 sm:p-4 border border-blue-200">
+
+      {/* Mensaje informativo (mantener igual) */}
+      <div className="mt-6 bg-blue-50 rounded-lg p-3 sm:p-4 border border-blue-200">
         <div className="flex items-start">
           <div className="flex-shrink-0 hidden sm:block">
             <svg className="h-5 w-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
