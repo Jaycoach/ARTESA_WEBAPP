@@ -81,9 +81,17 @@ const Orders = () => {
                 ¡Completa tu perfil para crear pedidos!
               </h3>
               <p className="text-yellow-700 mb-4 text-sm leading-relaxed">
-              Para comenzar a realizar pedidos necesitas completar tu perfil de cliente con la información requerida. 
-              Puedes hacerlo desde el menú "MI PERFIL" en la parte superior de la página.
+                Para comenzar a realizar pedidos necesitas completar tu perfil de cliente con la información de facturación. 
+                Es un proceso rápido que te permitirá acceder a todas las funcionalidades.
               </p>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button
+                  onClick={refreshUserStatus}
+                  className="px-4 py-2 border border-yellow-300 text-yellow-700 rounded-lg hover:bg-yellow-100 transition-colors"
+                >
+                  Verificar estado
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -142,13 +150,6 @@ const Orders = () => {
                 Tu perfil está completo, pero tu cuenta aún no ha sido activada por nuestro equipo. 
                 Nuestros administradores están revisando tu información y te activarán pronto.
               </p>
-                <button
-                  onClick={refreshUserStatus}
-                  className="px-4 py-2 border border-red-300 text-red-700 rounded-lg hover:bg-red-100 transition-colors"
-                >
-                  Verificar estado
-                </button>
-              </div>
             </div>
           </div>
         </div>
