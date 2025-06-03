@@ -25,7 +25,7 @@ import './App.css';
 
 // Comprobar conectividad API
 const apiTestURL = import.meta.env.VITE_USE_NGROK === 'true' 
-  ? 'http://localhost:3000/api' 
+  ? 'https://localhost:3000/api' 
   : '/api';
 
 console.log(`Probando conectividad API en: ${apiTestURL}`);
