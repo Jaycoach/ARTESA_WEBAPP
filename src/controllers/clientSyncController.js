@@ -1120,6 +1120,148 @@ class ClientSyncController {
       });
     }
   }
+  /**
+   * @swagger
+   * /api/client-sync/test-email-ses:
+   *   post:
+   *     summary: Probar envío de correo con AWS SES (Capa Gratuita)
+   *     description: Envía un correo de prueba usando AWS SES con validaciones de capa gratuita
+   *     tags: [ClientSync]
+   *     security:
+   *       - bearerAuth: []
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required:
+   *               - to
+   *             properties:
+   *               to:
+   *                 type: string
+   *                 format: email
+   *                 description: Dirección de correo destino (debe estar verificada en capa gratuita)
+   *                 example: "test@artesapanaderia.com"
+   *               subject:
+   *                 type: string
+   *                 description: Asunto del correo
+   *                 default: "Prueba AWS SES - La Artesa Panadería"
+   *     responses:
+   *       200:
+   *         description: Correo enviado exitosamente
+   *       400:
+   *         description: Datos inválidos o límites excedidos
+   *       401:
+   *         description: No autorizado
+   *       500:
+   *         description: Error al enviar correo
+   */
+  async testEmailSes(req, res) {
+    try {
+      const { to, subject = 'Prueba AWS SES - La Artesa Panadería' } = req.body;
+      
+      if (!to) {
+        return res.status(400).json({
+          success: false,
+          message: 'La dirección de correo destino es requerida'
+        });
+      }
+      
+      logger.info('Iniciando prueba de correo SES', {
+        to,
+        subject,
+        userId: req.user?.id
+      });
+      
+      const EmailService = require('../services/EmailService');
+      
+      const mailOptions = {
+        from: {
+          name: 'La Artesa Panadería',
+          address: process.env.SMTP_FROM
+        },
+        to: to,
+        subject: subject,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="text-align: center; margin-bottom: 30px;">
+              <h1 style="color: #8B4513; margin-bottom: 10px;">🥖 La Artesa Panadería</h1>
+              <p style="color: #666; font-size: 16px;">Prueba de Correo - AWS SES</p>
+            </div>
+            
+            <div style="background-color: #f9f9f9; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+              <h2 style="color: #333; margin-top: 0;">✅ Configuración Exitosa</h2>
+              <p>Este correo confirma que AWS SES está configurado correctamente para La Artesa Panadería.</p>
+            </div>
+            
+            <div style="background-color: #fff3cd; padding: 15px; border-radius: 8px; border-left: 4px solid #ffc107; margin-bottom: 20px;">
+              <h3 style="color: #856404; margin-top: 0;">📊 Información de Capa Gratuita</h3>
+              <ul style="color: #856404; margin: 0;">
+                <li>Límite diario: 200 correos</li>
+                <li>Límite por segundo: 14 correos</li>
+                <li>Solo direcciones verificadas en sandbox</li>
+              </ul>
+            </div>
+            
+            <div style="background-color: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+              <h3 style="color: #333; margin-top: 0;">⚙️ Detalles Técnicos</h3>
+              <table style="width: 100%; border-collapse: collapse;">
+                <tr><td style="padding: 5px; border-bottom: 1px solid #ddd;"><strong>Servidor:</strong></td><td style="padding: 5px; border-bottom: 1px solid #ddd;">${process.env.SMTP_HOST || 'No configurado'}</td></tr>
+                <tr><td style="padding: 5px; border-bottom: 1px solid #ddd;"><strong>Puerto:</strong></td><td style="padding: 5px; border-bottom: 1px solid #ddd;">${process.env.SMTP_PORT || 'No configurado'}</td></tr>
+                <tr><td style="padding: 5px; border-bottom: 1px solid #ddd;"><strong>Enviado:</strong></td><td style="padding: 5px; border-bottom: 1px solid #ddd;">${new Date().toLocaleString()}</td></tr>
+              </table>
+            </div>
+            
+            <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd;">
+              <p style="color: #666; font-size: 14px; margin: 0;">
+                Correo automático de prueba - La Artesa Panadería<br>
+                <strong>Sistema de Notificaciones</strong>
+              </p>
+            </div>
+          </div>
+        `
+      };
+      
+      const info = await EmailService.sendMailWithLimits(mailOptions);
+      
+      logger.info('Correo de prueba SES enviado exitosamente', {
+        messageId: info.messageId,
+        to,
+        userId: req.user?.id
+      });
+      
+      res.status(200).json({
+        success: true,
+        message: 'Correo de prueba enviado exitosamente con AWS SES',
+        data: {
+          messageId: info.messageId,
+          to: to,
+          from: process.env.SMTP_FROM,
+          sentAt: new Date().toISOString(),
+          sesInfo: {
+            host: process.env.SMTP_HOST,
+            port: process.env.SMTP_PORT,
+            dailyLimit: '200 correos',
+            rateLimit: '14 correos por segundo'
+          }
+        }
+      });
+    } catch (error) {
+      logger.error('Error al enviar correo de prueba SES', {
+        error: error.message,
+        stack: error.stack,
+        userId: req.user?.id
+      });
+      
+      res.status(500).json({
+        success: false,
+        message: 'Error al enviar correo de prueba con AWS SES',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+        details: error.code ? { errorCode: error.code } : undefined
+      });
+    }
+  }
 }
 
 // Crear instancia del controlador
@@ -1136,5 +1278,6 @@ module.exports = {
   syncInstitutionalClients: clientSyncController.syncInstitutionalClients,
   validateClientBranches: clientSyncController.validateClientBranches,
   syncClientBranches: clientSyncController.syncClientBranches,
-  simulateSapSync: clientSyncController.simulateSapSync
+  simulateSapSync: clientSyncController.simulateSapSync,
+  testEmailSes: clientSyncController.testEmailSes
 };

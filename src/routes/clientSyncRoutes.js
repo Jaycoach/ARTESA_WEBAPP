@@ -485,5 +485,46 @@ router.post('/client/:cardCode/branches/sync',
     }
   }
 );
+/**
+ * @swagger
+ * /api/client-sync/test-email-ses:
+ *   post:
+ *     summary: Probar envío de correo con AWS SES (Capa Gratuita)
+ *     description: Envía un correo de prueba usando AWS SES con validaciones de capa gratuita
+ *     tags: [ClientSync]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - to
+ *             properties:
+ *               to:
+ *                 type: string
+ *                 format: email
+ *                 description: Dirección de correo destino (debe estar verificada en capa gratuita)
+ *                 example: "test@artesapanaderia.com"
+ *               subject:
+ *                 type: string
+ *                 description: Asunto del correo
+ *                 default: "Prueba AWS SES - La Artesa Panadería"
+ *     responses:
+ *       200:
+ *         description: Correo enviado exitosamente
+ *       400:
+ *         description: Datos inválidos o límites excedidos
+ *       401:
+ *         description: No autorizado
+ *       500:
+ *         description: Error al enviar correo
+ */
+router.post('/test-email-ses', 
+  checkRole([1]), // Solo administradores
+  clientSyncController.testEmailSes
+);
 
 module.exports = router;

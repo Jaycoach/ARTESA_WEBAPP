@@ -76,7 +76,7 @@ class EmailService {
         from: mailOptions.from
       });
 
-      const info = await this.sendMailWithLimits(mailOptions);
+      const info = await this.transporter.sendMail(mailOptions);
       
       logger.info('Correo enviado exitosamente con SES', {
         messageId: info.messageId,
@@ -134,7 +134,7 @@ class EmailService {
             `
         };
 
-        const info = await this.sendMailWithLimits(mailOptions);
+        const info = await this.transporter.sendMail(mailOptions);
         logger.info('Correo enviado exitosamente', {
             messageId: info.messageId,
             response: info.response
@@ -189,7 +189,7 @@ class EmailService {
         `
       };
   
-      const info = await this.sendMailWithLimits(mailOptions);
+      const info = await this.transporter.sendMail(mailOptions);
       logger.info('Correo de verificación enviado exitosamente', {
         messageId: info.messageId,
         response: info.response
@@ -238,7 +238,7 @@ class EmailService {
         `
       };
   
-      const info = await this.sendMailWithLimits(mailOptions);
+      const info = await this.transporter.sendMail(mailOptions);
       logger.info('Correo de confirmación de verificación enviado exitosamente', {
         messageId: info.messageId,
         response: info.response
