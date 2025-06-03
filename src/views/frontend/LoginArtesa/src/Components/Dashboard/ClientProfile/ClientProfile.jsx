@@ -497,26 +497,6 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
       setLoading(false);
     }
   };
-
-  // Componente de depuración (solo para desarrollo)
-  const DebugPanel = () => {
-    if (import.meta.env.MODE !== 'development') return null;
-    
-    return (
-      <div className="bg-yellow-100 p-4 mb-4 text-xs rounded">
-        <h4 className="font-bold mb-1">Debug Info</h4>
-        <div>User ID: {getUserId() || 'No disponible'}</div>
-        <div>Usuario en contexto: {user ? 'Disponible' : 'No disponible'}</div>
-        <div>Usuario en localStorage: {localStorage.getItem('user') ? 'Disponible' : 'No disponible'}</div>
-        <details>
-          <summary>Ver datos completos</summary>
-          <pre className="mt-2 overflow-auto max-h-40">
-            {JSON.stringify(debugInfo, null, 2)}
-          </pre>
-        </details>
-      </div>
-    );
-  };
   
   return (
     <div className="fixed inset-0 z-50 overflow-auto bg-gray-800 bg-opacity-70 flex items-center justify-center p-4">

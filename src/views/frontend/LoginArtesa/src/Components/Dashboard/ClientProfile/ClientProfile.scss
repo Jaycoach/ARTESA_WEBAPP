@@ -607,4 +607,42 @@
     line-height: 1.5;
     margin: 0;
   }
+  // Estilos para prevenir herencia de color en modales
+.modal-reset {
+  color: initial !important;
+  
+  // Reset específico para inputs y selects
+  input, select, textarea {
+    color: #111827 !important;
+    background-color: #ffffff !important;
+    
+    &::placeholder {
+      color: #9ca3af !important;
+    }
+    
+    &:focus {
+      color: #111827 !important;
+    }
+  }
+  
+  // Reset para labels
+  label {
+    color: #374151 !important;
+  }
+  
+  // Reset para opciones de select
+  option {
+    color: #111827 !important;
+    background-color: #ffffff !important;
+  }
+}
+
+// Prevenir herencia global en modales
+[data-modal="true"] {
+  color: initial;
+  
+  * {
+    color: inherit;
+  }
+}
 }

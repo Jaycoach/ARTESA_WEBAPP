@@ -32,9 +32,14 @@ export const useUserActivation = () => {
     try {
       setUserStatus(prev => ({ ...prev, loading: true }));
       
-      // 1. Verificar estado del usuario
-      const userResponse = await API.get(`/users/${user.id}/status`);
+      // 1. CORREGIDO: Verificar estado del usuario usando el endpoint correcto
+      const userResponse = await API.get(`/users/${user.id}`);
       const userData = userResponse.data.data || userResponse.data;
+      
+      console.log('Datos del usuario obtenidos:', userData); // Para debugging
+      
+      // CORREGIDO: Obtener isActive directamente del usuario
+      const isUserActive = userData.isActive !== undefined ? userData.isActive : userData.is_active;
       
       // 2. Verificar si el usuario tiene perfil de cliente
       let hasProfile = false;
@@ -43,24 +48,32 @@ export const useUserActivation = () => {
         const profileResponse = await API.get(`/client-profiles/user/${user.id}`);
         profileData = profileResponse.data.data || profileResponse.data;
         hasProfile = !!(profileData && (profileData.nit_number || profileData.nit));
+        console.log('Perfil de cliente:', { hasProfile, profileData }); // Para debugging
       } catch (profileError) {
         console.log('Usuario sin perfil de cliente:', profileError.response?.status);
         hasProfile = false;
       }
 
       // 3. Verificar si está pendiente de sincronización SAP
-      const isPending = await sapSyncService.isUserPendingSync(user.id);
+      let isPending = false;
+      try {
+        isPending = await sapSyncService.isUserPendingSync(user.id);
+        console.log('Estado de sincronización SAP:', { isPending }); // Para debugging
+      } catch (syncError) {
+        console.warn('Error verificando estado de sincronización SAP:', syncError);
+        isPending = false;
+      }
 
       // 4. Determinar estado general
       const newStatus = {
-        isActive: userData.is_active || false,
+        isActive: Boolean(isUserActive), // CORREGIDO: Asegurar que sea boolean
         hasClientProfile: hasProfile,
         isPendingSync: isPending,
         syncInProgress: isPending,
-        canCreateOrders: userData.is_active && hasProfile && !isPending,
+        canCreateOrders: Boolean(isUserActive) && hasProfile && !isPending, // CORREGIDO
         loading: false,
         lastChecked: new Date().toISOString(),
-        statusMessage: getStatusMessage(userData.is_active, hasProfile, isPending)
+        statusMessage: getStatusMessage(Boolean(isUserActive), hasProfile, isPending) // CORREGIDO
       };
 
       setUserStatus(newStatus);
@@ -68,15 +81,16 @@ export const useUserActivation = () => {
 
       console.log('Estado de activación actualizado:', {
         userId: user.id,
-        isActive: userData.is_active,
+        isActive: isUserActive,
         hasProfile: hasProfile,
         isPending: isPending,
-        canCreateOrders: newStatus.canCreateOrders
+        canCreateOrders: newStatus.canCreateOrders,
+        originalUserData: userData // Para debugging
       });
 
     } catch (error) {
       console.error('Error checking user activation status:', error);
-      setError(error.message);
+      setError(error.response?.data?.message || error.message || 'Error al verificar estado del usuario');
       setUserStatus(prev => ({
         ...prev,
         loading: false,
@@ -94,7 +108,7 @@ export const useUserActivation = () => {
       return 'Tu perfil está siendo sincronizado con SAP. Este proceso puede tomar algunos minutos.';
     }
     if (hasProfile && !isPending && !isActive) {
-      return 'Tu perfil está completo pero tu cuenta aún no ha sido activada. Contacta al administrador.';
+      return 'Tu perfil está completo pero tu cuenta aún no ha sido activada. Contacta con el administrador.';
     }
     if (isActive && hasProfile && !isPending) {
       return 'Tu cuenta está activa y puedes crear pedidos';
@@ -133,6 +147,23 @@ export const useUserActivation = () => {
     }
   }, [checkUserActivationStatus]);
 
+  // NUEVO: Función para obtener estado actual del usuario directamente
+  const getCurrentUserStatus = useCallback(async () => {
+    if (!user?.id) return null;
+    
+    try {
+      const response = await API.get(`/users/${user.id}`);
+      const userData = response.data.data || response.data;
+      return {
+        isActive: userData.isActive !== undefined ? userData.isActive : userData.is_active,
+        userData: userData
+      };
+    } catch (error) {
+      console.error('Error getting current user status:', error);
+      return null;
+    }
+  }, [user?.id]);
+
   // Verificar estado al cargar
   useEffect(() => {
     checkUserActivationStatus();
@@ -158,6 +189,7 @@ export const useUserActivation = () => {
     checkStatus: checkUserActivationStatus,
     triggerSync,
     activateUser,
-    refresh: checkUserActivationStatus
+    refresh: checkUserActivationStatus,
+    getCurrentUserStatus // NUEVO: Función adicional para obtener estado directo
   };
 };
