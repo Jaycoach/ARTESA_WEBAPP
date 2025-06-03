@@ -130,6 +130,89 @@ router.post('/client/:userId/activate', clientSyncController.activateClient);
 
 /**
  * @swagger
+ * /api/client-sync/client/{userId}/simulate-sync:
+ *   post:
+ *     summary: Simular sincronización completa con SAP para un usuario
+ *     description: Simula la sincronización con SAP asignando un CardCode, marcando como sincronizado y activando el usuario
+ *     tags: [ClientSync]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID del usuario a sincronizar
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               cardType:
+ *                 type: string
+ *                 enum: [Lead, Customer]
+ *                 default: Customer
+ *                 description: Tipo de Business Partner en SAP
+ *               activateUser:
+ *                 type: boolean
+ *                 default: true
+ *                 description: Si debe activar el usuario después de la sincronización
+ *     responses:
+ *       200:
+ *         description: Sincronización simulada exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Sincronización con SAP simulada exitosamente"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     userId:
+ *                       type: integer
+ *                       example: 5
+ *                     clientId:
+ *                       type: integer
+ *                       example: 3
+ *                     cardcodeSap:
+ *                       type: string
+ *                       example: "CI1234567890"
+ *                     cardType:
+ *                       type: string
+ *                       example: "Customer"
+ *                     userActivated:
+ *                       type: boolean
+ *                       example: true
+ *                     simulatedAt:
+ *                       type: string
+ *                       format: date-time
+ *       400:
+ *         description: Datos inválidos o usuario sin perfil
+ *       401:
+ *         description: No autorizado
+ *       403:
+ *         description: No tiene permisos suficientes
+ *       404:
+ *         description: Usuario no encontrado
+ *       500:
+ *         description: Error interno del servidor
+ */
+router.post('/client/:userId/simulate-sync', 
+  checkRole([1]), // Solo administradores
+  clientSyncController.simulateSapSync
+);
+
+/**
+ * @swagger
  * /api/client-sync/sync-institutional:
  *   post:
  *     summary: Iniciar sincronización de clientes institucionales

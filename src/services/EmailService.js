@@ -6,22 +6,32 @@ const logger = createContextLogger('EmailService');
 
 class EmailService {
   constructor() {
-    logger.debug('Inicializando EmailService', {
+    logger.debug('Inicializando EmailService con AWS SES (Capa Gratuita)', {
       smtpHost: process.env.SMTP_HOST,
-      smtpPort: parseInt(process.env.SMTP_PORT)
+      smtpPort: parseInt(process.env.SMTP_PORT),
+      dailyLimit: process.env.SES_DAILY_LIMIT,
+      rateLimit: process.env.SES_RATE_LIMIT
     });
 
-    this.transporter = nodemailer.createTransport({
+    this.transporter = nodemailer.createTransporter({
       host: process.env.SMTP_HOST,
       port: parseInt(process.env.SMTP_PORT),
-      secure: false, // Para Mailtrap en otro servidor de correo cambiar a true o para otros puertos != 465
+      secure: false, // false para puerto 587
+      requireTLS: true,
       auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS
       },
-      debug: true, // Habilitar debugging
-      logger: false  // Log de las operaciones SMTP
+      // Configuración para capa gratuita
+      pool: true,
+      maxConnections: 1,
+      maxMessages: 14, // Límite de rate
+      rateDelta: 1000, // 1 segundo
+      rateLimit: 14, // 14 por segundo máximo
+      debug: process.env.NODE_ENV === 'development',
+      logger: process.env.NODE_ENV === 'development'
     });
+    
     // Verificar la conexión al iniciar
     this.verifyConnection();
   }
@@ -33,6 +43,53 @@ class EmailService {
     } catch (error) {
         logger.error('Error al verificar conexión SMTP:', { error: error.message });
         throw error;
+    }
+  }
+
+  /**
+   * Verifica si se pueden enviar más correos (límite diario)
+   */
+  async checkDailyLimit() {
+    // En producción, aquí implementarías un contador en Redis o base de datos
+    // Por ahora, solo logueamos
+    logger.debug('Verificando límite diario de SES', {
+      dailyLimit: process.env.SES_DAILY_LIMIT,
+      currentDate: new Date().toDateString()
+    });
+    return true;
+  }
+
+  /**
+   * Envía correo con validaciones de capa gratuita
+   */
+  async sendMailWithLimits(mailOptions) {
+    try {
+      // Verificar límite diario
+      const canSend = await this.checkDailyLimit();
+      if (!canSend) {
+        throw new Error('Límite diario de correos alcanzado (200/día)');
+      }
+
+      logger.info('Enviando correo con AWS SES', {
+        to: mailOptions.to,
+        subject: mailOptions.subject,
+        from: mailOptions.from
+      });
+
+      const info = await this.sendMailWithLimits(mailOptions);
+      
+      logger.info('Correo enviado exitosamente con SES', {
+        messageId: info.messageId,
+        response: info.response
+      });
+
+      return info;
+    } catch (error) {
+      logger.error('Error al enviar correo con SES:', {
+        error: error.message,
+        stack: error.stack
+      });
+      throw error;
     }
   }
 
@@ -77,7 +134,7 @@ class EmailService {
             `
         };
 
-        const info = await this.transporter.sendMail(mailOptions);
+        const info = await this.sendMailWithLimits(mailOptions);
         logger.info('Correo enviado exitosamente', {
             messageId: info.messageId,
             response: info.response
@@ -132,7 +189,7 @@ class EmailService {
         `
       };
   
-      const info = await this.transporter.sendMail(mailOptions);
+      const info = await this.sendMailWithLimits(mailOptions);
       logger.info('Correo de verificación enviado exitosamente', {
         messageId: info.messageId,
         response: info.response
@@ -181,7 +238,7 @@ class EmailService {
         `
       };
   
-      const info = await this.transporter.sendMail(mailOptions);
+      const info = await this.sendMailWithLimits(mailOptions);
       logger.info('Correo de confirmación de verificación enviado exitosamente', {
         messageId: info.messageId,
         response: info.response

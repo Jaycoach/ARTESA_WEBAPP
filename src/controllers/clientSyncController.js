@@ -588,6 +588,133 @@ class ClientSyncController {
       });
     }
   }
+
+  /**
+   * Simula la sincronización con SAP para un cliente específico
+   */
+  async simulateSapSync(req, res) {
+    try {
+      const { userId } = req.params;
+      const { cardType = 'Customer', activateUser = true } = req.body;
+      
+      logger.info('Simulando sincronización SAP para cliente', { 
+        userId,
+        cardType,
+        activateUser,
+        adminId: req.user?.id
+      });
+
+      // Verificar que el cliente existe y tiene perfil
+      const query = `
+        SELECT 
+          cp.*,
+          u.name,
+          u.mail,
+          u.is_active
+        FROM client_profiles cp
+        JOIN users u ON cp.user_id = u.id
+        WHERE cp.user_id = $1
+      `;
+      
+      const { rows } = await pool.query(query, [userId]);
+      
+      if (rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'Usuario no encontrado o sin perfil de cliente'
+        });
+      }
+      
+      const clientProfile = rows[0];
+      
+      // Verificar que tiene datos necesarios para la simulación
+      if (!clientProfile.nit_number || clientProfile.verification_digit === undefined) {
+        return res.status(400).json({
+          success: false,
+          message: 'El cliente no tiene NIT o dígito de verificación, que son requeridos para la simulación'
+        });
+      }
+      
+      // Generar CardCode si no existe
+      let cardCode = clientProfile.cardcode_sap;
+      if (!cardCode) {
+        cardCode = `CI${clientProfile.nit_number}`;
+      }
+      
+      // Iniciar transacción para la simulación
+      const dbClient = await pool.connect();
+      try {
+        await dbClient.query('BEGIN');
+        
+        // Actualizar el perfil del cliente con datos simulados de SAP
+        await dbClient.query(
+          `UPDATE client_profiles 
+          SET 
+            cardcode_sap = $1,
+            sap_lead_synced = true,
+            updated_at = CURRENT_TIMESTAMP
+          WHERE client_id = $2`,
+          [cardCode, clientProfile.client_id]
+        );
+        
+        // Si el tipo es Customer y se debe activar el usuario
+        if (cardType === 'Customer' && activateUser && !clientProfile.is_active) {
+          await dbClient.query(
+            'UPDATE users SET is_active = true WHERE id = $1',
+            [userId]
+          );
+          
+          logger.info('Usuario activado por simulación SAP', {
+            userId,
+            clientId: clientProfile.client_id,
+            cardCode,
+            cardType
+          });
+        }
+        
+        await dbClient.query('COMMIT');
+        
+        logger.info('Sincronización SAP simulada exitosamente', {
+          userId,
+          clientId: clientProfile.client_id,
+          cardCode,
+          cardType,
+          userActivated: activateUser && cardType === 'Customer'
+        });
+        
+        return res.status(200).json({
+          success: true,
+          message: 'Sincronización con SAP simulada exitosamente',
+          data: {
+            userId: parseInt(userId),
+            clientId: clientProfile.client_id,
+            cardcodeSap: cardCode,
+            cardType,
+            userActivated: activateUser && cardType === 'Customer' && !clientProfile.is_active,
+            simulatedAt: new Date().toISOString()
+          }
+        });
+      } catch (dbError) {
+        await dbClient.query('ROLLBACK');
+        throw dbError;
+      } finally {
+        dbClient.release();
+      }
+    } catch (error) {
+      logger.error('Error al simular sincronización SAP', {
+        error: error.message,
+        stack: error.stack,
+        userId: req.params.userId,
+        adminId: req.user?.id
+      });
+      
+      res.status(500).json({
+        success: false,
+        message: 'Error al simular sincronización SAP',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
   /**
    * @swagger
    * /api/client-sync/sync-institutional:
@@ -1008,5 +1135,6 @@ module.exports = {
   syncClient: clientSyncController.syncClient,
   syncInstitutionalClients: clientSyncController.syncInstitutionalClients,
   validateClientBranches: clientSyncController.validateClientBranches,
-  syncClientBranches: clientSyncController.syncClientBranches
+  syncClientBranches: clientSyncController.syncClientBranches,
+  simulateSapSync: clientSyncController.simulateSapSync
 };
