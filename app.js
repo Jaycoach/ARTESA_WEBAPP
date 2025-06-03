@@ -328,6 +328,7 @@ app.use((req, res, next) => {
 // =========================================================================
 // IMPORTACIÓN DE RUTAS
 // =========================================================================
+const healthRoutes = require('./src/routes/healthRoutes');
 const userRoutes = require('./src/routes/userRoutes');
 const authRoutes = require('./src/routes/authRoutes');
 const productRoutes = require('./src/routes/productRoutes');
@@ -343,25 +344,8 @@ const clientBranchRoutes = require('./src/routes/clientBranchRoutes');
 // =========================================================================
 // RUTAS DE LA API
 // =========================================================================
-// Health check endpoint para Elastic Beanstalk (debe ir antes de otras rutas)
-app.get('/api/health', (req, res) => {
-  console.log('\n=== HEALTH CHECK ===');
-  console.log('Origin:', req.headers.origin || 'Sin origin');
-  console.log('User-Agent:', req.headers['user-agent']?.substring(0, 50) || 'No disponible');
-  console.log('===================\n');
-  
-  res.status(200).json({ 
-    status: 'healthy', 
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    version: process.env.npm_package_version || '1.0.0',
-    environment: process.env.NODE_ENV || 'development',
-    cors_debug: {
-      origin: req.headers.origin,
-      allowed_origins: process.env.CORS_ALLOWED_ORIGINS?.split(',') || []
-    }
-  });
-});
+// Health check routes (sin autenticación para ALB)
+app.use('/api', healthRoutes);
 // Endpoint específico para debugging CORS
 app.get('/api/cors-debug', (req, res) => {
   console.log('\n=== CORS DEBUG ENDPOINT ===');
