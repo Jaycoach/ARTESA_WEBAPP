@@ -13,24 +13,24 @@ class EmailService {
       rateLimit: process.env.SES_RATE_LIMIT
     });
 
-    this.transporter = nodemailer.createTransporter({
-      host: process.env.SMTP_HOST,
-      port: parseInt(process.env.SMTP_PORT),
-      secure: false, // false para puerto 587
-      requireTLS: true,
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS
-      },
-      // Configuración para capa gratuita
-      pool: true,
-      maxConnections: 1,
-      maxMessages: 14, // Límite de rate
-      rateDelta: 1000, // 1 segundo
-      rateLimit: 14, // 14 por segundo máximo
-      debug: process.env.NODE_ENV === 'development',
-      logger: process.env.NODE_ENV === 'development'
-    });
+    this.transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: parseInt(process.env.SMTP_PORT),
+    secure: false, // false para puerto 587
+    requireTLS: true,
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS
+    },
+    // Configuración para capa gratuita
+    pool: true,
+    maxConnections: 1,
+    maxMessages: 14, // Límite de rate
+    rateDelta: 1000, // 1 segundo
+    rateLimit: 14, // 14 por segundo máximo
+    debug: process.env.NODE_ENV === 'development',
+    logger: process.env.NODE_ENV === 'development'
+  });
     
     // Verificar la conexión al iniciar
     this.verifyConnection();
