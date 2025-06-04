@@ -19,6 +19,15 @@ class S3Service {
       this.initialize();
     } else {
       logger.info('S3Service inicializado en modo local');
+      
+      // Log adicional para entornos no-desarrollo
+      if (process.env.NODE_ENV !== 'development') {
+        logger.warn('Usando almacenamiento local en entorno no-desarrollo', {
+          environment: process.env.NODE_ENV,
+          storageMode: process.env.STORAGE_MODE,
+          recommendation: 'Considerar usar S3 para este entorno'
+        });
+      }
     }
   }
 
@@ -40,6 +49,17 @@ class S3Service {
 
       this.s3 = new AWS.S3();
       this.isConfigured = true;
+      
+      // Log específico para verificación en staging/producción
+      if (process.env.NODE_ENV === 'staging') {
+        logger.info('S3 SDK inicializado para pruebas', {
+          endpoint: `https://s3.${this.region}.amazonaws.com`,
+          bucket: this.bucketName,
+          testMode: true
+        });
+      }
+      
+      logger.info('S3Service inicializado correctamente', { bucket: this.bucketName, region: this.region });
       logger.info('S3Service inicializado correctamente', { bucket: this.bucketName, region: this.region });
     } catch (error) {
       logger.error('Error al inicializar S3Service', { error: error.message, stack: error.stack });
@@ -57,6 +77,17 @@ class S3Service {
    */
   async uploadFile(fileContent, key, contentType, options = {}) {
     try {
+      // Log para staging/pruebas
+      if (process.env.NODE_ENV === 'staging') {
+        logger.info('Iniciando subida de archivo a S3', {
+          key: key,
+          contentType: contentType,
+          bucket: this.bucketName,
+          mode: this.localMode ? 'local' : 's3',
+          public: options.public || false
+        });
+      }
+      
       // Normalizar la clave (quitar barras iniciales, etc.)
       key = this.normalizeKey(key);
       
@@ -102,7 +133,18 @@ class S3Service {
       ...options.s3Params
     };
 
-    await this.s3.upload(params).promise();
+    const uploadResult = await this.s3.upload(params).promise();
+    
+    // Log para staging
+    if (process.env.NODE_ENV === 'staging') {
+      logger.info('Archivo subido exitosamente a S3', {
+        bucket: this.bucketName,
+        key: key,
+        location: uploadResult.Location,
+        etag: uploadResult.ETag,
+        public: options.public || false
+      });
+    }
     
     // Devolver URL del archivo (pública o firmada según configuración)
     if (options.public) {
@@ -350,6 +392,50 @@ async uploadBannerImage(file, customName) {
       logger.error('Error al extraer clave de URL', { error: error.message, url });
       return null;
     }
+  }
+  /**
+   * Verifica que S3 esté correctamente configurado para el entorno actual
+   * @returns {Object} Estado de la configuración
+   */
+  getConfigurationStatus() {
+    const status = {
+      environment: process.env.NODE_ENV,
+      storageMode: process.env.STORAGE_MODE,
+      localMode: this.localMode,
+      configured: this.isConfigured,
+      bucket: this.bucketName,
+      region: this.region,
+      baseUrl: this.baseUrl,
+      credentials: {
+        hasAccessKey: !!process.env.AWS_ACCESS_KEY_ID,
+        hasSecretKey: !!process.env.AWS_SECRET_ACCESS_KEY,
+        accessKeyPrefix: process.env.AWS_ACCESS_KEY_ID ? 
+          process.env.AWS_ACCESS_KEY_ID.substring(0, 8) + '...' : 'No configurado'
+      },
+      ready: false
+    };
+    
+    // Determinar si está listo para usar
+    if (!this.localMode) {
+      status.ready = this.isConfigured && 
+                     !!this.bucketName && 
+                     !!this.region && 
+                     !!process.env.AWS_ACCESS_KEY_ID && 
+                     !!process.env.AWS_SECRET_ACCESS_KEY;
+    } else {
+      status.ready = true; // Modo local siempre está listo
+    }
+    
+    // Log de estado para staging
+    if (process.env.NODE_ENV === 'staging') {
+      logger.info('Estado de configuración S3 solicitado', {
+        ready: status.ready,
+        mode: status.localMode ? 'local' : 's3',
+        hasCredentials: status.credentials.hasAccessKey && status.credentials.hasSecretKey
+      });
+    }
+    
+    return status;
   }
 }
 

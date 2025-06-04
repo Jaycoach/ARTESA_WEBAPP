@@ -142,5 +142,64 @@ router.delete(
   checkRole([1]), // Solo administradores
   uploadController.deleteImage
 );
+/**
+ * @swagger
+ * /api/upload/test-s3:
+ *   post:
+ *     summary: Probar configuración de S3
+ *     description: Realiza una prueba completa de la configuración de AWS S3
+ *     tags: [Upload]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Configuración de S3 verificada exitosamente
+ *       500:
+ *         description: Error en la configuración de S3
+ */
+router.post('/test-s3',
+  verifyToken,
+  checkRole([1]), // Solo administradores
+  uploadController.testS3Configuration
+);
+/**
+ * @swagger
+ * /api/upload/s3-status:
+ *   get:
+ *     summary: Estado de configuración S3
+ *     description: Obtiene el estado actual de la configuración de S3
+ *     tags: [Upload]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Estado obtenido exitosamente
+ */
+router.get('/s3-status',
+  verifyToken,
+  checkRole([1, 2]), // Administradores y usuarios normales
+  uploadController.getS3Status
+);
+
+/**
+ * @swagger
+ * /api/upload/test-s3:
+ *   post:
+ *     summary: Probar configuración de S3
+ *     description: Realiza una prueba completa de la configuración de AWS S3
+ *     tags: [Upload]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Configuración de S3 verificada exitosamente
+ *       500:
+ *         description: Error en la configuración de S3
+ */
+router.post('/test-s3',
+  verifyToken,
+  checkRole([1]), // Solo administradores
+  uploadController.testS3Configuration
+);
 
 module.exports = router;
