@@ -9,14 +9,14 @@ import FieldValidation from './FieldValidation';
 import ConfirmationModal from './ConfirmationModal';
 
 const ClientProfile = ({ onClose, onProfileUpdate }) => {
-  // Estados para manejar los pasos del formulario
-  const steps = ["Información de contacto", "Información Empresarial", "Información Financiera", "Información Bancaria", "Documentos"];
-  const [currentStep, setCurrentStep] = useState(0);
-  
-  // Obtener contexto de autenticación
+
+   // Estados para manejar los pasos del formulario
+   const steps = ["Información de contacto", "Información Empresarial", "Información Financiera", "Información Bancaria", "Documentos"];
+   const [currentStep, setCurrentStep] = useState(0);
+  // Obtener contexto de autenticación (no recibimos user como prop para evitar inconsistencias)
   const { user, updateUserInfo } = useAuth();
   
-  // Estado inicial del formulario - MANTENER TODA LA LÓGICA ORIGINAL
+  // Estado inicial del formulario
   const [formData, setFormData] = useState({
     // Datos básicos
     nombre: '',
@@ -58,7 +58,7 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
     anexosAdicionales: null
   });
 
-  // Estados para UI y control - MANTENER TODOS
+  // Estados para UI y control
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
@@ -78,80 +78,7 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
   const [isFormLocked, setIsFormLocked] = useState(false);
   const [debugInfo, setDebugInfo] = useState({});
 
-  // ESTILOS VISUALES MEJORADOS
-  const modalStyles = {
-    overlay: {
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: 'rgba(0, 0, 0, 0.75)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 9999,
-      padding: '20px'
-    },
-    container: {
-      backgroundColor: '#ffffff',
-      borderRadius: '16px',
-      boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-      maxWidth: '900px',
-      width: '100%',
-      maxHeight: '90vh',
-      display: 'flex',
-      flexDirection: 'column',
-      overflow: 'hidden',
-      position: 'relative'
-    },
-    header: {
-      padding: '24px 32px',
-      borderBottom: '1px solid #e5e7eb',
-      backgroundColor: '#f8fafc',
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'flex-start',
-      flexShrink: 0
-    },
-    scrollContent: {
-      flex: 1,
-      overflowY: 'auto',
-      padding: '32px',
-      backgroundColor: '#ffffff'
-    },
-    footer: {
-      padding: '20px 32px',
-      borderTop: '1px solid #e5e7eb',
-      backgroundColor: '#f8fafc',
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      flexShrink: 0
-    }
-  };
-
-  const labelStyles = {
-    display: 'block',
-    fontSize: '0.875rem',
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: '8px'
-  };
-
-  const inputStyles = {
-    width: '100%',
-    padding: '12px 16px',
-    border: '1px solid #d1d5db',
-    borderRadius: '8px',
-    fontSize: '0.875rem',
-    color: '#1f2937',
-    backgroundColor: '#ffffff',
-    transition: 'all 0.2s ease',
-    outline: 'none'
-  };
-
-  // MANTENER TODAS LAS FUNCIONES ORIGINALES
+  // Función mejorada para obtener el ID del usuario de múltiples fuentes
   const getUserId = () => {
     // Debug information
     const userDebugInfo = {
@@ -197,6 +124,7 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
     try {
       const token = localStorage.getItem('token');
       if (token) {
+        // El token está en formato Base64, podemos decodificarlo
         const payload = token.split('.')[1];
         const decodedPayload = JSON.parse(atob(payload));
         console.log("DEBUG - Payload decodificado del token:", decodedPayload);
@@ -214,22 +142,16 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
     return null;
   };
 
-  // Función para alternar secciones expandibles
-  const toggleSection = (section) => {
-    setExpandedSections(prev => ({
-      ...prev,
-      [section]: !prev[section]
-    }));
-  };
-
-  // Efecto para cargar el perfil del usuario - MANTENER LÓGICA COMPLETA
+  // Efecto para cargar el perfil del usuario
   useEffect(() => {
     const fetchProfile = async () => {
       try {
+        // Obtener ID de usuario con la función mejorada
         const userId = getUserId();
         
         if (!userId) {
           console.log("No hay ID de usuario para buscar perfil");
+          // Intento de inicialización con datos básicos si no hay perfil pero hay usuario
           const userFromContext = user || JSON.parse(localStorage.getItem('user') || '{}');
           if (userFromContext) {
             setFormData(prev => ({
@@ -243,17 +165,21 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
 
         console.log("Intentando obtener perfil para usuario ID:", userId);
         
+        // Hacer la solicitud a la API usando la configuración centralizada
         const response = await API.get(`/client-profiles/user/${userId}`);
         console.log("Respuesta completa de API:", response);
         
+        // Procesar datos recibidos
         if (response && response.data) {
           const profileData = response.data.data || response.data;
           console.log("Datos de perfil recibidos:", profileData);
           
+          // Bloquear formulario si ya tiene NIT registrado (sincronizado con SAP)
           if (profileData?.nit_number && profileData?.verification_digit) {
             setIsFormLocked(true);
           }
           
+          // Preparar datos para el formulario
           const formDataUpdate = {
             nombre: profileData.nombre || profileData.name || '',
             direccion: profileData.direccion || profileData.address || '',
@@ -266,6 +192,7 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
             digitoVerificacion: profileData.verification_digit || profileData.digitoVerificacion || '',
           };
           
+          // Procesar datos adicionales que podrían estar en el campo 'notes'
           if (profileData.notes) {
             try {
               const additionalData = JSON.parse(profileData.notes);
@@ -276,6 +203,7 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
             }
           }
           
+          // Procesar campos específicos si están disponibles directamente
           [
             'tipoDocumento', 'numeroDocumento', 'representanteLegal',
             'actividadComercial', 'sectorEconomico', 'tamanoEmpresa',
@@ -300,6 +228,7 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
       } catch (error) {
         console.error('Error al obtener perfil:', error);
         
+        // Mostrar detalles específicos del error para debugging
         if (error.response) {
           console.error('Respuesta de error:', error.response.status, error.response.data);
         } else if (error.request) {
@@ -308,6 +237,7 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
           console.error('Error:', error.message);
         }
         
+        // Si no existe perfil, inicializar con el email del usuario logueado
         const userFromContext = user || JSON.parse(localStorage.getItem('user') || '{}');
         if (userFromContext) {
           setFormData(prev => ({
@@ -320,13 +250,14 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
     };
 
     fetchProfile();
-  }, [user]);
+  }, [user]); // Dependencia del useEffect
 
-  // MANTENER TODAS LAS FUNCIONES DE NAVEGACIÓN Y VALIDACIÓN
+  // Funciones para navegación entre pasos
   const nextStep = () => {
     if (validateCurrentStep()) {
       setCurrentStep(prev => Math.min(prev + 1, steps.length - 1));
       
+      // Expandir la sección correspondiente
       const sectionNames = ['basic', 'business', 'financial', 'banking', 'documents'];
       if (currentStep < steps.length - 1) {
         setExpandedSections({
@@ -342,6 +273,7 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
   const prevStep = () => {
     setCurrentStep(prev => Math.max(prev - 1, 0));
     
+    // Expandir la sección correspondiente
     const sectionNames = ['basic', 'business', 'financial', 'banking', 'documents'];
     if (currentStep > 0) {
       setExpandedSections({
@@ -356,7 +288,9 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
   const validateCurrentStep = () => {
     const errors = {};
     
+    // Validación específica para cada paso
     if (currentStep === 0) {
+      // Validar Información Básica
       if (!formData.nombre) errors.nombre = "El nombre es requerido";
       if (!formData.numeroDocumento) errors.numeroDocumento = "El número de documento es requerido";
       if (!formData.direccion) errors.direccion = "La dirección es requerida";
@@ -366,6 +300,7 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
       if (!formData.email) errors.email = "El correo electrónico es requerido";
       else if (!/^\S+@\S+\.\S+$/.test(formData.email)) errors.email = "El correo electrónico no es válido";
     } else if (currentStep === 1) {
+      // Validar Información Empresarial
       if (formData.nit && !/^\d{8,12}$/.test(formData.nit)) {
         errors.nit = "El NIT debe contener entre 8 y 12 dígitos numéricos";
       }
@@ -375,9 +310,11 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
     return Object.keys(errors).length === 0;
   };
 
+  // Manejar cambios en campos de formulario
   const handleChange = (e) => {
     const { name, value } = e.target;
 
+    // Eliminar el error específico del campo cuando cambia su valor
     if (fieldErrors[name]) {
       setFieldErrors(prev => {
         const newErrors = { ...prev };
@@ -386,18 +323,22 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
       });
     }
 
+    // Validación específica para NIT (solo números)
     if (name === 'nit') {
+      // Si el valor no está vacío y no es un número, muestra un error
       if (value && !/^\d+$/.test(value)) {
         setFieldErrors(prev => ({
           ...prev,
           nit: 'El NIT debe contener solo números enteros'
         }));
       }
+      // Almacena el valor solo si es un número o está vacío
       setFormData(prev => ({
         ...prev,
         [name]: /^\d*$/.test(value) ? value : prev[name]
       }));
     } else {
+      // Comportamiento normal para otros campos
       setFormData(prev => ({
         ...prev,
         [name]: value
@@ -405,6 +346,7 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
     }
   };
 
+  // Manejar cambios en archivos
   const handleFileChange = (e) => {
     const { name, files } = e.target;
     setFormData(prev => ({
@@ -413,20 +355,24 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
     }));
   };
 
+  // Manejar cierre de modal de confirmación
   const handleConfirmationClose = () => {
     setShowConfirmation(false);
+
+    // Si la operación fue exitosa, cerrar el formulario
     if (confirmationIsSuccess) {
       onClose();
     }
   };
 
-  // MANTENER TODA LA LÓGICA DE ENVÍO
+  // Manejar envío del formulario
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
     setSuccess('');
 
+    // Validar NIT y dígito de verificación
     if (formData.nit && !/^\d+$/.test(formData.nit)) {
       setFieldErrors(prev => ({
         ...prev,
@@ -443,6 +389,7 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
       return;
     }
 
+    // Crear el tax_id combinando NIT y dígito de verificación
     let taxId = '';
     if (formData.nit) {
       taxId = formData.nit;
@@ -452,12 +399,15 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
     }
 
     try {
+      // Preparar FormData para envío
       const formDataToSend = new FormData();
       
+      // Agregar campos específicos para SAP
       formDataToSend.append('nit_number', formData.nit || '');
       formDataToSend.append('verification_digit', formData.digitoVerificacion || '');
       formDataToSend.append('tax_id', taxId);
       
+      // Agregar todos los campos del formulario
       Object.keys(formData).forEach(key => {
         if (key === 'fotocopiaCedula' || key === 'fotocopiaRut' || key === 'anexosAdicionales') {
           if (formData[key]) {
@@ -468,6 +418,7 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
         }
       });
 
+      // Obtener el ID del usuario
       const userId = getUserId();
       if (!userId) {
         throw new Error("No se pudo determinar el ID del usuario");
@@ -475,6 +426,7 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
       
       formDataToSend.append('userId', userId);
 
+      // Determinar endpoint y método según si estamos actualizando o creando
       const endpoint = existingProfile
         ? `/client-profiles/user/${userId}`
         : '/client-profiles';
@@ -482,6 +434,7 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
 
       console.log(`Enviando datos al endpoint: ${endpoint} con método: ${method}`);
 
+      // Ejecutar la solicitud
       const response = await API({
         method,
         url: endpoint,
@@ -493,8 +446,10 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
 
       console.log("Respuesta de guardado:", response.data);
 
+      // Extraer datos guardados
       const savedData = response.data?.data || response.data;
 
+      // Información de usuario actualizada para el contexto
       const updatedUserData = {
         nombre: formData.nombre,
         email: formData.email,
@@ -503,19 +458,23 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
         ciudad: formData.ciudad
       };
 
+      // Guardar en localStorage para acceso rápido
       localStorage.setItem('clientProfile', JSON.stringify({
         nombre: formData.nombre,
         email: formData.email
       }));
 
+      // Actualizar contexto de autenticación
       if (typeof updateUserInfo === 'function') {
         updateUserInfo(updatedUserData);
       }
 
+      // Notificar al Dashboard sobre el cambio
       if (typeof onProfileUpdate === 'function') {
         onProfileUpdate(formData.nombre);
       }
 
+      // Mostrar confirmación de éxito
       setSuccess('Perfil guardado correctamente');
       setExistingProfile(savedData);
       setConfirmationIsSuccess(true);
@@ -523,12 +482,14 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
       setShowConfirmation(true);
 
     } catch (error) {
+      // Manejar errores
       console.error('Error al guardar perfil:', error);
       
       const errorMessage = error.response?.data?.message || 
                           error.message || 
                           'Error al guardar el perfil';
       setError(errorMessage);
+
       setConfirmationIsSuccess(false);
       setConfirmationMessage('Datos Incorrectos. Por favor verifique la información proporcionada.');
       setShowConfirmation(true);
@@ -538,1161 +499,928 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
   };
   
   return (
-    <div style={modalStyles.overlay} onClick={onClose}>
-      <div style={modalStyles.container} onClick={(e) => e.stopPropagation()}>
-        {/* Header con estilos mejorados */}
-        <div style={modalStyles.header}>
-          <div>
-            <h2 style={{ color: '#1f2937', margin: 0, fontSize: '1.5rem', fontWeight: '700', marginBottom: '8px' }}>
-              Perfil de Cliente
-            </h2>
-            <p style={{ color: '#6b7280', margin: 0, fontSize: '0.875rem' }}>
-              Complete su información para continuar
-            </p>
+    <div className="fixed inset-0 z-50 overflow-auto bg-gray-800 bg-opacity-70 flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full mx-auto overflow-hidden transform transition-all animate-fadeIn">
+        <div className="relative">
+           {/* Cabecera con degradado */}
+           <div className="bg-gradient-to-r from-slate-600 to-slate-700 px-6 py-4 flex justify-between items-center">
+            <h2 className="text-xl font-semibold text-white">Perfil de Cliente</h2>
+            <button 
+              className="text-white hover:bg-white hover:bg-opacity-20 p-2 rounded-full transition-all" 
+              onClick={onClose}
+            >
+              <FaTimes />
+            </button>
           </div>
-          <button 
-            onClick={onClose}
-            style={{ 
-              color: '#6b7280', 
-              background: 'none', 
-              border: 'none', 
-              fontSize: '1.5rem', 
-              cursor: 'pointer',
-              padding: '8px',
-              borderRadius: '6px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              transition: 'background-color 0.2s ease'
-            }}
-            onMouseEnter={(e) => e.target.style.backgroundColor = '#f3f4f6'}
-            onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
-          >
-            <FaTimes />
-          </button>
-        </div>
-
-        {/* Contenido scrollable */}
-        <div style={modalStyles.scrollContent} className="modal-scroll-content">
-          {/* Indicador de pasos mejorado */}
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            marginBottom: '32px',
-            padding: '0 8px',
-            flexWrap: 'wrap',
-            gap: '8px'
-          }}>
-            {/* Barra de progreso */}
-            <div style={{
-              position: 'absolute',
-              top: '20px',
-              left: '20px',
-              right: '20px',
-              height: '4px',
-              backgroundColor: '#e5e7eb',
-              borderRadius: '2px',
-              overflow: 'hidden'
-            }}>
-              <div style={{
-                height: '100%',
-                backgroundColor: '#f59e0b',
-                width: `${((currentStep + 1) / steps.length) * 100}%`,
-                transition: 'width 0.3s ease',
-                borderRadius: '2px'
-              }} />
-            </div>
-
-            {steps.map((step, index) => (
-              <div key={index} style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                flex: 1,
-                minWidth: '120px',
-                position: 'relative',
-                paddingTop: '24px'
-              }}>
-                <div
-                  style={{
-                    width: '40px',
-                    height: '40px',
-                    borderRadius: '50%',
-                    backgroundColor: index < currentStep ? '#16a34a' : index === currentStep ? '#f59e0b' : '#e5e7eb',
-                    color: index <= currentStep ? 'white' : '#6b7280',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '16px',
-                    fontWeight: '600',
-                    marginBottom: '8px',
-                    transition: 'all 0.3s ease',
-                    border: index === currentStep ? '3px solid #fde68a' : 'none'
-                  }}
-                >
-                  {index < currentStep ? '✓' : index + 1}
+          {/* Contenido del formulario */}
+          <div className="p-6">
+            {/* Mensajes de error y éxito */}
+            {error && (
+              <div className="mb-4 bg-red-50 border-l-4 border-red-500 p-4 rounded animate-fadeIn">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <FaExclamationCircle className="h-5 w-5 text-red-500" />
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-sm text-red-700">{error}</p>
+                  </div>
                 </div>
-                <span style={{
-                  fontSize: '0.75rem',
-                  textAlign: 'center',
-                  color: index <= currentStep ? '#f59e0b' : '#6b7280',
-                  fontWeight: '500',
-                  lineHeight: '1.3'
-                }}>
-                  {step}
+              </div>
+            )}
+            
+            {success && (
+              <div className="mb-4 bg-green-50 border-l-4 border-green-500 p-4 rounded animate-fadeIn">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <FaCheckCircle className="h-5 w-5 text-green-500" />
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-sm text-green-700">{success}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {isFormLocked && (
+              <div className="mb-4 bg-yellow-50 border-l-4 border-yellow-500 p-4 rounded animate-fadeIn">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <FaExclamationCircle className="h-5 w-5 text-yellow-500" />
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-sm text-yellow-700">
+                      Este perfil ya ha sido sincronizado con SAP y no puede ser modificado.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {/* Barra de progreso */}
+            <div className="w-full mb-8">
+              <div className="hidden sm:flex justify-between mb-2">
+                {steps.map((step, index) => (
+                  <div key={index} className="flex flex-col items-center">
+                    <div 
+                      className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                        currentStep === index 
+                          ? 'bg-accent text-white' 
+                          : currentStep > index
+                            ? 'bg-slate-500 text-white'
+                            : 'bg-gray-200 text-gray-600'
+                      } transition-all duration-300`}
+                    >
+                      {currentStep > index ? <FaCheck /> : index + 1}
+                    </div>
+                    <span className={`text-xs mt-1 ${
+                      currentStep === index 
+                        ? 'text-slate-600 font-medium' 
+                        : currentStep > index
+                          ? 'text-slate-500 font-medium'
+                          : 'text-gray-500'
+                    }`}>
+                      {step}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <div className="sm:hidden flex justify-between mb-2">
+                <span className="text-sm font-medium text-slate-600">
+                  Paso {currentStep + 1} de {steps.length}: {steps[currentStep]}
+                </span>
+                <span className="text-sm text-gray-500">
+                  {Math.round((currentStep / (steps.length - 1)) * 100)}%
                 </span>
               </div>
-            ))}
-          </div>
-
-          {/* Mensajes de estado */}
-          {error && (
-            <div style={{ 
-              backgroundColor: '#fef2f2', 
-              color: '#dc2626', 
-              padding: '16px', 
-              borderRadius: '8px', 
-              marginBottom: '24px', 
-              border: '1px solid #fecaca', 
-              borderLeft: '4px solid #dc2626',
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: '12px'
-            }}>
-              <FaExclamationCircle style={{ marginTop: '2px', flexShrink: 0 }} />
-              <span>{error}</span>
-            </div>
-          )}
-
-          {success && (
-            <div style={{ 
-              backgroundColor: '#f0fdf4', 
-              color: '#16a34a', 
-              padding: '16px', 
-              borderRadius: '8px', 
-              marginBottom: '24px', 
-              border: '1px solid #bbf7d0', 
-              borderLeft: '4px solid #16a34a',
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: '12px'
-            }}>
-              <FaCheckCircle style={{ marginTop: '2px', flexShrink: 0 }} />
-              <span>{success}</span>
-            </div>
-          )}
-
-          {isFormLocked && (
-            <div style={{ 
-              backgroundColor: '#fffbeb', 
-              border: '1px solid #fde68a', 
-              borderLeft: '4px solid #f59e0b', 
-              borderRadius: '8px', 
-              padding: '16px', 
-              marginBottom: '24px' 
-            }}>
-              <h3 style={{ 
-                color: '#92400e', 
-                margin: '0 0 8px 0', 
-                fontSize: '1rem', 
-                fontWeight: '600' 
-              }}>
-                Perfil Sincronizado
-              </h3>
-              <p style={{ 
-                color: '#b45309', 
-                margin: 0, 
-                fontSize: '0.875rem', 
-                lineHeight: '1.5' 
-              }}>
-                Este perfil ya ha sido sincronizado con SAP y no puede ser modificado.
-              </p>
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit}>
-            {/* Paso 1: Información de contacto */}
-            {currentStep === 0 && (
-              <div style={{ marginBottom: '24px' }}>
-                <div style={{ border: '1px solid #e5e7eb', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)' }}>
-                  <div 
-                    style={{
-                      backgroundColor: '#f0f9ff',
-                      padding: '16px 20px',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      cursor: 'pointer'
-                    }}
-                    onClick={() => toggleSection('basic')}
-                  >
-                    <h3 style={{ color: '#1f2937', margin: 0, fontSize: '1.125rem', fontWeight: '600' }}>
-                      Información de contacto
-                    </h3>
-                    <div style={{ 
-                      transform: expandedSections.basic ? 'rotate(180deg)' : 'rotate(0deg)',
-                      transition: 'transform 0.3s ease'
-                    }}>
-                      <FaChevronDown style={{ color: '#6b7280' }} />
-                    </div>
-                  </div>
-                  
-                  <div style={{
-                    transition: 'all 0.3s ease',
-                    overflow: 'hidden',
-                    maxHeight: expandedSections.basic ? '2000px' : '0',
-                    opacity: expandedSections.basic ? 1 : 0
-                  }}>
-                    <div style={{ padding: '24px' }}>
-                      <div style={{ 
-                        display: 'grid', 
-                        gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', 
-                        gap: '20px', 
-                        marginBottom: '20px' 
-                      }}>
-                        <div>
-                          <label style={labelStyles}>Nombre Completo*</label>
-                          <input
-                            type="text"
-                            name="nombre"
-                            value={formData.nombre}
-                            onChange={handleChange}
-                            onFocus={() => setFocusedField('nombre')}
-                            onBlur={() => setFocusedField(null)}
-                            disabled={isFormLocked}
-                            required
-                            style={{
-                              ...inputStyles,
-                              border: fieldErrors.nombre ? '1px solid #dc2626' : focusedField === 'nombre' ? '2px solid #3b82f6' : '1px solid #d1d5db',
-                              backgroundColor: isFormLocked ? '#f9fafb' : '#ffffff'
-                            }}
-                            placeholder="Ingrese su nombre completo"
-                          />
-                          {fieldErrors.nombre && (
-                            <span style={{ color: '#dc2626', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>
-                              {fieldErrors.nombre}
-                            </span>
-                          )}
-                        </div>
-
-                        <div>
-                          <label style={labelStyles}>Tipo de Documento*</label>
-                          <select
-                            name="tipoDocumento"
-                            value={formData.tipoDocumento}
-                            onChange={handleChange}
-                            onFocus={() => setFocusedField('tipoDocumento')}
-                            onBlur={() => setFocusedField(null)}
-                            disabled={isFormLocked}
-                            required
-                            style={{
-                              ...inputStyles,
-                              border: focusedField === 'tipoDocumento' ? '2px solid #3b82f6' : '1px solid #d1d5db',
-                              backgroundColor: isFormLocked ? '#f9fafb' : '#ffffff',
-                              cursor: isFormLocked ? 'not-allowed' : 'pointer'
-                            }}
-                          >
-                            <option value="CC">Cédula de Ciudadanía</option>
-                            <option value="CE">Cédula de Extranjería</option>
-                            <option value="PASAPORTE">Pasaporte</option>
-                          </select>
-                        </div>
-                      </div>
-
-                      <div style={{ 
-                        display: 'grid', 
-                        gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', 
-                        gap: '20px', 
-                        marginBottom: '20px' 
-                      }}>
-                        <div>
-                          <label style={labelStyles}>Número de Documento*</label>
-                          <input
-                            type="text"
-                            name="numeroDocumento"
-                            value={formData.numeroDocumento}
-                            onChange={handleChange}
-                            onFocus={() => setFocusedField('numeroDocumento')}
-                            onBlur={() => setFocusedField(null)}
-                            disabled={isFormLocked}
-                            required
-                            style={{
-                              ...inputStyles,
-                              border: fieldErrors.numeroDocumento ? '1px solid #dc2626' : focusedField === 'numeroDocumento' ? '2px solid #3b82f6' : '1px solid #d1d5db',
-                              backgroundColor: isFormLocked ? '#f9fafb' : '#ffffff'
-                            }}
-                            placeholder="Número de documento"
-                          />
-                          {fieldErrors.numeroDocumento && (
-                            <span style={{ color: '#dc2626', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>
-                              {fieldErrors.numeroDocumento}
-                            </span>
-                          )}
-                        </div>
-
-                        <div>
-                          <label style={labelStyles}>Teléfono*</label>
-                          <input
-                            type="tel"
-                            name="telefono"
-                            value={formData.telefono}
-                            onChange={handleChange}
-                            onFocus={() => setFocusedField('telefono')}
-                            onBlur={() => setFocusedField(null)}
-                            disabled={isFormLocked}
-                            required
-                            style={{
-                              ...inputStyles,
-                              border: fieldErrors.telefono ? '1px solid #dc2626' : focusedField === 'telefono' ? '2px solid #3b82f6' : '1px solid #d1d5db',
-                              backgroundColor: isFormLocked ? '#f9fafb' : '#ffffff'
-                            }}
-                            placeholder="Número de teléfono"
-                          />
-                          {fieldErrors.telefono && (
-                            <span style={{ color: '#dc2626', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>
-                              {fieldErrors.telefono}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      <div style={{ marginBottom: '20px' }}>
-                        <label style={labelStyles}>Correo Electrónico*</label>
-                        <input
-                          type="email"
-                          name="email"
-                          value={formData.email}
-                          onChange={handleChange}
-                          onFocus={() => setFocusedField('email')}
-                          onBlur={() => setFocusedField(null)}
-                          required
-                          readOnly
-                          style={{
-                            ...inputStyles,
-                            border: fieldErrors.email ? '1px solid #dc2626' : '1px solid #d1d5db',
-                            backgroundColor: '#f9fafb',
-                            color: '#1f2937'
-                          }}
-                          placeholder="correo@ejemplo.com"
-                        />
-                        {fieldErrors.email && (
-                          <span style={{ color: '#dc2626', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>
-                            {fieldErrors.email}
-                          </span>
-                        )}
-                      </div>
-
-                      <div style={{ marginBottom: '20px' }}>
-                        <label style={labelStyles}>Dirección*</label>
-                        <input
-                          type="text"
-                          name="direccion"
-                          value={formData.direccion}
-                          onChange={handleChange}
-                          onFocus={() => setFocusedField('direccion')}
-                          onBlur={() => setFocusedField(null)}
-                          disabled={isFormLocked}
-                          required
-                          style={{
-                            ...inputStyles,
-                            border: fieldErrors.direccion ? '1px solid #dc2626' : focusedField === 'direccion' ? '2px solid #3b82f6' : '1px solid #d1d5db',
-                            backgroundColor: isFormLocked ? '#f9fafb' : '#ffffff'
-                          }}
-                          placeholder="Dirección completa"
-                        />
-                        {fieldErrors.direccion && (
-                          <span style={{ color: '#dc2626', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>
-                            {fieldErrors.direccion}
-                          </span>
-                        )}
-                      </div>
-
-                      <div style={{ 
-                        display: 'grid', 
-                        gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', 
-                        gap: '20px'
-                      }}>
-                        <div>
-                          <label style={labelStyles}>Ciudad*</label>
-                          <input
-                            type="text"
-                            name="ciudad"
-                            value={formData.ciudad}
-                            onChange={handleChange}
-                            onFocus={() => setFocusedField('ciudad')}
-                            onBlur={() => setFocusedField(null)}
-                            disabled={isFormLocked}
-                            required
-                            style={{
-                              ...inputStyles,
-                              border: fieldErrors.ciudad ? '1px solid #dc2626' : focusedField === 'ciudad' ? '2px solid #3b82f6' : '1px solid #d1d5db',
-                              backgroundColor: isFormLocked ? '#f9fafb' : '#ffffff'
-                            }}
-                            placeholder="Ciudad"
-                          />
-                          {fieldErrors.ciudad && (
-                            <span style={{ color: '#dc2626', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>
-                              {fieldErrors.ciudad}
-                            </span>
-                          )}
-                        </div>
-
-                        <div>
-                          <label style={labelStyles}>País*</label>
-                          <input
-                            type="text"
-                            name="pais"
-                            value={formData.pais}
-                            onChange={handleChange}
-                            onFocus={() => setFocusedField('pais')}
-                            onBlur={() => setFocusedField(null)}
-                            disabled={isFormLocked}
-                            required
-                            style={{
-                              ...inputStyles,
-                              border: fieldErrors.pais ? '1px solid #dc2626' : focusedField === 'pais' ? '2px solid #3b82f6' : '1px solid #d1d5db',
-                              backgroundColor: isFormLocked ? '#f9fafb' : '#ffffff'
-                            }}
-                            placeholder="País"
-                          />
-                          {fieldErrors.pais && (
-                            <span style={{ color: '#dc2626', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>
-                              {fieldErrors.pais}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+              <div className="relative w-full h-2 bg-gray-200 rounded-full">
+                <div 
+                  className="absolute top-0 left-0 h-2 bg-slate-600 rounded-full transition-all duration-300"
+                  style={{ width: `${(currentStep / (steps.length - 1)) * 100}%` }}
+                ></div>
               </div>
-            )}
-
-            {/* Paso 2: Información Empresarial */}
-            {currentStep === 1 && (
-              <div style={{ marginBottom: '24px' }}>
-                <div style={{ border: '1px solid #e5e7eb', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)' }}>
-                  <div
-                    style={{
-                      backgroundColor: '#fef3c7',
-                      padding: '16px 20px',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      cursor: 'pointer'
-                    }}
-                    onClick={() => toggleSection('business')}
-                  >
-                    <h3 style={{ color: '#1f2937', margin: 0, fontSize: '1.125rem', fontWeight: '600' }}>
-                      Información Empresarial
-                    </h3>
-                    <div style={{
-                      transform: expandedSections.business ? 'rotate(180deg)' : 'rotate(0deg)',
-                      transition: 'transform 0.3s ease'
-                    }}>
-                      <FaChevronDown style={{ color: '#6b7280' }} />
-                    </div>
-                  </div>
-
-                  <div style={{
-                    transition: 'all 0.3s ease',
-                    overflow: 'hidden',
-                    maxHeight: expandedSections.business ? '2000px' : '0',
-                    opacity: expandedSections.business ? 1 : 0
-                  }}>
-                    <div style={{ padding: '24px' }}>
-                      <div style={{ marginBottom: '20px' }}>
-                        <label style={labelStyles}>Razón Social</label>
-                        <input
-                          type="text"
-                          name="razonSocial"
-                          value={formData.razonSocial}
-                          onChange={handleChange}
-                          onFocus={() => setFocusedField('razonSocial')}
-                          onBlur={() => setFocusedField(null)}
-                          disabled={isFormLocked}
-                          style={{
-                            ...inputStyles,
-                            border: focusedField === 'razonSocial' ? '2px solid #6366f1' : '1px solid #d1d5db',
-                            backgroundColor: isFormLocked ? '#f9fafb' : '#ffffff'
-                          }}
-                          placeholder="Nombre de la empresa o razón social"
-                        />
-                      </div>
-
-                      <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: '2fr 1fr',
-                        gap: '20px',
-                        marginBottom: '20px'
-                      }}>
-                        <div>
-                          <label style={labelStyles}>NIT (Sin dígito de verificación)</label>
-                          <input
-                            type="text"
-                            name="nit"
-                            value={formData.nit}
-                            onChange={handleChange}
-                            onFocus={() => setFocusedField('nit')}
-                            onBlur={() => setFocusedField(null)}
-                            disabled={isFormLocked}
-                            style={{
-                              ...inputStyles,
-                              border: fieldErrors.nit ? '1px solid #dc2626' : focusedField === 'nit' ? '2px solid #6366f1' : '1px solid #d1d5db',
-                              backgroundColor: isFormLocked ? '#f9fafb' : '#ffffff'
-                            }}
-                            placeholder="Ej: 900123456"
-                          />
-                          {fieldErrors.nit ? (
-                            <span style={{ color: '#dc2626', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>
-                              {fieldErrors.nit}
-                            </span>
-                          ) : (
-                            <FieldValidation
-                              field="nit"
-                              value={formData.nit}
-                              rules={[
-                                { text: "Solo dígitos numéricos", validate: val => !val || /^\d+$/.test(val) },
-                                { text: "Entre 8 y 12 caracteres", validate: val => !val || (val.length >= 8 && val.length <= 12) }
-                              ]}
-                            />
-                          )}
-                        </div>
-
-                        <div>
-                          <label style={labelStyles}>Dígito de Verificación</label>
-                          <input
-                            type="text"
-                            name="digitoVerificacion"
-                            value={formData.digitoVerificacion}
-                            onChange={(e) => {
-                              const value = e.target.value;
-                              if (value === '' || /^[0-9]$/.test(value)) {
-                                handleChange(e);
-                              }
-                            }}
-                            onFocus={() => setFocusedField('digitoVerificacion')}
-                            onBlur={() => setFocusedField(null)}
-                            maxLength="1"
-                            pattern="[0-9]"
-                            disabled={isFormLocked}
-                            style={{
-                              ...inputStyles,
-                              border: focusedField === 'digitoVerificacion' ? '2px solid #6366f1' : '1px solid #d1d5db',
-                              backgroundColor: isFormLocked ? '#f9fafb' : '#ffffff',
-                              textAlign: 'center'
-                            }}
-                            placeholder="Ej: 7"
-                          />
-                        </div>
-                      </div>
-
-                      <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-                        gap: '20px',
-                        marginBottom: '20px'
-                      }}>
-                        <div>
-                          <label style={labelStyles}>Representante Legal</label>
-                          <input
-                            type="text"
-                            name="representanteLegal"
-                            value={formData.representanteLegal}
-                            onChange={handleChange}
-                            disabled={isFormLocked}
-                            style={{
-                              ...inputStyles,
-                              backgroundColor: isFormLocked ? '#f9fafb' : '#ffffff'
-                            }}
-                            placeholder="Nombre del representante legal"
-                          />
-                        </div>
-
-                        <div>
-                          <label style={labelStyles}>Actividad Comercial</label>
-                          <input
-                            type="text"
-                            name="actividadComercial"
-                            value={formData.actividadComercial}
-                            onChange={handleChange}
-                            disabled={isFormLocked}
-                            style={{
-                              ...inputStyles,
-                              backgroundColor: isFormLocked ? '#f9fafb' : '#ffffff'
-                            }}
-                            placeholder="Actividad principal de la empresa"
-                          />
-                        </div>
-                      </div>
-
-                      <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fit, minWidth(280px, 1fr))',
-                        gap: '20px'
-                      }}>
-                        <div>
-                          <label style={labelStyles}>Sector Económico</label>
-                          <input
-                            type="text"
-                            name="sectorEconomico"
-                            value={formData.sectorEconomico}
-                            onChange={handleChange}
-                            disabled={isFormLocked}
-                            style={{
-                              ...inputStyles,
-                              backgroundColor: isFormLocked ? '#f9fafb' : '#ffffff'
-                            }}
-                            placeholder="Ej: Comercial, Industrial, Servicios"
-                          />
-                        </div>
-
-                        <div>
-                          <label style={labelStyles}>Tamaño de Empresa</label>
-                          <select
-                            name="tamanoEmpresa"
-                            value={formData.tamanoEmpresa}
-                            onChange={handleChange}
-                            disabled={isFormLocked}
-                            style={{
-                              ...inputStyles,
-                              backgroundColor: isFormLocked ? '#f9fafb' : '#ffffff',
-                              cursor: isFormLocked ? 'not-allowed' : 'pointer'
-                            }}
-                          >
-                            <option value="Microempresa">Microempresa</option>
-                            <option value="Pequeña">Pequeña</option>
-                            <option value="Mediana">Mediana</option>
-                            <option value="Grande">Grande</option>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Paso 3: Información Financiera */}
-            {currentStep === 2 && (
-              <div style={{ 
-                backgroundColor: '#f9fafb', 
-                borderRadius: '12px', 
-                padding: '24px', 
-                border: '1px solid #e5e7eb' 
-              }}>
-                <h3 style={{ 
-                  color: '#1f2937', 
-                  marginTop: 0, 
-                  marginBottom: '20px', 
-                  fontSize: '1.25rem', 
-                  fontWeight: '600', 
-                  borderBottom: '2px solid #e5e7eb', 
-                  paddingBottom: '12px' 
-                }}>
-                  Información Financiera
-                </h3>
-
-                <div style={{ 
-                  display: 'grid', 
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', 
-                  gap: '20px'
-                }}>
-                  <div>
-                    <label style={labelStyles}>Ingresos Mensuales Aproximados</label>
-                    <input
-                      type="text"
-                      name="ingresosMensuales"
-                      value={formData.ingresosMensuales}
-                      onChange={handleChange}
-                      disabled={isFormLocked}
-                      style={{
-                        ...inputStyles,
-                        backgroundColor: isFormLocked ? '#f9fafb' : '#ffffff'
-                      }}
-                      placeholder="Ej: $5,000,000"
-                    />
-                  </div>
-
-                  <div>
-                    <label style={labelStyles}>Patrimonio Aproximado</label>
-                    <input
-                      type="text"
-                      name="patrimonio"
-                      value={formData.patrimonio}
-                      onChange={handleChange}
-                      disabled={isFormLocked}
-                      style={{
-                        ...inputStyles,
-                        backgroundColor: isFormLocked ? '#f9fafb' : '#ffffff'
-                      }}
-                      placeholder="Ej: $50,000,000"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Paso 4: Información Bancaria */}
-            {currentStep === 3 && (
-              <div style={{ 
-                backgroundColor: '#f9fafb', 
-                borderRadius: '12px', 
-                padding: '24px', 
-                border: '1px solid #e5e7eb' 
-              }}>
-                <h3 style={{ 
-                  color: '#1f2937', 
-                  marginTop: 0, 
-                  marginBottom: '20px', 
-                  fontSize: '1.25rem', 
-                  fontWeight: '600', 
-                  borderBottom: '2px solid #e5e7eb', 
-                  paddingBottom: '12px' 
-                }}>
-                  Información Bancaria
-                </h3>
-
-                <div style={{ 
-                  display: 'grid', 
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', 
-                  gap: '20px', 
-                  marginBottom: '20px' 
-                }}>
-                  <div>
-                    <label style={labelStyles}>Entidad Bancaria</label>
-                    <input
-                      type="text"
-                      name="entidadBancaria"
-                      value={formData.entidadBancaria}
-                      onChange={handleChange}
-                      disabled={isFormLocked}
-                      style={{
-                        ...inputStyles,
-                        backgroundColor: isFormLocked ? '#f9fafb' : '#ffffff'
-                      }}
-                      placeholder="Nombre del banco"
-                    />
-                  </div>
-
-                  <div>
-                    <label style={labelStyles}>Tipo de Cuenta</label>
-                    <select
-                      name="tipoCuenta"
-                      value={formData.tipoCuenta}
-                      onChange={handleChange}
-                      disabled={isFormLocked}
-                      style={{
-                        ...inputStyles,
-                        backgroundColor: isFormLocked ? '#f9fafb' : '#ffffff',
-                        cursor: isFormLocked ? 'not-allowed' : 'pointer'
-                      }}
+            </div>
+            
+            {/* Formulario principal */}
+            <form onSubmit={handleSubmit} className="space-y-8">
+              {/* Paso 1: Información Básica */}
+              {currentStep === 0 && (
+                <div className="form-section animate-fadeIn">
+                  <div className="mb-6 border rounded-lg overflow-hidden shadow-sm">
+                    <div 
+                      className="bg-sky-50 px-4 py-3 flex justify-between items-center cursor-pointer"
+                      onClick={() => toggleSection('basic')}
                     >
-                      <option value="Ahorros">Ahorros</option>
-                      <option value="Corriente">Corriente</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <label style={labelStyles}>Número de Cuenta</label>
-                  <input
-                    type="text"
-                    name="numeroCuenta"
-                    value={formData.numeroCuenta}
-                    onChange={handleChange}
-                    disabled={isFormLocked}
-                    style={{
-                      ...inputStyles,
-                      backgroundColor: isFormLocked ? '#f9fafb' : '#ffffff'
-                    }}
-                    placeholder="Número de cuenta bancaria"
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Paso 5: Documentos */}
-            {currentStep === 4 && (
-              <div style={{ 
-                backgroundColor: '#f9fafb', 
-                borderRadius: '12px', 
-                padding: '24px', 
-                border: '1px solid #e5e7eb' 
-              }}>
-                <h3 style={{ 
-                  color: '#1f2937', 
-                  marginTop: 0, 
-                  marginBottom: '20px', 
-                  fontSize: '1.25rem', 
-                  fontWeight: '600', 
-                  borderBottom: '2px solid #e5e7eb', 
-                  paddingBottom: '12px' 
-                }}>
-                  Documentos Requeridos
-                </h3>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                  <div>
-                    <label style={labelStyles}>Fotocopia de Cédula*</label>
-                    <div style={{ position: 'relative', marginTop: '8px' }}>
-                      <input
-                        type="file"
-                        name="fotocopiaCedula"
-                        onChange={handleFileChange}
-                        disabled={isFormLocked}
-                        accept=".pdf,.jpg,.jpeg,.png"
-                        required={!existingProfile?.fotocopiaCedula}
-                        style={{ 
-                          position: 'absolute', 
-                          top: 0, 
-                          left: 0, 
-                          width: '100%', 
-                          height: '100%', 
-                          opacity: 0, 
-                          cursor: 'pointer', 
-                          zIndex: 2 
-                        }}
-                      />
-                      <div style={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        gap: '12px', 
-                        padding: '12px 16px', 
-                        backgroundColor: '#f3f4f6', 
-                        border: '1px solid #d1d5db', 
-                        borderRadius: '8px', 
-                        fontSize: '0.875rem', 
-                        cursor: 'pointer', 
-                        transition: 'all 0.2s ease',
-                        color: '#374151'
-                      }}>
-                        <FaUpload />
-                        <span>{formData.fotocopiaCedula ? formData.fotocopiaCedula.name : 'Seleccionar archivo'}</span>
+                      <h3 className="font-medium text-slate-700">Información de contacto</h3>
+                      <div className={`transform transition-transform ${expandedSections.basic ? 'rotate-180' : ''}`}>
+                        <FaChevronDown className="text-slate-700" />
                       </div>
                     </div>
-                    {formData.fotocopiaCedula && (
-                      <span style={{ 
-                        color: '#16a34a', 
-                        fontSize: '0.75rem', 
-                        marginTop: '8px', 
-                        fontWeight: '500',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px'
-                      }}>
-                        <FaCheck /> Archivo seleccionado
-                      </span>
-                    )}
-                  </div>
-
-                  <div>
-                    <label style={labelStyles}>Fotocopia de RUT*</label>
-                    <div style={{ position: 'relative', marginTop: '8px' }}>
-                      <input
-                        type="file"
-                        name="fotocopiaRut"
-                        onChange={handleFileChange}
-                        disabled={isFormLocked}
-                        accept=".pdf,.jpg,.jpeg,.png"
-                        required={!existingProfile?.fotocopiaRut}
-                        style={{ 
-                          position: 'absolute', 
-                          top: 0, 
-                          left: 0, 
-                          width: '100%', 
-                          height: '100%', 
-                          opacity: 0, 
-                          cursor: 'pointer', 
-                          zIndex: 2 
-                        }}
-                      />
-                      <div style={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        gap: '12px', 
-                        padding: '12px 16px', 
-                        backgroundColor: '#f3f4f6', 
-                        border: '1px solid #d1d5db', 
-                        borderRadius: '8px', 
-                        fontSize: '0.875rem', 
-                        cursor: 'pointer', 
-                        transition: 'all 0.2s ease',
-                        color: '#374151'
-                      }}>
-                        <FaUpload />
-                        <span>{formData.fotocopiaRut ? formData.fotocopiaRut.name : 'Seleccionar archivo'}</span>
+                    
+                    <div className={`transition-all duration-300 overflow-hidden ${
+                      expandedSections.basic ? 'max-h-screen opacity-100' : 'max-h-0 opacity-0'
+                    }`}>
+                      <div className="p-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                          <div className="space-y-2">
+                            <label htmlFor="nombre" className="block text-sm font-medium text-gray-700">
+                              Nombre Completo*
+                            </label>
+                            <input
+                              type="text"
+                              id="nombre"
+                              name="nombre"
+                              value={formData.nombre}
+                              onChange={handleChange}
+                              onFocus={() => setFocusedField('nombre')}
+                              onBlur={() => setFocusedField(null)}
+                              required
+                              disabled={isFormLocked}
+                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-300 outline-none
+                                ${focusedField === 'nombre' ? 'ring-2 ring-blue-500 border-blue-500' : 'hover:border-gray-400'}
+                                ${fieldErrors.nombre ? 'border-red-500 bg-red-50' : 'border-gray-300'}
+                                ${isFormLocked ? 'bg-gray-100 text-gray-500' : 'bg-white'}
+                              `}
+                              placeholder="Ingrese su nombre completo"
+                            />
+                            {fieldErrors.nombre && (
+                              <p className="text-red-500 text-xs mt-1">{fieldErrors.nombre}</p>
+                            )}
+                          </div>
+                        
+                          <div className="space-y-2">
+                            <label htmlFor="tipoDocumento" className="block text-sm font-medium text-gray-700">
+                              Tipo de Documento*
+                            </label>
+                            <select
+                              id="tipoDocumento"
+                              name="tipoDocumento"
+                              value={formData.tipoDocumento}
+                              onChange={handleChange}
+                              onFocus={() => setFocusedField('tipoDocumento')}
+                              onBlur={() => setFocusedField(null)}
+                              required
+                              disabled={isFormLocked}
+                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-200 outline-none appearance-none bg-white
+                                ${focusedField === 'tipoDocumento' ? 'ring-2 ring-blue-500 border-blue-500' : 'hover:border-gray-400'}
+                                ${fieldErrors.tipoDocumento ? 'border-red-500 bg-red-50' : 'border-gray-300'}
+                                ${isFormLocked ? 'bg-gray-100 text-gray-500' : 'bg-white'}
+                              `}
+                            >
+                              <option value="CC">Cédula de Ciudadanía</option>
+                              <option value="CE">Cédula de Extranjería</option>
+                              <option value="PASAPORTE">Pasaporte</option>
+                            </select>
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                          <div className="space-y-2">
+                            <label htmlFor="numeroDocumento" className="block text-sm font-medium text-gray-700">
+                              Número de Documento*
+                            </label>
+                            <input
+                              type="text"
+                              id="numeroDocumento"
+                              name="numeroDocumento"
+                              value={formData.numeroDocumento}
+                              onChange={handleChange}
+                              onFocus={() => setFocusedField('numeroDocumento')}
+                              onBlur={() => setFocusedField(null)}
+                              required
+                              disabled={isFormLocked}
+                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-200 outline-none
+                                ${focusedField === 'numeroDocumento' ? 'ring-2 ring-blue-500 border-blue-500' : 'hover:border-gray-400'}
+                                ${fieldErrors.numeroDocumento ? 'border-red-500 bg-red-50' : 'border-gray-300'}
+                                ${isFormLocked ? 'bg-gray-100 text-gray-500' : 'bg-white'}
+                              `}
+                              placeholder="Ingrese su número de documento"
+                            />
+                            {fieldErrors.numeroDocumento && (
+                              <p className="text-red-500 text-xs mt-1">{fieldErrors.numeroDocumento}</p>
+                            )}
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <label htmlFor="telefono" className="block text-sm font-medium text-gray-700">
+                              Teléfono*
+                            </label>
+                            <input
+                              type="tel"
+                              id="telefono"
+                              name="telefono"
+                              value={formData.telefono}
+                              onChange={handleChange}
+                              onFocus={() => setFocusedField('telefono')}
+                              onBlur={() => setFocusedField(null)}
+                              required
+                              disabled={isFormLocked}
+                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-200 outline-none
+                                ${focusedField === 'telefono' ? 'ring-2 ring-blue-500 border-blue-500' : 'hover:border-gray-400'}
+                                ${fieldErrors.telefono ? 'border-red-500 bg-red-50' : 'border-gray-300'}
+                                ${isFormLocked ? 'bg-gray-100 text-gray-500' : 'bg-white'}
+                              `}
+                              placeholder="Ingrese su teléfono"
+                            />
+                            {fieldErrors.telefono && (
+                              <p className="text-red-500 text-xs mt-1">{fieldErrors.telefono}</p>
+                            )}
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <label htmlFor="email" className="block text-sm font-medium text-black">
+                              Correo Electrónico*
+                            </label>
+                            <input
+                              type="email"
+                              id="email"
+                              name="email"
+                              value={formData.email}
+                              onChange={handleChange}
+                              onFocus={() => setFocusedField('email')}
+                              onBlur={() => setFocusedField(null)}
+                              required
+                              readOnly
+                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-200 outline-none bg-gray-100 text-gray-900
+                                ${fieldErrors.email ? 'border-red-500 bg-red-50' : 'border-slate-300'}
+                              `}
+                              placeholder="correo@ejemplo.com"
+                            />
+                            {fieldErrors.email && (
+                              <p className="text-red-500 text-xs mt-1">{fieldErrors.email}</p>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div className="space-y-2">
+                            <label htmlFor="direccion" className="block text-sm font-medium text-gray-700">
+                              Dirección*
+                            </label>
+                            <input
+                              type="text"
+                              id="direccion"
+                              name="direccion"
+                              value={formData.direccion}
+                              onChange={handleChange}
+                              onFocus={() => setFocusedField('direccion')}
+                              onBlur={() => setFocusedField(null)}
+                              required
+                              disabled={isFormLocked}
+                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-200 outline-none
+                                ${focusedField === 'direccion' ? 'ring-2 ring-blue-500 border-blue-500' : 'hover:border-gray-400'}
+                                ${fieldErrors.direccion ? 'border-red-500 bg-red-50' : 'border-gray-300'}
+                                ${isFormLocked ? 'bg-gray-100 text-gray-500' : 'bg-white'}
+                              `}
+                              placeholder="Ingrese su dirección"
+                            />
+                            {fieldErrors.direccion && (
+                              <p className="text-red-500 text-xs mt-1">{fieldErrors.direccion}</p>
+                            )}
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <label htmlFor="ciudad" className="block text-sm font-medium text-gray-700">
+                              Ciudad*
+                            </label>
+                            <input
+                              type="text"
+                              id="ciudad"
+                              name="ciudad"
+                              value={formData.ciudad}
+                              onChange={handleChange}
+                              onFocus={() => setFocusedField('ciudad')}
+                              onBlur={() => setFocusedField(null)}
+                              required
+                              disabled={isFormLocked}
+                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-200 outline-none
+                                ${focusedField === 'ciudad' ? 'ring-2 ring-blue-500 border-blue-500' : 'hover:border-gray-400'}
+                                ${fieldErrors.ciudad ? 'border-red-500 bg-red-50' : 'border-gray-300'}
+                                ${isFormLocked ? 'bg-gray-100 text-gray-500' : 'bg-white'}
+                              `}
+                              placeholder="Ingrese su ciudad"
+                            />
+                            {fieldErrors.ciudad && (
+                              <p className="text-red-500 text-xs mt-1">{fieldErrors.ciudad}</p>
+                            )}
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <label htmlFor="pais" className="block text-sm font-medium text-gray-700">
+                              País*
+                            </label>
+                            <input
+                              type="text"
+                              id="pais"
+                              name="pais"
+                              value={formData.pais}
+                              onChange={handleChange}
+                              onFocus={() => setFocusedField('pais')}
+                              onBlur={() => setFocusedField(null)}
+                              required
+                              disabled={isFormLocked}
+                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-200 outline-none
+                                ${focusedField === 'pais' ? 'ring-2 ring-blue-500 border-blue-500' : 'hover:border-gray-400'}
+                                ${fieldErrors.pais ? 'border-red-500 bg-red-50' : 'border-gray-300'}
+                                ${isFormLocked ? 'bg-gray-100 text-gray-500' : 'bg-white'}
+                              `}
+                              placeholder="Ingrese su país"
+                            />
+                            {fieldErrors.pais && (
+                              <p className="text-red-500 text-xs mt-1">{fieldErrors.pais}</p>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </div>
-                    {formData.fotocopiaRut && (
-                      <span style={{ 
-                        color: '#16a34a', 
-                        fontSize: '0.75rem', 
-                        marginTop: '8px', 
-                        fontWeight: '500',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px'
-                      }}>
-                        <FaCheck /> Archivo seleccionado
-                      </span>
-                    )}
-                  </div>
-
-                  <div>
-                    <label style={labelStyles}>Anexos Adicionales (Opcional)</label>
-                    <div style={{ position: 'relative', marginTop: '8px' }}>
-                      <input
-                        type="file"
-                        name="anexosAdicionales"
-                        onChange={handleFileChange}
-                        disabled={isFormLocked}
-                        accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                        style={{ 
-                          position: 'absolute', 
-                          top: 0, 
-                          left: 0, 
-                          width: '100%', 
-                          height: '100%', 
-                          opacity: 0, 
-                          cursor: 'pointer', 
-                          zIndex: 2 
-                        }}
-                      />
-                      <div style={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        gap: '12px', 
-                        padding: '12px 16px', 
-                        backgroundColor: '#f3f4f6', 
-                        border: '1px solid #d1d5db', 
-                        borderRadius: '8px', 
-                        fontSize: '0.875rem', 
-                        cursor: 'pointer', 
-                        transition: 'all 0.2s ease',
-                        color: '#374151'
-                      }}>
-                        <FaUpload />
-                        <span>{formData.anexosAdicionales ? formData.anexosAdicionales.name : 'Seleccionar archivo'}</span>
-                      </div>
-                    </div>
-                    {formData.anexosAdicionales && (
-                      <span style={{ 
-                        color: '#16a34a', 
-                        fontSize: '0.75rem', 
-                        marginTop: '8px', 
-                        fontWeight: '500',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px'
-                      }}>
-                        <FaCheck /> Archivo seleccionado
-                      </span>
-                    )}
                   </div>
                 </div>
-              </div>
-            )}
-          </form>
-        </div>
-
-        {/* Footer con botones */}
-        <div style={modalStyles.footer}>
-          <div style={{ display: 'flex', gap: '12px' }}>
-            {currentStep > 0 && (
-              <button
-                type="button"
-                onClick={prevStep}
-                disabled={loading}
-                style={{
-                  padding: '12px 20px',
-                  borderRadius: '8px',
-                  fontWeight: '500',
-                  fontSize: '0.875rem',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                  border: '1px solid #d1d5db',
-                  outline: 'none',
-                  backgroundColor: '#f9fafb',
-                  color: '#374151',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px'
-                }}
-              >
-                <FaChevronLeft />
-                Anterior
-              </button>
-            )}
-          </div>
-
-          <div style={{ display: 'flex', gap: '12px' }}>
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={loading}
-              style={{
-                padding: '12px 20px',
-                borderRadius: '8px',
-                fontWeight: '500',
-                fontSize: '0.875rem',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                border: '1px solid #d1d5db',
-                outline: 'none',
-                backgroundColor: '#f9fafb',
-                color: '#374151'
-              }}
-            >
-              Cancelar
-            </button>
-
-            {currentStep < steps.length - 1 ? (
-              <button
-                type="button"
-                onClick={nextStep}
-                disabled={loading || !validateCurrentStep()}
-                style={{
-                  padding: '12px 20px',
-                  borderRadius: '8px',
-                  fontWeight: '500',
-                  fontSize: '0.875rem',
-                  cursor: (loading || !validateCurrentStep()) ? 'not-allowed' : 'pointer',
-                  transition: 'all 0.2s ease',
-                  border: 'none',
-                  outline: 'none',
-                  backgroundColor: (loading || !validateCurrentStep()) ? '#d1d5db' : '#f59e0b',
-                  color: '#ffffff',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                  opacity: (loading || !validateCurrentStep()) ? 0.6 : 1
-                }}
-              >
-                Siguiente
-                <FaChevronRight />
-              </button>
-            ) : (
-              <button
-                type="submit"
-                onClick={handleSubmit}
-                disabled={loading || isFormLocked}
-                style={{
-                  padding: '12px 20px',
-                  borderRadius: '8px',
-                  fontWeight: '500',
-                  fontSize: '0.875rem',
-                  cursor: loading || isFormLocked ? 'not-allowed' : 'pointer',
-                  transition: 'all 0.2s ease',
-                  border: 'none',
-                  outline: 'none',
-                  backgroundColor: loading || isFormLocked ? '#d1d5db' : '#f59e0b',
-                  color: '#ffffff',
-                  opacity: loading || isFormLocked ? 0.6 : 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px'
-                }}
-              >
-                {loading ? (
-                  <>
-                    <div style={{ 
-                      width: '16px', 
-                      height: '16px', 
-                      border: '2px solid #ffffff', 
-                      borderTop: '2px solid transparent', 
-                      borderRadius: '50%', 
-                      animation: 'spin 1s linear infinite' 
-                    }}></div>
-                    Guardando...
-                  </>
-                ) : (
-                  <>
-                    <FaCheck />
-                    {existingProfile ? 'Actualizar' : 'Guardar'}
-                  </>
+              )}
+              
+              {/* Paso 2: Información Empresarial */}
+              {currentStep === 1 && (
+                <div className="form-section animate-fadeIn">
+                  <div className="mb-6 border rounded-lg overflow-hidden shadow-sm">
+                    <div 
+                      className="bg-amber-50 px-4 py-3 flex justify-between items-center cursor-pointer"
+                      onClick={() => toggleSection('business')}
+                    >
+                      <h3 className="font-medium text-slate-700">Información Empresarial</h3>
+                      <div className={`transform transition-transform ${expandedSections.business ? 'rotate-180' : ''}`}>
+                        <FaChevronDown />
+                      </div>
+                    </div>
+                    
+                    <div className={`transition-all duration-300 overflow-hidden ${
+                      expandedSections.business ? 'max-h-screen opacity-100' : 'max-h-0 opacity-0'
+                    }`}>
+                      <div className="p-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                          <div className="space-y-2">
+                            <label htmlFor="razonSocial" className="block text-sm font-medium text-gray-700">
+                              Razón Social
+                            </label>
+                            <input
+                              type="text"
+                              id="razonSocial"
+                              name="razonSocial"
+                              value={formData.razonSocial}
+                              onChange={handleChange}
+                              onFocus={() => setFocusedField('razonSocial')}
+                              onBlur={() => setFocusedField(null)}
+                              disabled={isFormLocked}
+                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-200 outline-none
+                                ${focusedField === 'razonSocial' ? 'ring-2 ring-indigo-500 border-indigo-500' : 'hover:border-gray-400'}
+                                ${fieldErrors.razonSocial ? 'border-red-500 bg-red-50' : 'border-gray-300'}
+                                ${isFormLocked ? 'bg-gray-100 text-gray-500' : 'bg-white'}
+                              `}
+                              placeholder="Nombre de la empresa"
+                            />
+                          </div>
+                        
+                          <div className="space-y-2">
+                            <label htmlFor="nit" className="block text-sm font-medium text-gray-700">
+                              NIT (Sin dígito de verificación)
+                            </label>
+                            <input
+                              type="text"
+                              id="nit"
+                              name="nit"
+                              value={formData.nit}
+                              onChange={handleChange}
+                              onFocus={() => setFocusedField('nit')}
+                              onBlur={() => setFocusedField(null)}
+                              disabled={isFormLocked}
+                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-200 outline-none
+                                ${focusedField === 'nit' ? 'ring-2 ring-indigo-500 border-indigo-500' : 'hover:border-gray-400'}
+                                ${fieldErrors.nit ? 'border-red-500 bg-red-50' : 'border-gray-300'}
+                                ${isFormLocked ? 'bg-gray-100 text-gray-500' : 'bg-white'}
+                              `}
+                              placeholder="Ej: 900123456"
+                            />
+                            {fieldErrors.nit ? (
+                              <p className="text-red-500 text-xs mt-1">{fieldErrors.nit}</p>
+                            ) : (
+                              <FieldValidation 
+                                field="nit"
+                                value={formData.nit}
+                                rules={[
+                                  { text: "Solo dígitos numéricos", validate: val => !val || /^\d+$/.test(val) },
+                                  { text: "Entre 8 y 12 caracteres", validate: val => !val || (val.length >= 8 && val.length <= 12) }
+                                ]}
+                              />
+                            )}
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <label htmlFor="digitoVerificacion" className="block text-sm font-medium text-gray-700">
+                              Dígito de Verificación
+                            </label>
+                            <input
+                              type="text"
+                              id="digitoVerificacion"
+                              name="digitoVerificacion"
+                              value={formData.digitoVerificacion}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                if (value === '' || /^[0-9]$/.test(value)) {
+                                  handleChange(e);
+                                }
+                              }}
+                              onFocus={() => setFocusedField('digitoVerificacion')}
+                              onBlur={() => setFocusedField(null)}
+                              maxLength="1"
+                              pattern="[0-9]"
+                              disabled={isFormLocked}
+                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-200 outline-none
+                                ${focusedField === 'digitoVerificacion' ? 'ring-2 ring-indigo-500 border-indigo-500' : 'hover:border-gray-400'}
+                                ${fieldErrors.digitoVerificacion ? 'border-red-500 bg-red-50' : 'border-gray-300'}
+                                ${isFormLocked ? 'bg-gray-100 text-gray-500' : 'bg-white'}
+                              `}
+                              placeholder="Ej: 7"
+                            />
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                          <div className="space-y-2">
+                            <label htmlFor="representanteLegal" className="block text-sm font-medium text-gray-700">
+                              Representante Legal
+                            </label>
+                            <input
+                              type="text"
+                              id="representanteLegal"
+                              name="representanteLegal"
+                              value={formData.representanteLegal}
+                              onChange={handleChange}
+                              onFocus={() => setFocusedField('representanteLegal')}
+                              onBlur={() => setFocusedField(null)}
+                              disabled={isFormLocked}
+                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-200 outline-none
+                                ${focusedField === 'representanteLegal' ? 'ring-2 ring-indigo-500 border-indigo-500' : 'hover:border-gray-400'}
+                                ${fieldErrors.representanteLegal ? 'border-red-500 bg-red-50' : 'border-gray-300'}
+                                ${isFormLocked ? 'bg-gray-100 text-gray-500' : 'bg-white'}
+                              `}
+                              placeholder="Nombre del representante legal"
+                            />
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <label htmlFor="actividadComercial" className="block text-sm font-medium text-gray-700">
+                              Actividad Comercial
+                            </label>
+                            <input
+                              type="text"
+                              id="actividadComercial"
+                              name="actividadComercial"
+                              value={formData.actividadComercial}
+                              onChange={handleChange}
+                              onFocus={() => setFocusedField('actividadComercial')}
+                              onBlur={() => setFocusedField(null)}
+                              disabled={isFormLocked}
+                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-200 outline-none
+                                ${focusedField === 'actividadComercial' ? 'ring-2 ring-indigo-500 border-indigo-500' : 'hover:border-gray-400'}
+                                ${fieldErrors.actividadComercial ? 'border-red-500 bg-red-50' : 'border-gray-300'}
+                                ${isFormLocked ? 'bg-gray-100 text-gray-500' : 'bg-white'}
+                              `}
+                              placeholder="Describa la actividad comercial"
+                            />
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <label htmlFor="sectorEconomico" className="block text-sm font-medium text-gray-700">
+                              Sector Económico
+                            </label>
+                            <input
+                              type="text"
+                              id="sectorEconomico"
+                              name="sectorEconomico"
+                              value={formData.sectorEconomico}
+                              onChange={handleChange}
+                              onFocus={() => setFocusedField('sectorEconomico')}
+                              onBlur={() => setFocusedField(null)}
+                              disabled={isFormLocked}
+                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-200 outline-none
+                                ${focusedField === 'sectorEconomico' ? 'ring-2 ring-indigo-500 border-indigo-500' : 'hover:border-gray-400'}
+                                ${fieldErrors.sectorEconomico ? 'border-red-500 bg-red-50' : 'border-gray-300'}
+                                ${isFormLocked ? 'bg-gray-100 text-gray-500' : 'bg-white'}
+                              `}
+                              placeholder="Ej: Comercio, Servicios, etc."
+                            />
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <label htmlFor="tamanoEmpresa" className="block text-sm font-medium text-gray-700">
+                              Tamaño de Empresa
+                            </label>
+                            <select
+                              id="tamanoEmpresa"
+                              name="tamanoEmpresa"
+                              value={formData.tamanoEmpresa}
+                              onChange={handleChange}
+                              onFocus={() => setFocusedField('tamanoEmpresa')}
+                              onBlur={() => setFocusedField(null)}
+                              disabled={isFormLocked}
+                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-200 outline-none appearance-none bg-white
+                                ${focusedField === 'tamanoEmpresa' ? 'ring-2 ring-indigo-500 border-indigo-500' : 'hover:border-gray-400'}
+                                ${fieldErrors.tamanoEmpresa ? 'border-red-500 bg-red-50' : 'border-gray-300'}
+                                ${isFormLocked ? 'bg-gray-100 text-gray-500' : 'bg-white'}
+                              `}
+                            >
+                              <option value="Microempresa">Microempresa</option>
+                              <option value="Pequeña">Pequeña</option>
+                              <option value="Mediana">Mediana</option>
+                              <option value="Grande">Grande</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Paso 3: Información Financiera */}
+              {currentStep === 2 && (
+                <div className="form-section animate-fadeIn">
+                  <div className="mb-6 border rounded-lg overflow-hidden shadow-sm">
+                    <div 
+                      className="bg-lime-50 px-4 py-3 flex justify-between items-center cursor-pointer"
+                      onClick={() => toggleSection('financial')}
+                    >
+                      <h3 className="font-medium text-slate-700">Información Financiera</h3>
+                      <div className={`transform transition-transform ${expandedSections.financial ? 'rotate-180' : ''}`}>
+                        <FaChevronDown />
+                      </div>
+                    </div>
+                    
+                    <div className={`transition-all duration-300 overflow-hidden ${
+                      expandedSections.financial ? 'max-h-screen opacity-100' : 'max-h-0 opacity-0'
+                    }`}>
+                      <div className="p-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <label htmlFor="ingresosMensuales" className="block text-sm font-medium text-gray-700">
+                              Ingresos Mensuales Promedio
+                            </label>
+                            <input
+                              type="number"
+                              id="ingresosMensuales"
+                              name="ingresosMensuales"
+                              value={formData.ingresosMensuales}
+                              onChange={handleChange}
+                              onFocus={() => setFocusedField('ingresosMensuales')}
+                              onBlur={() => setFocusedField(null)}
+                              disabled={isFormLocked}
+                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-200 outline-none
+                                ${focusedField === 'ingresosMensuales' ? 'ring-2 ring-green-500 border-green-500' : 'hover:border-gray-400'}
+                                ${fieldErrors.ingresosMensuales ? 'border-red-500 bg-red-50' : 'border-gray-300'}
+                                ${isFormLocked ? 'bg-gray-100 text-gray-500' : 'bg-white'}
+                              `}
+                              placeholder="0"
+                            />
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <label htmlFor="patrimonio" className="block text-sm font-medium text-gray-700">
+                              Patrimonio
+                            </label>
+                            <input
+                              type="number"
+                              id="patrimonio"
+                              name="patrimonio"
+                              value={formData.patrimonio}
+                              onChange={handleChange}
+                              onFocus={() => setFocusedField('patrimonio')}
+                              onBlur={() => setFocusedField(null)}
+                              disabled={isFormLocked}
+                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-200 outline-none
+                                ${focusedField === 'patrimonio' ? 'ring-2 ring-green-500 border-green-500' : 'hover:border-gray-400'}
+                                ${fieldErrors.patrimonio ? 'border-red-500 bg-red-50' : 'border-gray-300'}
+                                ${isFormLocked ? 'bg-gray-100 text-gray-500' : 'bg-white'}
+                              `}
+                              placeholder="0"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Paso 4: Información Bancaria */}
+              {currentStep === 3 && (
+                <div className="form-section animate-fadeIn">
+                  <div className="mb-6 border rounded-lg overflow-hidden shadow-sm">
+                    <div 
+                      className="bg-violet-50 px-4 py-3 flex justify-between items-center cursor-pointer"
+                      onClick={() => toggleSection('banking')}
+                    >
+                      <h3 className="font-medium text-slate-700">Información Bancaria</h3>
+                      <div className={`transform transition-transform ${expandedSections.banking ? 'rotate-180' : ''}`}>
+                        <FaChevronDown className="text-slate-500"/>
+                      </div>
+                    </div>
+                    
+                    <div className={`transition-all duration-300 overflow-hidden ${
+                      expandedSections.banking ? 'max-h-screen opacity-100' : 'max-h-0 opacity-0'
+                    }`}>
+                      <div className="p-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div className="space-y-2">
+                            <label htmlFor="entidadBancaria" className="block text-sm font-medium text-gray-700">
+                              Entidad Bancaria
+                            </label>
+                            <input
+                              type="text"
+                              id="entidadBancaria"
+                              name="entidadBancaria"
+                              value={formData.entidadBancaria}
+                              onChange={handleChange}
+                              onFocus={() => setFocusedField('entidadBancaria')}
+                              onBlur={() => setFocusedField(null)}
+                              disabled={isFormLocked}
+                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-200 outline-none
+                                ${focusedField === 'entidadBancaria' ? 'ring-2 ring-purple-500 border-purple-500' : 'hover:border-gray-400'}
+                                ${fieldErrors.entidadBancaria ? 'border-red-500 bg-red-50' : 'border-gray-300'}
+                                ${isFormLocked ? 'bg-gray-100 text-gray-500' : 'bg-white'}
+                              `}
+                              placeholder="Nombre del banco"
+                            />
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <label htmlFor="tipoCuenta" className="block text-sm font-medium text-gray-700">
+                              Tipo de Cuenta
+                            </label>
+                            <select
+                              id="tipoCuenta"
+                              name="tipoCuenta"
+                              value={formData.tipoCuenta}
+                              onChange={handleChange}
+                              onFocus={() => setFocusedField('tipoCuenta')}
+                              onBlur={() => setFocusedField(null)}
+                              disabled={isFormLocked}
+                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-200 outline-none appearance-none bg-white
+                                ${focusedField === 'tipoCuenta' ? 'ring-2 ring-purple-500 border-purple-500' : 'hover:border-gray-400'}
+                                ${fieldErrors.tipoCuenta ? 'border-red-500 bg-red-50' : 'border-gray-300'}
+                                ${isFormLocked ? 'bg-gray-100 text-gray-500' : 'bg-white'}
+                              `}
+                            >
+                              <option value="Ahorros">Ahorros</option>
+                              <option value="Corriente">Corriente</option>
+                            </select>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <label htmlFor="numeroCuenta" className="block text-sm font-medium text-gray-700">
+                              Número de Cuenta
+                            </label>
+                            <input
+                              type="text"
+                              id="numeroCuenta"
+                              name="numeroCuenta"
+                              value={formData.numeroCuenta}
+                              onChange={handleChange}
+                              onFocus={() => setFocusedField('numeroCuenta')}
+                              onBlur={() => setFocusedField(null)}
+                              disabled={isFormLocked}
+                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-200 outline-none
+                                ${focusedField === 'numeroCuenta' ? 'ring-2 ring-purple-500 border-purple-500' : 'hover:border-gray-400'}
+                                ${fieldErrors.numeroCuenta ? 'border-red-500 bg-red-50' : 'border-gray-300'}
+                                ${isFormLocked ? 'bg-gray-100 text-gray-500' : 'bg-white'}
+                              `}
+                              placeholder="Número de cuenta bancaria"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Paso 5: Documentos Requeridos */}
+              {currentStep === 4 && (
+                <div className="form-section animate-fadeIn">
+                  <div className="mb-6 border rounded-lg overflow-hidden shadow-sm">
+                    <div 
+                      className="bg-rose-50 px-4 py-3 flex justify-between items-center cursor-pointer"
+                      onClick={() => toggleSection('documents')}
+                    >
+                      <h3 className="font-medium text-slate-700">Documentos Requeridos</h3>
+                      <div className={`transform transition-transform ${expandedSections.documents ? 'rotate-180' : ''}`}>
+                        <FaChevronDown />
+                      </div>
+                    </div>
+                    
+                    <div className={`transition-all duration-300 overflow-hidden ${
+                      expandedSections.documents ? 'max-h-screen opacity-100' : 'max-h-0 opacity-0'
+                    }`}>
+                      <div className="p-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div className="space-y-2">
+                            <label htmlFor="fotocopiaCedula" className="block text-sm font-medium text-gray-700 mb-1">
+                              Fotocopia Cédula*
+                            </label>
+                            <div className={`border-2 border-dashed rounded-lg p-4 text-center transition-all ${
+                              formData.fotocopiaCedula ? 'border-green-300 bg-green-50' : 'border-gray-300 hover:border-blue-400'
+                            }`}>
+                              <input
+                                type="file"
+                                id="fotocopiaCedula"
+                                name="fotocopiaCedula"
+                                onChange={handleFileChange}
+                                className="hidden"
+                                required={!existingProfile?.fotocopiaCedula}
+                                disabled={isFormLocked}
+                              />
+                              
+                              {formData.fotocopiaCedula ? (
+                                <div className="py-2">
+                                  <FaFileAlt className="mx-auto h-8 w-8 text-green-500 mb-2" />
+                                  <p className="text-sm text-gray-600 truncate">
+                                    {formData.fotocopiaCedula.name}
+                                  </p>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const newFormData = {...formData};
+                                      newFormData.fotocopiaCedula = null;
+                                      setFormData(newFormData);
+                                    }}
+                                    className="mt-2 text-xs text-red-600 hover:text-red-800"
+                                    disabled={isFormLocked}
+                                  >
+                                    Eliminar archivo
+                                  </button>
+                                </div>
+                              ) : (
+                                <label htmlFor="fotocopiaCedula" className="cursor-pointer py-6 block">
+                                  <FaUpload className="mx-auto h-8 w-8 text-gray-400 mb-2" />
+                                  <p className="text-sm text-gray-500">
+                                    {existingProfile?.fotocopiaCedula ? 'Archivo ya cargado. Haz clic para reemplazar' : 'Haz clic para seleccionar archivo'}
+                                  </p>
+                                </label>
+                              )}
+                            </div>
+                            {fieldErrors.fotocopiaCedula && (
+                              <p className="text-red-500 text-xs mt-1">{fieldErrors.fotocopiaCedula}</p>
+                            )}
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <label htmlFor="fotocopiaRut" className="block text-sm font-medium text-gray-700 mb-1">
+                              Fotocopia RUT*
+                            </label>
+                            <div className={`border-2 border-dashed rounded-lg p-4 text-center transition-all ${
+                              formData.fotocopiaRut ? 'border-green-300 bg-green-50' : 'border-gray-300 hover:border-blue-400'
+                            }`}>
+                              <input
+                                type="file"
+                                id="fotocopiaRut"
+                                name="fotocopiaRut"
+                                onChange={handleFileChange}
+                                className="hidden"
+                                required={!existingProfile?.fotocopiaRut}
+                                disabled={isFormLocked}
+                              />
+                              
+                              {formData.fotocopiaRut ? (
+                                <div className="py-2">
+                                  <FaFileAlt className="mx-auto h-8 w-8 text-green-500 mb-2" />
+                                  <p className="text-sm text-gray-600 truncate">
+                                    {formData.fotocopiaRut.name}
+                                  </p>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const newFormData = {...formData};
+                                      newFormData.fotocopiaRut = null;
+                                      setFormData(newFormData);
+                                    }}
+                                    className="mt-2 text-xs text-red-600 hover:text-red-800"
+                                    disabled={isFormLocked}
+                                  >
+                                    Eliminar archivo
+                                  </button>
+                                </div>
+                              ) : (
+                                <label htmlFor="fotocopiaRut" className="cursor-pointer py-6 block">
+                                  <FaUpload className="mx-auto h-8 w-8 text-gray-400 mb-2" />
+                                  <p className="text-sm text-gray-500">
+                                    {existingProfile?.fotocopiaRut ? 'Archivo ya cargado. Haz clic para reemplazar' : 'Haz clic para seleccionar archivo'}
+                                  </p>
+                                </label>
+                              )}
+                            </div>
+                            {fieldErrors.fotocopiaRut && (
+                              <p className="text-red-500 text-xs mt-1">{fieldErrors.fotocopiaRut}</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Botones de navegación */}
+              <div className="flex justify-between pt-6 mt-6 border-t">
+                {currentStep > 0 && (
+                  <button
+                    type="button"
+                    onClick={prevStep}
+                    className="px-6 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors flex items-center"
+                  >
+                    <FaChevronLeft className="mr-2" /> Anterior
+                  </button>
                 )}
-              </button>
-            )}
+                
+                <div className="ml-auto flex space-x-3">
+                  <button
+                    type="button"
+                    className="px-6 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors"
+                    onClick={onClose}
+                  >
+                    Cancelar
+                  </button>
+                  
+                  {currentStep < steps.length - 1 ? (
+                    <button
+                      type="button"
+                      onClick={nextStep}
+                      className="px-6 py-2 bg-accent rounded-lg text-white hover:bg-accent/80  transition-colors flex items-center"
+                    >
+                      Siguiente <FaChevronRight className="ml-2" />
+                    </button>
+                  ) : (
+                    <button
+                      type="submit"
+                      disabled={loading || isFormLocked}
+                      className={`px-6 py-2 rounded-lg text-white flex items-center ${
+                        loading || isFormLocked ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'
+                      } transition-colors`}
+                    >
+                      {loading ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
+                          Guardando...
+                        </>
+                      ) : (
+                        <>
+                          {existingProfile ? 'Actualizar Perfil' : 'Guardar Perfil'} <FaCheck className="ml-2" />
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </form>
           </div>
         </div>
-
-        {/* Overlay de carga */}
-        {loading && (
-          <div style={{ 
-            position: 'absolute', 
-            top: 0, 
-            left: 0, 
-            right: 0, 
-            bottom: 0, 
-            backgroundColor: 'rgba(255, 255, 255, 0.95)', 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'center', 
-            zIndex: 50,
-            borderRadius: '12px'
-          }}>
-            <div style={{ textAlign: 'center', color: '#374151' }}>
-              <div style={{ 
-                width: '48px', 
-                height: '48px', 
-                border: '4px solid #e5e7eb', 
-                borderTop: '4px solid #f59e0b', 
-                borderRadius: '50%', 
-                animation: 'spin 1s linear infinite', 
-                margin: '0 auto 16px' 
-              }}></div>
-              <p style={{ margin: 0, fontSize: '0.875rem', fontWeight: '500' }}>
-                Guardando información...
-              </p>
-            </div>
-          </div>
-        )}
       </div>
-
+      
       {/* Modal de confirmación */}
       {showConfirmation && (
-        <ConfirmationModal
-          isSuccess={confirmationIsSuccess}
-          message={confirmationMessage}
-          onClose={handleConfirmationClose}
-        />
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full animate-fadeIn shadow-xl">
+            <div className="text-center">
+              <div className={`inline-flex items-center justify-center w-16 h-16 rounded-full ${confirmationIsSuccess ? 'bg-green-100' : 'bg-red-100'} mb-4`}>
+                {confirmationIsSuccess ? (
+                  <FaCheck className="h-8 w-8 text-green-500" />
+                ) : (
+                  <FaExclamationCircle className="h-8 w-8 text-red-500" />
+                )}
+              </div>
+              <h3 className="text-lg font-medium mb-2">
+                {confirmationIsSuccess ? 'Operación Exitosa' : 'Error'}
+              </h3>
+              <p className="text-gray-600 mb-6">{confirmationMessage}</p>
+              <button
+                onClick={handleConfirmationClose}
+                className={`px-4 py-2 rounded-lg text-white ${
+                  confirmationIsSuccess ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'
+                } transition-colors`}
+              >
+                Aceptar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
-
-      {/* Estilos de animación */}
-      <style>{`
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-        
-        @media (max-width: 768px) {
-          .modal-scroll-content {
-            padding: 16px !important;
-          }
-        }
-        
-        .modal-scroll-content::-webkit-scrollbar {
-          width: 6px;
-        }
-        
-        .modal-scroll-content::-webkit-scrollbar-track {
-          background: #f1f1f1;
-          border-radius: 3px;
-        }
-        
-        .modal-scroll-content::-webkit-scrollbar-thumb {
-          background: #c1c1c1;
-          border-radius: 3px;
-        }
-        
-        .modal-scroll-content::-webkit-scrollbar-thumb:hover {
-          background: #a8a8a8;
-        }
-      `}</style>
+      
+      {/* Indicador de carga */}
+      {loading && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-xl flex items-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mr-3"></div>
+            <p className="text-slate-700">Guardando información...</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
