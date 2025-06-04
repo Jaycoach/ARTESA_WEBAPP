@@ -102,12 +102,9 @@ const Orders = () => {
               {userStatus.statusMessage}
             </p>
             {!userStatus.hasClientProfile && (
-              <button
-                onClick={() => navigate('/dashboard/profile')}
-                className="mt-2 text-sm underline hover:no-underline"
-              >
-                Completar perfil de cliente
-              </button>
+              <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm text-blue-700">
+                Para completar tu perfil de cliente, haz clic en tu <strong>cuenta</strong> (parte superior derecha) y selecciona <strong>"Mi Perfil"</strong>.
+              </div>
             )}
           </div>
         </div>

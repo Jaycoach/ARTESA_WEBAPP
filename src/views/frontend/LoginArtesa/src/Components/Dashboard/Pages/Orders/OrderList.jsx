@@ -28,131 +28,6 @@ const OrderList = () => {
   const [tempFilters, setTempFilters] = useState({ deliveryDate: '', statusId: '' });
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const isAdmin = user?.role === 1;
-
-  // NUEVO: Componente para mostrar el estado del usuario
-  const UserStatusMessage = () => {
-    if (userStatus.loading) {
-      return (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-          <div className="flex items-center">
-            <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-blue-500 mr-3"></div>
-            <span className="text-blue-700 font-medium">Verificando estado de tu cuenta...</span>
-          </div>
-        </div>
-      );
-    }
-
-    if (userError) {
-      return (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-          <div className="flex items-start">
-            <FaUserTimes className="text-red-500 mr-3 mt-1 flex-shrink-0" />
-            <div className="flex-1">
-              <h3 className="font-medium text-red-800 mb-1">Error de validación</h3>
-              <p className="text-red-700 text-sm mb-3">{userError}</p>
-              <button
-                onClick={refreshUserStatus}
-                className="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700"
-              >
-                Reintentar
-              </button>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    if (!userStatus.hasClientProfile) {
-      return (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
-          <div className="flex items-start">
-            <FaUserClock className="text-yellow-500 mr-3 mt-1 flex-shrink-0" />
-            <div className="flex-1">
-              <h3 className="font-medium text-yellow-800 mb-1">Perfil de cliente incompleto</h3>
-              <p className="text-yellow-700 text-sm mb-3">
-                Para crear pedidos necesitas completar tu perfil de cliente con la información de facturación.
-              </p>
-              <button
-                onClick={() => openModal(() => refreshUserStatus())}
-                className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700 text-sm font-medium"
-              >
-                Completar perfil de cliente
-              </button>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    if (userStatus.isPendingSync) {
-      return (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-          <div className="flex items-start">
-            <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-blue-500 mr-3 mt-1 flex-shrink-0"></div>
-            <div className="flex-1">
-              <h3 className="font-medium text-blue-800 mb-1">Sincronización en progreso</h3>
-              <p className="text-blue-700 text-sm mb-3">
-                Tu perfil está siendo sincronizado con nuestro sistema. Este proceso puede tomar algunos minutos.
-              </p>
-              <div className="flex space-x-2">
-                <button
-                  onClick={refreshUserStatus}
-                  className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
-                >
-                  Verificar estado
-                </button>
-              </div>
-              <div className="mt-2 text-xs text-blue-600">
-                <p>⏱️ Tiempo estimado: 2-5 minutos</p>
-                <p>🔄 Esta página se actualiza automáticamente</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    if (!userStatus.isActive) {
-      return (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-          <div className="flex items-start">
-            <FaUserTimes className="text-red-500 mr-3 mt-1 flex-shrink-0" />
-            <div className="flex-1">
-              <h3 className="font-medium text-red-800 mb-1">Cuenta no activa</h3>
-              <p className="text-red-700 text-sm mb-3">
-                Tu perfil está completo pero tu cuenta aún no ha sido activada por nuestro equipo.
-              </p>
-              <div className="flex space-x-2">
-                <button
-                  onClick={() => alert('Contacta con el administrador para activar tu cuenta')}
-                  className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-                >
-                  Contactar administrador
-                </button>
-                <button
-                  onClick={refreshUserStatus}
-                  className="px-3 py-1 border border-red-300 text-red-700 rounded hover:bg-red-100 text-sm"
-                >
-                  Verificar estado
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    // Usuario activo - mostrar mensaje de éxito discreto
-    return (
-      <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
-        <div className="flex items-center">
-          <FaUserCheck className="text-green-500 mr-2 flex-shrink-0" />
-          <span className="text-green-700 text-sm font-medium">Tu cuenta está activa y puedes crear pedidos</span>
-        </div>
-      </div>
-    );
-  };
-
   // NUEVO: Botón condicional para crear pedido
   const CreateOrderButton = ({ className = "", showIcon = true }) => {
     if (!userStatus.canCreateOrders) {
@@ -375,11 +250,16 @@ const OrderList = () => {
 
   return (
     <div className="bg-white p-3 sm:p-6 rounded-lg border shadow-sm w-full max-w-[98%] mx-auto">
-      {/* NUEVO: Mostrar estado del usuario */}
-      <UserStatusMessage />
-
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6 gap-3">
-        <h2 className="text-xl font-semibold text-gray-800">Mis Pedidos</h2>
+        {/* Mejorar el H2 */}
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <span className="inline-flex items-center justify-center rounded-full bg-blue-100 text-blue-600 p-2">
+            <FaEye className="text-lg" />
+          </span>
+          <h2 className="text-xl sm:text-2xl font-semibold text-gray-800 tracking-wide text-center sm:text-left w-full sm:w-auto">
+            Mis Pedidos
+          </h2>
+        </div>
         <div className="flex gap-2 items-center w-full sm:w-auto">
           <button
             onClick={() => setShowFilterPanel(!showFilterPanel)}
@@ -388,7 +268,6 @@ const OrderList = () => {
             <FaFilter className="mr-1.5" />
             {showFilterPanel ? 'Ocultar Filtros' : 'Mostrar Filtros'}
           </button>
-          {/* MODIFICADO: Botón condicional */}
           <CreateOrderButton className="flex-1 sm:flex-none" />
         </div>
       </div>
