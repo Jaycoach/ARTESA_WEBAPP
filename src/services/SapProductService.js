@@ -133,34 +133,60 @@ class SapProductService extends SapBaseService {
   }
 
   /**
-   * Obtiene productos de SAP B1
+   * Obtiene productos de SAP B1 usando consulta SQL directa
    * @param {Object} options - Opciones de filtrado
    * @returns {Promise<Array>} Lista de productos
    */
   async getProductsFromSAP(options = {}) {
     try {
-      const { skip = 0 } = options;
+      const { skip = 0, groupCode = null } = options;
       
-      // Usar el endpoint correcto sin modificarlo con $skip en la URL
-      let endpoint = `view.svc/B1_ProductsB1SLQuery`;
+      // Construir la consulta SQL que simula la vista B1_ProductsB1SLQuery
+      let sqlQuery = `
+        SELECT DISTINCT 
+            T0.[ItemName], 
+            COALESCE(T1.[Price], 0) as price_list1, 
+            0 as price_list2, 
+            0 as price_list3, 
+            COALESCE(T0.[OnHand], 0) as Stock, 
+            T0.CodeBars, 
+            T0.[ItemCode] as 'Sap_Code', 
+            COALESCE(T0.ItmsGrpCod, 0) as 'Sap_Group', 
+            CASE WHEN frozenFor = 'N' THEN 'true' else 'false' END as is_active
+        FROM OITM T0  
+        INNER JOIN ITM1 T1 ON T0.ItemCode = T1.ItemCode 
+        INNER JOIN OITW T2 ON T0.ItemCode = T2.ItemCode
+        WHERE T1.PriceList = 1 AND T0.SellItem = 'Y'
+      `;
       
-      // Si hay skip, añadirlo como parámetro de consulta
-      if (skip > 0) {
-        endpoint = `view.svc/B1_ProductsB1SLQuery?$skip=${skip}`;
+      // Agregar filtro por grupo si se especifica
+      if (groupCode) {
+        sqlQuery += ` AND T0.ItmsGrpCod = ${parseInt(groupCode, 10)}`;
       }
       
-      this.logger.debug('Obteniendo productos de SAP B1', { 
-        endpoint,
-        skip
+      // Agregar paginación si se especifica
+      if (skip > 0) {
+        sqlQuery += ` ORDER BY T0.ItemCode OFFSET ${skip} ROWS`;
+      } else {
+        sqlQuery += ` ORDER BY T0.ItemCode`;
+      }
+      
+      this.logger.debug('Ejecutando consulta SQL directa para productos', { 
+        sqlQuery: sqlQuery.replace(/\s+/g, ' ').trim(),
+        skip,
+        groupCode
       });
       
-      // Ya tienes el header 'Prefer': 'odata.maxpagesize=0' en el método request
-      const data = await this.request('GET', endpoint);
+      // Ejecutar la consulta SQL usando el endpoint de SqlQueries
+      const endpoint = `SQLQueries('sql01')/List`;
+      const data = await this.request('POST', endpoint, {
+        QueryPath: sqlQuery
+      });
       
       if (!data || !data.value) {
-        throw new Error('Formato de respuesta inválido');
+        throw new Error('Formato de respuesta inválido en consulta SQL');
       }
-  
+
       // Mapear los datos correctamente asegurando valores numéricos válidos
       const mappedItems = data.value.map(item => {
         // Función auxiliar para parseo seguro
@@ -185,38 +211,38 @@ class SapProductService extends SapBaseService {
           }
           return 0;
         };
-      
+
+        const safeParseBool = (val) => {
+          if (typeof val === 'boolean') return val;
+          if (typeof val === 'string') return val.toLowerCase() === 'true';
+          return true; // Por defecto activo
+        };
+
         return {
-          ItemName: item.ItemName,
+          ItemName: item.ItemName || '',
           price_list1: safeParseFloat(item.price_list1),
           price_list2: safeParseFloat(item.price_list2),
           price_list3: safeParseFloat(item.price_list3),
           Stock: safeParseInt(item.Stock),
-          CodeBars: item.CodeBars,
-          Sap_Code: item.Sap_Code,
+          CodeBars: item.CodeBars || '',
+          Sap_Code: item.Sap_Code || '',
           Sap_Group: safeParseInt(item.Sap_Group),
-          is_active: item.is_active === "true" || item.is_active === true || true
+          is_active: safeParseBool(item.is_active)
         };
       });
-      
-      // Determinar si hay más datos basado en la presencia de @odata.nextLink
-      const hasMoreData = !!data['@odata.nextLink'];
-      
-      this.logger.info('Productos obtenidos de SAP B1', {
+
+      this.logger.debug('Productos obtenidos de SAP B1 via SQL directa', { 
         count: mappedItems.length,
-        hasMore: hasMoreData,
-        nextLink: data['@odata.nextLink'] || 'ninguno'
+        skip,
+        groupCode
       });
-      
-      return {
-        items: mappedItems,
-        hasMore: hasMoreData,
-        nextLink: data['@odata.nextLink'] || null
-      };
+
+      return { value: mappedItems };
     } catch (error) {
-      this.logger.error('Error al obtener productos de SAP B1', {
+      this.logger.error('Error al obtener productos de SAP B1 via SQL directa', {
         error: error.message,
-        stack: error.stack
+        stack: error.stack,
+        options
       });
       throw error;
     }
@@ -468,10 +494,10 @@ class SapProductService extends SapBaseService {
         iterations++;
         
         try {
-          // Obtener lote de productos de SAP con el filtro adecuado
-          // Nota: Modificar la llamada para incluir el filtro por grupo
-          const { items, hasMore: moreItems, nextLink } = await this.getProductsFromSAP({
-            skip
+          // Obtener lote de productos de SAP filtrados por grupo
+          const productData = await this.getProductsFromSAP({ 
+            skip, 
+            groupCode 
           });
           
           // Filtrar manualmente los productos por grupo

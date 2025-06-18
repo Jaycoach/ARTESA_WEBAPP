@@ -107,6 +107,45 @@ router.get('/analyze-view',
 );
 /**
  * @swagger
+ * /api/sap/products/direct:
+ *   get:
+ *     summary: Obtener productos usando consulta SQL directa
+ *     description: Obtiene productos de SAP B1 ejecutando la consulta SQL directamente sin usar la vista
+ *     tags: [SAP]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: skip
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *         description: Número de registros a omitir (paginación)
+ *       - in: query
+ *         name: groupCode
+ *         schema:
+ *           type: integer
+ *         description: Código del grupo de productos a filtrar
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *         description: Número máximo de registros a devolver
+ *     responses:
+ *       200:
+ *         description: Productos obtenidos exitosamente
+ *       401:
+ *         description: No autorizado
+ *       500:
+ *         description: Error al obtener productos
+ */
+router.get('/products/direct', 
+  checkRole([1]), // Solo administradores
+  sapSyncController.getProductsDirectQuery
+);
+/**
+ * @swagger
  * /api/sap/update-description:
  *   post:
  *     summary: Actualizar descripción de producto y sincronizar con SAP
