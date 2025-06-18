@@ -838,5 +838,6 @@ module.exports = {
   syncProductsByGroup: sapSyncController.syncProductsByGroup,
   getGroupSyncStatus: sapSyncController.getGroupSyncStatus,
   configureGroupSync: sapSyncController.configureGroupSync,
-  updateProductDescription: sapSyncController.updateProductDescription
+  updateProductDescription: sapSyncController.updateProductDescription,
+  getProductsDirectQuery: sapSyncController.getProductsDirectQuery
 };
