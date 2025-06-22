@@ -264,7 +264,20 @@ const swaggerUiOptions = {
   customSiteTitle: "API LAARTESA - Documentación",
 };
 
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpecs, swaggerUiOptions));
+// Configurar CSP específico para Swagger
+app.use('/api-docs', (req, res, next) => {
+  res.setHeader('Content-Security-Policy', 
+    "default-src 'self'; " +
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
+    "style-src 'self' 'unsafe-inline'; " +
+    "img-src 'self' data: https:; " +
+    "font-src 'self' data:; " +
+    "connect-src 'self' " +
+    "http://ec2-44-216-131-63.compute-1.amazonaws.com " +
+    "https://ec2-44-216-131-63.compute-1.amazonaws.com;"
+  );
+  next();
+}, swaggerUi.serve, swaggerUi.setup(swaggerSpecs, swaggerUiOptions));
 
 // Mejorar el endpoint de swagger.json con CORS
 app.get('/swagger.json', (req, res) => {

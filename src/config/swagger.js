@@ -11,24 +11,29 @@ const options = {
         name: 'Privada',
       },
     },
-    servers: [
-      {
-        url: 'http://ec2-44-216-131-63.compute-1.amazonaws.com:3000',
-        description: 'Servidor Staging HTTP - Puerto 3000'
-      },
-      {
-        url: 'http://ec2-44-216-131-63.compute-1.amazonaws.com',
-        description: 'Servidor Staging HTTP (Puerto 80)'
-      },
-      {
+    servers: (() => {
+      const servers = [];
+      
+      // Servidor de staging HTTPS (siempre primero para que sea el default)
+      if (process.env.NODE_ENV === 'staging') {
+        servers.push({
+          url: process.env.SWAGGER_BASE_URL || 'https://ec2-44-216-131-63.compute-1.amazonaws.com',
+          description: 'Servidor Staging HTTPS'
+        });
+        servers.push({
+          url: 'http://ec2-44-216-131-63.compute-1.amazonaws.com',
+          description: 'Servidor Staging HTTP'
+        });
+      }
+      
+      // Servidor local para desarrollo
+      servers.push({
         url: `http://localhost:${process.env.PORT || 3000}`,
         description: 'Servidor Local de Desarrollo'
-      },
-      {
-        url: 'https://ec2-44-216-131-63.compute-1.amazonaws.com',
-        description: 'Servidor Staging HTTPS (Solo si SSL está configurado)'
-      }
-    ],
+      });
+      
+      return servers;
+    })(),
     components: {
       securitySchemes: {
         bearerAuth: {
