@@ -342,7 +342,8 @@ class SapClientService extends SapBaseService {
       try {
       // Realizar petición a SAP
         const result = await this.request(method, endpoint, businessPartnerData);
-        
+        // Inicializar resultCardCode con el valor esperado
+        let resultCardCode = clientProfile.cardcode_sap || cardCode;
         // Si es creación exitosa, guardar el CardCode real asignado por SAP
         if (!isUpdate && result && result.CardCode) {
           resultCardCode = result.CardCode;
@@ -362,7 +363,8 @@ class SapClientService extends SapBaseService {
             sapCardCode: resultCardCode
           });
         } else if (isUpdate) {
-          // Para actualizaciones, simplemente marcar como sincronizado si aún no lo está
+          resultCardCode = clientProfile.cardcode_sap;
+          // Para actualizaciones, marcar como sincronizado
           await pool.query(
             `UPDATE client_profiles 
             SET sap_lead_synced = true,
@@ -1351,6 +1353,50 @@ class SapClientService extends SapBaseService {
       this.logger.error('Error al sincronizar sucursales del cliente', {
         cardCode,
         clientId,
+        error: error.message,
+        stack: error.stack
+      });
+      throw error;
+    }
+  }
+  /**
+   * Obtiene un Business Partner por su código SAP
+   * @param {string} sapCode - Código SAP del Business Partner
+   * @returns {Promise<Object|null>} - Business Partner o null si no existe
+   */
+  async getBusinessPartnerBySapCode(sapCode) {
+    try {
+      if (!sapCode) {
+        throw new Error('Código SAP es requerido');
+      }
+
+      this.logger.debug('Buscando Business Partner por código SAP', { sapCode });
+
+      // Asegurar autenticación
+      if (!this.sessionId) {
+        await this.login();
+      }
+
+      const result = await this.request('GET', `BusinessPartners('${sapCode}')`);
+      
+      if (result) {
+        this.logger.debug('Business Partner encontrado', {
+          cardCode: result.CardCode,
+          cardName: result.CardName,
+          cardType: result.CardType
+        });
+        return result;
+      }
+
+      return null;
+    } catch (error) {
+      if (error.response?.status === 404) {
+        this.logger.debug('Business Partner no encontrado', { sapCode });
+        return null;
+      }
+      
+      this.logger.error('Error al buscar Business Partner por código SAP', {
+        sapCode,
         error: error.message,
         stack: error.stack
       });

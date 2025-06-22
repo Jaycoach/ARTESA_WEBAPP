@@ -429,7 +429,7 @@ class ClientProfileController {
  * /api/client-profiles:
  *   post:
  *     summary: Crear un nuevo perfil de cliente
- *     description: Crea un nuevo perfil de cliente en el sistema con todos los campos opcionales
+ *     description: Crea un nuevo perfil de cliente en el sistema con transaccionalidad completa
  *     tags: [ClientProfiles]
  *     security:
  *       - bearerAuth: []
@@ -459,64 +459,12 @@ class ClientProfileController {
  *               direccion:
  *                 type: string
  *                 description: Dirección física
- *               ciudad:
+ *               nit_number:
  *                 type: string
- *                 description: Ciudad
- *               pais:
+ *                 description: Número de NIT sin dígito de verificación
+ *               verification_digit:
  *                 type: string
- *                 description: País
- *               nit:
- *                 type: string
- *                 description: NIT o identificación fiscal
- *               tipoDocumento:
- *                 type: string
- *                 enum: [CC, CE, PASAPORTE]
- *                 description: Tipo de documento
- *               numeroDocumento:
- *                 type: string
- *                 description: Número de documento
- *               representanteLegal:
- *                 type: string
- *                 description: Representante legal
- *               actividadComercial:
- *                 type: string
- *                 description: Actividad comercial
- *               sectorEconomico:
- *                 type: string
- *                 description: Sector económico
- *               tamanoEmpresa:
- *                 type: string
- *                 enum: [Microempresa, Pequeña, Mediana, Grande]
- *                 description: Tamaño de la empresa
- *               ingresosMensuales:
- *                 type: string
- *                 description: Ingresos mensuales promedio
- *               patrimonio:
- *                 type: string
- *                 description: Patrimonio
- *               entidadBancaria:
- *                 type: string
- *                 description: Entidad bancaria
- *               tipoCuenta:
- *                 type: string
- *                 enum: [Ahorros, Corriente]
- *                 description: Tipo de cuenta bancaria
- *               numeroCuenta:
- *                 type: string
- *                 description: Número de cuenta bancaria
- *               nombreContacto:
- *                 type: string
- *                 description: Nombre del contacto alternativo
- *               cargoContacto:
- *                 type: string
- *                 description: Cargo del contacto alternativo
- *               telefonoContacto:
- *                 type: string
- *                 description: Teléfono del contacto alternativo
- *               emailContacto:
- *                 type: string
- *                 format: email
- *                 description: Email del contacto alternativo
+ *                 description: Dígito de verificación del NIT
  *               fotocopiaCedula:
  *                 type: string
  *                 format: binary
@@ -532,19 +480,6 @@ class ClientProfileController {
  *     responses:
  *       201:
  *         description: Perfil creado exitosamente
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: Perfil de cliente creado exitosamente
- *                 data:
- *                   $ref: '#/components/schemas/ClientProfile'
  *       400:
  *         description: Datos inválidos o el usuario ya tiene un perfil
  *       401:
@@ -552,1004 +487,860 @@ class ClientProfileController {
  *       500:
  *         description: Error interno del servidor
  */
-  async createProfile(req, res) {
-    try {
-      logger.debug('Headers de la solicitud:', {
-        contentType: req.headers['content-type'],
-        contentLength: req.headers['content-length']
-      });
-      // Depuración inicial
-      logger.debug('Recibiendo datos para perfil de cliente', { 
-        bodyFields: Object.keys(req.body),
-        bodyContent: JSON.stringify(req.body).substring(0, 1000), // Muestra los primeros 1000 caracteres
-        filesExist: !!req.files,
-        filesKeys: req.files ? Object.keys(req.files) : [],
-        filesInfo: req.files ? Object.keys(req.files).map(key => ({
-          key,
-          name: req.files[key].name,
-          size: req.files[key].size,
-          mimetype: req.files[key].mimetype
-        })) : []
-      });
-      
-      // Extraer datos de la solicitud - usar solo campos camelCase
-      const clientData = {};
-      
-      // Mapear campos específicos para evitar duplicidad
-      const fieldMap = {
-        // Campos básicos
-        'userId': 'userId',
-        'razonSocial': 'razonSocial',
-        'nombre': 'nombre',
-        'telefono': 'telefono',
-        'email': 'email',
-        'direccion': 'direccion', 
-        'ciudad': 'ciudad',
-        'pais': 'pais',
-        'nit': 'nit',
-        'nit_number': 'nit_number',
-        'verification_digit': 'verification_digit',
-        
-        // Campos adicionales
-        'tipoDocumento': 'tipoDocumento',
-        'numeroDocumento': 'numeroDocumento',
-        'representanteLegal': 'representanteLegal',
-        'actividadComercial': 'actividadComercial',
-        'sectorEconomico': 'sectorEconomico',
-        'tamanoEmpresa': 'tamanoEmpresa',
-        'ingresosMensuales': 'ingresosMensuales',
-        'patrimonio': 'patrimonio',
-        'entidadBancaria': 'entidadBancaria',
-        'tipoCuenta': 'tipoCuenta',
-        'numeroCuenta': 'numeroCuenta',
-        'nombreContacto': 'nombreContacto',
-        'cargoContacto': 'cargoContacto',
-        'telefonoContacto': 'telefonoContacto',
-        'emailContacto': 'emailContacto',
-        
-        // Compatibilidad hacia atrás con campos en snake_case
-        'company_name': 'razonSocial',
-        'contact_name': 'nombre',
-        'contact_phone': 'telefono',
-        'contact_email': 'email',
-        'address': 'direccion',
-        'city': 'ciudad',
-        'country': 'pais',
-        'tax_id': 'nit',
-        'price_list': 'listaPrecios',
-        'notes': 'notas',
-        'fotocopia_cedula': 'fotocopiaCedula',
-        'fotocopia_rut': 'fotocopiaRut',
-        'anexos_adicionales': 'anexosAdicionales'
-      };
+async createProfile(req, res) {
+  try {
+    logger.debug('Headers de la solicitud:', {
+      contentType: req.headers['content-type'],
+      contentLength: req.headers['content-length']
+    });
+    
+    logger.debug('Recibiendo datos para perfil de cliente', { 
+      bodyFields: Object.keys(req.body),
+      filesExist: !!req.files,
+      filesKeys: req.files ? Object.keys(req.files) : []
+    });
+    
+    // Extraer datos de la solicitud
+    const clientData = {};
+    
+    // Mapear campos específicos
+    const fieldMap = {
+      'userId': 'userId',
+      'razonSocial': 'razonSocial',
+      'nombre': 'nombre',
+      'telefono': 'telefono',
+      'email': 'email',
+      'direccion': 'direccion', 
+      'ciudad': 'ciudad',
+      'pais': 'pais',
+      'nit': 'nit',
+      'nit_number': 'nit_number',
+      'verification_digit': 'verification_digit',
+      'tipoDocumento': 'tipoDocumento',
+      'numeroDocumento': 'numeroDocumento',
+      'representanteLegal': 'representanteLegal',
+      'actividadComercial': 'actividadComercial',
+      'sectorEconomico': 'sectorEconomico',
+      'tamanoEmpresa': 'tamanoEmpresa',
+      'ingresosMensuales': 'ingresosMensuales',
+      'patrimonio': 'patrimonio',
+      'entidadBancaria': 'entidadBancaria',
+      'tipoCuenta': 'tipoCuenta',
+      'numeroCuenta': 'numeroCuenta',
+      'nombreContacto': 'nombreContacto',
+      'cargoContacto': 'cargoContacto',
+      'telefonoContacto': 'telefonoContacto',
+      'emailContacto': 'emailContacto',
+      // Compatibilidad hacia atrás
+      'company_name': 'razonSocial',
+      'contact_name': 'nombre',
+      'contact_phone': 'telefono',
+      'contact_email': 'email',
+      'address': 'direccion',
+      'city': 'ciudad',
+      'country': 'pais',
+      'tax_id': 'nit'
+    };
 
-      // Extraer campos adicionales (que no son parte del modelo pero se quieren almacenar)
-      const additionalFields = {};
-        
-      // Iterar sobre req.body para encontrar campos que no están en el mapeo estándar
-      Object.keys(req.body).forEach(key => {
-        if (!fieldMap[key] && req.body[key] !== undefined && req.body[key] !== '') {
-          additionalFields[key] = req.body[key];
-        }
-      });
-      
-      // Asignar solo los campos que nos interesan
-      Object.keys(req.body).forEach(key => {
-        if (fieldMap[key] && req.body[key] !== undefined && req.body[key] !== '') {
-          clientData[fieldMap[key]] = req.body[key];
-        }
-      });
-
-      // Asegurar explícitamente que los campos críticos para SAP se extraen correctamente
-      if (req.body.nit_number) clientData.nit_number = req.body.nit_number;
-      if (req.body.verification_digit) clientData.verification_digit = req.body.verification_digit;
-
-      // Si tenemos digitoVerificacion pero no verification_digit, usarlo
-      if (!clientData.verification_digit && req.body.digitoVerificacion) {
-        clientData.verification_digit = req.body.digitoVerificacion;
+    // Extraer campos adicionales
+    const additionalFields = {};
+    
+    Object.keys(req.body).forEach(key => {
+      if (!fieldMap[key] && req.body[key] !== undefined && req.body[key] !== '') {
+        additionalFields[key] = req.body[key];
       }
+    });
+    
+    // Asignar campos mapeados
+    Object.keys(req.body).forEach(key => {
+      if (fieldMap[key] && req.body[key] !== undefined && req.body[key] !== '') {
+        clientData[fieldMap[key]] = req.body[key];
+      }
+    });
 
-      // Si tenemos nit pero no nit_number, intentar extraerlo del nit
-      if (!clientData.nit_number && req.body.nit) {
-        const parts = req.body.nit.split('-');
-        if (parts.length > 0) {
-          clientData.nit_number = parts[0];
-          if (parts.length > 1 && !clientData.verification_digit) {
-            clientData.verification_digit = parts[1];
-          }
+    // Procesar NIT
+    if (req.body.nit_number) clientData.nit_number = req.body.nit_number;
+    if (req.body.verification_digit) clientData.verification_digit = req.body.verification_digit;
+
+    if (!clientData.nit_number && req.body.nit) {
+      const parts = req.body.nit.split('-');
+      if (parts.length > 0) {
+        clientData.nit_number = parts[0];
+        if (parts.length > 1 && !clientData.verification_digit) {
+          clientData.verification_digit = parts[1];
         }
       }
+    }
 
-      logger.info('Datos críticos para SAP extraídos del formulario:', {
-        nit_number: clientData.nit_number,
-        verification_digit: clientData.verification_digit,
-        nit: req.body.nit,
-        digitoVerificacion: req.body.digitoVerificacion,
-        tax_id: clientData.nit
-      });
-      
-      // Asegurar que userId sea un entero
-      if (clientData.userId) {
-        clientData.userId = parseInt(clientData.userId);
-      } else if (req.user && req.user.id) {
-        // Si no se proporciona userId, usar el del usuario autenticado
-        clientData.userId = req.user.id;
-      }
-      
-      logger.debug('Datos procesados para creación de perfil de cliente', { 
-        userId: clientData.userId,
-        razonSocial: clientData.razonSocial,
-        nombre: clientData.nombre,
-        processedFields: Object.keys(clientData).length
-      });
-      
-      // Verificar si ya existe un perfil para este usuario
-      if (clientData.userId) {
-        const hasProfile = await ClientProfile.userHasProfile(clientData.userId);
-        
-        if (hasProfile) {
-          return res.status(400).json({
-            success: false,
-            message: 'Este usuario ya tiene un perfil, debe actualizarlo'
-          });
-        }
-      }
-
-      // Validar que si se proporciona NIT o dígito de verificación, ambos sean proporcionados
-      if ((clientData.nit_number && !clientData.verification_digit) || 
-      (!clientData.nit_number && clientData.verification_digit)) {
+    // Procesar userId
+    if (clientData.userId) {
+      clientData.userId = parseInt(clientData.userId);
+    } else if (req.user && req.user.id) {
+      clientData.userId = req.user.id;
+    }
+    
+    logger.debug('Datos procesados para creación de perfil', { 
+      userId: clientData.userId,
+      razonSocial: clientData.razonSocial,
+      nit_number: clientData.nit_number,
+      verification_digit: clientData.verification_digit
+    });
+    
+    // Validaciones
+    if (clientData.userId) {
+      const hasProfile = await ClientProfile.userHasProfile(clientData.userId);
+      if (hasProfile) {
         return res.status(400).json({
+          success: false,
+          message: 'Este usuario ya tiene un perfil, debe actualizarlo'
+        });
+      }
+    }
+
+    if ((clientData.nit_number && !clientData.verification_digit) || 
+        (!clientData.nit_number && clientData.verification_digit)) {
+      return res.status(400).json({
         success: false,
         message: 'Si proporciona el NIT, debe incluir también el dígito de verificación y viceversa'
+      });
+    }
+
+    // Verificar NIT duplicado en BD
+    if (clientData.nit_number) {
+      const nitCheck = await ClientProfile.nitExists(clientData.nit_number);
+      if (nitCheck.exists) {
+        logger.warn('Intento de crear perfil con NIT duplicado', {
+          nit_number: clientData.nit_number,
+          existingClientId: nitCheck.clientId,
+          existingUserId: nitCheck.userId
+        });
+        
+        return res.status(400).json({
+          success: false,
+          message: 'El NIT ya está registrado en el sistema',
+          data: { duplicateNIT: true, nitNumber: clientData.nit_number }
         });
       }
+    }
+    
+    // Procesar archivos
+    try {
+      if (req.files) {
+        const fileFieldMap = {
+          'fotocopiaCedula': 'fotocopiaCedula',
+          'fotocopia_cedula': 'fotocopiaCedula',
+          'fotocopiaRut': 'fotocopiaRut',
+          'fotocopia_rut': 'fotocopiaRut', 
+          'anexosAdicionales': 'anexosAdicionales',
+          'anexos_adicionales': 'anexosAdicionales'
+        };
+        
+        for (const field in req.files) {
+          if (fileFieldMap[field]) {
+            const standardizedField = fileFieldMap[field];
+            const docType = standardizedField === 'fotocopiaCedula' ? 'cedula' : 
+                          standardizedField === 'fotocopiaRut' ? 'rut' : 'anexos';
+            
+            clientData[standardizedField] = await saveFile(req.files[field], clientData.userId, docType);
+          }
+        }
+      }
+    } catch (fileError) {
+      logger.error('Error procesando archivos', {
+        error: fileError.message,
+        stack: fileError.stack
+      });
+    }
 
-      // Verificar si el NIT ya existe en la base de datos
-      if (clientData.nit_number) {
-        const nitCheck = await ClientProfile.nitExists(clientData.nit_number);
-        if (nitCheck.exists) {
-          logger.warn('Intento de crear perfil con NIT duplicado', {
-            nit_number: clientData.nit_number,
-            existingClientId: nitCheck.clientId,
-            existingUserId: nitCheck.userId
+    // Calcular tax_id
+    if (clientData.nit_number && clientData.verification_digit) {
+      clientData.nit = `${clientData.nit_number}-${clientData.verification_digit}`;
+    }
+
+    // Procesar campos adicionales
+    const criticalFields = ['nit_number', 'verification_digit', 'cardcode_sap', 'clientprofilecode_sap'];
+    criticalFields.forEach(field => {
+      if (field in additionalFields) {
+        logger.warn(`Campo crítico "${field}" encontrado en datos adicionales, se usará valor principal`);
+        delete additionalFields[field];
+      }
+    });
+
+    if (Object.keys(additionalFields).length > 0) {
+      clientData.notes = JSON.stringify(additionalFields);
+    }
+
+    // Verificar CardCode en SAP antes de crear
+    if (clientData.nit_number && clientData.verification_digit) {
+      const cardCodeToCheck = `CI${clientData.nit_number}`;
+      try {
+        // Asegurar inicialización SAP
+        if (!sapServiceManager.initialized) {
+          await sapServiceManager.initialize();
+        }
+        
+        const existingPartner = await sapServiceManager.clientService.getBusinessPartnerBySapCode(cardCodeToCheck);
+        if (existingPartner) {
+          logger.warn('CardCode ya existe en SAP', {
+            cardCode: cardCodeToCheck,
+            userId: clientData.userId,
+            existingPartner: existingPartner.CardCode
           });
           
           return res.status(400).json({
             success: false,
-            message: 'El NIT ya está registrado en el sistema',
-            data: {
-              duplicateNIT: true,
-              nitNumber: clientData.nit_number
-            }
+            message: 'Ya existe un cliente en SAP con este NIT. Contacte al administrador.',
+            error: 'DUPLICATE_CARDCODE_SAP'
           });
-        }
-      }
-
-      // Verificar si el NIT ya existe en SAP
-      if (clientData.nit_number && clientData.verification_digit) {
-        try {
-          const sapServiceManager = require('../services/SapServiceManager');
-          
-          // Asegurar que el servicio está inicializado
-          if (!sapServiceManager.initialized) {
-            await sapServiceManager.initialize();
-          }
-          
-          // Verificar en SAP
-          const sapCheck = await sapServiceManager.clientService.nitExistsInSAP(
-            clientData.nit_number,
-            clientData.verification_digit
-          );
-          
-          if (sapCheck.exists) {
-            logger.info('NIT ya existe en SAP, utilizando código SAP existente', {
-              nit_number: clientData.nit_number,
-              cardCode: sapCheck.cardCode
-            });
-            
-            // Pre-asignar el código SAP existente
-            clientData.cardcode_sap = sapCheck.cardCode;
-          }
-        } catch (sapError) {
-          // No fallamos la creación si hay error en la verificación SAP, solo lo registramos
-          logger.warn('Error al verificar NIT en SAP', {
-            error: sapError.message,
-            nit_number: clientData.nit_number
-          });
-        }
-      }
-      
-      // Procesar archivos si existen
-      try {
-        if (req.files) {
-          // Mapeo de campos antiguos a nuevos y viceversa
-          const fileFieldMap = {
-            'fotocopiaCedula': 'fotocopiaCedula',
-            'fotocopia_cedula': 'fotocopiaCedula',
-            'fotocopiaRut': 'fotocopiaRut',
-            'fotocopia_rut': 'fotocopiaRut', 
-            'anexosAdicionales': 'anexosAdicionales',
-            'anexos_adicionales': 'anexosAdicionales'
-          };
-          
-          // Procesar cada campo de archivo soportado
-          for (const field in req.files) {
-            if (fileFieldMap[field]) {
-              const standardizedField = fileFieldMap[field];
-              // Determinar el tipo de documento para la ruta
-              const docType = standardizedField === 'fotocopiaCedula' ? 'cedula' : 
-                            standardizedField === 'fotocopiaRut' ? 'rut' : 'anexos';
-              
-              clientData[standardizedField] = await saveFile(req.files[field], clientData.userId, docType);
-            }
-          }
-        }
-      } catch (fileError) {
-        logger.error('Error procesando archivos', {
-          error: fileError.message,
-          stack: fileError.stack
-        });
-        // Continuamos sin archivos
-      }
-
-      // Calcular tax_id a partir de nit_number y verification_digit
-      if (clientData.nit_number && clientData.verification_digit) {
-        clientData.nit = `${clientData.nit_number}-${clientData.verification_digit}`;
-        logger.debug('tax_id calculado a partir de NIT', {
-          nit_number: clientData.nit_number,
-          verification_digit: clientData.verification_digit,
-          tax_id: clientData.nit
-        });
-      }
-      // Verificar que los valores críticos se mantengan intactos
-      logger.debug('Valores críticos antes de crear perfil', {
-        nit_number: clientData.nit_number,
-        verification_digit: clientData.verification_digit,
-        nit: clientData.nit
-      });
-        
-      // Iterar sobre req.body para encontrar campos que no están en el mapeo estándar
-      Object.keys(req.body).forEach(key => {
-        if (!fieldMap[key] && req.body[key] !== undefined && req.body[key] !== '') {
-          additionalFields[key] = req.body[key];
-        }
-      });
-
-      // Asegurar que no hay campos críticos duplicados en notes
-      const criticalFields = ['nit_number', 'verification_digit', 'cardcode_sap', 'clientprofilecode_sap'];
-      criticalFields.forEach(field => {
-        if (field in additionalFields) {
-          logger.warn(`Campo crítico "${field}" encontrado en datos adicionales, se usará valor principal`, {
-            inAdditional: additionalFields[field],
-            inMain: clientData[field]
-          });
-          delete additionalFields[field];
-        }
-      });
-
-      // Crear el perfil con datos adicionales almacenados como JSON en notes
-      if (Object.keys(additionalFields).length > 0) {
-        clientData.notes = JSON.stringify(additionalFields);
-      }
-
-      // Crear el perfil
-      const profile = await ClientProfile.create(clientData);
-      
-      // Intentar sincronizar con SAP de manera forzada
-      try {
-        logger.info('FORZANDO SINCRONIZACIÓN CON SAP: Inicio del proceso', {
-          cliente_id: profile.client_id,
-          nit_number: profile.nit_number,
-          verification_digit: profile.verification_digit,
-          nombre: profile.nombre,
-          razonSocial: profile.razonSocial
-        });
-
-        // Verificar manualmente que tengamos los datos necesarios
-        // Intentar extraer nit_number y verification_digit si no están disponibles directamente
-        if (!profile.nit_number && profile.nit) {
-          const parts = profile.nit.split('-');
-          if (parts.length > 0) {
-            profile.nit_number = parts[0];
-            if (parts.length > 1 && profile.verification_digit === undefined) {
-              profile.verification_digit = parts[1];
-            }
-          }
-        }
-
-        logger.info('Datos finales para sincronización SAP:', {
-          nit_number: profile.nit_number,
-          verification_digit: profile.verification_digit,
-          nit: profile.nit,
-          tax_id: profile.tax_id
-        });
-
-        // Verificar manualmente que tengamos los datos necesarios
-        if (!profile.nit_number || profile.verification_digit === undefined) {
-          logger.warn('No se puede sincronizar con SAP: falta NIT o dígito de verificación', {
-            nit_number: profile.nit_number,
-            verification_digit: profile.verification_digit
-          });
-        } else {
-          // Verificar que el servicio de SAP esté inicializado
-          if (!sapServiceManager.initialized) {
-            logger.info('Inicializando servicio SAP antes de sincronizar');
-            await sapServiceManager.initialize();
-          }
-
-          // Crear un objeto con el formato necesario para SAP
-          const sapProfileData = {
-            client_id: profile.client_id,
-            user_id: profile.user_id,
-            razonSocial: profile.razonSocial || profile.company_name,
-            nombre: profile.nombre || profile.contact_name,
-            telefono: profile.telefono || profile.contact_phone,
-            email: profile.email || profile.contact_email,
-            direccion: profile.direccion || profile.address,
-            nit_number: profile.nit_number,
-            verification_digit: profile.verification_digit
-          };
-          
-          logger.info('Datos preparados para SAP:', sapProfileData);
-          
-          // Llamar directamente al servicio de SAP Client
-          const sapResult = await sapServiceManager.clientService.createOrUpdateBusinessPartnerLead(sapProfileData);
-          
-          logger.info('RESULTADO DE SINCRONIZACIÓN SAP:', {
-            success: sapResult?.success,
-            cardCode: sapResult?.cardCode,
-            isNew: sapResult?.isNew
-          });
-          
-          // Si la sincronización fue exitosa, actualizar el perfil con la información de SAP
-          if (sapResult && sapResult.success && sapResult.cardCode) {
-            await pool.query(
-              `UPDATE client_profiles 
-              SET cardcode_sap = $1, sap_lead_synced = true, updated_at = CURRENT_TIMESTAMP
-              WHERE client_id = $2`,
-              [sapResult.cardCode, profile.client_id]
-            );
-            
-            // Actualizar objeto para la respuesta
-            profile.cardcode_sap = sapResult.cardCode;
-            profile.sap_lead_synced = true;
-            
-            logger.info('Perfil sincronizado exitosamente con SAP', {
-              clientId: profile.client_id,
-              cardCode: sapResult.cardCode,
-              isNew: sapResult.isNew
-            });
-          } else {
-            logger.warn('Sincronización con SAP no completada o sin resultados válidos', {
-              success: sapResult?.success,
-              cardCode: sapResult?.cardCode
-            });
-          }
         }
       } catch (sapError) {
-        logger.error('ERROR CRÍTICO en sincronización con SAP:', {
+        logger.debug('Error al verificar CardCode en SAP (continuando)', {
           error: sapError.message,
-          stack: sapError.stack,
-          clientId: profile.client_id
+          cardCode: cardCodeToCheck
+        });
+      }
+    }
+
+    // TRANSACCIÓN COMPLETA
+    const dbClient = await pool.connect();
+    let profile = null;
+
+    try {
+      await dbClient.query('BEGIN');
+      
+      logger.info('Creando nuevo perfil de cliente en transacción', {
+        userId: clientData.userId,
+        email: clientData.email,
+        nombre: clientData.nombre
+      });
+      
+      // Crear perfil en BD
+      const insertQuery = `
+        INSERT INTO client_profiles (
+          user_id, company_name, contact_name, contact_phone, contact_email,
+          alternative_contact_name, alternative_contact_phone, alternative_contact_email,
+          address, nit_number, verification_digit, fotocopia_cedula, fotocopia_rut, anexos_adicionales,
+          notes, created_at, updated_at, sap_lead_synced
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false)
+        RETURNING *
+      `;
+      
+      const values = [
+        clientData.userId,
+        clientData.razonSocial,
+        clientData.nombre,
+        clientData.telefono,
+        clientData.email,
+        clientData.nombreContacto,
+        clientData.telefonoContacto,
+        clientData.emailContacto,
+        clientData.direccion,
+        clientData.nit_number,
+        clientData.verification_digit,
+        clientData.fotocopiaCedula,
+        clientData.fotocopiaRut,
+        clientData.anexosAdicionales,
+        clientData.notes
+      ];
+      
+      const result = await dbClient.query(insertQuery, values);
+      profile = result.rows[0];
+      
+      logger.info('Perfil creado en base de datos, iniciando sincronización SAP', {
+        clientId: profile.client_id,
+        userId: profile.user_id
+      });
+      
+      // Marcar usuario como inactivo hasta completar SAP
+      await dbClient.query('UPDATE users SET is_active = false WHERE id = $1', [profile.user_id]);
+      
+      // Sincronizar con SAP si tenemos datos necesarios
+      if (profile.nit_number && profile.verification_digit !== undefined) {
+        const sapProfileData = {
+          client_id: profile.client_id,
+          user_id: profile.user_id,
+          razonSocial: profile.company_name,
+          nombre: profile.contact_name,
+          telefono: profile.contact_phone,
+          email: profile.contact_email,
+          direccion: profile.address,
+          nit_number: profile.nit_number,
+          verification_digit: profile.verification_digit
+        };
+        
+        logger.info('Datos preparados para SAP:', sapProfileData);
+        
+        if (!sapServiceManager.initialized) {
+          await sapServiceManager.initialize();
+        }
+        
+        const sapResult = await sapServiceManager.clientService.createOrUpdateBusinessPartnerLead(sapProfileData);
+        
+        if (!sapResult || !sapResult.success) {
+          throw new Error(`Error en sincronización SAP: ${sapResult?.error || 'Resultado inválido'}`);
+        }
+        
+        logger.info('Sincronización SAP exitosa', {
+          clientId: profile.client_id,
+          cardCode: sapResult.cardCode,
+          isNew: sapResult.isNew
         });
         
-        // A pesar del error, continuamos para al menos crear el perfil localmente
-      }
-
-      // Agregar URLs para archivos en la respuesta
-      const baseUrl = `${req.protocol}://${req.get('host')}`;
-      
-      if (profile.fotocopiaCedula) {
-        profile.fotocopiaCedulaUrl = `${baseUrl}/api/client-profiles/${profile.user_id}/file/cedula`;
-      }
-      
-      if (profile.fotocopiaRut) {
-        profile.fotocopiaRutUrl = `${baseUrl}/api/client-profiles/${profile.user_id}/file/rut`;
-      }
-      
-      if (profile.anexosAdicionales) {
-        profile.anexosAdicionalesUrl = `${baseUrl}/api/client-profiles/${profile.user_id}/file/anexos`;
-      }
-
-      // Verificar si se debe sincronizar con SAP
-      if (profile.nit_number && profile.verification_digit) {
-        try {
-          logger.info('Intentando sincronizar perfil con SAP', {
-            client_id: profile.client_id,
-            user_id: profile.user_id,
-            nit_number: profile.nit_number,
-            verification_digit: profile.verification_digit,
-            razonSocial: profile.razonSocial || profile.company_name,
-            nombre: profile.nombre || profile.contact_name,
-            telefono: profile.telefono || profile.contact_phone,
-            email: profile.email || profile.contact_email,
-            direccion: profile.direccion || profile.address
-          });
-          
-          // Verificar que el servicio de SAP esté inicializado
-          if (!sapServiceManager.initialized) {
-            logger.info('Inicializando servicio de SAP antes de sincronizar');
-            await sapServiceManager.initialize();
-          }
+        // Actualizar perfil con datos de SAP
+        await dbClient.query(
+          `UPDATE client_profiles 
+          SET cardcode_sap = $1, sap_lead_synced = true, updated_at = CURRENT_TIMESTAMP
+          WHERE client_id = $2`,
+          [sapResult.cardCode, profile.client_id]
+        );
         
-          // Intentar crear en SAP usando el método correcto
-          const sapResult = await sapServiceManager.createOrUpdateLead(profile);
-          
-          logger.info('Resultado de sincronización SAP', {
-            success: sapResult?.success,
-            cardCode: sapResult?.cardCode,
-            isNew: sapResult?.isNew,
-            error: sapResult?.error
-          });
-          
-          // Actualizar el perfil con la información de SAP
-          if (sapResult.success && sapResult.cardCode) {
-            await pool.query(
-              `UPDATE client_profiles 
-              SET cardcode_sap = $1, sap_lead_synced = true, updated_at = CURRENT_TIMESTAMP
-              WHERE client_id = $2`,
-              [sapResult.cardCode, profile.client_id]
-            );
-            
-            // Actualizar objeto para la respuesta
-            profile.cardcode_sap = sapResult.cardCode;
-            profile.sap_lead_synced = true;
-            
-            logger.info('Perfil de cliente sincronizado con SAP como Lead', {
-              clientId: profile.client_id,
-              cardcodeSap: sapResult.cardCode,
-              isNew: sapResult.isNew
-            });
-          } else {
-            logger.warn('No se pudo sincronizar el perfil con SAP correctamente', {
-              clientId: profile.client_id,
-              success: sapResult?.success,
-              cardCode: sapResult?.cardCode
-            });
-          }
-        } catch (sapError) {
-          // No fallamos la creación del perfil si falla SAP, solo logueamos el error
-          logger.error('Error al sincronizar perfil con SAP', {
-            error: sapError.message,
-            stack: sapError.stack,
-            clientId: profile.client_id
-          });
-        }
+        profile.cardcode_sap = sapResult.cardCode;
+        profile.sap_lead_synced = true;
       }
       
-      logger.info('Perfil de cliente creado exitosamente', {
+      // Activar usuario después de sincronización exitosa
+      await dbClient.query('UPDATE users SET is_active = true WHERE id = $1', [profile.user_id]);
+      
+      // Confirmar transacción
+      await dbClient.query('COMMIT');
+      
+      logger.info('Perfil de cliente creado y sincronizado exitosamente', {
+        clientId: profile.client_id,
         userId: profile.user_id,
+        cardCode: profile.cardcode_sap
+      });
+      
+    } catch (error) {
+      // Revertir transacción
+      await dbClient.query('ROLLBACK');
+      
+      logger.error('Error al crear perfil, transacción revertida', {
+        error: error.message,
+        stack: error.stack,
         userId: clientData.userId
       });
       
-      res.status(201).json({
-        success: true,
-        message: 'Perfil de cliente creado exitosamente',
-        data: profile
-      });
-    } catch (error) {
-      logger.error('Error al crear perfil de cliente', {
-        error: error.message,
-        stack: error.stack,
-        userId: req.body?.userId
+      // Limpiar archivos subidos
+      const filesToClean = [
+        { url: clientData.fotocopiaCedula, type: 'cedula' },
+        { url: clientData.fotocopiaRut, type: 'rut' },
+        { url: clientData.anexosAdicionales, type: 'anexos' }
+      ];
+      
+      for (const fileInfo of filesToClean) {
+        if (fileInfo.url) {
+          try {
+            if (process.env.STORAGE_MODE === 's3') {
+              await S3Service.deleteFile(fileInfo.url.replace(S3Service.getBaseUrl() + '/', ''));
+            } else {
+              const filePath = path.join(uploadDir, path.basename(fileInfo.url));
+              if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+            }
+          } catch (cleanupError) {
+            logger.warn(`Error al limpiar archivo ${fileInfo.type}`, { error: cleanupError.message });
+          }
+        }
+      }
+      
+      return res.status(500).json({
+        success: false,
+        message: 'Error al crear perfil de cliente. La sincronización con SAP falló.',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Error interno del sistema'
       });
       
-      res.status(500).json({
+    } finally {
+      dbClient.release();
+    }
+
+    // Agregar URLs para archivos
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+
+    if (profile.fotocopiaCedula) {
+      profile.fotocopiaCedulaUrl = `${baseUrl}/api/client-profiles/${profile.user_id}/file/cedula`;
+    }
+
+    if (profile.fotocopiaRut) {
+      profile.fotocopiaRutUrl = `${baseUrl}/api/client-profiles/${profile.user_id}/file/rut`;
+    }
+
+    if (profile.anexosAdicionales) {
+      profile.anexosAdicionalesUrl = `${baseUrl}/api/client-profiles/${profile.user_id}/file/anexos`;
+    }
+
+    logger.info('Perfil de cliente creado exitosamente', {
+      userId: profile.user_id,
+      clientId: profile.client_id
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Perfil de cliente creado exitosamente',
+      data: profile
+    });
+    
+  } catch (error) {
+    logger.error('Error al crear perfil de cliente', {
+      error: error.message,
+      stack: error.stack,
+      userId: req.body?.userId
+    });
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error al crear perfil de cliente',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+}
+
+/**
+ * @swagger
+ * /api/client-profiles/user/{userId}:
+ *   put:
+ *     summary: Actualizar perfil de cliente
+ *     description: Actualiza los datos de un perfil de cliente existente
+ *     tags: [ClientProfiles]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID del perfil de cliente
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               razonSocial:
+ *                 type: string
+ *                 description: Razón social de la empresa
+ *               nombre:
+ *                 type: string
+ *                 description: Nombre del contacto
+ *               telefono:
+ *                 type: string
+ *                 description: Teléfono de contacto
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: Email de contacto
+ *               direccion:
+ *                 type: string
+ *                 description: Dirección física
+ *               nit_number:
+ *                 type: string
+ *                 description: Número de NIT sin dígito de verificación
+ *               verification_digit:
+ *                 type: string
+ *                 description: Dígito de verificación del NIT
+ *               fotocopia_cedula:
+ *                 type: string
+ *                 format: binary
+ *                 description: Archivo de fotocopia de cédula
+ *               fotocopia_rut:
+ *                 type: string
+ *                 format: binary
+ *                 description: Archivo de fotocopia de RUT
+ *               anexos_adicionales:
+ *                 type: string
+ *                 format: binary
+ *                 description: Archivos de anexos adicionales
+ *     responses:
+ *       200:
+ *         description: Perfil actualizado exitosamente
+ *       400:
+ *         description: Datos inválidos
+ *       401:
+ *         description: No autorizado
+ *       403:
+ *         description: Prohibido - No tiene permisos suficientes
+ *       404:
+ *         description: Perfil no encontrado
+ *       500:
+ *         description: Error interno del servidor
+ */
+async updateProfileByUserId(req, res) {
+  try {
+    const { userId } = req.params;
+    
+    logger.debug('Iniciando actualización de perfil de cliente', { 
+      userId,
+      method: req.method,
+      bodyFields: Object.keys(req.body),
+      hasFiles: !!req.files,
+      fileFields: req.files ? Object.keys(req.files) : []
+    });
+    
+    // Verificar que tengamos datos para actualizar
+    if (Object.keys(req.body).length === 0 && (!req.files || Object.keys(req.files).length === 0)) {
+      return res.status(400).json({
         success: false,
-        message: 'Error al crear perfil de cliente',
-        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        message: 'No se proporcionaron datos para actualizar'
       });
     }
-  }
 
-  /**
-   * @swagger
-   * /api/client-profiles/user/{userId}:
-   *   put:
-   *     summary: Actualizar perfil de cliente
-   *     description: Actualiza los datos de un perfil de cliente existente
-   *     tags: [ClientProfiles]
-   *     security:
-   *       - bearerAuth: []
-   *     parameters:
-   *       - in: path
-   *         name: userId
-   *         required: true
-   *         schema:
-   *           type: integer
-   *         description: ID del perfil de cliente
-   *     requestBody:
-   *       required: true
-   *       content:
-   *         multipart/form-data:
-   *           schema:
-   *             type: object
-   *             properties:
-   *               company_name:
-   *                 type: string
-   *                 description: Nombre de la empresa
-   *               contact_name:
-   *                 type: string
-   *                 description: Nombre del contacto
-   *               contact_phone:
-   *                 type: string
-   *                 description: Teléfono de contacto
-   *               contact_email:
-   *                 type: string
-   *                 format: email
-   *                 description: Email de contacto
-   *               address:
-   *                 type: string
-   *                 description: Dirección física
-   *               city:
-   *                 type: string
-   *                 description: Ciudad
-   *               country:
-   *                 type: string
-   *                 description: País
-   *               tax_id:
-   *                 type: string
-   *                 description: Identificación fiscal
-   *               price_list:
-   *                 type: integer
-   *                 description: Lista de precios asignada (1, 2 o 3)
-   *               notes:
-   *                 type: string
-   *                 description: Notas adicionales
-   *               fotocopia_cedula:
-   *                 type: string
-   *                 format: binary
-   *                 description: Archivo de fotocopia de cédula
-   *               fotocopia_rut:
-   *                 type: string
-   *                 format: binary
-   *                 description: Archivo de fotocopia de RUT
-   *               anexos_adicionales:
-   *                 type: string
-   *                 format: binary
-   *                 description: Archivos de anexos adicionales
-   *     responses:
-   *       200:
-   *         description: Perfil actualizado exitosamente
-   *       400:
-   *         description: Datos inválidos
-   *       401:
-   *         description: No autorizado
-   *       403:
-   *         description: Prohibido - No tiene permisos suficientes
-   *       404:
-   *         description: Perfil no encontrado
-   *       500:
-   *         description: Error interno del servidor
-   */
-  async updateProfileByUserId(req, res) {
-    try {
-      const { userId } = req.params;
-      
-      // Agregar logs para depuración
-      logger.debug('Iniciando actualización de perfil de cliente', { 
-        userId,
-        method: req.method,
-        path: req.path,
-        bodyFields: Object.keys(req.body),
-        hasFiles: !!req.files,
-        fileFields: req.files ? Object.keys(req.files) : []
+    // Validar NIT/dígito verificación
+    if ((req.body.nit_number && !req.body.verification_digit) || 
+        (!req.body.nit_number && req.body.verification_digit)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Si proporciona el NIT, debe incluir también el dígito de verificación y viceversa'
       });
-      
-      // Verificar que tengamos datos para actualizar
-      if (Object.keys(req.body).length === 0 && (!req.files || Object.keys(req.files).length === 0)) {
-        return res.status(400).json({
-          success: false,
-          message: 'No se proporcionaron datos para actualizar'
-        });
+    }
+    
+    // Extraer datos de actualización
+    const updateData = {};
+    
+    const fieldMap = {
+      'razonSocial': 'razonSocial',
+      'nombre': 'nombre',
+      'telefono': 'telefono',
+      'email': 'email',
+      'direccion': 'direccion', 
+      'ciudad': 'ciudad',
+      'pais': 'pais',
+      'nit': 'nit',
+      'tipoDocumento': 'tipoDocumento',
+      'numeroDocumento': 'numeroDocumento',
+      'representanteLegal': 'representanteLegal',
+      'actividadComercial': 'actividadComercial',
+      'sectorEconomico': 'sectorEconomico',
+      'tamanoEmpresa': 'tamanoEmpresa',
+      'ingresosMensuales': 'ingresosMensuales',
+      'patrimonio': 'patrimonio',
+      'entidadBancaria': 'entidadBancaria',
+      'tipoCuenta': 'tipoCuenta',
+      'numeroCuenta': 'numeroCuenta',
+      'nombreContacto': 'nombreContacto',
+      'cargoContacto': 'cargoContacto',
+      'telefonoContacto': 'telefonoContacto',
+      'emailContacto': 'emailContacto',
+      // Compatibilidad con snake_case
+      'company_name': 'razonSocial',
+      'contact_name': 'nombre',
+      'contact_phone': 'telefono',
+      'contact_email': 'email',
+      'address': 'direccion',
+      'city': 'ciudad',
+      'country': 'pais',
+      'tax_id': 'nit',
+      'nit_number': 'nit_number',
+      'verification_digit': 'verification_digit',  
+      'price_list': 'listaPrecios',
+      'notes': 'notas'
+    };
+
+    // Extraer campos adicionales
+    const additionalFields = {};
+    
+    Object.keys(req.body).forEach(key => {
+      if (!fieldMap[key] && req.body[key] !== undefined && req.body[key] !== '') {
+        additionalFields[key] = req.body[key];
       }
-
-      // Validar que si se proporciona NIT o dígito de verificación, ambos sean proporcionados
-      if ((req.body.nit_number && !req.body.verification_digit) || 
-      (!req.body.nit_number && req.body.verification_digit)) {
-        return res.status(400).json({
-          success: false,
-          message: 'Si proporciona el NIT, debe incluir también el dígito de verificación y viceversa'
-        });
+    });
+    
+    // Asignar campos que tienen valor
+    Object.keys(req.body).forEach(key => {
+      if (fieldMap[key] && req.body[key] !== undefined && req.body[key] !== '') {
+        updateData[fieldMap[key]] = req.body[key];
       }
+    });
 
-      // Si se está actualizando el NIT, verificar que no exista duplicado
-      if (updateData.nit_number) {
-        const nitCheck = await ClientProfile.nitExists(updateData.nit_number, userId);
-        if (nitCheck.exists) {
-          logger.warn('Intento de actualizar perfil con NIT duplicado', {
-            nit_number: updateData.nit_number,
-            userId,
-            existingClientId: nitCheck.clientId,
-            existingUserId: nitCheck.userId
-          });
-          
-          return res.status(400).json({
-            success: false,
-            message: 'El NIT ya está registrado para otro usuario en el sistema',
-            data: {
-              duplicateNIT: true,
-              nitNumber: updateData.nit_number
-            }
-          });
-        }
-      }
-
-      // Verificar si el NIT ya existe en SAP
-      if (clientData.nit_number && clientData.verification_digit) {
-        try {
-          const sapServiceManager = require('../services/SapServiceManager');
-          
-          // Asegurar que el servicio está inicializado
-          if (!sapServiceManager.initialized) {
-            await sapServiceManager.initialize();
-          }
-          
-          // Verificar en SAP
-          const sapCheck = await sapServiceManager.clientService.nitExistsInSAP(
-            clientData.nit_number,
-            clientData.verification_digit
-          );
-          
-          if (sapCheck.exists) {
-            logger.info('NIT ya existe en SAP, utilizando código SAP existente', {
-              nit_number: clientData.nit_number,
-              cardCode: sapCheck.cardCode
-            });
-            
-            // Pre-asignar el código SAP existente
-            clientData.cardcode_sap = sapCheck.cardCode;
-          }
-        } catch (sapError) {
-          // No fallamos la creación si hay error en la verificación SAP, solo lo registramos
-          logger.warn('Error al verificar NIT en SAP', {
-            error: sapError.message,
-            nit_number: clientData.nit_number
-          });
-        }
-      }
-      
-      // Extraer datos de la solicitud
-      const updateData = {};
-      
-      // Mapear campos específicos para estandarizar nombres
-      const fieldMap = {
-        // Campos básicos en camelCase
-        'razonSocial': 'razonSocial',
-        'nombre': 'nombre',
-        'telefono': 'telefono',
-        'email': 'email',
-        'direccion': 'direccion', 
-        'ciudad': 'ciudad',
-        'pais': 'pais',
-        'nit': 'nit',
-        
-        // Campos adicionales
-        'tipoDocumento': 'tipoDocumento',
-        'numeroDocumento': 'numeroDocumento',
-        'representanteLegal': 'representanteLegal',
-        'actividadComercial': 'actividadComercial',
-        'sectorEconomico': 'sectorEconomico',
-        'tamanoEmpresa': 'tamanoEmpresa',
-        'ingresosMensuales': 'ingresosMensuales',
-        'patrimonio': 'patrimonio',
-        'entidadBancaria': 'entidadBancaria',
-        'tipoCuenta': 'tipoCuenta',
-        'numeroCuenta': 'numeroCuenta',
-        'nombreContacto': 'nombreContacto',
-        'cargoContacto': 'cargoContacto',
-        'telefonoContacto': 'telefonoContacto',
-        'emailContacto': 'emailContacto',
-        
-        // Compatibilidad con campos en snake_case
-        'company_name': 'razonSocial',
-        'contact_name': 'nombre',
-        'contact_phone': 'telefono',
-        'contact_email': 'email',
-        'address': 'direccion',
-        'city': 'ciudad',
-        'country': 'pais',
-        'tax_id': 'nit',
-        'nit_number': 'nit_number',
-        'verification_digit': 'verification_digit',  
-        'price_list': 'listaPrecios',
-        'notes': 'notas'
-      };
-
-      // Extraer campos adicionales que no son parte del modelo estándar
-      const additionalFields = {};
-
-      // Iterar sobre req.body para encontrar campos adicionales
-      Object.keys(req.body).forEach(key => {
-        if (!fieldMap[key] && req.body[key] !== undefined && req.body[key] !== '') {
-          additionalFields[key] = req.body[key];
-        }
-      });
-      
-      // Asignar solo los campos que tienen valor
-      Object.keys(req.body).forEach(key => {
-        if (fieldMap[key] && req.body[key] !== undefined && req.body[key] !== '') {
-          updateData[fieldMap[key]] = req.body[key];
-        }
-      });
-      
-      // Calcular tax_id a partir de nit_number y verification_digit si ambos están presentes
-      if (updateData.nit_number && updateData.verification_digit) {
-        updateData.nit = `${updateData.nit_number}-${updateData.verification_digit}`;
-        logger.debug('tax_id actualizado a partir de NIT', {
+    // Validar NIT duplicado DESPUÉS de definir updateData
+    if (updateData.nit_number) {
+      const nitCheck = await ClientProfile.nitExists(updateData.nit_number, userId);
+      if (nitCheck.exists) {
+        logger.warn('Intento de actualizar perfil con NIT duplicado', {
           nit_number: updateData.nit_number,
-          verification_digit: updateData.verification_digit,
-          tax_id: updateData.nit
+          userId,
+          existingClientId: nitCheck.clientId,
+          existingUserId: nitCheck.userId
+        });
+        
+        return res.status(400).json({
+          success: false,
+          message: 'El NIT ya está registrado para otro usuario en el sistema',
+          data: {
+            duplicateNIT: true,
+            nitNumber: updateData.nit_number
+          }
         });
       }
+    }
 
-      // Iterar sobre req.body para encontrar campos adicionales
-      Object.keys(req.body).forEach(key => {
-        if (!fieldMap[key] && req.body[key] !== undefined && req.body[key] !== '') {
-          additionalFields[key] = req.body[key];
+    // Verificar NIT en SAP DESPUÉS de definir updateData
+    if (updateData.nit_number && updateData.verification_digit) {
+      try {
+        if (!sapServiceManager.initialized) {
+          await sapServiceManager.initialize();
         }
-      });
-
-      // Verificar que los campos críticos se mantengan para la actualización
-      logger.debug('Valores críticos antes de actualizar perfil', {
+        
+        const sapCheck = await sapServiceManager.clientService.nitExistsInSAP(
+          updateData.nit_number,
+          updateData.verification_digit
+        );
+        
+        if (sapCheck.exists) {
+          logger.info('NIT ya existe en SAP, utilizando código SAP existente', {
+            nit_number: updateData.nit_number,
+            cardCode: sapCheck.cardCode
+          });
+          
+          updateData.cardcode_sap = sapCheck.cardCode;
+        }
+      } catch (sapError) {
+        logger.warn('Error al verificar NIT en SAP', {
+          error: sapError.message,
+          nit_number: updateData.nit_number
+        });
+      }
+    }
+    
+    // Calcular tax_id
+    if (updateData.nit_number && updateData.verification_digit) {
+      updateData.nit = `${updateData.nit_number}-${updateData.verification_digit}`;
+      logger.debug('tax_id actualizado a partir de NIT', {
         nit_number: updateData.nit_number,
         verification_digit: updateData.verification_digit,
-        nit: updateData.nit
+        tax_id: updateData.nit
+      });
+    }
+
+    logger.debug('Datos para actualización de perfil de cliente', { 
+      userId,
+      fields: Object.keys(updateData)
+    });
+    
+    // Obtener perfil existente
+    const existingProfile = await ClientProfile.getByUserId(userId);
+    
+    if (!existingProfile) {
+      logger.warn('Perfil de cliente no encontrado al actualizar', { userId });
+      return res.status(404).json({
+        success: false,
+        message: 'Perfil de cliente no encontrado'
+      });
+    }
+    
+    // Verificar permisos
+    if (req.user.rol_id !== 1 && existingProfile.user_id !== req.user.id) {
+      logger.warn('Intento no autorizado de actualizar perfil', {
+        requestingUserId: req.user.id,
+        targetUserId: userId,
+        profileOwnerId: existingProfile.user_id
       });
       
-      logger.debug('Datos para actualización de perfil de cliente', { 
-        userId,
-        fields: Object.keys(updateData)
+      return res.status(403).json({
+        success: false,
+        message: 'No tiene permisos para actualizar este perfil'
       });
-      
-      // Obtener el perfil actual para verificar si existe
-      const existingProfile = await ClientProfile.getByUserId(userId);
+    }
 
-      // Obtener datos adicionales existentes
-      let existingAdditionalData = {};
-      if (existingProfile.notes) {
-        try {
-          existingAdditionalData = JSON.parse(existingProfile.notes);
-        } catch (e) {
-          logger.warn('Error al parsear datos adicionales existentes', {
-            error: e.message,
-            notes: existingProfile.notes.substring(0, 100)
-          });
-        }
-      }
-
-      // Fusionar con nuevos datos adicionales
-      const mergedAdditionalData = { ...existingAdditionalData, ...additionalFields };
-
-      // Guardar datos adicionales como JSON en campo notes
-      if (Object.keys(mergedAdditionalData).length > 0) {
-        updateData.notes = JSON.stringify(mergedAdditionalData);
-      }
-
-      // Actualizar clientData con datos fusionados para campos adicionales
-      updateData.additionalData = mergedAdditionalData;
-      
-      if (!existingProfile) {
-        logger.warn('Perfil de cliente no encontrado al actualizar', { userId });
-        return res.status(404).json({
-          success: false,
-          message: 'Perfil de cliente no encontrado'
-        });
-      }
-      
-      // Verificar si el usuario tiene permisos para actualizar este perfil
-      if (req.user.rol_id !== 1 && existingProfile.user_id !== req.user.id) {
-        logger.warn('Intento no autorizado de actualizar perfil', {
-          userId: req.user.id,
-          userId,
-          profileOwnerId: existingProfile.user_id
-        });
-        
-        return res.status(403).json({
-          success: false,
-          message: 'No tiene permisos para actualizar este perfil'
-        });
-      }
-      
-      // Procesar archivos si existen
+    // Obtener y fusionar datos adicionales existentes
+    let existingAdditionalData = {};
+    if (existingProfile.notes) {
       try {
-        if (req.files) {
-          // Mapeo de campos de archivos para estandarizar
-          const fileFieldMap = {
-            'fotocopiaCedula': 'fotocopiaCedula',
-            'fotocopia_cedula': 'fotocopiaCedula',
-            'fotocopiaRut': 'fotocopiaRut',
-            'fotocopia_rut': 'fotocopiaRut',
-            'anexosAdicionales': 'anexosAdicionales',
-            'anexos_adicionales': 'anexosAdicionales'
-          };
-          
-          // Procesar cada campo de archivo que exista
-          for (const field in req.files) {
-            if (fileFieldMap[field]) {
-              const standardizedField = fileFieldMap[field];
-              
-              // Determinar el tipo de documento para la ruta
-              const docType = standardizedField === 'fotocopiaCedula' ? 'cedula' : 
-                            standardizedField === 'fotocopiaRut' ? 'rut' : 'anexos';
-              
-              // Si estamos usando S3 y hay un archivo anterior, eliminar de S3
-              if (process.env.STORAGE_MODE === 's3') {
-                const oldValue = existingProfile[standardizedField];
-                if (oldValue) {
-                  // Intentar extraer la clave del archivo anterior
-                  const oldKey = S3Service.extractKeyFromUrl(oldValue);
-                  if (oldKey) {
-                    try {
-                      // Eliminar el archivo anterior de S3
-                      await S3Service.deleteFile(oldKey);
-                      logger.debug('Archivo anterior eliminado de S3', { 
-                        key: oldKey,
-                        field: standardizedField 
-                      });
-                    } catch (deleteError) {
-                      logger.warn('No se pudo eliminar archivo anterior de S3', {
-                        error: deleteError.message,
-                        key: oldKey
-                      });
-                      // Continuar a pesar del error
-                    }
-                  }
-                }
-              } else {
-                // Modo local: eliminar archivo anterior si existe
-                const oldFileField = standardizedField;
-                if (existingProfile[oldFileField]) {
-                  const oldPath = path.join(uploadDir, existingProfile[oldFileField]);
-                  if (fs.existsSync(oldPath)) {
-                    fs.unlinkSync(oldPath);
-                    logger.debug('Archivo anterior eliminado localmente', { 
-                      path: oldPath, 
-                      field: oldFileField 
+        existingAdditionalData = JSON.parse(existingProfile.notes);
+      } catch (e) {
+        logger.warn('Error al parsear datos adicionales existentes', {
+          error: e.message,
+          notes: existingProfile.notes.substring(0, 100)
+        });
+      }
+    }
+
+    const mergedAdditionalData = { ...existingAdditionalData, ...additionalFields };
+
+    if (Object.keys(mergedAdditionalData).length > 0) {
+      updateData.notes = JSON.stringify(mergedAdditionalData);
+    }
+    
+    // Procesar archivos
+    try {
+      if (req.files) {
+        const fileFieldMap = {
+          'fotocopiaCedula': 'fotocopiaCedula',
+          'fotocopia_cedula': 'fotocopiaCedula',
+          'fotocopiaRut': 'fotocopiaRut',
+          'fotocopia_rut': 'fotocopiaRut',
+          'anexosAdicionales': 'anexosAdicionales',
+          'anexos_adicionales': 'anexosAdicionales'
+        };
+        
+        for (const field in req.files) {
+          if (fileFieldMap[field]) {
+            const standardizedField = fileFieldMap[field];
+            const docType = standardizedField === 'fotocopiaCedula' ? 'cedula' : 
+                          standardizedField === 'fotocopiaRut' ? 'rut' : 'anexos';
+            
+            // Eliminar archivo anterior si existe
+            if (process.env.STORAGE_MODE === 's3') {
+              const oldValue = existingProfile[standardizedField];
+              if (oldValue) {
+                const oldKey = S3Service.extractKeyFromUrl(oldValue);
+                if (oldKey) {
+                  try {
+                    await S3Service.deleteFile(oldKey);
+                    logger.debug('Archivo anterior eliminado de S3', { 
+                      key: oldKey,
+                      field: standardizedField 
+                    });
+                  } catch (deleteError) {
+                    logger.warn('No se pudo eliminar archivo anterior de S3', {
+                      error: deleteError.message,
+                      key: oldKey
                     });
                   }
                 }
               }
-              
-              // Guardar el nuevo archivo
-              updateData[standardizedField] = await saveFile(req.files[field], userId, docType);
-              logger.debug('Nuevo archivo guardado', { 
-                field: standardizedField, 
-                value: updateData[standardizedField] 
-              });
-            }
-          }
-        }
-      } catch (fileError) {
-        logger.error('Error procesando archivos en actualización', {
-          error: fileError.message,
-          stack: fileError.stack,
-          userId
-        });
-        // Continuamos sin archivos
-      }
-      
-      // Actualizar el perfil
-      const updatedProfile = await ClientProfile.updateByUserId(userId, updateData);
-      
-      if (!updatedProfile) {
-        return res.status(404).json({
-          success: false,
-          message: 'Error al actualizar perfil'
-        });
-      }
-
-      // Verificar si se añadió/modificó NIT y dígito de verificación
-      if (updatedProfile.nit_number && updatedProfile.verification_digit) {
-        // Comprobar si ya estaba sincronizado con SAP
-        const shouldSync = !updatedProfile.sap_lead_synced || !updatedProfile.cardcode_sap;
-        
-        // Definir si hay cambios en datos relevantes para SAP
-        const hasChangedSapRelevantData = 
-          updateData.razonSocial || updateData.nombre || 
-          updateData.telefono || updateData.email ||
-          updateData.direccion || updateData.nit_number;
-          
-        logger.debug('Evaluando criterios para sincronización con SAP', {
-          shouldSync,
-          hasChangedSapRelevantData,
-          nit_number: updatedProfile.nit_number,
-          verification_digit: updatedProfile.verification_digit,
-          client_id: updatedProfile.client_id
-        });
-          
-        // Si debe sincronizarse (primera vez o se modificaron datos)
-        if (shouldSync || hasChangedSapRelevantData) {
-          try {
-            // Verificar que el servicio de SAP esté inicializado
-            if (!sapServiceManager.initialized) {
-              logger.debug('Inicializando servicio de SAP antes de sincronizar');
-              await sapServiceManager.initialize();
+            } else {
+              if (existingProfile[standardizedField]) {
+                const oldPath = path.join(uploadDir, existingProfile[standardizedField]);
+                if (fs.existsSync(oldPath)) {
+                  fs.unlinkSync(oldPath);
+                  logger.debug('Archivo anterior eliminado localmente', { 
+                    path: oldPath, 
+                    field: standardizedField 
+                  });
+                }
+              }
             }
             
-            logger.info('Intentando sincronizar perfil con SAP', {
-              client_id: updatedProfile.client_id,
-              nit: updatedProfile.nit_number
-            });
-            
-            // Intentar crear/actualizar en SAP
-            const sapResult = await sapServiceManager.createOrUpdateLead(profile);
-            
-            logger.debug('Resultado de sincronización con SAP', {
-              success: sapResult.success,
-              cardCode: sapResult.cardCode,
-              client_id: updatedProfile.client_id
-            });
-            
-            // Actualizar el perfil con la información de SAP
-            if (sapResult.success) {
-              await pool.query(
-                `UPDATE client_profiles 
-                  SET cardcode_sap = $1, sap_lead_synced = true, updated_at = CURRENT_TIMESTAMP
-                  WHERE client_id = $2`,
-                [sapResult.cardCode, updatedProfile.client_id]
-              );
-              
-              // Actualizar objeto para la respuesta
-              updatedProfile.cardcode_sap = sapResult.cardCode;
-              updatedProfile.sap_lead_synced = true;
-              
-              logger.info('Perfil de cliente sincronizado con SAP como Lead', {
-                clientId: updatedProfile.client_id,
-                cardcodeSap: sapResult.cardCode,
-                isNew: sapResult.isNew
-              });
-            }
-          } catch (sapError) {
-            // No fallamos la actualización del perfil si falla SAP, solo logueamos el error
-            logger.error('Error al sincronizar perfil con SAP', {
-              error: sapError.message,
-              stack: sapError.stack,
-              clientId: updatedProfile.client_id
+            // Guardar nuevo archivo
+            updateData[standardizedField] = await saveFile(req.files[field], userId, docType);
+            logger.debug('Nuevo archivo guardado', { 
+              field: standardizedField, 
+              value: updateData[standardizedField] 
             });
           }
         }
       }
-
-      // Agregar URLs para archivos en la respuesta
-      const baseUrl = `${req.protocol}://${req.get('host')}`;
-      
-      if (updatedProfile.fotocopiaCedula) {
-        updatedProfile.fotocopiaCedulaUrl = `${baseUrl}/api/client-profiles/${userId}/file/cedula`;
-      }
-      
-      if (updatedProfile.fotocopiaRut) {
-        updatedProfile.fotocopiaRutUrl = `${baseUrl}/api/client-profiles/${userId}/file/rut`;
-      }
-      
-      if (updatedProfile.anexosAdicionales) {
-        updatedProfile.anexosAdicionalesUrl = `${baseUrl}/api/client-profiles/${userId}/file/anexos`;
-      }
-      
-      logger.info('Perfil de cliente actualizado exitosamente', {
-        userId,
-        razonSocial: updatedProfile.razonSocial || existingProfile.razonSocial
-      });
-      
-      res.status(200).json({
-        success: true,
-        message: 'Perfil de cliente actualizado exitosamente',
-        data: updatedProfile
-      });
-    } catch (error) {
-      logger.error('Error al actualizar perfil de cliente', {
-        error: error.message,
-        stack: error.stack,
-        profileId: req.params.id
-      });
-      
-      res.status(500).json({
-        success: false,
-        message: 'Error al actualizar perfil de cliente',
-        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    } catch (fileError) {
+      logger.error('Error procesando archivos en actualización', {
+        error: fileError.message,
+        stack: fileError.stack,
+        userId
       });
     }
+    
+    // Actualizar perfil
+    const updatedProfile = await ClientProfile.updateByUserId(userId, updateData);
+    
+    if (!updatedProfile) {
+      return res.status(404).json({
+        success: false,
+        message: 'Error al actualizar perfil'
+      });
+    }
+
+    // Verificar sincronización con SAP
+    if (updatedProfile.nit_number && updatedProfile.verification_digit) {
+      const shouldSync = !updatedProfile.sap_lead_synced || !updatedProfile.cardcode_sap;
+      
+      const hasChangedSapRelevantData = 
+        updateData.razonSocial || updateData.nombre || 
+        updateData.telefono || updateData.email ||
+        updateData.direccion || updateData.nit_number;
+        
+      logger.debug('Evaluando criterios para sincronización con SAP', {
+        shouldSync,
+        hasChangedSapRelevantData,
+        nit_number: updatedProfile.nit_number,
+        verification_digit: updatedProfile.verification_digit,
+        client_id: updatedProfile.client_id
+      });
+        
+      if (shouldSync || hasChangedSapRelevantData) {
+        try {
+          if (!sapServiceManager.initialized) {
+            logger.debug('Inicializando servicio de SAP antes de sincronizar');
+            await sapServiceManager.initialize();
+          }
+          
+          logger.info('Intentando sincronizar perfil con SAP', {
+            client_id: updatedProfile.client_id,
+            nit: updatedProfile.nit_number
+          });
+          
+          const sapResult = await sapServiceManager.createOrUpdateLead(updatedProfile);
+          
+          logger.debug('Resultado de sincronización con SAP', {
+            success: sapResult.success,
+            cardCode: sapResult.cardCode,
+            client_id: updatedProfile.client_id
+          });
+          
+          if (sapResult.success) {
+            await pool.query(
+              `UPDATE client_profiles 
+                SET cardcode_sap = $1, sap_lead_synced = true, updated_at = CURRENT_TIMESTAMP
+                WHERE client_id = $2`,
+              [sapResult.cardCode, updatedProfile.client_id]
+            );
+            
+            updatedProfile.cardcode_sap = sapResult.cardCode;
+            updatedProfile.sap_lead_synced = true;
+            
+            logger.info('Perfil de cliente sincronizado con SAP como Lead', {
+              clientId: updatedProfile.client_id,
+              cardcodeSap: sapResult.cardCode,
+              isNew: sapResult.isNew
+            });
+          }
+        } catch (sapError) {
+          logger.error('Error al sincronizar perfil con SAP', {
+            error: sapError.message,
+            stack: sapError.stack,
+            clientId: updatedProfile.client_id
+          });
+        }
+      }
+    }
+
+    // Agregar URLs para archivos
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    
+    if (updatedProfile.fotocopiaCedula) {
+      updatedProfile.fotocopiaCedulaUrl = `${baseUrl}/api/client-profiles/${userId}/file/cedula`;
+    }
+    
+    if (updatedProfile.fotocopiaRut) {
+      updatedProfile.fotocopiaRutUrl = `${baseUrl}/api/client-profiles/${userId}/file/rut`;
+    }
+    
+    if (updatedProfile.anexosAdicionales) {
+      updatedProfile.anexosAdicionalesUrl = `${baseUrl}/api/client-profiles/${userId}/file/anexos`;
+    }
+    
+    logger.info('Perfil de cliente actualizado exitosamente', {
+      userId,
+      razonSocial: updatedProfile.razonSocial || existingProfile.razonSocial
+    });
+    
+    res.status(200).json({
+      success: true,
+      message: 'Perfil de cliente actualizado exitosamente',
+      data: updatedProfile
+    });
+  } catch (error) {
+    logger.error('Error al actualizar perfil de cliente', {
+      error: error.message,
+      stack: error.stack,
+      userId: req.params.userId
+    });
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error al actualizar perfil de cliente',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
+}
 
   /**
    * @swagger
