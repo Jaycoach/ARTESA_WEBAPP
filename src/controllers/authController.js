@@ -1,6 +1,5 @@
 const pool = require('../config/db');
 const bcrypt = require('bcryptjs');
-const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const rateLimit = require('express-rate-limit');
 const { createContextLogger } = require('../config/logger');
