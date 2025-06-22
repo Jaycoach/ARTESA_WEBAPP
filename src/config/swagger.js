@@ -13,8 +13,12 @@ const options = {
     },
     servers: [
       {
+        url: 'http://ec2-44-216-131-63.compute-1.amazonaws.com:3000',
+        description: 'Servidor Staging HTTP - Puerto 3000'
+      },
+      {
         url: 'http://ec2-44-216-131-63.compute-1.amazonaws.com',
-        description: 'Servidor Staging HTTP (Recomendado para Swagger)'
+        description: 'Servidor Staging HTTP (Puerto 80)'
       },
       {
         url: `http://localhost:${process.env.PORT || 3000}`,
@@ -22,7 +26,7 @@ const options = {
       },
       {
         url: 'https://ec2-44-216-131-63.compute-1.amazonaws.com',
-        description: 'Servidor Staging HTTPS (Certificado autofirmado)'
+        description: 'Servidor Staging HTTPS (Solo si SSL está configurado)'
       }
     ],
     components: {

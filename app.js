@@ -284,6 +284,8 @@ app.get('/swagger.json', (req, res) => {
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
     res.setHeader('Access-Control-Allow-Credentials', 'true');*/
     res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('X-Swagger-Source', 'nodejs');
+    res.setHeader('X-Content-Source', 'generated');
     
     console.log('✅ Enviando swagger.json exitosamente');
     console.log('========================\n');
