@@ -1,5 +1,6 @@
 const pool = require('../config/db');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const rateLimit = require('express-rate-limit');
 const { createContextLogger } = require('../config/logger');
@@ -908,11 +909,11 @@ static incrementLoginAttempts(mail) {
             VALUES ($1, $2, CURRENT_TIMESTAMP, $3, $4, $5)
             ON CONFLICT (token_hash) DO NOTHING`,
             [
-            verificationToken, 
-            userId, 
-            verificationExpires, 
-            req.headers['user-agent'] || null, 
-            req.ip
+                verificationToken, 
+                userId, 
+                verificationExpires, 
+                req.headers['user-agent'] || null, 
+                req.ip
             ]
         );
         
