@@ -378,13 +378,27 @@ class SapClientService extends SapBaseService {
             cardCode: clientProfile.cardcode_sap
           });
         }
+
+        // Si la creación fue exitosa y tenemos contactos, crearlos en SAP
+        if (result && !isUpdate && clientProfile.client_id) {
+          try {
+            await this.createContactPersonsInSAP(resultCardCode, clientProfile.client_id);
+          } catch (contactError) {
+            this.logger.warn('Error al crear contactos en SAP', {
+              error: contactError.message,
+              cardCode: resultCardCode,
+              clientId: clientProfile.client_id
+            });
+            // No fallar la operación principal por error en contactos
+          }
+        }
         
         return {
           success: true,
           cardCode: resultCardCode,
           isNew: !isUpdate
         };
-        
+
       } catch (error) {
         this.logger.error('Error al crear/actualizar socio de negocios Lead en SAP', {
           error: error.message,
@@ -1399,6 +1413,72 @@ class SapClientService extends SapBaseService {
         sapCode,
         error: error.message,
         stack: error.stack
+      });
+      throw error;
+    }
+  }
+  /**
+   * Crea contactos de un cliente en SAP (tabla OCPR)
+   * @param {string} cardCode - Código del Business Partner en SAP
+   * @param {number} clientId - ID del cliente en la base de datos local
+   */
+  async createContactPersonsInSAP(cardCode, clientId) {
+    try {
+      this.logger.debug('Creando contactos en SAP para Business Partner', {
+        cardCode,
+        clientId
+      });
+      
+      // Obtener contactos de la base de datos local
+      const contactsQuery = `
+        SELECT contact_id, name, position, phone, email, is_primary
+        FROM client_contacts
+        WHERE client_id = $1
+        ORDER BY is_primary DESC, contact_id ASC
+      `;
+      
+      const { rows: contacts } = await pool.query(contactsQuery, [clientId]);
+      
+      if (!contacts || contacts.length === 0) {
+        this.logger.warn('No se encontraron contactos para sincronizar', { clientId });
+        return;
+      }
+      
+      // Crear cada contacto en SAP
+      for (const contact of contacts) {
+        const contactData = {
+          CardCode: cardCode,
+          Name: contact.name || '',
+          Position: contact.position || '',
+          Phone1: contact.phone ? contact.phone.replace(/\D/g, '').substring(0, 20) : '',
+          E_Mail: contact.email || '',
+          Active: 'Y'
+        };
+        
+        try {
+          const result = await this.request('POST', 'ContactEmployees', contactData);
+          
+          this.logger.info('Contacto creado exitosamente en SAP', {
+            cardCode,
+            contactName: contact.name,
+            contactId: contact.contact_id,
+            isPrimary: contact.is_primary
+          });
+        } catch (contactCreateError) {
+          this.logger.error('Error al crear contacto individual en SAP', {
+            error: contactCreateError.message,
+            cardCode,
+            contactName: contact.name,
+            contactId: contact.contact_id
+          });
+        }
+      }
+    } catch (error) {
+      this.logger.error('Error general al crear contactos en SAP', {
+        error: error.message,
+        stack: error.stack,
+        cardCode,
+        clientId
       });
       throw error;
     }

@@ -302,6 +302,26 @@ class ClientProfileController {
         
         return result;
       });
+
+      // Obtener contactos para cada perfil
+      for (const profile of profilesWithUrls) {
+        try {
+          const contactsQuery = `
+            SELECT contact_id, name, position, phone, email, is_primary, created_at
+            FROM client_contacts
+            WHERE client_id = $1
+            ORDER BY is_primary DESC, contact_id ASC
+          `;
+          const contactsResult = await pool.query(contactsQuery, [profile.client_id]);
+          profile.contacts = contactsResult.rows;
+        } catch (contactError) {
+          logger.warn('Error al obtener contactos del perfil', {
+            error: contactError.message,
+            clientId: profile.client_id
+          });
+          profile.contacts = [];
+        }
+      }
       
       res.status(200).json({
         success: true,
@@ -376,6 +396,25 @@ class ClientProfileController {
       
       if (profile.anexosAdicionales) {
         profile.anexosAdicionalesUrl = `${baseUrl}/api/client-profiles/${userId}/file/anexos`;
+      }
+
+      // Obtener contactos asociados
+      const contactsQuery = `
+        SELECT contact_id, name, position, phone, email, is_primary, created_at
+        FROM client_contacts
+        WHERE client_id = $1
+        ORDER BY is_primary DESC, contact_id ASC
+      `;
+
+      try {
+        const contactsResult = await pool.query(contactsQuery, [profile.client_id]);
+        profile.contacts = contactsResult.rows;
+      } catch (contactError) {
+        logger.warn('Error al obtener contactos del perfil', {
+          error: contactError.message,
+          clientId: profile.client_id
+        });
+        profile.contacts = [];
       }
       
       // Procesar correctamente los datos adicionales en el campo notes
@@ -716,36 +755,76 @@ async createProfile(req, res) {
       
       // Crear perfil en BD
       const insertQuery = `
-        INSERT INTO client_profiles (
-          user_id, company_name, contact_name, contact_phone, contact_email,
-          alternative_contact_name, alternative_contact_phone, alternative_contact_email,
-          address, nit_number, verification_digit, fotocopia_cedula, fotocopia_rut, anexos_adicionales,
-          notes, created_at, updated_at, sap_lead_synced
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false)
-        RETURNING *
-      `;
+      INSERT INTO client_profiles (
+        user_id, company_name, contact_name, contact_phone, contact_email,
+        address, nit_number, verification_digit, fotocopia_cedula, fotocopia_rut, anexos_adicionales,
+        notes, created_at, updated_at, sap_lead_synced
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false)
+      RETURNING *
+    `;
       
       const values = [
-        clientData.userId,
-        clientData.razonSocial,
-        clientData.nombre,
-        clientData.telefono,
-        clientData.email,
-        clientData.nombreContacto,
-        clientData.telefonoContacto,
-        clientData.emailContacto,
-        clientData.direccion,
-        clientData.nit_number,
-        clientData.verification_digit,
-        clientData.fotocopiaCedula,
-        clientData.fotocopiaRut,
-        clientData.anexosAdicionales,
-        clientData.notes
-      ];
+      clientData.userId,
+      clientData.razonSocial,
+      clientData.nombre,
+      clientData.telefono,
+      clientData.email,
+      clientData.direccion,
+      clientData.nit_number,
+      clientData.verification_digit,
+      clientData.fotocopiaCedula,
+      clientData.fotocopiaRut,
+      clientData.anexosAdicionales,
+      clientData.notes
+    ];
       
       const result = await dbClient.query(insertQuery, values);
       profile = result.rows[0];
       
+      // Insertar contacto principal en client_contacts
+      if (profile.client_id) {
+        const primaryContactQuery = `
+          INSERT INTO client_contacts (client_id, name, position, phone, email, is_primary, created_at, updated_at)
+          VALUES ($1, $2, $3, $4, $5, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          RETURNING *
+        `;
+        
+        await dbClient.query(primaryContactQuery, [
+          profile.client_id,
+          clientData.nombre,
+          'Contacto Principal',
+          clientData.telefono,
+          clientData.email
+        ]);
+        
+        logger.debug('Contacto principal creado', {
+          clientId: profile.client_id,
+          contactName: clientData.nombre
+        });
+        
+        // Insertar contacto alternativo si existe
+        if (clientData.nombreContacto) {
+          const alternativeContactQuery = `
+            INSERT INTO client_contacts (client_id, name, position, phone, email, is_primary, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            RETURNING *
+          `;
+          
+          await dbClient.query(alternativeContactQuery, [
+            profile.client_id,
+            clientData.nombreContacto,
+            clientData.cargoContacto || 'Contacto Alternativo',
+            clientData.telefonoContacto,
+            clientData.emailContacto
+          ]);
+          
+          logger.debug('Contacto alternativo creado', {
+            clientId: profile.client_id,
+            contactName: clientData.nombreContacto
+          });
+        }
+      }
+
       logger.info('Perfil creado en base de datos, iniciando sincronización SAP', {
         clientId: profile.client_id,
         userId: profile.user_id
@@ -1238,6 +1317,82 @@ async updateProfileByUserId(req, res) {
       });
     }
 
+    // Actualizar contactos si se proporcionaron datos de contacto
+    if (updateData.nombre || updateData.telefono || updateData.email) {
+      try {
+        // Actualizar contacto principal
+        await pool.query(
+          `UPDATE client_contacts 
+          SET name = COALESCE($1, name), 
+              phone = COALESCE($2, phone), 
+              email = COALESCE($3, email),
+              updated_at = CURRENT_TIMESTAMP
+          WHERE client_id = $4 AND is_primary = true`,
+          [updateData.nombre, updateData.telefono, updateData.email, existingProfile.client_id]
+        );
+        
+        logger.debug('Contacto principal actualizado', {
+          clientId: existingProfile.client_id
+        });
+      } catch (contactUpdateError) {
+        logger.warn('Error al actualizar contacto principal', {
+          error: contactUpdateError.message,
+          clientId: existingProfile.client_id
+        });
+      }
+    }
+
+    // Manejar contacto alternativo si se actualizaron esos datos
+    if (updateData.nombreContacto || updateData.telefonoContacto || updateData.emailContacto) {
+      try {
+        // Verificar si existe contacto alternativo
+        const altContactQuery = 'SELECT contact_id FROM client_contacts WHERE client_id = $1 AND is_primary = false';
+        const altContactResult = await pool.query(altContactQuery, [existingProfile.client_id]);
+        
+        if (altContactResult.rows.length > 0) {
+          // Actualizar contacto alternativo existente
+          await pool.query(
+            `UPDATE client_contacts 
+            SET name = COALESCE($1, name), 
+                position = COALESCE($2, position),
+                phone = COALESCE($3, phone), 
+                email = COALESCE($4, email),
+                updated_at = CURRENT_TIMESTAMP
+            WHERE client_id = $5 AND is_primary = false`,
+            [
+              updateData.nombreContacto, 
+              updateData.cargoContacto,
+              updateData.telefonoContacto, 
+              updateData.emailContacto, 
+              existingProfile.client_id
+            ]
+          );
+        } else if (updateData.nombreContacto) {
+          // Crear nuevo contacto alternativo
+          await pool.query(
+            `INSERT INTO client_contacts (client_id, name, position, phone, email, is_primary, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+            [
+              existingProfile.client_id,
+              updateData.nombreContacto,
+              updateData.cargoContacto || 'Contacto Alternativo',
+              updateData.telefonoContacto,
+              updateData.emailContacto
+            ]
+          );
+        }
+        
+        logger.debug('Contacto alternativo procesado', {
+          clientId: existingProfile.client_id
+        });
+      } catch (altContactError) {
+        logger.warn('Error al procesar contacto alternativo', {
+          error: altContactError.message,
+          clientId: existingProfile.client_id
+        });
+      }
+    }
+
     // Verificar sincronización con SAP
     if (updatedProfile.nit_number && updatedProfile.verification_digit) {
       const shouldSync = !updatedProfile.sap_lead_synced || !updatedProfile.cardcode_sap;
@@ -1267,7 +1422,7 @@ async updateProfileByUserId(req, res) {
             nit: updatedProfile.nit_number
           });
           
-          const sapResult = await sapServiceManager.createOrUpdateLead(updatedProfile);
+          const sapResult = await sapServiceManager.clientService.createOrUpdateBusinessPartnerLead(updatedProfile);
           
           logger.debug('Resultado de sincronización con SAP', {
             success: sapResult.success,
@@ -1495,7 +1650,7 @@ async getFile(req, res) {
         message: 'Perfil de cliente no encontrado'
       });
     }
-    
+
     let fileName;
     
     // Determinar qué archivo se está solicitando
