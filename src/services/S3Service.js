@@ -110,14 +110,33 @@ class S3Service {
    * @returns {Promise<string>} URL del archivo
    */
   async uploadFormFile(file, key, options = {}) {
-    try {
-      const fileContent = fs.readFileSync(file.tempFilePath);
-      return await this.uploadFile(fileContent, key, file.mimetype, options);
-    } catch (error) {
-      logger.error('Error al subir archivo de formulario', { error: error.message, key });
-      throw error;
+  try {
+    // Validar que el archivo tenga un mimetype válido
+    if (!file.mimetype || file.mimetype === 'application/octet-stream') {
+      // Intentar determinar el tipo basado en la extensión
+      const ext = path.extname(file.name).toLowerCase();
+      const mimeTypes = {
+        '.pdf': 'application/pdf',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.png': 'image/png',
+        '.gif': 'image/gif',
+        '.doc': 'application/msword',
+        '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      };
+      file.mimetype = mimeTypes[ext] || 'application/octet-stream';
     }
+    
+    const fileContent = fs.readFileSync(file.tempFilePath);
+    return await this.uploadFile(fileContent, key, file.mimetype, {
+      ...options,
+      originalName: file.name
+    });
+  } catch (error) {
+    logger.error('Error al subir archivo de formulario', { error: error.message, key });
+    throw error;
   }
+}
 
   /**
    * Sube un archivo a S3
@@ -129,6 +148,10 @@ class S3Service {
       Key: key,
       Body: fileContent,
       ContentType: contentType,
+      Metadata: {
+        'original-name': path.basename(key),
+        'content-type': contentType
+      },
       //ACL: options.public ? 'public-read' : 'private',
       ...options.s3Params
     };

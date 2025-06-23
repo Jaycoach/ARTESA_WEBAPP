@@ -60,7 +60,21 @@ const saveFile = async (file, userId, documentType) => {
     }
     
     // Generar nombre único
-    const fileExtension = path.extname(fileToSave.name) || '.bin';
+    let fileExtension = path.extname(fileToSave.name);
+    if (!fileExtension) {
+      // Determinar extensión basada en MIME type
+      const mimeToExt = {
+        'application/pdf': '.pdf',
+        'image/jpeg': '.jpg',
+        'image/png': '.png',
+        'image/gif': '.gif',
+        'application/msword': '.doc',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+        'application/vnd.ms-excel': '.xls',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx'
+      };
+      fileExtension = mimeToExt[fileToSave.mimetype] || '.bin';
+    }
     const fileNameSafe = `${Date.now()}${fileExtension}`;
     
     // Definir la clave para S3 o la ruta local
