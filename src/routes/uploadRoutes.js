@@ -137,7 +137,7 @@ router.post(
  * @returns {object} 500 - Error interno del servidor
  */
 router.delete(
-  '/images/:fileName',
+  '/:fileName',
   verifyToken,
   checkRole([1]), // Solo administradores
   uploadController.deleteImage
@@ -180,26 +180,125 @@ router.get('/s3-status',
   checkRole([1, 2]), // Administradores y usuarios normales
   uploadController.getS3Status
 );
+/**
+ * @swagger
+ * /api/upload/list:
+ *   get:
+ *     summary: Listar archivos en S3 o almacenamiento local
+ *     description: Obtiene una lista de todos los archivos almacenados con opción de filtrado
+ *     tags: [Upload]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: prefix
+ *         schema:
+ *           type: string
+ *         description: Prefijo para filtrar archivos (ej. 'client-profiles/', 'products/')
+ *       - in: query
+ *         name: maxKeys
+ *         schema:
+ *           type: integer
+ *           default: 1000
+ *         description: Número máximo de archivos a retornar
+ *     responses:
+ *       200:
+ *         description: Lista de archivos obtenida exitosamente
+ *       401:
+ *         description: No autorizado
+ *       500:
+ *         description: Error interno del servidor
+ */
+router.get('/list',
+  verifyToken,
+  checkRole([1, 2]), // Administradores y usuarios normales
+  uploadController.listFiles
+);
 
 /**
  * @swagger
- * /api/upload/test-s3:
+ * /api/upload/duplicates:
+ *   get:
+ *     summary: Buscar archivos duplicados
+ *     description: Identifica posibles archivos duplicados basándose en nombre y tamaño
+ *     tags: [Upload]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: prefix
+ *         schema:
+ *           type: string
+ *         description: Prefijo para filtrar búsqueda
+ *     responses:
+ *       200:
+ *         description: Lista de duplicados encontrada
+ *       401:
+ *         description: No autorizado
+ *       500:
+ *         description: Error interno del servidor
+ */
+router.get('/duplicates',
+  verifyToken,
+  checkRole([1]), // Solo administradores
+  uploadController.findDuplicates
+);
+
+/**
+ * @swagger
+ * /api/upload/bulk-delete:
+ *   delete:
+ *     summary: Eliminar múltiples archivos
+ *     description: Elimina varios archivos de una vez proporcionando sus claves
+ *     tags: [Upload]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               keys:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: Array de claves de archivos a eliminar
+ *     responses:
+ *       200:
+ *         description: Archivos eliminados exitosamente
+ *       400:
+ *         description: Lista de claves no proporcionada
+ *       401:
+ *         description: No autorizado
+ *       500:
+ *         description: Error interno del servidor
+ */
+router.delete('/bulk-delete',
+  verifyToken,
+  checkRole([1]), // Solo administradores
+  uploadController.bulkDeleteFiles
+);
+
+/**
+ * @swagger
+ * /api/upload/verify-iam:
  *   post:
- *     summary: Probar configuración de S3
- *     description: Realiza una prueba completa de la configuración de AWS S3
+ *     summary: Verificar credenciales IAM para S3
+ *     description: Verifica que las credenciales IAM tengan los permisos necesarios para operar con S3
  *     tags: [Upload]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Configuración de S3 verificada exitosamente
+ *         description: Credenciales IAM verificadas exitosamente
  *       500:
- *         description: Error en la configuración de S3
+ *         description: Error en las credenciales IAM
  */
-router.post('/test-s3',
+router.post('/verify-iam',
   verifyToken,
   checkRole([1]), // Solo administradores
-  uploadController.testS3Configuration
+  uploadController.verifyIAMCredentials
 );
-
 module.exports = router;

@@ -234,7 +234,166 @@ class S3Service {
     logger.info('Archivo eliminado de S3', { key });
     return true;
   }
+  /**
+   * Lista archivos en S3 o directorio local
+   * @param {string} prefix - Prefijo para filtrar archivos (opcional)
+   * @param {number} maxKeys - Número máximo de archivos a retornar
+   * @returns {Promise<Array>} Lista de archivos
+   */
+  async listFiles(prefix = '', maxKeys = 1000) {
+    try {
+      if (this.localMode) {
+        return await this.listFilesLocally(prefix);
+      } else {
+        return await this.listFilesFromS3(prefix, maxKeys);
+      }
+    } catch (error) {
+      logger.error('Error al listar archivos', { error: error.message, prefix });
+      throw error;
+    }
+  }
 
+  /**
+   * Lista archivos desde S3
+   * @private
+   */
+  async listFilesFromS3(prefix = '', maxKeys = 1000) {
+    const params = {
+      Bucket: this.bucketName,
+      Prefix: prefix,
+      MaxKeys: maxKeys
+    };
+
+    const result = await this.s3.listObjectsV2(params).promise();
+    
+    return {
+      files: result.Contents.map(file => ({
+        key: file.Key,
+        size: file.Size,
+        lastModified: file.LastModified,
+        etag: file.ETag,
+        url: `${this.baseUrl}/${file.Key}`
+      })),
+      totalCount: result.KeyCount,
+      isTruncated: result.IsTruncated,
+      prefix: prefix
+    };
+  }
+
+  /**
+   * Lista archivos localmente
+   * @private
+   */
+  async listFilesLocally(prefix = '') {
+    const uploadDir = path.join(process.cwd(), 'uploads');
+    const searchPath = prefix ? path.join(uploadDir, prefix) : uploadDir;
+    
+    if (!fs.existsSync(searchPath)) {
+      return {
+        files: [],
+        totalCount: 0,
+        isTruncated: false,
+        prefix: prefix
+      };
+    }
+
+    const files = [];
+    const walkDir = (dir, relativePath = '') => {
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+        const relativeFilePath = path.join(relativePath, entry.name).replace(/\\/g, '/');
+        
+        if (entry.isDirectory()) {
+          walkDir(fullPath, relativeFilePath);
+        } else {
+          const stats = fs.statSync(fullPath);
+          files.push({
+            key: relativeFilePath,
+            size: stats.size,
+            lastModified: stats.mtime,
+            url: `/uploads/${relativeFilePath}`
+          });
+        }
+      }
+    };
+
+    walkDir(searchPath, prefix);
+    
+    return {
+      files: files,
+      totalCount: files.length,
+      isTruncated: false,
+      prefix: prefix
+    };
+  }
+
+  /**
+   * Verifica si un archivo existe
+   * @param {string} key - Clave del archivo
+   * @returns {Promise<boolean>} True si existe
+   */
+  async fileExists(key) {
+    try {
+      key = this.normalizeKey(key);
+      
+      if (this.localMode) {
+        const filePath = path.join(process.cwd(), 'uploads', key);
+        return fs.existsSync(filePath);
+      } else {
+        const params = {
+          Bucket: this.bucketName,
+          Key: key
+        };
+        
+        await this.s3.headObject(params).promise();
+        return true;
+      }
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /**
+   * Busca archivos duplicados basándose en el tamaño y nombre
+   * @param {string} prefix - Prefijo para filtrar búsqueda
+   * @returns {Promise<Array>} Lista de posibles duplicados
+   */
+  async findDuplicates(prefix = '') {
+    try {
+      const { files } = await this.listFiles(prefix);
+      
+      // Agrupar por tamaño y nombre base
+      const groups = {};
+      
+      files.forEach(file => {
+        const baseName = path.basename(file.key);
+        const size = file.size;
+        const groupKey = `${baseName}_${size}`;
+        
+        if (!groups[groupKey]) {
+          groups[groupKey] = [];
+        }
+        groups[groupKey].push(file);
+      });
+      
+      // Filtrar solo grupos con más de un archivo
+      const duplicates = Object.values(groups)
+        .filter(group => group.length > 1)
+        .map(group => ({
+          baseName: path.basename(group[0].key),
+          size: group[0].size,
+          count: group.length,
+          files: group
+        }));
+      
+      return duplicates;
+    } catch (error) {
+      logger.error('Error al buscar duplicados', { error: error.message, prefix });
+      throw error;
+    }
+  }
   /**
    * Elimina un archivo local
    * @private

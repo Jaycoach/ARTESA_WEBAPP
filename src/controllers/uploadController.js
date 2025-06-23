@@ -145,7 +145,218 @@ class UploadController {
       });
     }
   };
+  /**
+   * @swagger
+   * /api/upload/list:
+   *   get:
+   *     summary: Listar archivos en S3 o almacenamiento local
+   *     description: Obtiene una lista de todos los archivos almacenados con opción de filtrado
+   *     tags: [Upload]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: query
+   *         name: prefix
+   *         schema:
+   *           type: string
+   *         description: Prefijo para filtrar archivos (ej. 'client-profiles/', 'products/')
+   *       - in: query
+   *         name: maxKeys
+   *         schema:
+   *           type: integer
+   *           default: 1000
+   *         description: Número máximo de archivos a retornar
+   *     responses:
+   *       200:
+   *         description: Lista de archivos obtenida exitosamente
+   *       401:
+   *         description: No autorizado
+   *       500:
+   *         description: Error interno del servidor
+   */
+  listFiles = async (req, res) => {
+    try {
+      const { prefix = '', maxKeys = 1000 } = req.query;
+      
+      logger.info('Listando archivos', {
+        userId: req.user?.id,
+        prefix,
+        maxKeys: parseInt(maxKeys)
+      });
+      
+      const result = await S3Service.listFiles(prefix, parseInt(maxKeys));
+      
+      res.status(200).json({
+        success: true,
+        data: result
+      });
+    } catch (error) {
+      logger.error('Error al listar archivos', {
+        error: error.message,
+        stack: error.stack,
+        userId: req.user?.id
+      });
+      
+      res.status(500).json({
+        success: false,
+        message: 'Error al listar archivos',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  };
 
+  /**
+   * @swagger
+   * /api/upload/duplicates:
+   *   get:
+   *     summary: Buscar archivos duplicados
+   *     description: Identifica posibles archivos duplicados basándose en nombre y tamaño
+   *     tags: [Upload]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: query
+   *         name: prefix
+   *         schema:
+   *           type: string
+   *         description: Prefijo para filtrar búsqueda
+   *     responses:
+   *       200:
+   *         description: Lista de duplicados encontrada
+   *       401:
+   *         description: No autorizado
+   *       500:
+   *         description: Error interno del servidor
+   */
+  findDuplicates = async (req, res) => {
+    try {
+      const { prefix = '' } = req.query;
+      
+      logger.info('Buscando archivos duplicados', {
+        userId: req.user?.id,
+        prefix
+      });
+      
+      const duplicates = await S3Service.findDuplicates(prefix);
+      
+      res.status(200).json({
+        success: true,
+        data: {
+          duplicates,
+          totalDuplicateGroups: duplicates.length,
+          totalDuplicateFiles: duplicates.reduce((sum, group) => sum + group.count, 0)
+        }
+      });
+    } catch (error) {
+      logger.error('Error al buscar duplicados', {
+        error: error.message,
+        stack: error.stack,
+        userId: req.user?.id
+      });
+      
+      res.status(500).json({
+        success: false,
+        message: 'Error al buscar duplicados',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  };
+
+  /**
+   * @swagger
+   * /api/upload/bulk-delete:
+   *   delete:
+   *     summary: Eliminar múltiples archivos
+   *     description: Elimina varios archivos de una vez proporcionando sus claves
+   *     tags: [Upload]
+   *     security:
+   *       - bearerAuth: []
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             properties:
+   *               keys:
+   *                 type: array
+   *                 items:
+   *                   type: string
+   *                 description: Array de claves de archivos a eliminar
+   *     responses:
+   *       200:
+   *         description: Archivos eliminados exitosamente
+   *       400:
+   *         description: Lista de claves no proporcionada
+   *       401:
+   *         description: No autorizado
+   *       500:
+   *         description: Error interno del servidor
+   */
+  bulkDeleteFiles = async (req, res) => {
+    try {
+      const { keys } = req.body;
+      
+      if (!keys || !Array.isArray(keys) || keys.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Se requiere un array de claves de archivos'
+        });
+      }
+      
+      logger.info('Eliminación masiva de archivos', {
+        userId: req.user?.id,
+        fileCount: keys.length
+      });
+      
+      const results = [];
+      
+      for (const key of keys) {
+        try {
+          const deleted = await S3Service.deleteFile(key);
+          results.push({
+            key,
+            success: deleted,
+            error: null
+          });
+        } catch (error) {
+          results.push({
+            key,
+            success: false,
+            error: error.message
+          });
+        }
+      }
+      
+      const successCount = results.filter(r => r.success).length;
+      const errorCount = results.length - successCount;
+      
+      res.status(200).json({
+        success: true,
+        message: `${successCount} archivos eliminados, ${errorCount} errores`,
+        data: {
+          results,
+          summary: {
+            total: results.length,
+            successful: successCount,
+            errors: errorCount
+          }
+        }
+      });
+    } catch (error) {
+      logger.error('Error en eliminación masiva', {
+        error: error.message,
+        stack: error.stack,
+        userId: req.user?.id
+      });
+      
+      res.status(500).json({
+        success: false,
+        message: 'Error en eliminación masiva',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  };
   /**
    * @swagger
    * /api/upload/{fileName}:
