@@ -266,27 +266,45 @@ static incrementLoginAttempts(mail) {
 
             // Validar reCAPTCHA solo si está configurado
             if (process.env.RECAPTCHA_ENABLED === 'true' && process.env.NODE_ENV !== 'development') {
-                const recaptchaResponse = req.body.recaptchaToken || req.body['g-recaptcha-response'] || req.body.captchaToken;
+                // Detectar si la solicitud viene de herramientas API directas o está en staging
+                const userAgent = req.get('User-Agent') || '';
+                const isApiRequest = userAgent.includes('curl') || 
+                                    userAgent.includes('PostmanRuntime') || 
+                                    userAgent.includes('insomnia') || 
+                                    userAgent.includes('Thunder Client') ||
+                                    req.get('X-Requested-With') === 'swagger' ||
+                                    process.env.NODE_ENV === 'staging';
                 
-                if (!recaptchaResponse) {
-                    logger.warn('Intento de login sin token reCAPTCHA', { mail, ip: req.ip });
-                    return res.status(400).json({
-                        success: false,
-                        message: 'Por favor, complete la verificación de seguridad'
-                    });
-                }
-                
-                const recaptchaValid = await validateRecaptcha(recaptchaResponse, req);
-                
-                if (!recaptchaValid) {
-                    logger.warn('Verificación reCAPTCHA fallida en login', {
-                        mail,
-                        ip: req.ip
-                    });
+                if (!isApiRequest) {
+                    const recaptchaResponse = req.body.recaptchaToken || req.body['g-recaptcha-response'] || req.body.captchaToken;
                     
-                    return res.status(400).json({
-                        success: false,
-                        message: 'Verificación de seguridad fallida. Por favor, intenta nuevamente.'
+                    if (!recaptchaResponse) {
+                        logger.warn('Intento de login sin token reCAPTCHA', { mail, ip: req.ip });
+                        return res.status(400).json({
+                            success: false,
+                            message: 'Por favor, complete la verificación de seguridad'
+                        });
+                    }
+                    
+                    const recaptchaValid = await validateRecaptcha(recaptchaResponse, req);
+                    
+                    if (!recaptchaValid) {
+                        logger.warn('Verificación reCAPTCHA fallida en login', {
+                            mail,
+                            ip: req.ip
+                        });
+                        
+                        return res.status(400).json({
+                            success: false,
+                            message: 'Verificación de seguridad fallida. Por favor, intenta nuevamente.'
+                        });
+                    }
+                } else {
+                    logger.debug('Saltando verificación de reCAPTCHA para solicitud API directa', { 
+                        mail, 
+                        userAgent: userAgent,
+                        environment: process.env.NODE_ENV,
+                        isStaging: process.env.NODE_ENV === 'staging'
                     });
                 }
             } else if (process.env.NODE_ENV === 'development') {
@@ -568,27 +586,45 @@ static incrementLoginAttempts(mail) {
 
             // Validar reCAPTCHA solo si está configurado
             if (process.env.RECAPTCHA_ENABLED === 'true' && process.env.NODE_ENV !== 'development') {
-                const recaptchaResponse = req.body.recaptchaToken || req.body['g-recaptcha-response'] || req.body.captchaToken;
+                // Detectar si la solicitud viene de herramientas API directas o está en staging
+                const userAgent = req.get('User-Agent') || '';
+                const isApiRequest = userAgent.includes('curl') || 
+                                    userAgent.includes('PostmanRuntime') || 
+                                    userAgent.includes('insomnia') || 
+                                    userAgent.includes('Thunder Client') ||
+                                    req.get('X-Requested-With') === 'swagger' ||
+                                    process.env.NODE_ENV === 'staging';
                 
-                if (!recaptchaResponse) {
-                    logger.warn('Intento de login sin token reCAPTCHA', { mail, ip: req.ip });
-                    return res.status(400).json({
-                        success: false,
-                        message: 'Por favor, complete la verificación de seguridad'
-                    });
-                }
-                
-                const recaptchaValid = await validateRecaptcha(recaptchaResponse, req);
-                
-                if (!recaptchaValid) {
-                    logger.warn('Verificación reCAPTCHA fallida en login', {
-                        mail,
-                        ip: req.ip
-                    });
+                if (!isApiRequest) {
+                    const recaptchaResponse = req.body.recaptchaToken || req.body['g-recaptcha-response'] || req.body.captchaToken;
                     
-                    return res.status(400).json({
-                        success: false,
-                        message: 'Verificación de seguridad fallida. Por favor, intenta nuevamente.'
+                    if (!recaptchaResponse) {
+                        logger.warn('Intento de registro sin token reCAPTCHA', { mail, ip: req.ip });
+                        return res.status(400).json({
+                            success: false,
+                            message: 'Por favor, complete la verificación de seguridad'
+                        });
+                    }
+                    
+                    const recaptchaValid = await validateRecaptcha(recaptchaResponse, req);
+                    
+                    if (!recaptchaValid) {
+                        logger.warn('Verificación reCAPTCHA fallida en registro', {
+                            mail,
+                            ip: req.ip
+                        });
+                        
+                        return res.status(400).json({
+                            success: false,
+                            message: 'Verificación de seguridad fallida. Por favor, intenta nuevamente.'
+                        });
+                    }
+                } else {
+                    logger.debug('Saltando verificación de reCAPTCHA para solicitud API directa en registro', { 
+                        mail, 
+                        userAgent: userAgent,
+                        environment: process.env.NODE_ENV,
+                        isStaging: process.env.NODE_ENV === 'staging'
                     });
                 }
             } else if (process.env.NODE_ENV === 'development') {
