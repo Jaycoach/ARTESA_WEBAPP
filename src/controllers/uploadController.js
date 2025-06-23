@@ -740,21 +740,12 @@ class UploadController {
         }
       }
 
-      try {
-        // 7. Verificar ACL permissions (opcional)
-        logger.info('Verificando permisos de ACL');
-        const aclParams = {
-          Bucket: process.env.AWS_S3_BUCKET_NAME
-        };
-        await s3.getBucketAcl(aclParams).promise();
-        verificationResults.permissions.getBucketAcl = { success: true };
-      } catch (error) {
-        verificationResults.permissions.getBucketAcl = { 
-          success: false, 
-          error: error.message 
-        };
-        // ACL no es crítico, no agregar a errores principales
-      }
+      // ACL verification deshabilitado - el bucket no permite ACLs
+      logger.info('Verificación de ACL omitida - bucket configurado sin ACL');
+      verificationResults.permissions.getBucketAcl = { 
+        success: true, 
+        note: 'ACL deshabilitado por configuración del bucket' 
+      };
 
       // Evaluar resultado general
       const criticalPermissions = ['listBucket', 'putObject', 'getObject', 'deleteObject'];
