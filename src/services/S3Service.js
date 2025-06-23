@@ -129,7 +129,7 @@ class S3Service {
       Key: key,
       Body: fileContent,
       ContentType: contentType,
-      ACL: options.public ? 'public-read' : 'private',
+      //ACL: options.public ? 'public-read' : 'private',
       ...options.s3Params
     };
 
