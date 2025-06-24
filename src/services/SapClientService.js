@@ -1032,7 +1032,7 @@ class SapClientService extends SapBaseService {
       this.logger.info('Obteniendo clientes con CardCode que inicia con "CI" desde SAP');
       
       // Endpoint para obtener clientes cuyo CardCode comience con "CI" y sean tipo Customer
-      const endpoint = `BusinessPartners?$filter=startswith(CardCode,'CI') and CardType eq 'C'&$select=CardCode,CardName,CardType,GroupCode,FederalTaxID,Phone1,EmailAddress,Address,City,Country,ContactPerson,U_AR_ArtesaCode,BPAddresses&$expand=BPAddresses`;
+      const endpoint = `BusinessPartners?$filter=startswith(CardCode,'CI') and CardType eq 'C'&$select=CardCode,CardName,CardType,GroupCode,FederalTaxID,Phone1,EmailAddress,Address,City,Country,ContactPerson,U_AR_ArtesaCode`;
       
       const result = await this.request('GET', endpoint);
       
