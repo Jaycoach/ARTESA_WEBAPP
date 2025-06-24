@@ -1032,7 +1032,7 @@ class SapClientService extends SapBaseService {
       this.logger.info('Obteniendo clientes con CardCode que inicia con "CI" desde SAP');
       
       // Endpoint para obtener clientes cuyo CardCode comience con "CI" y sean tipo Customer
-      const endpoint = `BusinessPartners?$filter=startswith(CardCode,'CI') and CardType eq 'C'&$expand=BPAddresses&$select=CardCode,CardName,CardType,GroupCode,FederalTaxID,Phone1,EmailAddress,Address,City,Country,ContactPerson,U_AR_ArtesaCode,BPAddresses`;
+      const endpoint = `BusinessPartners?$filter=startswith(CardCode,'CI') and CardType eq 'C'&$select=CardCode,CardName,CardType,GroupCode,FederalTaxID,Phone1,EmailAddress,Address,City,Country,ContactPerson,U_AR_ArtesaCode`;
       
       const result = await this.request('GET', endpoint);
       
@@ -1347,17 +1347,31 @@ class SapClientService extends SapBaseService {
       this.logger.debug('Obteniendo sucursales desde CRD1 para cliente', { cardCode });
       
       // Usar el endpoint de BusinessPartners que incluye direcciones
-      const endpoint = `BusinessPartners('${cardCode}')?$expand=BPAddresses`;
+      const endpoint = `BusinessPartners('${cardCode}')`;
       
       const result = await this.request('GET', endpoint);
       
-      if (!result || !result.BPAddresses) {
+      // Para obtener las direcciones, necesitamos hacer una consulta separada
+      const addressesEndpoint = `BusinessPartners('${cardCode}')/BPAddresses`;
+      let addressesResult;
+
+      try {
+        addressesResult = await this.request('GET', addressesEndpoint);
+      } catch (addressError) {
+        this.logger.warn('No se pudieron obtener direcciones para el cliente', { 
+          cardCode, 
+          error: addressError.message 
+        });
+        return [];
+      }
+
+      if (!addressesResult || !addressesResult.value) {
         this.logger.warn('No se obtuvieron direcciones para el cliente', { cardCode });
         return [];
       }
-      
+
       // Filtrar solo las direcciones de tipo "Ship To" (bo_ShipTo)
-      const shipToAddresses = result.BPAddresses.filter(address => 
+      const shipToAddresses = addressesResult.value.filter(address => 
         address.AddressType === 'bo_ShipTo'
       );
       
@@ -1430,17 +1444,31 @@ class SapClientService extends SapBaseService {
       this.logger.debug('Obteniendo sucursales para cliente', { cardCode });
       
       // Usar el endpoint correcto para obtener el Business Partner con todas sus direcciones
-      const endpoint = `BusinessPartners('${cardCode}')?$select=CardCode,CardName,BPAddresses`;
+      const endpoint = `BusinessPartners('${cardCode}')?$select=CardCode,CardName`;
       
       const result = await this.request('GET', endpoint);
       
-      if (!result || !result.BPAddresses) {
+      // Para obtener las direcciones, necesitamos hacer una consulta separada
+      const addressesEndpoint = `BusinessPartners('${cardCode}')/BPAddresses`;
+      let addressesResult;
+
+      try {
+        addressesResult = await this.request('GET', addressesEndpoint);
+      } catch (addressError) {
+        this.logger.warn('No se pudieron obtener direcciones para el cliente', { 
+          cardCode, 
+          error: addressError.message 
+        });
+        return [];
+      }
+
+      if (!addressesResult || !addressesResult.value) {
         this.logger.warn('No se obtuvieron direcciones o formato inesperado', { cardCode });
         return [];
       }
-      
+
       // Filtrar solo las direcciones de tipo "Ship To" (bo_ShipTo)
-      const shipToAddresses = result.BPAddresses.filter(address => 
+      const shipToAddresses = addressesResult.value.filter(address => 
         address.AddressType === 'bo_ShipTo'
       );
       
