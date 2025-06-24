@@ -1352,45 +1352,41 @@ class SapClientService extends SapBaseService {
         const addressesEndpoint = `BusinessPartners('${cardCode}')/BPAddresses`;
         const addressesResult = await this.request('GET', addressesEndpoint);
         
-        if (addressesResult && addressesResult.value && addressesResult.value.length > 0) {
-          this.logger.info(`✅ Método 2 exitoso: ${addressesResult.value.length} direcciones encontradas`, { 
-            cardCode,
-            direcciones: addressesResult.value.map(addr => ({
-              name: addr.AddressName,
-              type: addr.AddressType,
-              city: addr.City,
-              street: addr.Street
-            }))
-          });
-          
-          // Filtrar direcciones Ship To, si no hay, usar Bill To
-          let filteredAddresses = addressesResult.value.filter(addr => 
-            addr.AddressType === 'bo_ShipTo'
+        if (!addressesResult || !addressesResult.BPAddresses) {
+          this.logger.warn('No se obtuvieron direcciones o formato inesperado', { cardCode });
+          return [];
+        }
+        // Filtrar solo las direcciones de tipo "Ship To" (bo_ShipTo)
+        const shipToAddresses = addressesResult.BPAddresses.filter(address => 
+          address.AddressType === 'bo_ShipTo'
+        );
+        this.logger.info(`Se encontraron ${shipToAddresses.length} direcciones Ship To en método 2`, { cardCode });
+
+        // Si no hay Ship To, buscar Bill To como alternativa
+        let filteredAddresses = shipToAddresses;
+        if (filteredAddresses.length === 0) {
+          this.logger.info('No hay Ship To, usando Bill To como alternativa en método 2', { cardCode });
+          filteredAddresses = addressesResult.BPAddresses.filter(address => 
+            address.AddressType === 'bo_BillTo'
           );
+        }
+
+        if (filteredAddresses.length > 0) {
+          const mappedBranches = filteredAddresses.map(address => ({
+            Address: address.AddressName,
+            Street: address.Street || '',
+            City: address.City || '',
+            State: address.State || '',
+            Country: address.Country || 'CO',
+            ZipCode: address.ZipCode || '',
+            U_AR_Phone: address.U_AR_Phone || '',
+            U_AR_contact_person: address.U_AR_contact_person || '',
+            U_HBT_MunMed: address.U_HBT_MunMed || null,
+            U_AR_Email: address.U_AR_Email || ''
+          }));
           
-          if (filteredAddresses.length === 0) {
-            this.logger.info('No hay Ship To, usando Bill To como alternativa', { cardCode });
-            filteredAddresses = addressesResult.value.filter(addr => 
-              addr.AddressType === 'bo_BillTo'
-            );
-          }
-          
-          if (filteredAddresses.length > 0) {
-            const mappedBranches = filteredAddresses.map(address => ({
-              Address: address.AddressName,
-              Street: address.Street || '',
-              City: address.City || '',
-              State: address.State || '',
-              Country: address.Country || 'CO',
-              ZipCode: address.ZipCode || '',
-              U_AR_Phone: address.U_AR_Phone || '',
-              U_AR_contact_person: address.U_AR_contact_person || '',
-              U_HBT_MunMed: address.U_HBT_MunMed || null,
-              U_AR_Email: address.U_AR_Email || ''
-            }));
-            this.logger.info(`Método 2 retorna ${mappedBranches.length} sucursales mapeadas`, { cardCode });
-            return mappedBranches;
-          }
+          this.logger.info(`Método 2 retorna ${mappedBranches.length} sucursales mapeadas`, { cardCode });
+          return mappedBranches;
         }
       } catch (separateError) {
         this.logger.warn('Método 2 falló', { cardCode, error: separateError.message });
@@ -1585,28 +1581,29 @@ class SapClientService extends SapBaseService {
         return [];
       }
 
-      if (!addressesResult || !addressesResult.value) {
-        this.logger.warn('No se obtuvieron direcciones o formato inesperado', { cardCode });
+      if (!addressesResult || !addressesResult.BPAddresses) {
+        this.logger.warn('No se obtuvieron direcciones para el cliente', { cardCode });
         return [];
       }
 
       // Filtrar solo las direcciones de tipo "Ship To" (bo_ShipTo)
-      const shipToAddresses = addressesResult.value.filter(address => 
+      const shipToAddresses = addressesResult.BPAddresses.filter(address => 
         address.AddressType === 'bo_ShipTo'
       );
       
       this.logger.info(`Se encontraron ${shipToAddresses.length} sucursales para el cliente ${cardCode}`);
-      // Mapear las direcciones para que coincida con getClientBranchesFromCRD1
+      // Mapear las direcciones con el campo adicional U_HBT_MunMed
+      // Mapear las direcciones con todos los campos requeridos
       const mappedAddresses = shipToAddresses.map(address => ({
         Address: address.AddressName,
-        Street: address.Street || '',
-        City: address.City || '',
-        State: address.State || '',
-        Country: address.Country || 'CO',
-        ZipCode: address.ZipCode || '',
+        Street: address.Street,
+        City: address.City,
+        State: address.State,
+        Country: address.Country,
+        ZipCode: address.ZipCode,
         U_AR_Phone: address.U_AR_Phone || '',
         U_AR_contact_person: address.U_AR_contact_person || '',
-        U_HBT_MunMed: address.U_HBT_MunMed || null,
+        U_HBT_MunMed: address.U_HBT_MunMed,
         U_AR_Email: address.U_AR_Email || ''
       }));
 
