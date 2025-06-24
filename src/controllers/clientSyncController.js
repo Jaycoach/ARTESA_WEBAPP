@@ -1080,12 +1080,13 @@ class ClientSyncController {
     try {
       // Obtener parámetros del query string en lugar del body
       const { clientId, cardCode, forceUpdate = false } = req.query;
-      
+      const forceUpdateBool = forceUpdate === 'true' || forceUpdate === true;
+
       logger.info('Iniciando sincronización de sucursales de clientes', { 
         userId: req.user?.id,
         clientId,
         cardCode,
-        forceUpdate
+        forceUpdate: forceUpdateBool
       });
 
       // Verificar que el servicio esté inicializado
@@ -1152,7 +1153,8 @@ class ClientSyncController {
           await sapServiceManager.clientService.syncClientBranches(
             client.cardcode_sap, 
             client.client_id, 
-            branchStats
+            branchStats,
+            forceUpdateBool
           );
           
           // Actualizar estadísticas generales

@@ -1352,7 +1352,7 @@ class SapClientService extends SapBaseService {
       const result = await this.request('GET', endpoint);
       
       // Para obtener las direcciones, necesitamos hacer una consulta separada
-      const addressesEndpoint = `BusinessPartners('${cardCode}')/BPAddresses`;
+      const addressesEndpoint = `BusinessPartners('${cardCode}')/BPAddresses?$select=*`;
       let addressesResult;
 
       try {
@@ -1370,9 +1370,24 @@ class SapClientService extends SapBaseService {
         return [];
       }
 
-      // Filtrar solo las direcciones de tipo "Ship To" (bo_ShipTo)
+      // Log de debug para ver todas las direcciones obtenidas
+      this.logger.debug('Direcciones obtenidas de SAP', { 
+        cardCode, 
+        totalAddresses: addressesResult.value.length,
+        addresses: addressesResult.value.map(addr => ({
+          AddressName: addr.AddressName,
+          AddressType: addr.AddressType,
+          Street: addr.Street,
+          City: addr.City
+        }))
+      });
+
+      // Incluir direcciones ShipTo y direcciones principales
       const shipToAddresses = addressesResult.value.filter(address => 
-        address.AddressType === 'bo_ShipTo'
+        address.AddressType === 'bo_ShipTo' || 
+        address.AddressType === 'bo_BillTo' || 
+        !address.AddressType || 
+        address.AddressName
       );
       
       this.logger.info(`Se encontraron ${shipToAddresses.length} sucursales para el cliente ${cardCode}`);
@@ -1672,7 +1687,7 @@ class SapClientService extends SapBaseService {
    * @param {number} clientId - ID del cliente en la plataforma
    * @param {Object} stats - Objeto para actualizar estadísticas
    */
-  async syncClientBranches(cardCode, clientId, stats) {
+  async syncClientBranches(cardCode, clientId, stats, forceUpdate = false) {
     try {
       // Obtener sucursales del cliente desde SAP
       const branches = await this.getClientBranches(cardCode);
@@ -1680,69 +1695,93 @@ class SapClientService extends SapBaseService {
       
       for (const branch of branches) {
         try {
+          // Log detallado de inicio
+          this.logger.info('Iniciando sincronización de sucursales', {
+            cardCode,
+            clientId,
+            forceUpdate
+          });
           // Verificar si la sucursal ya existe
           const query = 'SELECT branch_id FROM client_branches WHERE client_id = $1 AND ship_to_code = $2';
           const { rows } = await pool.query(query, [clientId, branch.AddressName]);
           
-          if (rows.length === 0) {
-            // Crear nueva sucursal
-            await pool.query(
-              `INSERT INTO client_branches 
-              (client_id, ship_to_code, branch_name, address, city, state, country, zip_code, phone, contact_person, is_default, municipality_code, mail)
-              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
-              [
+          if (rows.length === 0 || forceUpdate) {
+            if (rows.length === 0) {
+              // Crear nueva sucursal
+              await pool.query(
+                `INSERT INTO client_branches 
+                (client_id, ship_to_code, branch_name, address, city, state, country, zip_code, phone, contact_person, is_default, municipality_code, mail)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+                [
+                  clientId,
+                  branch.AddressName,
+                  branch.AddressName,
+                  branch.Street || '',
+                  branch.City || '',
+                  branch.State || '',
+                  branch.Country || 'CO',
+                  branch.ZipCode || '',
+                  branch.U_AR_Phone || '',
+                  branch.U_AR_contact_person || '',
+                  branch.AddressName === 'Principal' || branch.AddressName === 'PRINCIPAL',
+                  branch.U_HBT_MunMed || null,
+                  branch.U_AR_Email || null
+                ]
+              );
+              
+              stats.created++;
+              
+              this.logger.info('Sucursal creada para cliente', {
                 clientId,
-                branch.AddressName,
-                branch.AddressName,
-                branch.Street || '',
-                branch.City || '',
-                branch.State || '',
-                branch.Country || 'CO',
-                branch.ZipCode || '',
-                branch.U_AR_Phone || '',
-                branch.U_AR_contact_person || '',
-                branch.AddressName === 'Principal' || branch.AddressName === 'PRINCIPAL',
-                branch.U_HBT_MunMed || null,
-                branch.U_AR_Email || null
-              ]
-            );
-            
-            stats.created++;
-            
-            this.logger.debug('Sucursal creada para cliente', {
-              clientId,
-              shipToCode: branch.AddressName
-            });
+                cardCode,
+                shipToCode: branch.AddressName,
+                branchName: branch.AddressName
+              });
+            } else if (forceUpdate) {
+              // Actualizar sucursal existente cuando forceUpdate está activo
+              await pool.query(
+                `UPDATE client_branches 
+                SET branch_name = $1, 
+                    address = $2, 
+                    city = $3, 
+                    state = $4, 
+                    country = $5, 
+                    zip_code = $6,
+                    phone = $7,
+                    contact_person = $8,
+                    municipality_code = $9,
+                    mail = $10,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE branch_id = $11`,
+                [
+                  branch.AddressName,
+                  branch.Street || '',
+                  branch.City || '',
+                  branch.State || '',
+                  branch.Country || 'CO',
+                  branch.ZipCode || '',
+                  branch.U_AR_Phone || '',
+                  branch.U_AR_contact_person || '',
+                  branch.U_HBT_MunMed || null,
+                  branch.U_AR_Email || null,
+                  rows[0].branch_id
+                ]
+              );
+              
+              stats.updated++;
+              
+              this.logger.info('Sucursal actualizada por forceUpdate', {
+                clientId,
+                cardCode,
+                branchId: rows[0].branch_id,
+                shipToCode: branch.AddressName
+              });
+            }
           } else {
-            // Actualizar sucursal existente
-            await pool.query(
-              `UPDATE client_branches 
-              SET branch_name = $1, 
-                  address = $2, 
-                  city = $3, 
-                  state = $4, 
-                  country = $5, 
-                  zip_code = $6,
-                  municipality_code = $7,
-                  updated_at = CURRENT_TIMESTAMP
-              WHERE branch_id = $8`,
-              [
-                branch.AddressName,
-                branch.Street || '',
-                branch.City || '',
-                branch.State || '',
-                branch.Country || 'CO',
-                branch.ZipCode || '',
-                branch.U_HBT_MunMed || null,
-                rows[0].branch_id
-              ]
-            );
-            
-            stats.updated++;
-            
-            this.logger.debug('Sucursal actualizada para cliente', {
+            // Sucursal ya existe y no hay forceUpdate
+            this.logger.debug('Sucursal ya existe, omitiendo', {
               clientId,
-              branchId: rows[0].branch_id,
+              cardCode,
               shipToCode: branch.AddressName
             });
           }
