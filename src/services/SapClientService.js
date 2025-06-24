@@ -1234,6 +1234,25 @@ class SapClientService extends SapBaseService {
       
       // Obtener sucursales usando consulta directa a CRD1
       const branches = await this.getClientBranchesFromCRD1(cardCode);
+
+      // Validación adicional y logging detallado
+      this.logger.info('=== RESULTADO DE BÚSQUEDA DE SUCURSALES ===', { 
+        cardCode, 
+        clientId,
+        totalSucursalesEncontradas: branches ? branches.length : 0,
+        sucursales: branches ? branches.map(b => ({
+          address: b.Address,
+          street: b.Street,
+          city: b.City,
+          state: b.State
+        })) : []
+      });
+
+      if (branches && branches.length > 0) {
+        this.logger.info(`✅ Se procederán a sincronizar ${branches.length} sucursales para cliente ${cardCode}`);
+      } else {
+        this.logger.warn(`⚠️ No se encontraron sucursales en SAP para el cliente ${cardCode}, se creará una sucursal por defecto`);
+      }
       
       if (!branches || branches.length === 0) {
         // Si no hay sucursales en SAP, crear una por defecto
@@ -1336,7 +1355,6 @@ class SapClientService extends SapBaseService {
       });
     }
   }
-
   /**
    * Obtiene las sucursales de un cliente consultando directamente la tabla CRD1 via Service Layer
    * @param {string} cardCode - Código del cliente en SAP
@@ -1344,77 +1362,279 @@ class SapClientService extends SapBaseService {
    */
   async getClientBranchesFromCRD1(cardCode) {
     try {
-      this.logger.debug('Obteniendo sucursales desde CRD1 para cliente', { cardCode });
-      
-      // Usar el endpoint de BusinessPartners que incluye direcciones
-      const endpoint = `BusinessPartners('${cardCode}')`;
-      
-      const result = await this.request('GET', endpoint);
-      
-      // Para obtener las direcciones, necesitamos hacer una consulta separada
-      const addressesEndpoint = `BusinessPartners('${cardCode}')/BPAddresses?$select=*`;
-      let addressesResult;
+      // Validación de entrada
+      if (!cardCode) {
+        this.logger.error('CardCode es requerido para obtener sucursales');
+        return [];
+      }
 
-      try {
-        addressesResult = await this.request('GET', addressesEndpoint);
-      } catch (addressError) {
-        this.logger.warn('No se pudieron obtener direcciones para el cliente', { 
-          cardCode, 
-          error: addressError.message 
+      this.logger.info('=== INICIANDO BÚSQUEDA DETALLADA DE SUCURSALES ===', { cardCode });
+      
+      // MÉTODO 1: Consulta directa usando BusinessPartners con BPAddresses
+      this.logger.info('Método 1: Consultando BusinessPartners con BPAddresses', { cardCode });
+      
+      let sucursalesEncontradas = await this.getBranchesMethodBP(cardCode);
+      
+      if (sucursalesEncontradas && sucursalesEncontradas.length > 0) {
+        this.logger.info(`✅ Método 1 exitoso: Se encontraron ${sucursalesEncontradas.length} sucursales`, { 
+          cardCode,
+          sucursales: sucursalesEncontradas.map(s => ({ Address: s.Address, City: s.City }))
         });
-        return [];
+        return sucursalesEncontradas;
       }
 
-      if (!addressesResult || !addressesResult.value) {
-        this.logger.warn('No se obtuvieron direcciones para el cliente', { cardCode });
-        return [];
+      // MÉTODO 2: Consulta usando SQLQueries directamente a CRD1
+      this.logger.info('Método 2: Consultando CRD1 directamente via SQLQueries', { cardCode });
+      
+      sucursalesEncontradas = await this.getBranchesMethodSQL(cardCode);
+      
+      if (sucursalesEncontradas && sucursalesEncontradas.length > 0) {
+        this.logger.info(`✅ Método 2 exitoso: Se encontraron ${sucursalesEncontradas.length} sucursales`, { 
+          cardCode,
+          sucursales: sucursalesEncontradas.map(s => ({ Address: s.Address, City: s.City }))
+        });
+        return sucursalesEncontradas;
       }
 
-      // Log de debug para ver todas las direcciones obtenidas
-      this.logger.debug('Direcciones obtenidas de SAP', { 
-        cardCode, 
-        totalAddresses: addressesResult.value.length,
-        addresses: addressesResult.value.map(addr => ({
-          AddressName: addr.AddressName,
-          AddressType: addr.AddressType,
-          Street: addr.Street,
-          City: addr.City
-        }))
-      });
-
-      // Incluir direcciones ShipTo y direcciones principales
-      const shipToAddresses = addressesResult.value.filter(address => 
-        address.AddressType === 'bo_ShipTo' || 
-        address.AddressType === 'bo_BillTo' || 
-        !address.AddressType || 
-        address.AddressName
-      );
+      // MÉTODO 3: Consulta usando Query directo
+      this.logger.info('Método 3: Consultando usando $query OData', { cardCode });
       
-      this.logger.info(`Se encontraron ${shipToAddresses.length} sucursales para el cliente ${cardCode}`);
+      sucursalesEncontradas = await this.getBranchesMethodQuery(cardCode);
       
-      // Mapear las direcciones con todos los campos requeridos
-      const mappedAddresses = shipToAddresses.map(address => ({
-        Address: address.AddressName,
-        Street: address.Street,
-        City: address.City,
-        State: address.State,
-        Country: address.Country,
-        ZipCode: address.ZipCode,
-        U_AR_Phone: address.U_AR_Phone || '',
-        U_AR_contact_person: address.U_AR_contact_person || '',
-        U_HBT_MunMed: address.U_HBT_MunMed,
-        U_AR_Email: address.U_AR_Email || ''
-      }));
+      if (sucursalesEncontradas && sucursalesEncontradas.length > 0) {
+        this.logger.info(`✅ Método 3 exitoso: Se encontraron ${sucursalesEncontradas.length} sucursales`, { 
+          cardCode,
+          sucursales: sucursalesEncontradas.map(s => ({ Address: s.Address, City: s.City }))
+        });
+        return sucursalesEncontradas;
+      }
 
-      return mappedAddresses;
+      this.logger.warn(`⚠️ NO SE ENCONTRARON SUCURSALES para el cliente ${cardCode} usando ningún método`);
+      return [];
+
     } catch (error) {
-      this.logger.error('Error al obtener sucursales desde CRD1', {
+      this.logger.error('Error general al obtener sucursales desde CRD1', {
         cardCode,
         error: error.message,
         stack: error.stack
       });
       return [];
     }
+  }
+
+  /**
+   * Método 1: Obtener sucursales usando BusinessPartners/BPAddresses
+   */
+  async getBranchesMethodBP(cardCode) {
+    try {
+      this.logger.debug('Ejecutando consulta BusinessPartners', { cardCode });
+      
+      // Primero validar que el BusinessPartner existe
+      const bpEndpoint = `BusinessPartners('${cardCode}')`;
+      const bpResult = await this.request('GET', bpEndpoint);
+      
+      if (!bpResult) {
+        this.logger.warn('BusinessPartner no encontrado', { cardCode });
+        return [];
+      }
+
+      this.logger.debug('BusinessPartner encontrado', { 
+        cardCode, 
+        cardName: bpResult.CardName,
+        cardType: bpResult.CardType
+      });
+
+      // Obtener direcciones del BusinessPartner
+      const addressesEndpoint = `BusinessPartners('${cardCode}')/BPAddresses`;
+      const addressesResult = await this.request('GET', addressesEndpoint);
+
+      if (!addressesResult || !addressesResult.value) {
+        this.logger.warn('No se obtuvieron direcciones o formato inesperado', { 
+          cardCode,
+          hasResult: !!addressesResult,
+          hasValue: addressesResult?.value ? true : false
+        });
+        return [];
+      }
+
+      this.logger.info(`Total de direcciones encontradas: ${addressesResult.value.length}`, { 
+        cardCode,
+        addressesTypes: addressesResult.value.map(addr => ({ 
+          addressName: addr.AddressName, 
+          addressType: addr.AddressType,
+          street: addr.Street,
+          city: addr.City
+        }))
+      });
+
+      // Filtrar direcciones de tipo "Ship To"
+      const shipToAddresses = addressesResult.value.filter(address => 
+        address.AddressType === 'bo_ShipTo'
+      );
+
+      this.logger.info(`Direcciones Ship To encontradas: ${shipToAddresses.length}`, { cardCode });
+
+      // Si no hay Ship To, incluir también Bill To como fallback
+      if (shipToAddresses.length === 0) {
+        this.logger.info('No hay direcciones Ship To, buscando Bill To como fallback', { cardCode });
+        const billToAddresses = addressesResult.value.filter(address => 
+          address.AddressType === 'bo_BillTo'
+        );
+        
+        if (billToAddresses.length > 0) {
+          this.logger.info(`Usando ${billToAddresses.length} direcciones Bill To como fallback`, { cardCode });
+          return this.mapAddressesToBranches(billToAddresses);
+        }
+      }
+
+      return this.mapAddressesToBranches(shipToAddresses);
+
+    } catch (error) {
+      this.logger.error('Error en método BusinessPartners', {
+        cardCode,
+        error: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText
+      });
+      return [];
+    }
+  }
+
+  /**
+   * Método 2: Obtener sucursales usando SQLQueries directamente
+   */
+  async getBranchesMethodSQL(cardCode) {
+    try {
+      this.logger.debug('Ejecutando consulta SQL directa a CRD1', { cardCode });
+      
+      const sqlQuery = `
+        SELECT 
+          T0.CardCode,
+          T0.Address as AddressName,
+          T0.Street,
+          T0.City,
+          T0.State,
+          T0.Country,
+          T0.ZipCode,
+          T0.AdresType as AddressType,
+          T0.U_AR_Phone,
+          T0.U_AR_contact_person,
+          T0.U_HBT_MunMed,
+          T0.U_AR_Email
+        FROM CRD1 T0 
+        WHERE T0.CardCode = '${cardCode}'
+        AND (T0.AdresType = 'S' OR T0.AdresType = 'B')
+        ORDER BY T0.AdresType, T0.Address
+      `;
+
+      const sqlEndpoint = 'SQLQueries';
+      const sqlPayload = {
+        Query: sqlQuery
+      };
+
+      const sqlResult = await this.request('POST', sqlEndpoint, sqlPayload);
+
+      if (!sqlResult || !sqlResult.value) {
+        this.logger.warn('No se obtuvieron resultados de SQL Query', { cardCode });
+        return [];
+      }
+
+      this.logger.info(`SQL Query retornó ${sqlResult.value.length} registros`, { 
+        cardCode,
+        records: sqlResult.value.map(r => ({ 
+          AddressName: r.AddressName, 
+          AddressType: r.AddressType,
+          City: r.City 
+        }))
+      });
+
+      // Mapear resultados SQL a formato esperado
+      return sqlResult.value.map(row => ({
+        Address: row.AddressName,
+        Street: row.Street,
+        City: row.City,
+        State: row.State,
+        Country: row.Country,
+        ZipCode: row.ZipCode,
+        U_AR_Phone: row.U_AR_Phone || '',
+        U_AR_contact_person: row.U_AR_contact_person || '',
+        U_HBT_MunMed: row.U_HBT_MunMed,
+        U_AR_Email: row.U_AR_Email || ''
+      }));
+
+    } catch (error) {
+      this.logger.error('Error en método SQL Query', {
+        cardCode,
+        error: error.message,
+        status: error.response?.status
+      });
+      return [];
+    }
+  }
+
+  /**
+   * Método 3: Obtener sucursales usando consulta OData avanzada
+   */
+  async getBranchesMethodQuery(cardCode) {
+    try {
+      this.logger.debug('Ejecutando consulta OData Query', { cardCode });
+      
+      // Consulta OData para obtener direcciones directamente
+      const queryEndpoint = `$crossjoin(OCRD,CRD1)?$filter=OCRD/CardCode eq CRD1/CardCode and OCRD/CardCode eq '${cardCode}'&$select=CRD1/Address,CRD1/Street,CRD1/City,CRD1/State,CRD1/Country,CRD1/ZipCode,CRD1/AdresType,CRD1/U_AR_Phone,CRD1/U_AR_contact_person,CRD1/U_HBT_MunMed,CRD1/U_AR_Email`;
+      
+      const queryResult = await this.request('GET', queryEndpoint);
+
+      if (!queryResult || !queryResult.value) {
+        this.logger.warn('No se obtuvieron resultados de OData Query', { cardCode });
+        return [];
+      }
+
+      this.logger.info(`OData Query retornó ${queryResult.value.length} registros`, { cardCode });
+
+      // Filtrar solo Ship To (S) y Bill To (B) si no hay Ship To
+      const filteredAddresses = queryResult.value.filter(row => 
+        row.AdresType === 'S' || row.AdresType === 'B'
+      );
+
+      return filteredAddresses.map(row => ({
+        Address: row.Address,
+        Street: row.Street,
+        City: row.City,
+        State: row.State,
+        Country: row.Country,
+        ZipCode: row.ZipCode,
+        U_AR_Phone: row.U_AR_Phone || '',
+        U_AR_contact_person: row.U_AR_contact_person || '',
+        U_HBT_MunMed: row.U_HBT_MunMed,
+        U_AR_Email: row.U_AR_Email || ''
+      }));
+
+    } catch (error) {
+      this.logger.error('Error en método OData Query', {
+        cardCode,
+        error: error.message,
+        status: error.response?.status
+      });
+      return [];
+    }
+  }
+
+  /**
+   * Mapea direcciones de SAP a formato de sucursales
+   */
+  mapAddressesToBranches(addresses) {
+    return addresses.map(address => ({
+      Address: address.AddressName,
+      Street: address.Street,
+      City: address.City,
+      State: address.State,
+      Country: address.Country,
+      ZipCode: address.ZipCode,
+      U_AR_Phone: address.U_AR_Phone || '',
+      U_AR_contact_person: address.U_AR_contact_person || '',
+      U_HBT_MunMed: address.U_HBT_MunMed,
+      U_AR_Email: address.U_AR_Email || ''
+    }));
   }
   /**
    * Obtiene clientes del grupo Institucional de SAP que no estén ya en la plataforma

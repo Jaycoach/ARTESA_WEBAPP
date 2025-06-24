@@ -468,7 +468,39 @@ router.get('/branches/validate',
   checkRole([1]), // Solo administradores
   clientSyncController.validateClientBranches
 );
-
+/**
+ * @swagger
+ * /api/client-sync/client/{cardCode}/branches/validate:
+ *   get:
+ *     summary: Validar sucursales de un cliente específico
+ *     description: Valida las sucursales de un cliente específico comparando datos de SAP vs datos locales
+ *     tags: [ClientSync]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: cardCode
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Código SAP del cliente (CardCode)
+ *         example: "CI800230447"
+ *     responses:
+ *       200:
+ *         description: Validación completada exitosamente
+ *       404:
+ *         description: Cliente no encontrado
+ *       401:
+ *         description: No autorizado
+ *       403:
+ *         description: No tiene permisos suficientes
+ *       500:
+ *         description: Error interno del servidor
+ */
+router.get('/client/:cardCode/branches/validate', 
+  checkRole([1]), // Solo administradores
+  clientSyncController.validateSpecificClientBranches
+);
 /**
  * @swagger
  * /api/client-sync/branches/sync:
