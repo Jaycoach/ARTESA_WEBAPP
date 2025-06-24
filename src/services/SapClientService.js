@@ -1209,6 +1209,30 @@ class SapClientService extends SapBaseService {
       
       // Procesar sucursales desde SAP
       for (const branch of branches) {
+        // Validar que tenemos los campos mínimos requeridos
+        if (!branch.AddressName && !branch.Address) {
+          this.logger.warn('Sucursal omitida por falta de AddressName/Address', {
+            clientId,
+            cardCode,
+            branch: JSON.stringify(branch, null, 2)
+          });
+          continue;
+        }
+
+        // Normalizar los campos para evitar valores nulos
+        const normalizedBranch = {
+          AddressName: branch.AddressName || branch.Address || 'PRINCIPAL',
+          Address: branch.Address || branch.AddressName || 'PRINCIPAL',
+          Street: branch.Street || '',
+          City: branch.City || '',
+          State: branch.State || '',
+          Country: branch.Country || 'CO',
+          ZipCode: branch.ZipCode || '',
+          U_AR_Phone: branch.U_AR_Phone || '',
+          U_AR_contact_person: branch.U_AR_contact_person || '',
+          U_HBT_MunMed: branch.U_HBT_MunMed || null,
+          U_AR_Email: branch.U_AR_Email || null
+        };
         const branchInsertQuery = `
           INSERT INTO client_branches (
             client_id, 
@@ -1231,24 +1255,24 @@ class SapClientService extends SapBaseService {
         try {
           await client.query(branchInsertQuery, [
             clientId,
-            branch.Address || 'PRINCIPAL',
-            branch.Address || 'Sucursal Principal',
-            branch.Street || '',
-            branch.City || '',
-            branch.State || '',
-            branch.Country || 'CO',
-            branch.ZipCode || '',
-            branch.U_AR_Phone || '',
-            branch.U_AR_contact_person || '',
-            branch.Address === 'PRINCIPAL' || branches.length === 1,
-            branch.U_HBT_MunMed || null,
-            branch.U_AR_Email || null
+            normalizedBranch.Address || 'PRINCIPAL',
+            normalizedBranch.Address || 'Sucursal Principal',
+            normalizedBranch.Street || '',
+            normalizedBranch.City || '',
+            normalizedBranch.State || '',
+            normalizedBranch.Country || 'CO',
+            normalizedBranch.ZipCode || '',
+            normalizedBranch.U_AR_Phone || '',
+            normalizedBranch.U_AR_contact_person || '',
+            normalizedBranch.Address === 'PRINCIPAL' || branches.length === 1,
+            normalizedBranch.U_HBT_MunMed || null,
+            normalizedBranch.U_AR_Email || null
           ]);
           
           this.logger.debug('Sucursal creada para cliente CI', {
             clientId,
-            shipToCode: branch.Address,
-            branchName: branch.Address
+            shipToCode: normalizedBranch.Address,
+            branchName: normalizedBranch.Address
           });
         } finally {
           client.release();
@@ -1807,6 +1831,37 @@ class SapClientService extends SapBaseService {
       stats.total += branches.length;
       
       for (const branch of branches) {
+        // Validar que tenemos los campos mínimos requeridos
+        if (!branch.AddressName && !branch.Address) {
+          this.logger.warn('Sucursal omitida por falta de AddressName/Address', {
+            clientId,
+            cardCode,
+            branch: JSON.stringify(branch, null, 2)
+          });
+          continue;
+        }
+
+        // Normalizar los campos para evitar valores nulos
+        const normalizedBranch = {
+          AddressName: branch.AddressName || branch.Address || 'PRINCIPAL',
+          Address: branch.Address || branch.AddressName || 'PRINCIPAL',
+          Street: branch.Street || '',
+          City: branch.City || '',
+          State: branch.State || '',
+          Country: branch.Country || 'CO',
+          ZipCode: branch.ZipCode || '',
+          U_AR_Phone: branch.U_AR_Phone || '',
+          U_AR_contact_person: branch.U_AR_contact_person || '',
+          U_HBT_MunMed: branch.U_HBT_MunMed || null,
+          U_AR_Email: branch.U_AR_Email || null
+        };
+
+        this.logger.debug('Procesando sucursal normalizada', {
+          clientId,
+          cardCode,
+          original: branch,
+          normalized: normalizedBranch
+        });
         try {
           // Log detallado de inicio
           this.logger.info('Iniciando sincronización de sucursales', {
@@ -1816,7 +1871,7 @@ class SapClientService extends SapBaseService {
           });
           // Verificar si la sucursal ya existe
           const query = 'SELECT branch_id FROM client_branches WHERE client_id = $1 AND ship_to_code = $2';
-          const { rows } = await pool.query(query, [clientId, branch.AddressName]);
+          const { rows } = await pool.query(query, [clientId, normalizedBranch.AddressName]);
           
           if (rows.length === 0 || forceUpdate) {
             if (rows.length === 0) {
@@ -1827,18 +1882,18 @@ class SapClientService extends SapBaseService {
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
                 [
                   clientId,
-                  branch.AddressName,
-                  branch.AddressName,
-                  branch.Street || '',
-                  branch.City || '',
-                  branch.State || '',
-                  branch.Country || 'CO',
-                  branch.ZipCode || '',
-                  branch.U_AR_Phone || '',
-                  branch.U_AR_contact_person || '',
-                  branch.AddressName === 'Principal' || branch.AddressName === 'PRINCIPAL',
-                  branch.U_HBT_MunMed || null,
-                  branch.U_AR_Email || null
+                  normalizedBranch.AddressName,
+                  normalizedBranch.AddressName,
+                  normalizedBranch.Street,
+                  normalizedBranch.City,
+                  normalizedBranch.State,
+                  normalizedBranch.Country,
+                  normalizedBranch.ZipCode,
+                  normalizedBranch.U_AR_Phone,
+                  normalizedBranch.U_AR_contact_person,
+                  normalizedBranch.AddressName === 'PRINCIPAL' || branches.length === 1,
+                  normalizedBranch.U_HBT_MunMed,
+                  normalizedBranch.U_AR_Email
                 ]
               );
               
@@ -1847,8 +1902,8 @@ class SapClientService extends SapBaseService {
               this.logger.info('Sucursal creada para cliente', {
                 clientId,
                 cardCode,
-                shipToCode: branch.AddressName,
-                branchName: branch.AddressName
+                shipToCode: normalizedBranch.AddressName,
+                branchName: normalizedBranch.AddressName
               });
             } else if (forceUpdate) {
               // Actualizar sucursal existente cuando forceUpdate está activo
@@ -1867,16 +1922,16 @@ class SapClientService extends SapBaseService {
                     updated_at = CURRENT_TIMESTAMP
                 WHERE branch_id = $11`,
                 [
-                  branch.AddressName,
-                  branch.Street || '',
-                  branch.City || '',
-                  branch.State || '',
-                  branch.Country || 'CO',
-                  branch.ZipCode || '',
-                  branch.U_AR_Phone || '',
-                  branch.U_AR_contact_person || '',
-                  branch.U_HBT_MunMed || null,
-                  branch.U_AR_Email || null,
+                  normalizedBranch.AddressName,
+                  normalizedBranch.Street,
+                  normalizedBranch.City,
+                  normalizedBranch.State,
+                  normalizedBranch.Country,
+                  normalizedBranch.ZipCode,
+                  normalizedBranch.U_AR_Phone,
+                  normalizedBranch.U_AR_contact_person,
+                  normalizedBranch.U_HBT_MunMed,
+                  normalizedBranch.U_AR_Email,
                   rows[0].branch_id
                 ]
               );
