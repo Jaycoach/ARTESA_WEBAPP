@@ -1149,10 +1149,8 @@ class SapClientService extends SapBaseService {
                 contact_email, 
                 address,
                 nit_number,
-                verification_digit,
-                created_at, 
-                updated_at
-              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                verification_digit
+              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
               RETURNING client_id
             `;
             
@@ -1168,7 +1166,7 @@ class SapClientService extends SapBaseService {
             }
             
             const { rows: [newProfile] } = await client.query(profileInsertQuery, [
-              newUser.user_id,
+              newUser.id,
               sapClient.CardCode,
               sapClient.CardName,
               sapClient.Phone1,
@@ -1185,18 +1183,18 @@ class SapClientService extends SapBaseService {
                   const branchInsertQuery = `
                     INSERT INTO client_branches (
                       client_id, 
+                      ship_to_code,
                       branch_name, 
                       address, 
                       city, 
                       phone,
-                      municipality_code,
-                      created_at, 
-                      updated_at
-                    ) VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                      municipality_code
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7)
                   `;
                   
                   await client.query(branchInsertQuery, [
                     newProfile.client_id,
+                    address.AddressName || 'Principal', // ship_to_code
                     address.AddressName || 'Sucursal Principal',
                     address.Street,
                     address.City,
@@ -1210,7 +1208,7 @@ class SapClientService extends SapBaseService {
             stats.created++;
             this.logger.info('Cliente creado como inactivo', { 
               cardCode: sapClient.CardCode,
-              userId: newUser.user_id,
+              userId: newUser.id,
               clientId: newProfile.client_id
             });
           }
@@ -1515,7 +1513,7 @@ class SapClientService extends SapBaseService {
             await pool.query(
               `INSERT INTO client_branches 
               (client_id, ship_to_code, branch_name, address, city, state, country, zip_code, phone, contact_person, is_default, municipality_code) 
-              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
               [
                 clientId,
                 branch.AddressName,
