@@ -3,19 +3,25 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "scripts": {
+   "scripts": {
     "dev": "vite",
-    "ngrok": "vite --config vite.config.js --mode ngrok --host",
+    "dev:staging": "vite --mode staging",
     "dev:host": "vite --host",
     "dev:ngrok": "vite --mode ngrok --host",
     "dev:ngrok-env": "vite --mode ngrok --config vite.config.ngrok.js --env-file .env.ngrok",
+    
     "build": "vite build",
-    "build:ngrok": "vite build --mode ngrok",
-    "preview": "vite preview",
     "build:staging": "vite build --mode staging",
     "build:production": "vite build --mode production",
-    "deploy:staging": "npm run build:staging && aws s3 sync dist/ s3://tu-bucket-staging --delete",
-    "deploy:production": "npm run build:production && aws s3 sync dist/ s3://tu-bucket-production --delete"
+    "build:ngrok": "vite build --mode ngrok",
+    
+    "preview": "vite preview",
+    "preview:staging": "vite preview --mode staging",
+    
+    "deploy:staging": "npm run build:staging && aws s3 sync dist/ s3://artesa-frontend-staging --delete",
+    "deploy:production": "npm run build:production && aws s3 sync dist/ s3://tu-bucket-production --delete",
+    
+    "test:staging": "npm run build:staging && npm run preview:staging"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.0.12",
