@@ -185,5 +185,48 @@ router.post('/update-description',
   checkRole([1]), // Solo administradores
   sapSyncController.updateProductDescription
 );
-
+/**
+ * @swagger
+ * /api/sap/sync/group/{groupCode}:
+ *   post:
+ *     summary: Sincronizar productos por grupo específico
+ *     description: Inicia una sincronización de productos de un grupo específico desde SAP B1 hacia la WebApp
+ *     tags: [SAP]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: groupCode
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Código del grupo de productos a sincronizar (ej 127)
+ *         example: 127
+ *     responses:
+ *       200:
+ *         description: Sincronización de grupo iniciada exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Sincronización de productos del grupo 127 iniciada exitosamente"
+ *       400:
+ *         description: Código de grupo inválido
+ *       401:
+ *         description: No autorizado
+ *       403:
+ *         description: No tiene permisos suficientes
+ *       500:
+ *         description: Error interno del servidor
+ */
+router.post('/sync/group/:groupCode', 
+  checkRole([1]), // Solo administradores
+  sapSyncController.syncProductsByGroup
+);
 module.exports = router;

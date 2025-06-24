@@ -1023,7 +1023,226 @@ class SapClientService extends SapBaseService {
       throw error;
     }
   }
+  /**
+   * Obtiene todos los clientes de SAP cuyo CardCode comience con "CI"
+   * @returns {Promise<Array>} Lista de clientes con CardCode que inicia con "CI"
+   */
+  async getClientsByCardCodePrefix() {
+    try {
+      this.logger.info('Obteniendo clientes con CardCode que inicia con "CI" desde SAP');
+      
+      // Endpoint para obtener clientes cuyo CardCode comience con "CI" y sean tipo Customer
+      const endpoint = `BusinessPartners?$filter=startswith(CardCode,'CI') and CardType eq 'C'&$select=CardCode,CardName,CardType,GroupCode,FederalTaxID,Phone1,EmailAddress,Address,City,Country,ContactPerson,U_AR_ArtesaCode,BPAddresses&$expand=BPAddresses`;
+      
+      const result = await this.request('GET', endpoint);
+      
+      if (!result || !result.value) {
+        this.logger.warn('No se obtuvieron resultados o formato inesperado');
+        return [];
+      }
+      
+      this.logger.info(`Se encontraron ${result.value.length} clientes con CardCode que inicia con "CI"`);
+      return result.value;
+    } catch (error) {
+      this.logger.error('Error al obtener clientes con CardCode CI', {
+        error: error.message,
+        stack: error.stack
+      });
+      throw error;
+    }
+  }
 
+  /**
+   * Sincroniza todos los clientes cuyo CardCode comience con "CI" e inserta como inactivos
+   * @returns {Promise<Object>} Estadísticas de sincronización
+   */
+  async syncCIClients() {
+    const stats = {
+      total: 0,
+      created: 0,
+      updated: 0,
+      errors: 0,
+      skipped: 0
+    };
+
+    try {
+      this.logger.info('Iniciando sincronización de clientes con CardCode que inicia con "CI"');
+      
+      // Obtener clientes de SAP cuyo CardCode comience con "CI"
+      const sapClients = await this.getClientsByCardCodePrefix();
+      
+      if (!sapClients || sapClients.length === 0) {
+        this.logger.warn('No se encontraron clientes con CardCode que inicie con "CI"');
+        return stats;
+      }
+
+      stats.total = sapClients.length;
+
+      for (const sapClient of sapClients) {
+        const client = await pool.connect();
+        
+        try {
+          await client.query('BEGIN');
+          
+          // Verificar si ya existe el cliente por CardCode
+          const existingClientQuery = `
+            SELECT cp.*, u.is_active 
+            FROM client_profiles cp 
+            LEFT JOIN users u ON cp.user_id = u.user_id 
+            WHERE cp.cardcode_sap = $1
+          `;
+          const { rows: existingClients } = await client.query(existingClientQuery, [sapClient.CardCode]);
+          
+          if (existingClients.length > 0) {
+            // Cliente ya existe, actualizar datos si es necesario
+            const updateQuery = `
+              UPDATE client_profiles 
+              SET 
+                company_name = $1,
+                contact_phone = $2,
+                contact_email = $3,
+                address = $4,
+                updated_at = CURRENT_TIMESTAMP
+              WHERE cardcode_sap = $5
+            `;
+            
+            await client.query(updateQuery, [
+              sapClient.CardName,
+              sapClient.Phone1,
+              sapClient.EmailAddress,
+              sapClient.Address,
+              sapClient.CardCode
+            ]);
+            
+            stats.updated++;
+            this.logger.debug('Cliente actualizado', { cardCode: sapClient.CardCode });
+          } else {
+            // Cliente nuevo, crear usuario inactivo y perfil
+            
+            // 1. Crear usuario inactivo
+            const userInsertQuery = `
+              INSERT INTO users (username, email, password_hash, role_id, is_active, created_at, updated_at)
+              VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+              RETURNING user_id
+            `;
+            
+            // Generar username único basado en CardCode
+            const username = `${sapClient.CardCode.toLowerCase()}_pending`;
+            // Email temporal o usar el de SAP si existe
+            const email = sapClient.EmailAddress || `${username}@temp.artesa.com`;
+            // Hash temporal para activación posterior
+            const tempPassword = '$2b$10$temporary.hash.for.inactive.user'; // Hash temporal
+            const roleId = 2; // Role USER
+            const isActive = false; // INACTIVO - requiere activación por olvido de contraseña
+            
+            const { rows: [newUser] } = await client.query(userInsertQuery, [
+              username, email, tempPassword, roleId, isActive
+            ]);
+            
+            // 2. Crear perfil de cliente
+            const profileInsertQuery = `
+              INSERT INTO client_profiles (
+                user_id, 
+                cardcode_sap, 
+                company_name, 
+                contact_phone, 
+                contact_email, 
+                address,
+                nit_number,
+                verification_digit,
+                client_type,
+                created_at, 
+                updated_at
+              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+              RETURNING client_id
+            `;
+            
+            // Extraer NIT del FederalTaxID si existe
+            let nitNumber = null;
+            let verificationDigit = null;
+            if (sapClient.FederalTaxID) {
+              const nitParts = sapClient.FederalTaxID.split('-');
+              if (nitParts.length === 2) {
+                nitNumber = nitParts[0];
+                verificationDigit = parseInt(nitParts[1]);
+              }
+            }
+            
+            const { rows: [newProfile] } = await client.query(profileInsertQuery, [
+              newUser.user_id,
+              sapClient.CardCode,
+              sapClient.CardName,
+              sapClient.Phone1,
+              sapClient.EmailAddress,
+              sapClient.Address,
+              nitNumber,
+              verificationDigit,
+              'empresarial' // Tipo por defecto para clientes de SAP
+            ]);
+            
+            // 3. Sincronizar sucursales si existen
+            if (sapClient.BPAddresses && sapClient.BPAddresses.length > 0) {
+              for (const address of sapClient.BPAddresses) {
+                if (address.AddressType === 'bo_ShipTo') {
+                  const branchInsertQuery = `
+                    INSERT INTO client_branches (
+                      client_id, 
+                      branch_name, 
+                      address, 
+                      city, 
+                      phone,
+                      municipality_code,
+                      created_at, 
+                      updated_at
+                    ) VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                  `;
+                  
+                  await client.query(branchInsertQuery, [
+                    newProfile.client_id,
+                    address.AddressName || 'Sucursal Principal',
+                    address.Street,
+                    address.City,
+                    address.Phone,
+                    address.U_HBT_MunMed
+                  ]);
+                }
+              }
+            }
+            
+            stats.created++;
+            this.logger.info('Cliente creado como inactivo', { 
+              cardCode: sapClient.CardCode,
+              userId: newUser.user_id,
+              clientId: newProfile.client_id
+            });
+          }
+          
+          await client.query('COMMIT');
+          
+        } catch (error) {
+          await client.query('ROLLBACK');
+          stats.errors++;
+          this.logger.error('Error al procesar cliente individual', {
+            cardCode: sapClient.CardCode,
+            error: error.message
+          });
+        } finally {
+          client.release();
+        }
+      }
+      
+      this.logger.info('Sincronización de clientes CI completada', { stats });
+      
+      return stats;
+      
+    } catch (error) {
+      this.logger.error('Error en sincronización de clientes CI', {
+        error: error.message,
+        stack: error.stack
+      });
+      throw error;
+    }
+  }
   /**
    * Obtiene clientes del grupo Institucional de SAP que no estén ya en la plataforma
    * @returns {Promise<Array>} Lista de clientes institucionales
@@ -1055,6 +1274,7 @@ class SapClientService extends SapBaseService {
       throw error;
     }
   }
+  
 
   /**
    * Obtiene las sucursales de un cliente desde SAP
@@ -1097,7 +1317,6 @@ class SapClientService extends SapBaseService {
       throw error;
     }
   }
-
   /**
    * Sincroniza los clientes del grupo Institucional y sus sucursales
    * @returns {Promise<Object>} Estadísticas de la sincronización

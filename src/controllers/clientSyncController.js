@@ -769,6 +769,91 @@ class ClientSyncController {
     }
   }
   /**
+   * Sincroniza todos los clientes cuyo CardCode comience con "CI"
+   * @async
+   * @param {object} req - Objeto de solicitud Express
+   * @param {object} res - Objeto de respuesta Express
+   */
+  async syncCIClients(req, res) {
+    try {
+      logger.info('Iniciando sincronización de clientes con CardCode CI', { 
+        userId: req.user?.id
+      });
+
+      // Verificar que el servicio esté inicializado
+      if (!sapServiceManager.initialized) {
+        logger.debug('Inicializando servicio de SAP antes de sincronización');
+        await sapServiceManager.initialize();
+      }
+
+      // Ejecutar sincronización de clientes CI
+      const results = await sapServiceManager.clientService.syncCIClients();
+      
+      res.status(200).json({
+        success: true,
+        message: 'Sincronización de clientes CI completada exitosamente',
+        data: results
+      });
+    } catch (error) {
+      logger.error('Error al sincronizar clientes CI', {
+        error: error.message,
+        stack: error.stack,
+        userId: req.user?.id
+      });
+      
+      res.status(500).json({
+        success: false,
+        message: 'Error al sincronizar clientes CI',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
+
+  /**
+   * Lista clientes de SAP cuyo CardCode comience con "CI" sin sincronizar
+   * @async
+   * @param {object} req - Objeto de solicitud Express
+   * @param {object} res - Objeto de respuesta Express
+   */
+  async listCIClients(req, res) {
+    try {
+      logger.info('Obteniendo lista de clientes CI desde SAP', { 
+        userId: req.user?.id
+      });
+
+      // Verificar que el servicio esté inicializado
+      if (!sapServiceManager.initialized) {
+        logger.debug('Inicializando servicio de SAP antes de consulta');
+        await sapServiceManager.initialize();
+      }
+
+      // Obtener clientes de SAP
+      const clients = await sapServiceManager.clientService.getClientsByCardCodePrefix();
+      
+      res.status(200).json({
+        success: true,
+        message: 'Clientes CI obtenidos exitosamente',
+        data: {
+          totalClients: clients.length,
+          clients: clients
+        }
+      });
+      
+    } catch (error) {
+      logger.error('Error al obtener clientes CI', {
+        error: error.message,
+        stack: error.stack,
+        userId: req.user?.id
+      });
+      
+      res.status(500).json({
+        success: false,
+        message: 'Error al obtener clientes CI',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
+  /**
    * @swagger
    * /api/client-sync/branches/validate:
    *   get:

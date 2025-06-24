@@ -234,6 +234,133 @@ router.post('/sync-institutional',
   checkRole([1]), // Solo administradores
   clientSyncController.syncInstitutionalClients
 );
+/**
+ * @swagger
+ * /api/client-sync/sync-ci-clients:
+ *   post:
+ *     summary: Sincronizar clientes con CardCode que inicia con "CI"
+ *     description: Sincroniza todos los clientes de SAP cuyo CardCode comience con "CI" e inserta como usuarios inactivos que deberán usar recuperación de contraseña para activarse. Esta operación está diseñada para ejecutarse una sola vez al inicio del proyecto.
+ *     tags: [ClientSync]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Sincronización completada exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Sincronización de clientes CI completada exitosamente"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     total:
+ *                       type: integer
+ *                       description: Total de clientes procesados
+ *                       example: 150
+ *                     created:
+ *                       type: integer
+ *                       description: Clientes nuevos creados como inactivos
+ *                       example: 140
+ *                     updated:
+ *                       type: integer
+ *                       description: Clientes existentes actualizados
+ *                       example: 10
+ *                     errors:
+ *                       type: integer
+ *                       description: Errores durante el procesamiento
+ *                       example: 0
+ *                     skipped:
+ *                       type: integer
+ *                       description: Clientes omitidos
+ *                       example: 0
+ *       401:
+ *         description: No autorizado
+ *       403:
+ *         description: No tiene permisos suficientes
+ *       500:
+ *         description: Error interno del servidor
+ */
+router.post('/sync-ci-clients', 
+  checkRole([1]), // Solo administradores
+  clientSyncController.syncCIClients
+);
+
+/**
+ * @swagger
+ * /api/client-sync/list-ci-clients:
+ *   get:
+ *     summary: Listar clientes de SAP con CardCode que inicia con "CI"
+ *     description: Obtiene la lista de clientes cuyo CardCode comience con "CI" directamente desde SAP sin sincronizar, útil para revisar antes de ejecutar la sincronización masiva
+ *     tags: [ClientSync]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Lista de clientes obtenida exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Clientes CI obtenidos exitosamente"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     totalClients:
+ *                       type: integer
+ *                       example: 150
+ *                     clients:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           CardCode:
+ *                             type: string
+ *                             example: "CI1234567890"
+ *                           CardName:
+ *                             type: string
+ *                             example: "EMPRESA EJEMPLO LTDA"
+ *                           CardType:
+ *                             type: string
+ *                             example: "C"
+ *                           GroupCode:
+ *                             type: integer
+ *                             example: 103
+ *                           FederalTaxID:
+ *                             type: string
+ *                             example: "1234567890-1"
+ *                           Phone1:
+ *                             type: string
+ *                             example: "3001234567"
+ *                           EmailAddress:
+ *                             type: string
+ *                             example: "contacto@empresa.com"
+ *                           Address:
+ *                             type: string
+ *                             example: "Calle 123 #45-67"
+ *       401:
+ *         description: No autorizado
+ *       403:
+ *         description: No tiene permisos suficientes
+ *       500:
+ *         description: Error interno del servidor
+ */
+router.get('/list-ci-clients', 
+  checkRole([1]), // Solo administradores
+  clientSyncController.listCIClients
+);
 
 /**
  * @swagger
