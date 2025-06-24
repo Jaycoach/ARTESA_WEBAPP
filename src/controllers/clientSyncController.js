@@ -1364,5 +1364,7 @@ module.exports = {
   validateClientBranches: clientSyncController.validateClientBranches,
   syncClientBranches: clientSyncController.syncClientBranches,
   simulateSapSync: clientSyncController.simulateSapSync,
-  testEmailSes: clientSyncController.testEmailSes
+  testEmailSes: clientSyncController.testEmailSes,
+  syncCIClients: clientSyncController.syncCIClients,
+  listCIClients: clientSyncController.listCIClients
 };
