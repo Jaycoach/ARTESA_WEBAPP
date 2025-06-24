@@ -1121,9 +1121,9 @@ class SapClientService extends SapBaseService {
             
             // 1. Crear usuario inactivo
             const userInsertQuery = `
-              INSERT INTO users (username, email, password_hash, role_id, is_active, created_at, updated_at)
+              INSERT INTO users (name, mail, password, rol_id, is_active, created_at, updated_at)
               VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-              RETURNING user_id
+              RETURNING id
             `;
             
             // Generar username único basado en CardCode
