@@ -130,7 +130,7 @@ const securityHeaders = (req, res, next) => {
 };
 
 // Bloquear acceso a archivos sensibles
-app.use((req, res, next) => {
+const blockSensitiveFiles = (req, res, next) => {
   const sensitiveFiles = ['.env', '.git', 'package.json', 'config', 'logs'];
   const requestedPath = req.path.toLowerCase();
   
@@ -146,11 +146,12 @@ app.use((req, res, next) => {
     });
   }
   next();
-});
+};
 
 module.exports = {
   sanitizeBody,
   sanitizeParams,
   validateQueryParams,
-  securityHeaders
+  securityHeaders,
+  blockSensitiveFiles
 };

@@ -166,6 +166,7 @@ app.use(security.securityHeaders);
 app.use(security.sanitizeBody);
 app.use(security.sanitizeParams);
 app.use(security.validateQueryParams);
+app.use(security.blockSensitiveFiles);
 
 // Aplicar headers de seguridad mejorados a todas las rutas
 app.use(enhancedSecurityHeaders);
