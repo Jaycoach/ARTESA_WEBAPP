@@ -1032,7 +1032,7 @@ class SapClientService extends SapBaseService {
       this.logger.info('Obteniendo clientes con CardCode que inicia con "CI" desde SAP');
       
       // Endpoint para obtener clientes cuyo CardCode comience con "CI" y sean tipo Customer
-      const endpoint = `BusinessPartners?$filter=startswith(CardCode,'CI') and CardType eq 'C'&$select=CardCode,CardName,CardType,GroupCode,FederalTaxID,Phone1,EmailAddress,Address,City,Country,ContactPerson,U_AR_ArtesaCode`;
+      const endpoint = `BusinessPartners?$filter=startswith(CardCode,'CI') and CardType eq 'C'&$expand=BPAddresses&$select=CardCode,CardName,CardType,GroupCode,FederalTaxID,Phone1,EmailAddress,Address,City,Country,ContactPerson,U_AR_ArtesaCode,BPAddresses`;
       
       const result = await this.request('GET', endpoint);
       
@@ -1127,9 +1127,17 @@ class SapClientService extends SapBaseService {
             `;
             
             // Generar username único basado en CardCode
-            const username = `${sapClient.CardCode.toLowerCase()}_pending`;
+            const username = sapClient.CardName || sapClient.CardCode;
             // Email temporal o usar el de SAP si existe
-            const email = sapClient.EmailAddress || `${username}@temp.artesa.com`;
+            // Validar que tenga email válido, si no, saltear este cliente
+            if (!sapClient.EmailAddress || sapClient.EmailAddress.trim() === '') {
+              this.logger.warn('Cliente CI sin email válido, saltando sincronización', { 
+                cardCode: sapClient.CardCode 
+              });
+              stats.skipped++;
+              continue;
+            }
+            const email = sapClient.EmailAddress;
             // Hash temporal para activación posterior
             const tempPassword = '$2b$10$temporary.hash.for.inactive.user'; // Hash temporal
             const roleId = 2; // Role USER
@@ -1143,14 +1151,15 @@ class SapClientService extends SapBaseService {
             const profileInsertQuery = `
               INSERT INTO client_profiles (
                 user_id, 
-                cardcode_sap, 
+                cardcode_sap,
+                clientprofilecode_sap,
                 company_name, 
                 contact_phone, 
                 contact_email, 
                 address,
                 nit_number,
                 verification_digit
-              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
               RETURNING client_id
             `;
             
@@ -1168,6 +1177,7 @@ class SapClientService extends SapBaseService {
             const { rows: [newProfile] } = await client.query(profileInsertQuery, [
               newUser.id,
               sapClient.CardCode,
+              sapClient.CardCode,
               sapClient.CardName,
               sapClient.Phone1,
               sapClient.EmailAddress,
@@ -1176,42 +1186,16 @@ class SapClientService extends SapBaseService {
               verificationDigit
             ]);
             
-            // 3. Sincronizar sucursales si existen
-            if (sapClient.BPAddresses && sapClient.BPAddresses.length > 0) {
-              for (const address of sapClient.BPAddresses) {
-                if (address.AddressType === 'bo_ShipTo') {
-                  const branchInsertQuery = `
-                    INSERT INTO client_branches (
-                      client_id, 
-                      ship_to_code,
-                      branch_name, 
-                      address, 
-                      city, 
-                      phone,
-                      municipality_code
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-                  `;
-                  
-                  await client.query(branchInsertQuery, [
-                    newProfile.client_id,
-                    address.AddressName || 'Principal', // ship_to_code
-                    address.AddressName || 'Sucursal Principal',
-                    address.Street,
-                    address.City,
-                    address.Phone,
-                    address.U_HBT_MunMed
-                  ]);
-                }
-              }
-            }
-            
-            stats.created++;
-            this.logger.info('Cliente creado como inactivo', { 
-              cardCode: sapClient.CardCode,
-              userId: newUser.id,
-              clientId: newProfile.client_id
-            });
-          }
+            // 3. Sincronizar sucursales - siempre al menos una
+            await this.syncClientBranchesForCI(sapClient.CardCode, newProfile.client_id);
+                        
+                        stats.created++;
+                        this.logger.info('Cliente creado como inactivo', { 
+                          cardCode: sapClient.CardCode,
+                          userId: newUser.id,
+                          clientId: newProfile.client_id
+                        });
+                      }
           
           await client.query('COMMIT');
           
@@ -1237,6 +1221,170 @@ class SapClientService extends SapBaseService {
         stack: error.stack
       });
       throw error;
+    }
+  }
+  /**
+   * Sincroniza las sucursales específicamente para clientes CI
+   * @param {string} cardCode - Código del cliente en SAP
+   * @param {number} clientId - ID del cliente en la plataforma
+   */
+  async syncClientBranchesForCI(cardCode, clientId) {
+    try {
+      this.logger.debug('Sincronizando sucursales para cliente CI', { cardCode, clientId });
+      
+      // Obtener sucursales usando consulta directa a CRD1
+      const branches = await this.getClientBranchesFromCRD1(cardCode);
+      
+      if (!branches || branches.length === 0) {
+        // Si no hay sucursales en SAP, crear una por defecto
+        const defaultBranchQuery = `
+          INSERT INTO client_branches (
+            client_id, 
+            ship_to_code,
+            branch_name, 
+            address, 
+            city, 
+            state,
+            country,
+            zip_code,
+            phone,
+            contact_person,
+            is_default,
+            municipality_code,
+            mail
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        `;
+        
+        const client = await pool.connect();
+        try {
+          await client.query(defaultBranchQuery, [
+            clientId,
+            'PRINCIPAL',
+            'Sucursal Principal',
+            'Dirección por definir',
+            'Ciudad por definir',
+            '',
+            'CO',
+            '',
+            '',
+            '',
+            true,
+            null,
+            null
+          ]);
+          
+          this.logger.info('Sucursal por defecto creada para cliente CI', { cardCode, clientId });
+        } finally {
+          client.release();
+        }
+        return;
+      }
+      
+      // Procesar sucursales desde SAP
+      for (const branch of branches) {
+        const branchInsertQuery = `
+          INSERT INTO client_branches (
+            client_id, 
+            ship_to_code,
+            branch_name, 
+            address, 
+            city, 
+            state,
+            country,
+            zip_code,
+            phone,
+            contact_person,
+            is_default,
+            municipality_code,
+            mail
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        `;
+        
+        const client = await pool.connect();
+        try {
+          await client.query(branchInsertQuery, [
+            clientId,
+            branch.Address || 'PRINCIPAL',
+            branch.Address || 'Sucursal Principal',
+            branch.Street || '',
+            branch.City || '',
+            branch.State || '',
+            branch.Country || 'CO',
+            branch.ZipCode || '',
+            branch.U_AR_Phone || '',
+            branch.U_AR_contact_person || '',
+            branch.Address === 'PRINCIPAL' || branches.length === 1,
+            branch.U_HBT_MunMed || null,
+            branch.U_AR_Email || null
+          ]);
+          
+          this.logger.debug('Sucursal creada para cliente CI', {
+            clientId,
+            shipToCode: branch.Address,
+            branchName: branch.Address
+          });
+        } finally {
+          client.release();
+        }
+      }
+    } catch (error) {
+      this.logger.error('Error al sincronizar sucursales para cliente CI', {
+        cardCode,
+        clientId,
+        error: error.message,
+        stack: error.stack
+      });
+    }
+  }
+
+  /**
+   * Obtiene las sucursales de un cliente consultando directamente la tabla CRD1 via Service Layer
+   * @param {string} cardCode - Código del cliente en SAP
+   * @returns {Promise<Array>} Lista de sucursales desde CRD1
+   */
+  async getClientBranchesFromCRD1(cardCode) {
+    try {
+      this.logger.debug('Obteniendo sucursales desde CRD1 para cliente', { cardCode });
+      
+      // Usar el endpoint de BusinessPartners que incluye direcciones
+      const endpoint = `BusinessPartners('${cardCode}')?$expand=BPAddresses`;
+      
+      const result = await this.request('GET', endpoint);
+      
+      if (!result || !result.BPAddresses) {
+        this.logger.warn('No se obtuvieron direcciones para el cliente', { cardCode });
+        return [];
+      }
+      
+      // Filtrar solo las direcciones de tipo "Ship To" (bo_ShipTo)
+      const shipToAddresses = result.BPAddresses.filter(address => 
+        address.AddressType === 'bo_ShipTo'
+      );
+      
+      this.logger.info(`Se encontraron ${shipToAddresses.length} sucursales para el cliente ${cardCode}`);
+      
+      // Mapear las direcciones con todos los campos requeridos
+      const mappedAddresses = shipToAddresses.map(address => ({
+        Address: address.AddressName,
+        Street: address.Street,
+        City: address.City,
+        State: address.State,
+        Country: address.Country,
+        ZipCode: address.ZipCode,
+        U_AR_Phone: address.U_AR_Phone || '',
+        U_AR_contact_person: address.U_AR_contact_person || '',
+        U_HBT_MunMed: address.U_HBT_MunMed,
+        U_AR_Email: address.U_AR_Email || ''
+      }));
+
+      return mappedAddresses;
+    } catch (error) {
+      this.logger.error('Error al obtener sucursales desde CRD1', {
+        cardCode,
+        error: error.message,
+        stack: error.stack
+      });
+      return [];
     }
   }
   /**
@@ -1512,8 +1660,8 @@ class SapClientService extends SapBaseService {
             // Crear nueva sucursal
             await pool.query(
               `INSERT INTO client_branches 
-              (client_id, ship_to_code, branch_name, address, city, state, country, zip_code, phone, contact_person, is_default, municipality_code) 
-              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+              (client_id, ship_to_code, branch_name, address, city, state, country, zip_code, phone, contact_person, is_default, municipality_code, mail)
+              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
               [
                 clientId,
                 branch.AddressName,
@@ -1523,10 +1671,11 @@ class SapClientService extends SapBaseService {
                 branch.State || '',
                 branch.Country || 'CO',
                 branch.ZipCode || '',
-                '', // Phone no viene en BPAddresses
-                '', // ContactPerson no viene en BPAddresses
+                branch.U_AR_Phone || '',
+                branch.U_AR_contact_person || '',
                 branch.AddressName === 'Principal' || branch.AddressName === 'PRINCIPAL',
-                branch.U_HBT_MunMed || null
+                branch.U_HBT_MunMed || null,
+                branch.U_AR_Email || null
               ]
             );
             
