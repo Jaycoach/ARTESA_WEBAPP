@@ -1150,7 +1150,6 @@ class SapClientService extends SapBaseService {
                 address,
                 nit_number,
                 verification_digit,
-                client_type,
                 created_at, 
                 updated_at
               ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
@@ -1176,8 +1175,7 @@ class SapClientService extends SapBaseService {
               sapClient.EmailAddress,
               sapClient.Address,
               nitNumber,
-              verificationDigit,
-              'empresarial' // Tipo por defecto para clientes de SAP
+              verificationDigit
             ]);
             
             // 3. Sincronizar sucursales si existen
