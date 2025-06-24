@@ -26,6 +26,13 @@ export default ({ mode }) => {
 
   return defineConfig({
     plugins: [react(), tailwindcss()],
+    optimizeDeps: {
+      include: ['react', 'react-dom', 'react-router-dom'],
+      exclude: []
+    },
+    esbuild: {
+      target: 'es2020'
+    },
     define: {
       // Definir explícitamente las variables más importantes
       'import.meta.env.VITE_API_URL': JSON.stringify(env.VITE_API_URL),
@@ -114,6 +121,20 @@ export default ({ mode }) => {
             drop_debugger: true,
           },
         },
+      }),
+      // Configuración específica para staging
+      ...(mode === 'staging' && {
+        minify: 'esbuild',
+        sourcemap: true,
+        rollupOptions: {
+          output: {
+            manualChunks: {
+              vendor: ['react', 'react-dom'],
+              router: ['react-router-dom'],
+              ui: ['react-icons']
+            }
+          }
+        }
       }),
       outDir: 'dist',
       assetsDir: 'assets',
