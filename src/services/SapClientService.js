@@ -1088,7 +1088,7 @@ class SapClientService extends SapBaseService {
           const existingClientQuery = `
             SELECT cp.*, u.is_active 
             FROM client_profiles cp 
-            LEFT JOIN users u ON cp.user_id = u.user_id 
+            LEFT JOIN users u ON cp.user_id = u.id 
             WHERE cp.cardcode_sap = $1
           `;
           const { rows: existingClients } = await client.query(existingClientQuery, [sapClient.CardCode]);
