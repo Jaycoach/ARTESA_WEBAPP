@@ -37,6 +37,14 @@ app.set('trust proxy', 1); // Solo confiar en el primer proxy (nginx)
 
 // Constantes de configuración
 const API_PREFIX = '/api';
+// Ruta raíz básica
+app.get('/', (req, res) => {
+  res.json({
+    status: 'success',
+    message: 'API Artesa funcionando correctamente',
+    version: process.env.API_VERSION || '1.0.0'
+  });
+});
 // Configuración de puerto según el entorno
 const getPort = () => {
   // En Docker, usar siempre el puerto desde la variable de entorno

@@ -129,6 +129,25 @@ const securityHeaders = (req, res, next) => {
   next();
 };
 
+// Bloquear acceso a archivos sensibles
+app.use((req, res, next) => {
+  const sensitiveFiles = ['.env', '.git', 'package.json', 'config', 'logs'];
+  const requestedPath = req.path.toLowerCase();
+  
+  if (sensitiveFiles.some(file => requestedPath.includes(file))) {
+    logger.warn('Intento de acceso a archivo sensible bloqueado', {
+      path: req.path,
+      ip: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+    return res.status(403).json({
+      status: 'error',
+      message: 'Acceso prohibido'
+    });
+  }
+  next();
+});
+
 module.exports = {
   sanitizeBody,
   sanitizeParams,

@@ -13,7 +13,8 @@ const notFound = (req, res, next) => {
   logger.warn(`Ruta no encontrada: ${req.originalUrl}`, {
     method: req.method,
     ip: req.ip,
-    userAgent: req.headers['user-agent']
+    userAgent: req.headers['user-agent'],
+    suspiciousActivity: req.originalUrl.includes('.env') || req.originalUrl.includes('config')
   });
   res.status(404);
   next(error);
