@@ -1735,7 +1735,7 @@ async getFile(req, res) {
     }
     
     // Enviar el archivo como respuesta
-    return this.getFileByUserId(req, res);
+    return res.sendFile(filePath);
   } catch (error) {
     logger.error('Error al obtener archivo de perfil de cliente', {
       error: error.message,
