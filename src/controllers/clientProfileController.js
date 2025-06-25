@@ -1871,9 +1871,18 @@ async getFile(req, res) {
           });
         }
         
-        // Generar URL firmada usando configuración de zona horaria
-        const baseExpiry = 3600; // 1 hora base
-        const signedUrl = await S3Service.getSignedUrl('getObject', key, baseExpiry);
+        // Para Swagger/API testing, devolver el enlace firmado en lugar de redirigir
+        if (req.headers['user-agent'] && req.headers['user-agent'].includes('swagger')) {
+          const signedUrl = await S3Service.getSignedUrl('getObject', key, 3600);
+          return res.json({
+            success: true,
+            downloadUrl: signedUrl,
+            message: 'Use la URL downloadUrl para acceder al documento'
+          });
+        }
+        
+        // Generar URL firmada para acceso temporal
+        const signedUrl = await S3Service.getSignedUrl('getObject', key, 3600); // 1 hora
         
         // Redirigir al documento
         return res.redirect(signedUrl);
@@ -1943,6 +1952,66 @@ async getFile(req, res) {
         success: false,
         message: 'Error al obtener archivo',
         error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
+  /**
+   * Lista documentos disponibles para un perfil
+   */
+  async listDocuments(req, res) {
+    try {
+      const { userId } = req.params;
+      
+      // Obtener el perfil por ID de usuario
+      const profile = await ClientProfile.getByUserId(userId);
+      
+      if (!profile) {
+        return res.status(404).json({
+          success: false,
+          message: 'Perfil de cliente no encontrado'
+        });
+      }
+      
+      // Validar que el usuario tenga permiso
+      if (req.user.id !== parseInt(userId) && req.user.rol_id !== 1) {
+        return res.status(403).json({
+          success: false,
+          message: 'No tiene permiso para acceder a este perfil'
+        });
+      }
+      
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      
+      const documents = {
+        cedula: {
+          available: !!profile.fotocopiaCedula,
+          downloadUrl: profile.fotocopiaCedula ? `${baseUrl}/api/client-profiles/user/${userId}/file/cedula` : null
+        },
+        rut: {
+          available: !!profile.fotocopiaRut,
+          downloadUrl: profile.fotocopiaRut ? `${baseUrl}/api/client-profiles/user/${userId}/file/rut` : null
+        },
+        anexos: {
+          available: !!profile.anexosAdicionales,
+          downloadUrl: profile.anexosAdicionales ? `${baseUrl}/api/client-profiles/user/${userId}/file/anexos` : null
+        }
+      };
+      
+      res.json({
+        success: true,
+        data: documents
+      });
+      
+    } catch (error) {
+      logger.error('Error al listar documentos', {
+        error: error.message,
+        stack: error.stack,
+        userId: req.params.userId
+      });
+      
+      res.status(500).json({
+        success: false,
+        message: 'Error al obtener lista de documentos'
       });
     }
   }

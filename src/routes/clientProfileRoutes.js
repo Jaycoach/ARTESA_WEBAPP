@@ -554,7 +554,61 @@ router.delete('/user/:userId',
   checkRole([1]), // Solo administradores pueden eliminar
   clientProfileController.deleteProfileByUserId
 );
-
+/**
+ * @swagger
+ * /api/client-profiles/user/{userId}/documents:
+ *   get:
+ *     summary: Listar documentos disponibles del perfil
+ *     description: Obtiene la lista de documentos disponibles para un perfil de cliente
+ *     tags: [ClientProfiles]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID del usuario
+ *     responses:
+ *       200:
+ *         description: Lista de documentos obtenida exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     cedula:
+ *                       type: object
+ *                       properties:
+ *                         available:
+ *                           type: boolean
+ *                         downloadUrl:
+ *                           type: string
+ *                     rut:
+ *                       type: object
+ *                       properties:
+ *                         available:
+ *                           type: boolean
+ *                         downloadUrl:
+ *                           type: string
+ *                     anexos:
+ *                       type: object
+ *                       properties:
+ *                         available:
+ *                           type: boolean
+ *                         downloadUrl:
+ *                           type: string
+ */
+router.get('/user/:userId/documents', 
+  verifyToken,
+  clientProfileController.listDocuments
+);
 /**
  * @swagger
  * /api/client-profiles/user/{userId}/file/{fileType}:
