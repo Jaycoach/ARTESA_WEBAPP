@@ -1871,8 +1871,9 @@ async getFile(req, res) {
           });
         }
         
-        // Generar URL firmada para acceso temporal
-        const signedUrl = await S3Service.getSignedUrl('getObject', key, 3600); // 1 hora
+        // Generar URL firmada usando configuración de zona horaria
+        const baseExpiry = 3600; // 1 hora base
+        const signedUrl = await S3Service.getSignedUrl('getObject', key, baseExpiry);
         
         // Redirigir al documento
         return res.redirect(signedUrl);

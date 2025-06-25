@@ -38,16 +38,25 @@ static async refreshUrl(url, keyField) {
       
       const expiresDate = new Date(parseInt(expiresParam) * 1000);
       const now = new Date();
-      
-      // Si la URL expira en menos de 1 hora, actualizarla
-      if ((expiresDate - now) < (60 * 60 * 1000)) {
+
+      // Obtener configuración de zona horaria
+      const timezoneOffset = parseInt(process.env.S3_TIMEZONE_OFFSET || '-5');
+      const safetyMargin = parseInt(process.env.S3_URL_SAFETY_MARGIN || '21600');
+
+      // Calcular umbral de renovación considerando zona horaria y margen de seguridad
+      const renewalThreshold = Math.abs(timezoneOffset * 3600 * 1000) + (safetyMargin * 1000); // Convertir a milisegundos
+      const timeUntilExpiry = expiresDate - now;
+
+      if (timeUntilExpiry < renewalThreshold) {
         const key = S3Service.extractKeyFromUrl(url);
         if (!key) return url;
         
         logger.debug('Actualizando URL próxima a expirar', { 
           keyField, 
           key, 
-          expiresIn: Math.round((expiresDate - now) / 1000) + ' segundos' 
+          expiresIn: Math.round((expiresDate - now) / 1000) + ' segundos',
+          hoursUntilExpiry: (timeUntilExpiry / (60 * 60 * 1000)).toFixed(2) + ' horas',
+          renewalThresholdHours: (renewalThreshold / (60 * 60 * 1000)).toFixed(2) + ' horas'
         });
         
         return await S3Service.getSignedUrl('getObject', key);

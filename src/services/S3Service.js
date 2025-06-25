@@ -173,7 +173,8 @@ class S3Service {
     if (options.public) {
       return `${this.baseUrl}/${key}`;
     } else {
-      return this.getSignedUrl('getObject', key, options.expires || 3600); // URL firmada válida por 1 hora por defecto
+      // Generar URL firmada con tiempo ajustado para Colombia
+      return this.getSignedUrl('getObject', key, options.expires || 3600);
     }
   }
 
@@ -191,10 +192,30 @@ class S3Service {
 
     key = this.normalizeKey(key);
     
+    // Obtener configuración de zona horaria desde variables de entorno
+    const timezoneOffset = parseInt(process.env.S3_TIMEZONE_OFFSET || '-5');
+    const safetyMargin = parseInt(process.env.S3_URL_SAFETY_MARGIN || '21600'); // 6 horas por defecto
+    
+    // Calcular tiempo ajustado: tiempo original + compensación de zona horaria + margen de seguridad
+    const timezoneCompensation = Math.abs(timezoneOffset * 3600); // Convertir horas a segundos
+    const adjustedExpires = expires + timezoneCompensation + safetyMargin;
+    
+    // Log para staging para monitorear el comportamiento
+    if (process.env.NODE_ENV === 'staging') {
+      logger.debug('Generando URL firmada con ajuste de zona horaria', {
+        originalExpires: expires,
+        timezoneOffset,
+        timezoneCompensation,
+        safetyMargin,
+        adjustedExpires,
+        totalHours: (adjustedExpires / 3600).toFixed(2)
+      });
+    }
+    
     const params = {
       Bucket: this.bucketName,
       Key: key,
-      Expires: expires
+      Expires: adjustedExpires
     };
 
     return this.s3.getSignedUrlPromise(operation, params);
@@ -618,6 +639,21 @@ async uploadBannerImage(file, customName) {
     }
     
     return status;
+  }
+  /**
+   * Obtiene información sobre la configuración de zona horaria actual
+   * @returns {Object} Información de configuración
+   */
+  getTimezoneConfiguration() {
+    const timezoneOffset = parseInt(process.env.S3_TIMEZONE_OFFSET || '-5');
+    const safetyMargin = parseInt(process.env.S3_URL_SAFETY_MARGIN || '21600');
+    
+    return {
+      timezone: process.env.TZ || 'America/Bogota',
+      offsetHours: timezoneOffset,
+      safetyMarginHours: (safetyMargin / 3600).toFixed(2),
+      totalExtraTime: Math.abs(timezoneOffset) + (safetyMargin / 3600)
+    };
   }
 }
 
