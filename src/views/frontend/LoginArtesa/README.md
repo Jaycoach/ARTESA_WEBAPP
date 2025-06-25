@@ -191,7 +191,7 @@ npm run lint           # Análisis de código con ESLint
 
 ## 📱 Screenshots
 
-> **Incluye aquí capturas reales del dashboard, login, gráficos y vista móvil para mayor atractivo visual.**
+> **CAPTURAS**
 
 ---
 
