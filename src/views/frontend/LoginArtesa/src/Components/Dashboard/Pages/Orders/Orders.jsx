@@ -1,23 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../../../hooks/useAuth';
-import { useUserActivation } from '../../../../hooks/useUserActivation';
 import CreateOrderForm from './CreateOrderForm';
 import OrderList from './OrderList';
 import EditOrderForm from './EditOrderForm';
 import Notification from '../../../../Components/ui/Notification';
-import { FaExclamationTriangle, FaUserCheck, FaSync, FaPlus } from 'react-icons/fa';
+import API from '../../../../api/config';
+import { FaExclamationTriangle, FaUserCheck, FaSync, FaPlus, FaArrowLeft } from 'react-icons/fa';
 
 const Orders = () => {
   const { user, isAuthenticated } = useAuth();
-  const { userStatus, refresh: refreshUserStatus } = useUserActivation();
   const { orderId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
   
-  const [activeTab, setActiveTab] = useState('list');
+  // Estados principales
+  const [currentView, setCurrentView] = useState('list'); // 'list', 'create', 'edit'
   const [notification, setNotification] = useState({ show: false, message: '', type: '' });
   const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
+  
+  // Estados para validación de creación de pedidos
+  const [canCreateValidation, setCanCreateValidation] = useState({
+    loading: true,
+    canCreate: false,
+    isActive: false,
+    hasProfile: false,
+    hasCardCode: false,
+    statusMessage: ''
+  });
 
   const showNotification = (message, type = 'success') => {
     setNotification({ show: true, message, type });
@@ -26,30 +36,110 @@ const Orders = () => {
     }, 5000);
   };
 
-  // Validación mejorada del estado del usuario
-  const canCreateOrders = userStatus.isActive && userStatus.hasClientProfile && !userStatus.isPendingSync;
-  
-  const isEditMode = location.pathname.includes('/edit');
-  const isNewMode = location.pathname.includes('/new') || location.search.includes('tab=new');
-
-  useEffect(() => {
-    if (isNewMode) {
-      setActiveTab('new');
-    } else if (isEditMode) {
-      setActiveTab('edit');
-    } else {
-      setActiveTab('list');
+  // **NUEVA FUNCIÓN**: Validar si el usuario puede crear pedidos usando el endpoint específico
+  const validateCanCreateOrder = async () => {
+    try {
+      setCanCreateValidation(prev => ({ ...prev, loading: true }));
+      
+      console.log('🔍 Validando si el usuario puede crear pedidos...');
+      
+      const response = await API.get('/orders/can-create');
+      const { data } = response.data;
+      
+      console.log('📋 Respuesta de validación:', data);
+      
+      // Parsear la respuesta (canCreate viene como string)
+      const canCreate = data.canCreate === 'true' || data.canCreate === true;
+      
+      // Generar mensaje de estado basado en la respuesta
+      let statusMessage = '';
+      if (!data.isActive) {
+        statusMessage = 'Tu cuenta no está activa. Contacta al administrador para activar tu cuenta.';
+      } else if (!data.hasProfile) {
+        statusMessage = 'Debes completar tu perfil de cliente antes de crear pedidos.';
+      } else if (!data.hasCardCode) {
+        statusMessage = 'Tu perfil está siendo procesado. Espera la asignación del código de cliente.';
+      } else if (!canCreate) {
+        statusMessage = 'Tu cuenta no está habilitada para crear pedidos en este momento.';
+      } else {
+        statusMessage = 'Tu cuenta está habilitada para crear pedidos.';
+      }
+      
+      setCanCreateValidation({
+        loading: false,
+        canCreate: canCreate,
+        isActive: data.isActive,
+        hasProfile: data.hasProfile,
+        hasCardCode: data.hasCardCode,
+        statusMessage: statusMessage
+      });
+      
+    } catch (error) {
+      console.error('❌ Error al validar creación de pedidos:', error);
+      setCanCreateValidation({
+        loading: false,
+        canCreate: false,
+        isActive: false,
+        hasProfile: false,
+        hasCardCode: false,
+        statusMessage: 'Error al verificar el estado de tu cuenta. Inténtalo nuevamente.'
+      });
     }
-  }, [location.pathname, location.search, isNewMode, isEditMode]);
+  };
 
+  // Cargar validación al montar el componente
+  useEffect(() => {
+    if (isAuthenticated) {
+      validateCanCreateOrder();
+    }
+  }, [isAuthenticated]);
+
+  // Manejar navegación basada en la URL
+  useEffect(() => {
+    const path = location.pathname;
+    
+    if (path.includes('/new')) {
+      setCurrentView('create');
+    } else if (path.includes('/edit') || orderId) {
+      setCurrentView('edit');
+    } else {
+      setCurrentView('list');
+    }
+  }, [location.pathname, orderId]);
+
+  // **FUNCIÓN MEJORADA**: Manejar clic en crear pedido con validación
+  const handleCreateOrderClick = async () => {
+    if (canCreateValidation.loading) {
+      showNotification('Verificando estado de la cuenta...', 'info');
+      return;
+    }
+    
+    if (!canCreateValidation.canCreate) {
+      showNotification(canCreateValidation.statusMessage, 'warning');
+      return;
+    }
+    
+    // Navegar al formulario de creación
+    navigate('/dashboard/orders/new');
+    setCurrentView('create');
+  };
+
+  // Manejar eventos del formulario
   const handleOrderCreated = () => {
-    setActiveTab('list');
+    setCurrentView('list');
     showNotification('Tu pedido ha sido creado exitosamente', 'success');
+    navigate('/dashboard/orders');
+  };
+
+  const handleOrderUpdated = () => {
+    setCurrentView('list');
+    showNotification('Tu pedido ha sido actualizado exitosamente', 'success');
     navigate('/dashboard/orders');
   };
 
   const handleConfirmCancel = () => {
     setShowCancelConfirmation(false);
+    setCurrentView('list');
     navigate('/dashboard/orders');
   };
 
@@ -57,34 +147,21 @@ const Orders = () => {
     setShowCancelConfirmation(false);
   };
 
-  const handleOrderUpdated = () => {
-    setActiveTab('list');
-    showNotification('Tu pedido ha sido actualizado exitosamente', 'success');
-    navigate('/dashboard/orders');
-  };
-
-  // Función mejorada para manejar clic en crear pedido
-  const handleCreateOrderClick = () => {
-    if (!canCreateOrders) {
-      showNotification(userStatus.statusMessage, 'warning');
-      return;
-    }
-    navigate('/dashboard/orders/new');
-  };
-
-  // Componente para mostrar el estado del usuario
+  // **COMPONENTE**: Alert de estado del usuario
   const UserStatusAlert = () => {
-    if (canCreateOrders || userStatus.loading) return null;
+    if (canCreateValidation.loading || canCreateValidation.canCreate) return null;
 
     const getAlertIcon = () => {
-      if (!userStatus.hasClientProfile) return <FaUserCheck className="text-orange-500" />;
-      if (userStatus.isPendingSync) return <FaSync className="text-blue-500 animate-spin" />;
+      if (!canCreateValidation.hasProfile) return <FaUserCheck className="text-orange-500" />;
+      if (!canCreateValidation.isActive) return <FaExclamationTriangle className="text-red-500" />;
+      if (!canCreateValidation.hasCardCode) return <FaSync className="text-blue-500" />;
       return <FaExclamationTriangle className="text-red-500" />;
     };
 
     const getAlertColor = () => {
-      if (!userStatus.hasClientProfile) return 'bg-orange-50 border-orange-200 text-orange-800';
-      if (userStatus.isPendingSync) return 'bg-blue-50 border-blue-200 text-blue-800';
+      if (!canCreateValidation.hasProfile) return 'bg-orange-50 border-orange-200 text-orange-800';
+      if (!canCreateValidation.isActive) return 'bg-red-50 border-red-200 text-red-800';
+      if (!canCreateValidation.hasCardCode) return 'bg-blue-50 border-blue-200 text-blue-800';
       return 'bg-red-50 border-red-200 text-red-800';
     };
 
@@ -99,9 +176,9 @@ const Orders = () => {
               Estado de la cuenta
             </h3>
             <p className="text-sm">
-              {userStatus.statusMessage}
+              {canCreateValidation.statusMessage}
             </p>
-            {!userStatus.hasClientProfile && (
+            {!canCreateValidation.hasProfile && (
               <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm text-blue-700">
                 Para completar tu perfil de cliente, haz clic en tu <strong>cuenta</strong> (parte superior derecha) y selecciona <strong>"Mi Perfil"</strong>.
               </div>
@@ -112,9 +189,9 @@ const Orders = () => {
     );
   };
 
-  // Componente para el botón de crear pedido
+  // **COMPONENTE**: Botón de crear pedido mejorado
   const CreateOrderButton = () => {
-    if (userStatus.loading) {
+    if (canCreateValidation.loading) {
       return (
         <div className="flex items-center justify-center p-3 bg-gray-100 rounded-lg">
           <FaSync className="animate-spin text-gray-500 mr-2" />
@@ -123,12 +200,12 @@ const Orders = () => {
       );
     }
 
-    if (!canCreateOrders) {
+    if (!canCreateValidation.canCreate) {
       return (
         <button
           disabled
           className="flex items-center justify-center w-full p-3 bg-gray-100 text-gray-400 rounded-lg cursor-not-allowed opacity-50"
-          title={userStatus.statusMessage}
+          title={canCreateValidation.statusMessage}
         >
           <FaPlus className="mr-2" />
           Crear Nuevo Pedido
@@ -147,6 +224,25 @@ const Orders = () => {
     );
   };
 
+  // **COMPONENTE**: Botón de volver (solo para formularios)
+  const BackButton = () => {
+    if (currentView === 'list') return null;
+
+    return (
+      <button
+        onClick={() => {
+          setCurrentView('list');
+          navigate('/dashboard/orders');
+        }}
+        className="flex items-center text-gray-600 hover:text-gray-800 mb-4 transition-colors"
+      >
+        <FaArrowLeft className="mr-2" />
+        Volver a Mis Pedidos
+      </button>
+    );
+  };
+
+  // Verificar autenticación
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -165,65 +261,73 @@ const Orders = () => {
 
   return (
     <div className="container mx-auto px-4 py-6">
+      {/* Header dinámico según la vista actual */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-4">Gestión de Pedidos</h1>
+        <BackButton />
         
-        {/* Mostrar alerta de estado del usuario */}
-        <UserStatusAlert />
+        <h1 className="text-2xl font-bold text-gray-900 mb-4">
+          {currentView === 'create' && 'Crear Nuevo Pedido'}
+          {currentView === 'edit' && 'Editar Pedido'}
+          {currentView === 'list' && 'Gestión de Pedidos'}
+        </h1>
         
-        {/* Botón de crear pedido con validación */}
-        <div className="mb-6">
-          <CreateOrderButton />
-        </div>
+        {/* Solo mostrar alerta y botón en la vista principal */}
+        {currentView === 'list' && (
+          <>
+            <UserStatusAlert />
+            
+            <div className="mb-6">
+              <CreateOrderButton />
+            </div>
+          </>
+        )}
       </div>
 
-      {/* Resto del componente */}
+      {/* **CONTENIDO SIN PESTAÑAS** - Renderizado condicional basado en currentView */}
       <div className="bg-white shadow rounded-lg">
-        <div className="border-b border-gray-200">
-          <nav className="-mb-px flex space-x-8">
-            <button
-              onClick={() => setActiveTab('list')}
-              className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'list'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              Mis Pedidos
-            </button>
-            {canCreateOrders && (
-              <button
-                onClick={() => setActiveTab('new')}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === 'new'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                Nuevo Pedido
-              </button>
-            )}
-          </nav>
-        </div>
-
         <div className="p-6">
-          {activeTab === 'list' && (
+          {/* Vista de lista de pedidos */}
+          {currentView === 'list' && (
             <OrderList />
           )}
           
-          {activeTab === 'new' && canCreateOrders && (
+          {/* Vista de crear pedido (solo si está validado) */}
+          {currentView === 'create' && canCreateValidation.canCreate && (
             <CreateOrderForm 
               onOrderCreated={handleOrderCreated}
               onCancel={() => setShowCancelConfirmation(true)}
             />
           )}
           
-          {activeTab === 'edit' && orderId && (
+          {/* Vista de editar pedido */}
+          {currentView === 'edit' && orderId && (
             <EditOrderForm 
               orderId={orderId}
               onOrderUpdated={handleOrderUpdated}
               onCancel={() => setShowCancelConfirmation(true)}
             />
+          )}
+          
+          {/* Mensaje si se intenta acceder al formulario sin validación */}
+          {currentView === 'create' && !canCreateValidation.canCreate && !canCreateValidation.loading && (
+            <div className="text-center py-8">
+              <FaExclamationTriangle className="mx-auto h-12 w-12 text-red-400 mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                No puedes crear pedidos
+              </h3>
+              <p className="text-sm text-gray-600 mb-4">
+                {canCreateValidation.statusMessage}
+              </p>
+              <button
+                onClick={() => {
+                  setCurrentView('list');
+                  navigate('/dashboard/orders');
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                Volver a Mis Pedidos
+              </button>
+            </div>
           )}
         </div>
       </div>
