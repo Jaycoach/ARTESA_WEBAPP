@@ -1,5 +1,3 @@
-¡Por supuesto! Aquí tienes una versión reescrita y corregida del README.md para el frontend de LA ARTESA Web App, considerando los problemas de formato, enlaces e imágenes, y mejorando la claridad y estructura:
-
 ---
 
 # LA ARTESA Web App - Frontend
