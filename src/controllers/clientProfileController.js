@@ -2203,5 +2203,6 @@ module.exports = {
   deleteProfileByUserId: clientProfileController.deleteProfileByUserId,
   getFile: clientProfileController.getFile,
   getFileByUserId: clientProfileController.getFileByUserId,
-  uploadProfileDocument: clientProfileController.uploadProfileDocument
+  uploadProfileDocument: clientProfileController.uploadProfileDocument,
+  listDocuments: clientProfileController.listDocuments
 };
