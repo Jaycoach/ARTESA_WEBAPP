@@ -2040,9 +2040,9 @@ async getFile(req, res) {
         res.setHeader('Content-Type', fileData.contentType);
         res.setHeader('Content-Disposition', `attachment; filename="${fileData.fileName}"`);
         res.setHeader('Content-Length', fileData.content.length);
-        
-        // Enviar el contenido
-        return res.send(fileData.content);
+
+        // Enviar el contenido como buffer binario
+        return res.end(fileData.content);
       }
       // Modo local - usar método existente
       else {
