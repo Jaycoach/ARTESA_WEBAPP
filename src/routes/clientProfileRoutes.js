@@ -651,6 +651,37 @@ router.get('/user/:userId/file/:fileType',
   verifyToken,
   clientProfileController.getFileByUserId
 );
+/**
+ * @swagger
+ * /api/client-profiles/user/{userId}/download/{fileType}:
+ *   get:
+ *     summary: Descarga directa de documento
+ *     description: Descarga el contenido del documento directamente sin redirección
+ *     tags: [ClientProfiles]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID del usuario
+ *       - in: path
+ *         name: fileType
+ *         required: true
+ *         schema:
+ *           type: string
+ *           enum: [cedula, rut, anexos]
+ *         description: Tipo de archivo a descargar
+ *     responses:
+ *       200:
+ *         description: Archivo descargado exitosamente
+ */
+router.get('/user/:userId/download/:fileType',
+  verifyToken,
+  clientProfileController.downloadDocument
+);
 
 /**
  * @swagger

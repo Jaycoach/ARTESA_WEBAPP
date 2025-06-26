@@ -1956,6 +1956,155 @@ async getFile(req, res) {
     }
   }
   /**
+   * Descarga directa de documento (para frontend)
+   */
+  async downloadDocument(req, res) {
+    try {
+      const { userId, fileType } = req.params;
+      
+      logger.debug('Iniciando descarga directa de documento', { 
+        userId: userId, 
+        fileType 
+      });
+      
+      // Obtener el perfil para verificar si existe y obtener la ruta del archivo
+      const profile = await ClientProfile.getByUserId(userId);
+      
+      if (!profile) {
+        return res.status(404).json({
+          success: false,
+          message: 'Perfil de cliente no encontrado'
+        });
+      }
+      
+      // Validar que el usuario tenga permiso
+      if (req.user.id !== parseInt(userId) && req.user.rol_id !== 1) {
+        return res.status(403).json({
+          success: false,
+          message: 'No tiene permiso para acceder a este documento'
+        });
+      }
+      
+      // Obtener la URL según el tipo de documento
+      let documentUrl;
+      switch (fileType) {
+        case 'cedula':
+          documentUrl = profile.fotocopiaCedula;
+          break;
+        case 'rut':
+          documentUrl = profile.fotocopiaRut;
+          break;
+        case 'anexos':
+          documentUrl = profile.anexosAdicionales;
+          break;
+        default:
+          return res.status(400).json({
+            success: false,
+            message: 'Tipo de documento no válido'
+          });
+      }
+      
+      if (!documentUrl) {
+        return res.status(404).json({
+          success: false,
+          message: `El documento ${fileType} no existe para este perfil`
+        });
+      }
+
+      // Modo S3 - Obtener contenido directamente
+      if (process.env.STORAGE_MODE === 's3') {
+        // Extraer la clave de S3 de la URL
+        const key = S3Service.extractKeyFromUrl(documentUrl);
+        if (!key) {
+          logger.warn('No se pudo determinar la clave S3 del documento', { documentUrl });
+          return res.status(404).json({
+            success: false,
+            message: 'No se pudo determinar la ubicación del documento'
+          });
+        }
+        
+        // Verificar que el archivo existe
+        const exists = await S3Service.fileExists(key);
+        if (!exists) {
+          logger.warn('Documento no encontrado en S3', { key });
+          return res.status(404).json({
+            success: false,
+            message: 'Documento no encontrado'
+          });
+        }
+        
+        // Obtener el contenido del archivo
+        const fileData = await S3Service.getFileContent(key);
+        
+        // Configurar headers para descarga
+        res.setHeader('Content-Type', fileData.contentType);
+        res.setHeader('Content-Disposition', `attachment; filename="${fileData.fileName}"`);
+        res.setHeader('Content-Length', fileData.content.length);
+        
+        // Enviar el contenido
+        return res.send(fileData.content);
+      }
+      // Modo local - usar método existente
+      else {
+        const uploadDir = path.join(process.cwd(), 'uploads');
+        const filePath = path.join(uploadDir, documentUrl);
+        
+        // Verificar si el archivo existe en el sistema de archivos
+        if (!fs.existsSync(filePath)) {
+          logger.warn('Archivo no encontrado en el servidor', { 
+            userId, 
+            fileType, 
+            path: filePath 
+          });
+          
+          return res.status(404).json({
+            success: false,
+            message: 'Archivo no encontrado en el servidor'
+          });
+        }
+        
+        // Obtener el tipo de contenido basado en la extensión del archivo
+        const ext = path.extname(documentUrl).toLowerCase();
+        const mimeTypes = {
+          '.pdf': 'application/pdf',
+          '.jpg': 'image/jpeg',
+          '.jpeg': 'image/jpeg',
+          '.png': 'image/png',
+          '.gif': 'image/gif',
+          '.doc': 'application/msword',
+          '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          '.xls': 'application/vnd.ms-excel',
+          '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          '.txt': 'text/plain'
+        };
+        
+        const contentType = mimeTypes[ext] || 'application/octet-stream';
+        const fileName = path.basename(documentUrl);
+        
+        // Configurar headers para descarga
+        res.setHeader('Content-Type', contentType);
+        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+        
+        // Enviar el archivo
+        return res.sendFile(filePath);
+      }
+      
+    } catch (error) {
+      logger.error('Error en descarga directa de documento', {
+        error: error.message,
+        stack: error.stack,
+        userId: req.params.userId,
+        fileType: req.params.fileType
+      });
+      
+      res.status(500).json({
+        success: false,
+        message: 'Error al descargar documento',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
+  /**
    * Lista documentos disponibles para un perfil
    */
   async listDocuments(req, res) {
@@ -2204,5 +2353,6 @@ module.exports = {
   getFile: clientProfileController.getFile,
   getFileByUserId: clientProfileController.getFileByUserId,
   uploadProfileDocument: clientProfileController.uploadProfileDocument,
-  listDocuments: clientProfileController.listDocuments
+  listDocuments: clientProfileController.listDocuments,
+  downloadDocument: clientProfileController.downloadDocument
 };

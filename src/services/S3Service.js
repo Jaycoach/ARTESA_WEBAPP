@@ -400,6 +400,84 @@ class S3Service {
   }
 
   /**
+   * Obtiene el contenido de un archivo desde S3 o sistema local
+   * @param {string} key - Clave del archivo
+   * @returns {Promise<{content: Buffer, contentType: string, fileName: string}>}
+   */
+  async getFileContent(key) {
+    try {
+      key = this.normalizeKey(key);
+      
+      if (this.localMode) {
+        return await this.getFileContentLocally(key);
+      } else {
+        return await this.getFileContentFromS3(key);
+      }
+    } catch (error) {
+      logger.error('Error al obtener contenido de archivo', { error: error.message, key });
+      throw error;
+    }
+  }
+
+  /**
+   * Obtiene contenido de archivo desde S3
+   * @private
+   */
+  async getFileContentFromS3(key) {
+    const params = {
+      Bucket: this.bucketName,
+      Key: key
+    };
+
+    const result = await this.s3.getObject(params).promise();
+    
+    return {
+      content: result.Body,
+      contentType: result.ContentType || 'application/octet-stream',
+      fileName: path.basename(key),
+      lastModified: result.LastModified,
+      etag: result.ETag
+    };
+  }
+
+  /**
+   * Obtiene contenido de archivo local
+   * @private
+   */
+  async getFileContentLocally(key) {
+    const filePath = path.join(process.cwd(), 'uploads', key);
+    
+    if (!fs.existsSync(filePath)) {
+      throw new Error('Archivo no encontrado en sistema local');
+    }
+
+    const stats = fs.statSync(filePath);
+    const content = fs.readFileSync(filePath);
+    
+    // Determinar tipo de contenido basado en extensión
+    const ext = path.extname(key).toLowerCase();
+    const mimeTypes = {
+      '.pdf': 'application/pdf',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.png': 'image/png',
+      '.gif': 'image/gif',
+      '.doc': 'application/msword',
+      '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      '.xls': 'application/vnd.ms-excel',
+      '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      '.txt': 'text/plain'
+    };
+
+    return {
+      content: content,
+      contentType: mimeTypes[ext] || 'application/octet-stream',
+      fileName: path.basename(key),
+      lastModified: stats.mtime
+    };
+  }
+
+  /**
    * Busca archivos duplicados basándose en el tamaño y nombre
    * @param {string} prefix - Prefijo para filtrar búsqueda
    * @returns {Promise<Array>} Lista de posibles duplicados
