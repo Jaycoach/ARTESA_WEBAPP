@@ -40,49 +40,80 @@ const Orders = () => {
   const validateCanCreateOrder = async () => {
     try {
       setCanCreateValidation(prev => ({ ...prev, loading: true }));
-      
+
       console.log('🔍 Validando si el usuario puede crear pedidos...');
-      
-      const response = await API.get('/orders/can-create');
+
+      const response = await API.get(`/orders/can-create/${user.id}`);
       const { data } = response.data;
-      
+
       console.log('📋 Respuesta de validación:', data);
-      
-      // Parsear la respuesta (canCreate viene como string)
+
+      // Parsear la respuesta
       const canCreate = data.canCreate === 'true' || data.canCreate === true;
-      
-      // Generar mensaje de estado basado en la respuesta
+
+      // **MENSAJES MEJORADOS**: Más específicos y accionables
       let statusMessage = '';
+      let actionMessage = '';
+
       if (!data.isActive) {
-        statusMessage = 'Tu cuenta no está activa. Contacta al administrador para activar tu cuenta.';
+        statusMessage = 'Tu cuenta está inactiva y no puede realizar pedidos en este momento.';
+        actionMessage = 'Contacta al equipo de soporte para activar tu cuenta o consulta el estado de tu registro.';
       } else if (!data.hasProfile) {
-        statusMessage = 'Debes completar tu perfil de cliente antes de crear pedidos.';
+        statusMessage = 'Tu perfil de cliente está incompleto.';
+        actionMessage = 'Completa tu información personal y de empresa para poder realizar pedidos.';
       } else if (!data.hasCardCode) {
-        statusMessage = 'Tu perfil está siendo procesado. Espera la asignación del código de cliente.';
+        statusMessage = 'Tu perfil está siendo revisado por nuestro equipo.';
+        actionMessage = 'Estamos procesando tu información para asignarte un código de cliente. Este proceso puede tomar 1-2 días hábiles.';
       } else if (!canCreate) {
-        statusMessage = 'Tu cuenta no está habilitada para crear pedidos en este momento.';
+        statusMessage = 'Tu cuenta no tiene permisos para crear pedidos.';
+        actionMessage = 'Verifica tu tipo de cuenta o contacta al administrador para obtener los permisos necesarios.';
       } else {
         statusMessage = 'Tu cuenta está habilitada para crear pedidos.';
+        actionMessage = '';
       }
-      
+
       setCanCreateValidation({
         loading: false,
         canCreate: canCreate,
         isActive: data.isActive,
         hasProfile: data.hasProfile,
         hasCardCode: data.hasCardCode,
-        statusMessage: statusMessage
+        statusMessage: statusMessage,
+        actionMessage: actionMessage // **NUEVO CAMPO**
       });
-      
+
     } catch (error) {
       console.error('❌ Error al validar creación de pedidos:', error);
+
+      // **MANEJO DE ERRORES MEJORADO**: Más específico según el tipo de error
+      let errorMessage = '';
+      let errorAction = '';
+
+      if (error.response?.status === 401) {
+        errorMessage = 'Tu sesión ha expirado.';
+        errorAction = 'Por favor, inicia sesión nuevamente para continuar.';
+      } else if (error.response?.status === 403) {
+        errorMessage = 'No tienes permisos para acceder a esta función.';
+        errorAction = 'Contacta al administrador si crees que esto es un error.';
+      } else if (error.response?.status >= 500) {
+        errorMessage = 'Nuestros servidores están experimentando problemas técnicos.';
+        errorAction = 'Intenta nuevamente en unos minutos. Si el problema persiste, contacta al soporte técnico.';
+      } else if (error.code === 'NETWORK_ERROR' || !navigator.onLine) {
+        errorMessage = 'Problemas de conexión a internet detectados.';
+        errorAction = 'Verifica tu conexión e intenta nuevamente.';
+      } else {
+        errorMessage = 'No pudimos verificar el estado de tu cuenta en este momento.';
+        errorAction = 'Intenta refrescar la página o contacta al soporte si el problema continúa.';
+      }
+
       setCanCreateValidation({
         loading: false,
         canCreate: false,
         isActive: false,
         hasProfile: false,
         hasCardCode: false,
-        statusMessage: 'Error al verificar el estado de tu cuenta. Inténtalo nuevamente.'
+        statusMessage: errorMessage,
+        actionMessage: errorAction
       });
     }
   };
