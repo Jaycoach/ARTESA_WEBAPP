@@ -653,6 +653,9 @@ async uploadBannerImage(file, customName) {
         return null;
       } else {
         // Para URLs de S3
+        const urlObj = new URL(url);
+        
+        // Caso 1: URL directa del bucket (sin firma)
         const baseUrl = this.baseUrl.replace(/https?:\/\//, '');
         if (url.includes(baseUrl)) {
           const parts = new URL(url);
@@ -660,20 +663,35 @@ async uploadBannerImage(file, customName) {
           return pathWithoutSlash;
         }
         
-        // Para URLs firmadas, extraer el parámetro Key
-        if (url.includes(`${this.bucketName}.s3.${this.region}.amazonaws.com`)) {
-          const urlObj = new URL(url);
+        // Caso 2: URL firmada formato: bucket.s3.region.amazonaws.com
+        if (url.includes(`${this.bucketName}.s3.${this.region}.amazonaws.com`) || 
+            url.includes(`${this.bucketName}.s3.amazonaws.com`)) {
           const key = urlObj.pathname.substring(1); // Quitar la barra inicial
           return key;
         }
         
+        // Caso 3: URL firmada formato: s3.region.amazonaws.com/bucket
+        if (url.includes('s3.amazonaws.com') || url.includes(`s3.${this.region}.amazonaws.com`)) {
+          const pathParts = urlObj.pathname.split('/');
+          // Formato: /bucket/key/path
+          if (pathParts.length > 2 && pathParts[1] === this.bucketName) {
+            return pathParts.slice(2).join('/'); // Todo después del bucket
+          }
+        }
+        
+        logger.debug('No se pudo extraer clave de URL', { 
+          url: url.substring(0, 100), 
+          bucket: this.bucketName, 
+          region: this.region 
+        });
         return null;
       }
     } catch (error) {
-      logger.error('Error al extraer clave de URL', { error: error.message, url });
+      logger.error('Error al extraer clave de URL', { error: error.message, url: url.substring(0, 100) });
       return null;
     }
   }
+  
   /**
    * Verifica que S3 esté correctamente configurado para el entorno actual
    * @returns {Object} Estado de la configuración
