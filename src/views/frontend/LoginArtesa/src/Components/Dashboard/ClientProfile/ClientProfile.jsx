@@ -1,19 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import './ClientProfile.scss';
-import API from '../../../api/config';
 import { FaTimes, FaUpload, FaCheck, FaChevronRight, FaChevronLeft, 
-  FaExclamationCircle, FaCheckCircle, FaFileAlt, FaCircle, FaChevronDown } from 'react-icons/fa';
+  FaExclamationCircle, FaCheckCircle, FaFileAlt, FaChevronDown } from 'react-icons/fa';
 import { useAuth } from '../../../hooks/useAuth';
 import './ConfirmationModal.scss';
 import FieldValidation from './FieldValidation';
 import ConfirmationModal from './ConfirmationModal';
+import ClientProfileService from '../../../services/ClientProfileService'; // Ajusta la ruta según tu estructura
 
 const ClientProfile = ({ onClose, onProfileUpdate }) => {
-
-   // Estados para manejar los pasos del formulario
-   const steps = ["Información de contacto", "Información Empresarial", "Información Financiera", "Información Bancaria", "Documentos"];
-   const [currentStep, setCurrentStep] = useState(0);
-  // Obtener contexto de autenticación (no recibimos user como prop para evitar inconsistencias)
+  // Estados para manejar los pasos del formulario
+  const steps = ["Información de contacto", "Información Empresarial", "Información Financiera", "Información Bancaria", "Documentos"];
+  const [currentStep, setCurrentStep] = useState(0);
+  
+  // Obtener contexto de autenticación
   const { user, updateUserInfo } = useAuth();
   
   // Estado inicial del formulario
@@ -26,7 +26,7 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
     ciudad: '',
     pais: 'Colombia',
     telefono: '',
-    contact_email: '',
+    email: '',
     
     // Información empresarial
     razonSocial: '',
@@ -78,179 +78,72 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
   const [isFormLocked, setIsFormLocked] = useState(false);
   const [debugInfo, setDebugInfo] = useState({});
 
-  // Función mejorada para obtener el ID del usuario de múltiples fuentes
-  const getUserId = () => {
-    // Debug information
-    const userDebugInfo = {
-      contextUser: user ? { ...user } : null,
-      localStorage: localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')) : null
-    };
-    setDebugInfo(userDebugInfo);
-    console.log("DEBUG - getUserId - Estado actual user:", userDebugInfo);
-
-    // 1. Intentar obtener del contexto
-    if (user) {
-      if (user.id) {
-        console.log("DEBUG - ID encontrado en contexto user.id:", user.id);
-        return user.id;
-      }
-      if (user._id) {
-        console.log("DEBUG - ID encontrado en contexto user._id:", user._id);
-        return user._id;
-      }
-    }
-    
-    // 2. Intentar obtener del localStorage (respaldo)
-    try {
-      const storedUserString = localStorage.getItem('user');
-      if (storedUserString) {
-        const storedUser = JSON.parse(storedUserString);
-        console.log("DEBUG - Usuario recuperado de localStorage:", storedUser);
-        
-        if (storedUser.id) {
-          console.log("DEBUG - ID encontrado en localStorage user.id:", storedUser.id);
-          return storedUser.id;
-        }
-        if (storedUser._id) {
-          console.log("DEBUG - ID encontrado en localStorage user._id:", storedUser._id);
-          return storedUser._id;
-        }
-      }
-    } catch (e) {
-      console.error("Error al parsear usuario del localStorage:", e);
-    }
-    
-    // 3. Intentar obtener del token JWT (última opción)
-    try {
-      const token = localStorage.getItem('token');
-      if (token) {
-        // El token está en formato Base64, podemos decodificarlo
-        const payload = token.split('.')[1];
-        const decodedPayload = JSON.parse(atob(payload));
-        console.log("DEBUG - Payload decodificado del token:", decodedPayload);
-        
-        if (decodedPayload && decodedPayload.id) {
-          console.log("DEBUG - ID encontrado en token JWT:", decodedPayload.id);
-          return decodedPayload.id;
-        }
-      }
-    } catch (e) {
-      console.error("Error al decodificar token:", e);
-    }
-    
-    console.log("DEBUG - No se pudo encontrar ID de usuario en ninguna fuente");
-    return null;
+  // Función para alternar secciones expandidas
+  const toggleSection = (section) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [section]: !prev[section]
+    }));
   };
 
-  // Efecto para cargar el perfil del usuario
+  // Función mejorada para obtener el ID del usuario usando el servicio
+  const getUserId = () => {
+    const userId = ClientProfileService.getUserId(user);
+    console.log("DEBUG - getUserId resultado:", userId);
+    return userId;
+  };
+
+  // Efecto para cargar el perfil del usuario usando el servicio
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        // Obtener ID de usuario con la función mejorada
         const userId = getUserId();
         
         if (!userId) {
           console.log("No hay ID de usuario para buscar perfil");
-          // Intento de inicialización con datos básicos si no hay perfil pero hay usuario
-          const userFromContext = user || JSON.parse(localStorage.getItem('user') || '{}');
-          if (userFromContext) {
-            setFormData(prev => ({
-              ...prev,
-              email: userFromContext.mail || userFromContext.email || '',
-              nombre: userFromContext.nombre || userFromContext.name || ''
-            }));
+          // Inicializar con contexto de usuario si existe
+          const userContext = ClientProfileService.getUserContext();
+          if (userContext) {
+            const mappedData = ClientProfileService.mapApiDataToForm({}, userContext);
+            setFormData(prev => ({ ...prev, ...mappedData }));
           }
           return;
         }
 
-        console.log("Intentando obtener perfil para usuario ID:", userId);
+        console.log("🔍 Obteniendo perfil para usuario ID:", userId);
         
-        // Hacer la solicitud a la API usando la configuración centralizada
-        const response = await API.get(`/client-profiles/user/${userId}`);
-        console.log("Respuesta completa de API:", response);
+        // Usar el servicio para obtener el perfil
+        const profileData = await ClientProfileService.getProfile(userId);
+        console.log("📋 Datos de perfil recibidos:", profileData);
         
-        // Procesar datos recibidos
-        if (response && response.data) {
-          const profileData = response.data.data || response.data;
-          console.log("Datos de perfil recibidos:", profileData);
-          
-          // Bloquear formulario si ya tiene NIT registrado (sincronizado con SAP)
-          if (profileData?.nit_number && profileData?.verification_digit) {
-            setIsFormLocked(true);
-          }
-          
-          // Preparar datos para el formulario
-          const formDataUpdate = {
-            nombre: profileData.nombre || profileData.name || '',
-            direccion: profileData.direccion || profileData.address || '',
-            ciudad: profileData.ciudad || profileData.city || '',
-            pais: profileData.pais || profileData.country || 'Colombia',
-            telefono: profileData.telefono || profileData.phone || '',
-            email: profileData.email || user?.email || user?.mail || '',
-            razonSocial: profileData.razonSocial || profileData.business_name || '',
-            nit: profileData.nit_number || profileData.nit || '',
-            digitoVerificacion: profileData.verification_digit || profileData.digitoVerificacion || '',
-          };
-          
-          // Procesar datos adicionales que podrían estar en el campo 'notes'
-          if (profileData.notes) {
-            try {
-              const additionalData = JSON.parse(profileData.notes);
-              console.log("Datos adicionales encontrados en notes:", additionalData);
-              Object.assign(formDataUpdate, additionalData);
-            } catch (e) {
-              console.error("Error al parsear notes:", e);
-            }
-          }
-          
-          // Procesar campos específicos si están disponibles directamente
-          [
-            'tipoDocumento', 'numeroDocumento', 'representanteLegal',
-            'actividadComercial', 'sectorEconomico', 'tamanoEmpresa',
-            'ingresosMensuales', 'patrimonio', 'entidadBancaria',
-            'tipoCuenta', 'numeroCuenta', 'nombreContacto',
-            'cargoContacto', 'telefonoContacto', 'emailContacto'
-          ].forEach(field => {
-            if (profileData[field]) {
-              formDataUpdate[field] = profileData[field];
-            }
-          });
-          
-          console.log("Actualizando formulario con datos:", formDataUpdate);
-          setFormData(prev => ({
-            ...prev,
-            ...formDataUpdate,
-          }));
-          
-          setExistingProfile(profileData);
-          console.log('Perfil cargado exitosamente desde la API');
+        // Bloquear formulario si ya tiene NIT registrado (sincronizado con SAP)
+        if (profileData?.nit_number && profileData?.verification_digit) {
+          setIsFormLocked(true);
         }
+        
+        // Usar el mapeo del servicio
+        const userContext = ClientProfileService.getUserContext();
+        const mappedFormData = ClientProfileService.mapApiDataToForm(profileData, userContext);
+        
+        setFormData(prev => ({ ...prev, ...mappedFormData }));
+        setExistingProfile(profileData);
+        
+        console.log('✅ Perfil cargado y mapeado exitosamente');
+        
       } catch (error) {
-        console.error('Error al obtener perfil:', error);
+        console.error('❌ Error al obtener perfil:', error);
         
-        // Mostrar detalles específicos del error para debugging
-        if (error.response) {
-          console.error('Respuesta de error:', error.response.status, error.response.data);
-        } else if (error.request) {
-          console.error('Error de solicitud (sin respuesta):', error.request);
-        } else {
-          console.error('Error:', error.message);
-        }
-        
-        // Si no existe perfil, inicializar con el email del usuario logueado
-        const userFromContext = user || JSON.parse(localStorage.getItem('user') || '{}');
-        if (userFromContext) {
-          setFormData(prev => ({
-            ...prev,
-            email: userFromContext.mail || userFromContext.email || '',
-            nombre: userFromContext.nombre || userFromContext.name || ''
-          }));
+        // Fallback con datos del usuario
+        const userContext = ClientProfileService.getUserContext();
+        if (userContext) {
+          const mappedData = ClientProfileService.mapApiDataToForm({}, userContext);
+          setFormData(prev => ({ ...prev, ...mappedData }));
         }
       }
     };
 
     fetchProfile();
-  }, [user]); // Dependencia del useEffect
+  }, [user]);
 
   // Funciones para navegación entre pasos
   const nextStep = () => {
@@ -285,27 +178,9 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
   
+  // Validación usando el servicio
   const validateCurrentStep = () => {
-    const errors = {};
-    
-    // Validación específica para cada paso
-    if (currentStep === 0) {
-      // Validar Información Básica
-      if (!formData.nombre) errors.nombre = "El nombre es requerido";
-      if (!formData.numeroDocumento) errors.numeroDocumento = "El número de documento es requerido";
-      if (!formData.direccion) errors.direccion = "La dirección es requerida";
-      if (!formData.ciudad) errors.ciudad = "La ciudad es requerida";
-      if (!formData.pais) errors.pais = "El país es requerido";
-      if (!formData.telefono) errors.telefono = "El teléfono es requerido";
-      if (!formData.email) errors.email = "El correo electrónico es requerido";
-      else if (!/^\S+@\S+\.\S+$/.test(formData.email)) errors.email = "El correo electrónico no es válido";
-    } else if (currentStep === 1) {
-      // Validar Información Empresarial
-      if (formData.nit && !/^\d{8,12}$/.test(formData.nit)) {
-        errors.nit = "El NIT debe contener entre 8 y 12 dígitos numéricos";
-      }
-    }
-    
+    const errors = ClientProfileService.validateCriticalFields(formData, currentStep);
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -325,20 +200,17 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
 
     // Validación específica para NIT (solo números)
     if (name === 'nit') {
-      // Si el valor no está vacío y no es un número, muestra un error
       if (value && !/^\d+$/.test(value)) {
         setFieldErrors(prev => ({
           ...prev,
           nit: 'El NIT debe contener solo números enteros'
         }));
       }
-      // Almacena el valor solo si es un número o está vacío
       setFormData(prev => ({
         ...prev,
         [name]: /^\d*$/.test(value) ? value : prev[name]
       }));
     } else {
-      // Comportamiento normal para otros campos
       setFormData(prev => ({
         ...prev,
         [name]: value
@@ -358,98 +230,47 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
   // Manejar cierre de modal de confirmación
   const handleConfirmationClose = () => {
     setShowConfirmation(false);
-
-    // Si la operación fue exitosa, cerrar el formulario
     if (confirmationIsSuccess) {
       onClose();
     }
   };
 
-  // Manejar envío del formulario
+  // Manejar envío del formulario - FUNCIÓN ASYNC CORREGIDA
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
     setSuccess('');
 
-    // Validar NIT y dígito de verificación
-    if (formData.nit && !/^\d+$/.test(formData.nit)) {
-      setFieldErrors(prev => ({
-        ...prev,
-        nit: 'El NIT debe contener solo números enteros'
-      }));
+    // Validación usando el servicio
+    const validationErrors = ClientProfileService.validateCriticalFields(formData, 0);
+    if (Object.keys(validationErrors).length > 0) {
+      setFieldErrors(validationErrors);
       setError('Hay errores en el formulario. Por favor verifique los campos marcados en rojo.');
       setLoading(false);
       return;
     }
 
-    if (formData.digitoVerificacion && (!/^[0-9]$/.test(formData.digitoVerificacion))) {
-      setError('El dígito de verificación debe ser un número entre 0 y 9');
-      setLoading(false);
-      return;
-    }
-
-    // Crear el tax_id combinando NIT y dígito de verificación
-    let taxId = '';
-    if (formData.nit) {
-      taxId = formData.nit;
-      if (formData.digitoVerificacion) {
-        taxId += '-' + formData.digitoVerificacion;
-      }
-    }
-
     try {
-      // Preparar FormData para envío
-      const formDataToSend = new FormData();
-      
-      // Agregar campos específicos para SAP
-      formDataToSend.append('nit_number', formData.nit || '');
-      formDataToSend.append('verification_digit', formData.digitoVerificacion || '');
-      formDataToSend.append('tax_id', taxId);
-      
-      // Agregar todos los campos del formulario
-      Object.keys(formData).forEach(key => {
-        if (key === 'fotocopiaCedula' || key === 'fotocopiaRut' || key === 'anexosAdicionales') {
-          if (formData[key]) {
-            formDataToSend.append(key, formData[key]);
-          }
-        } else {
-          formDataToSend.append(key, formData[key]);
-        }
-      });
-
-      // Obtener el ID del usuario
       const userId = getUserId();
       if (!userId) {
         throw new Error("No se pudo determinar el ID del usuario");
       }
-      
-      formDataToSend.append('userId', userId);
 
-      // Determinar endpoint y método según si estamos actualizando o creando
-      const endpoint = existingProfile
-        ? `/client-profiles/user/${userId}`
-        : '/client-profiles';
-      const method = existingProfile ? 'put' : 'post';
+      console.log("=== DATOS ANTES DEL ENVÍO ===");
+      console.log("numeroDocumento:", formData.numeroDocumento);
+      console.log("ciudad:", formData.ciudad);
+      console.log("FormData completo:", formData);
+      console.log("============================");
 
-      console.log(`Enviando datos al endpoint: ${endpoint} con método: ${method}`);
+      // Usar el servicio para guardar
+      const savedData = await ClientProfileService.saveProfile(formData, userId, existingProfile);
 
-      // Ejecutar la solicitud
-      const response = await API({
-        method,
-        url: endpoint,
-        data: formDataToSend,
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
-      });
+      console.log("=== RESPUESTA DEL SERVIDOR ===");
+      console.log("Datos guardados:", savedData);
+      console.log("==============================");
 
-      console.log("Respuesta de guardado:", response.data);
-
-      // Extraer datos guardados
-      const savedData = response.data?.data || response.data;
-
-      // Información de usuario actualizada para el contexto
+      // Actualizar contextos
       const updatedUserData = {
         nombre: formData.nombre,
         email: formData.email,
@@ -458,23 +279,20 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
         ciudad: formData.ciudad
       };
 
-      // Guardar en localStorage para acceso rápido
       localStorage.setItem('clientProfile', JSON.stringify({
         nombre: formData.nombre,
         email: formData.email
       }));
 
-      // Actualizar contexto de autenticación
       if (typeof updateUserInfo === 'function') {
         updateUserInfo(updatedUserData);
       }
 
-      // Notificar al Dashboard sobre el cambio
       if (typeof onProfileUpdate === 'function') {
         onProfileUpdate(formData.nombre);
       }
 
-      // Mostrar confirmación de éxito
+      // Mostrar confirmación
       setSuccess('Perfil guardado correctamente');
       setExistingProfile(savedData);
       setConfirmationIsSuccess(true);
@@ -482,14 +300,10 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
       setShowConfirmation(true);
 
     } catch (error) {
-      // Manejar errores
-      console.error('Error al guardar perfil:', error);
+      console.error('❌ Error al guardar perfil:', error);
       
-      const errorMessage = error.response?.data?.message || 
-                          error.message || 
-                          'Error al guardar el perfil';
+      const errorMessage = error.message || 'Error al guardar el perfil';
       setError(errorMessage);
-
       setConfirmationIsSuccess(false);
       setConfirmationMessage('Datos Incorrectos. Por favor verifique la información proporcionada.');
       setShowConfirmation(true);
@@ -502,8 +316,8 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
     <div className="fixed inset-0 z-50 overflow-auto bg-gray-800 bg-opacity-70 flex items-center justify-center p-4">
       <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full mx-auto overflow-hidden transform transition-all animate-fadeIn">
         <div className="relative">
-           {/* Cabecera con degradado */}
-           <div className="bg-gradient-to-r from-slate-600 to-slate-700 px-6 py-4 flex justify-between items-center">
+          {/* Cabecera con degradado */}
+          <div className="bg-gradient-to-r from-slate-600 to-slate-700 px-6 py-4 flex justify-between items-center">
             <h2 className="text-xl font-semibold text-white">Perfil de Cliente</h2>
             <button 
               className="text-white hover:bg-white hover:bg-opacity-20 p-2 rounded-full transition-all" 
@@ -512,6 +326,7 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
               <FaTimes />
             </button>
           </div>
+
           {/* Contenido del formulario */}
           <div className="p-6">
             {/* Mensajes de error y éxito */}
@@ -1352,7 +1167,7 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
                     <button
                       type="button"
                       onClick={nextStep}
-                      className="px-6 py-2 bg-accent rounded-lg text-white hover:bg-accent/80  transition-colors flex items-center"
+                      className="px-6 py-2 bg-accent rounded-lg text-white hover:bg-accent/80 transition-colors flex items-center"
                     >
                       Siguiente <FaChevronRight className="ml-2" />
                     </button>

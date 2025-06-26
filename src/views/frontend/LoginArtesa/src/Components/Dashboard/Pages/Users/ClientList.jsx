@@ -8,9 +8,89 @@ import API from '../../../../api/config';
 import { useAuth } from '../../../../hooks/useAuth';
 import { getEnvironmentInfo } from '../../../../utils/environment';
 
+// **SERVICIO DE DESCARGA CON NUEVO ENDPOINT**
+class DocumentDownloadService {
+  constructor() {
+    this.apiClient = API;
+  }
+
+  async downloadDocument(client, documentType, documentName) {
+    console.log(`📥 Descargando ${documentType} para usuario ${client.user_id}`);
+
+    try {
+      // **USAR NUEVO ENDPOINT DIRECTO**
+      const downloadUrl = `/client-profiles/user/${client.user_id}/download/${documentType}`;
+      console.log(`🔗 Endpoint: ${downloadUrl}`);
+
+      const response = await this.apiClient.get(downloadUrl, {
+        responseType: 'blob',
+        timeout: 45000,
+        headers: {
+          'Accept': 'application/pdf, image/*, application/octet-stream, */*',
+          'Cache-Control': 'no-cache'
+        }
+      });
+
+      console.log('📊 Respuesta:', {
+        status: response.status,
+        contentType: response.headers['content-type'],
+        size: response.data.size
+      });
+
+      // **VALIDAR RESPUESTA**
+      if (!(response.data instanceof Blob) || response.data.size === 0) {
+        throw new Error('Archivo vacío o inválido');
+      }
+
+      // **VERIFICAR QUE NO SEA HTML DE ERROR**
+      const contentType = response.headers['content-type'] || '';
+      if (contentType.includes('text/html')) {
+        throw new Error('El servidor devolvió HTML (posible error de autenticación)');
+      }
+
+      // **DETECTAR EXTENSIÓN**
+      let extension = '.pdf';
+      if (contentType.includes('image/jpeg') || contentType.includes('image/jpg')) {
+        extension = '.jpg';
+      } else if (contentType.includes('image/png')) {
+        extension = '.png';
+      } else if (contentType.includes('application/pdf')) {
+        extension = '.pdf';
+      }
+
+      // **CREAR DESCARGA**
+      const clientName = client.nombre || client.user_name || `usuario_${client.user_id}`;
+      const fileName = `${documentName}_${clientName.replace(/[^a-zA-Z0-9]/g, '_')}${extension}`;
+
+      const url = URL.createObjectURL(response.data);
+      const link = document.createElement('a');
+
+      link.href = url;
+      link.download = fileName;
+      link.style.display = 'none';
+
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+
+      console.log(`✅ Descarga completada: ${fileName}`);
+      return { success: true };
+
+    } catch (error) {
+      console.error('❌ Error en descarga:', error);
+      throw error;
+    }
+  }
+}
+
 const ClientList = () => {
   const { user } = useAuth();
   const envInfo = getEnvironmentInfo();
+
+  // **INSTANCIA DEL SERVICIO**
+  const downloadService = new DocumentDownloadService();
 
   // Estados para manejar los datos
   const [clients, setClients] = useState([]);
@@ -27,135 +107,42 @@ const ClientList = () => {
   // **CORRECCIÓN CRÍTICA**: Validación de rol corregida
   const isAdmin = user && (user.role === 1);
 
-  // **FUNCIÓN CRÍTICA**: Verificar si URL de S3 está expirada
-  const isS3UrlExpired = (s3Url) => {
-    if (!s3Url || !s3Url.includes('Expires=')) return true;
-    
-    try {
-      const expiresMatch = s3Url.match(/Expires=(\d+)/);
-      if (!expiresMatch) return true;
-      
-      const expiresTimestamp = parseInt(expiresMatch[1]) * 1000;
-      const now = Date.now();
-      
-      console.log('🕒 Verificando expiración S3:', {
-        expires: new Date(expiresTimestamp).toISOString(),
-        now: new Date(now).toISOString(),
-        isExpired: now >= expiresTimestamp
-      });
-      
-      return now >= expiresTimestamp;
-    } catch (error) {
-      console.warn('⚠️ Error verificando expiración:', error);
-      return true;
-    }
-  };
+  // **FUNCIÓN PRINCIPAL**: Descarga usando el nuevo endpoint
+  const downloadDocument = useCallback(async (clientData, documentType, documentName) => {
+    const downloadKey = `${clientData.user_id}-${documentType}`;
 
-  // **FUNCIÓN PRINCIPAL**: Descarga con detección de expiración y fallbacks
-  const downloadDocument = useCallback(async (client, documentType, documentName) => {
-    const downloadKey = `${client.user_id}-${documentType}`;
-    
     try {
       setDownloadingDocs(prev => ({ ...prev, [downloadKey]: true }));
-      
-      console.log(`📥 Iniciando descarga: ${documentType} para ${client.nombre}`);
 
-      let s3DirectUrl = null;
-      let apiPath = null;
-      
-      // **OBTENER URLs SEGÚN TIPO DE DOCUMENTO**
-      switch (documentType) {
-        case 'cedula':
-          s3DirectUrl = client.fotocopiaCedula;
-          apiPath = `/client-profiles/user/${client.user_id}/file/cedula`;
-          break;
-        case 'rut':
-          s3DirectUrl = client.fotocopiaRut;
-          apiPath = `/client-profiles/user/${client.user_id}/file/rut`;
-          break;
-        case 'anexos':
-          s3DirectUrl = client.anexosAdicionales;
-          apiPath = `/client-profiles/user/${client.user_id}/file/anexos`;
-          break;
-        default:
-          throw new Error(`Tipo de documento no válido: ${documentType}`);
+      console.log(`📥 Iniciando descarga: ${documentType} para ${clientData.nombre || clientData.user_id}`);
+
+      // **USAR EL NUEVO SERVICIO CON ENDPOINT**
+      await downloadService.downloadDocument(clientData, documentType, documentName);
+
+      console.log(`✅ Descarga completada: ${documentType}`);
+
+    } catch (error) {
+      console.error(`❌ Error descargando ${documentType}:`, error);
+
+      // **MENSAJES DE ERROR ESPECÍFICOS**
+      let errorMessage = 'Error al descargar el documento';
+
+      if (error.response?.status === 404) {
+        errorMessage = `El documento ${documentType} no existe para este cliente`;
+      } else if (error.response?.status === 403) {
+        errorMessage = 'No tienes permisos para descargar este documento';
+      } else if (error.response?.status === 401) {
+        errorMessage = 'Tu sesión ha expirado. Inicia sesión nuevamente';
+      } else if (error.message.includes('HTML')) {
+        errorMessage = 'Error de autenticación. Verifica tu sesión';
+      } else if (error.message.includes('vacío')) {
+        errorMessage = 'El archivo está vacío o dañado. Contacta al administrador';
+      } else if (error.code === 'ECONNABORTED') {
+        errorMessage = 'La descarga tardó demasiado tiempo. Intenta nuevamente';
       }
 
-      console.log('🔗 URLs disponibles:', { s3DirectUrl, apiPath });
+      alert(errorMessage);
 
-      // **ESTRATEGIA 1**: Solo si URL S3 NO está expirada
-      if (s3DirectUrl && s3DirectUrl.includes('amazonaws.com') && !isS3UrlExpired(s3DirectUrl)) {
-        console.log('✅ URL S3 válida, intentando descarga directa');
-        
-        try {
-          const newWindow = window.open(s3DirectUrl, '_blank');
-          if (newWindow) {
-            console.log('✅ Descarga S3 iniciada exitosamente');
-            return;
-          } else {
-            throw new Error('Popup bloqueado');
-          }
-        } catch (s3Error) {
-          console.warn('⚠️ Error con S3, pasando a API:', s3Error.message);
-        }
-      } else if (s3DirectUrl) {
-        console.log('⚠️ URL S3 expirada, usando API directamente');
-      }
-
-      // **ESTRATEGIA 2**: Endpoint de API (PRINCIPAL para URLs expiradas)
-      if (apiPath) {
-        console.log('🔄 Descargando desde API endpoint:', apiPath);
-        
-        const response = await API.get(apiPath, {
-          responseType: 'blob',
-          timeout: 30000,
-          headers: {
-            'Accept': 'application/octet-stream, application/pdf, */*'
-          }
-        });
-
-        // Verificar que sea un blob válido
-        if (!(response.data instanceof Blob)) {
-          throw new Error('Respuesta inválida del servidor');
-        }
-
-        // Crear descarga
-        const blob = response.data;
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        
-        link.href = url;
-        link.download = `${documentName}_${client.nombre.replace(/\s+/g, '_')}.pdf`;
-        link.style.display = 'none';
-        
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-        
-        console.log('✅ Descarga desde API completada');
-        return;
-      }
-
-      throw new Error('No hay métodos de descarga disponibles');
-
-    } catch (err) {
-      console.error('❌ Error en descarga:', err);
-      
-      // Mensajes específicos según el error
-      if (err.response?.status === 404) {
-        alert(`El documento ${documentType} no existe para este cliente.`);
-      } else if (err.response?.status === 403) {
-        alert('No tienes permisos para descargar este documento.');
-      } else if (err.message.includes('expirada')) {
-        alert('El enlace de descarga ha expirado. Recargando datos...');
-        fetchData(true);
-      } else if (err.message.includes('Popup bloqueado')) {
-        alert('Tu navegador bloqueó la descarga. Por favor, permite popups para este sitio.');
-      } else {
-        alert('Error al descargar el documento. Inténtalo nuevamente.');
-      }
     } finally {
       setDownloadingDocs(prev => {
         const newState = { ...prev };
@@ -163,9 +150,9 @@ const ClientList = () => {
         return newState;
       });
     }
-  }, []);
+  }, [downloadService]);
 
-  // **FUNCIÓN CORREGIDA**: Obtener datos con mejor manejo de errores
+  // **FUNCIÓN CORREGIDA**: Obtener datos
   const fetchData = useCallback(async (forceRefresh = false) => {
     try {
       setLoading(true);
@@ -175,19 +162,17 @@ const ClientList = () => {
       console.log('🔑 Es admin?:', isAdmin);
 
       if (isAdmin) {
-        // **ENDPOINT PARA ADMIN**: Obtener todos los perfiles
         console.log('📊 Obteniendo lista completa de clientes (Admin)');
         const response = await API.get('/client-profiles');
         console.log('📋 Respuesta admin completa:', response.data);
 
         const clientProfiles = response.data.data || response.data || [];
         const profilesArray = Array.isArray(clientProfiles) ? clientProfiles : [clientProfiles];
-        
+
         console.log('👥 Clientes procesados:', profilesArray.length);
         setClients(profilesArray);
 
       } else if (user?.id) {
-        // **ENDPOINT PARA USUARIO**: Obtener su perfil específico
         console.log(`👤 Obteniendo perfil del usuario ${user.id}`);
 
         try {
@@ -200,7 +185,6 @@ const ClientList = () => {
         } catch (profileError) {
           console.log('⚠️ No se encontró perfil específico, creando perfil básico');
 
-          // Fallback: crear perfil básico con datos del usuario
           setSingleClient({
             client_id: null,
             user_id: user.id,
@@ -233,42 +217,35 @@ const ClientList = () => {
     fetchData();
   }, [fetchData]);
 
-  // **COMPONENTE MEJORADO**: Botón de descarga con indicador de expiración
-  const DownloadButton = ({ client, documentType, documentName, icon: Icon, color, label }) => {
-    const downloadKey = `${client.user_id}-${documentType}`;
+  // **COMPONENTE CORREGIDO**: Botón de descarga
+  const DownloadButton = ({ clientData, documentType, documentName, icon: Icon, color, label }) => {
+    const downloadKey = `${clientData.user_id}-${documentType}`;
     const isDownloading = downloadingDocs[downloadKey];
 
-    // **VERIFICAR DISPONIBILIDAD SEGÚN CAMPOS REALES DE LA API**
+    // **VERIFICAR DISPONIBILIDAD SEGÚN CAMPOS REALES**
     let documentAvailable = false;
-    let s3Url = null;
 
     switch (documentType) {
       case 'cedula':
-        documentAvailable = !!(client.fotocopiaCedulaUrl || client.fotocopiaCedula);
-        s3Url = client.fotocopiaCedula;
+        documentAvailable = !!(clientData.fotocopiaCedulaUrl || clientData.fotocopiaCedula);
         break;
       case 'rut':
-        documentAvailable = !!(client.fotocopiaRutUrl || client.fotocopiaRut);
-        s3Url = client.fotocopiaRut;
+        documentAvailable = !!(clientData.fotocopiaRutUrl || clientData.fotocopiaRut);
         break;
       case 'anexos':
-        documentAvailable = !!client.anexosAdicionales;
-        s3Url = client.anexosAdicionales;
+        documentAvailable = !!clientData.anexosAdicionales;
         break;
     }
-
-    const s3Expired = s3Url ? isS3UrlExpired(s3Url) : false;
 
     return (
       <div className="space-y-2">
         <button
-          onClick={() => downloadDocument(client, documentType, documentName)}
+          onClick={() => downloadDocument(clientData, documentType, documentName)}
           disabled={!documentAvailable || isDownloading}
-          className={`px-4 py-2 rounded-lg flex items-center justify-center w-full transition-colors ${
-            !documentAvailable || isDownloading
-              ? 'bg-gray-400 text-white cursor-not-allowed' 
+          className={`px-4 py-2 rounded-lg flex items-center justify-center w-full transition-colors ${!documentAvailable || isDownloading
+              ? 'bg-gray-400 text-white cursor-not-allowed'
               : `bg-${color}-600 text-white hover:bg-${color}-700`
-          }`}
+            }`}
           title={!documentAvailable ? `${label} no disponible` : `Descargar ${label}`}
         >
           {isDownloading ? (
@@ -283,11 +260,11 @@ const ClientList = () => {
             </>
           )}
         </button>
-        
-        {/* Indicador de expiración */}
-        {documentAvailable && s3Expired && (
-          <div className="text-xs text-orange-600 bg-orange-50 px-2 py-1 rounded">
-            ⚠️ Enlace S3 expirado - Usando API
+
+        {/* Indicador de nuevo endpoint */}
+        {envInfo.isDevelopment && documentAvailable && (
+          <div className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">
+            📡 /download/{documentType}
           </div>
         )}
       </div>
@@ -302,18 +279,17 @@ const ClientList = () => {
     }));
   }, []);
 
-  // **CORRECCIÓN**: Filtrado usando campos reales de la API
-  const filteredClients = isAdmin ? clients.filter(client => {
+  // Filtrado y ordenamiento
+  const filteredClients = isAdmin ? clients.filter(clientItem => {
     const searchLower = searchTerm.toLowerCase();
     return (
-      (client.nombre || '').toLowerCase().includes(searchLower) ||
-      (client.email || '').toLowerCase().includes(searchLower) ||
-      (client.nit_number || '').toLowerCase().includes(searchLower) ||
-      (client.razonSocial || '').toLowerCase().includes(searchLower)
+      (clientItem.nombre || '').toLowerCase().includes(searchLower) ||
+      (clientItem.email || '').toLowerCase().includes(searchLower) ||
+      (clientItem.nit_number || '').toLowerCase().includes(searchLower) ||
+      (clientItem.razonSocial || '').toLowerCase().includes(searchLower)
     );
   }) : [];
 
-  // Ordenamiento optimizado
   const sortedClients = isAdmin ? [...filteredClients].sort((a, b) => {
     const aValue = a[sortConfig.key] || '';
     const bValue = b[sortConfig.key] || '';
@@ -327,16 +303,14 @@ const ClientList = () => {
     return 0;
   }) : [];
 
-  // Cálculos de paginación
+  // Paginación
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentItems = sortedClients.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(sortedClients.length / itemsPerPage);
 
-  // Cambiar página
   const paginate = useCallback((pageNumber) => setCurrentPage(pageNumber), []);
 
-  // Ordenar por columna
   const requestSort = useCallback((key) => {
     let direction = 'ascending';
     if (sortConfig.key === key && sortConfig.direction === 'ascending') {
@@ -365,7 +339,7 @@ const ClientList = () => {
             <FaExclamationTriangle className="mr-2" />
             <span>{error}</span>
           </div>
-          <button 
+          <button
             onClick={() => fetchData(true)}
             className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 flex items-center gap-2"
           >
@@ -377,131 +351,198 @@ const ClientList = () => {
     );
   }
 
-  // **RENDERIZADO PARA USUARIO NO ADMIN (UI RICA DE VERSIÓN 1)**
+  // **RENDERIZADO PARA USUARIO NO ADMIN - CON ALINEACIÓN PERFECTA**
   if (!isAdmin && singleClient) {
-    console.log('👤 Renderizando perfil para usuario:', singleClient);
-
     return (
-      <div className="max-w-2xl mx-auto p-6 bg-white rounded-lg shadow">
+      <div className="max-w-7xl mx-auto p-6 bg-white rounded-lg shadow">
         <h2 className="text-xl font-bold mb-4" style={{ color: 'var(--primary-color)' }}>
           Mi perfil de cliente
         </h2>
 
-        {/* Información del entorno en desarrollo */}
         {envInfo.isDevelopment && (
           <div className="mb-4 p-2 bg-blue-100 border border-blue-300 rounded text-xs">
             🚀 Entorno: {envInfo.mode?.toUpperCase()} | API: {envInfo.apiUrl}
             <br />
             🆔 Client ID: {singleClient.client_id} | User ID: {singleClient.user_id}
             <br />
-            🕒 Verificación de URLs S3 activa
+            📡 Endpoint: /client-profiles/user/{singleClient.user_id}/download/{`{tipo}`}
           </div>
         )}
 
-        <div className="mb-4 space-y-3">
-          <div className="flex items-center gap-2">
-            <FaUser className="text-lg" style={{ color: 'var(--accent-color)' }} />
-            <span className="font-semibold">Nombre:</span>
-            <span>{singleClient.nombre || user.name || 'N/A'}</span>
+        {/* **ALINEACIÓN PERFECTA CON FLEXBOX** */}
+        <div
+          className="flex flex-wrap gap-6"
+          style={{
+            display: 'flex',
+            flexDirection: 'row',
+            flexWrap: 'wrap',
+            alignItems: 'flex-start',
+            justifyContent: 'flex-start'
+          }}
+        >
+          {/* Información Personal */}
+          <div
+            className="bg-white rounded-lg shadow-sm p-4 border border-slate-200 flex-1 min-w-[300px] max-w-[400px]"
+            style={{ alignSelf: 'flex-start', marginTop: '0px' }}
+          >
+            <div className="flex items-center space-x-2 mb-4" style={{ height: '32px' }}>
+              <FaUser className="text-blue-500" />
+              <h3 className="text-lg font-medium text-gray-700">Información Personal</h3>
+            </div>
+            <ul className="space-y-2 text-sm">
+              <li><span className="font-medium">Nombre:</span> {singleClient.nombre || user.name || 'N/A'}</li>
+              <li><span className="font-medium">Email:</span> {singleClient.email || user.mail || user.email || 'N/A'}</li>
+              <li><span className="font-medium">Teléfono:</span> {singleClient.telefono || 'N/A'}</li>
+              <li><span className="font-medium">Dirección:</span> {singleClient.direccion || 'N/A'}</li>
+              <li><span className="font-medium">Ciudad:</span> {singleClient.ciudad || 'N/A'}</li>
+              <li><span className="font-medium">País:</span> {singleClient.pais || 'N/A'}</li>
+            </ul>
           </div>
 
-          <div className="flex items-center gap-2">
-            <FaBuilding className="text-lg" style={{ color: 'var(--accent-color)' }} />
-            <span className="font-semibold">Razón Social:</span>
-            <span>{singleClient.razonSocial || 'N/A'}</span>
+          {/* Información Empresarial */}
+          <div
+            className="bg-white rounded-lg shadow-sm p-4 border border-slate-200 flex-1 min-w-[300px] max-w-[400px]"
+            style={{ alignSelf: 'flex-start', marginTop: '0px' }}
+          >
+            <div className="flex items-center space-x-2 mb-4" style={{ height: '32px' }}>
+              <FaBuilding className="text-amber-500" />
+              <h3 className="text-lg font-medium text-gray-700">Información Empresarial</h3>
+            </div>
+            <ul className="space-y-2 text-sm">
+              <li><span className="font-medium">Razón Social:</span> {singleClient.razonSocial || 'N/A'}</li>
+              <li><span className="font-medium">NIT:</span> {
+                singleClient.nit_number
+                  ? `${singleClient.nit_number}-${singleClient.verification_digit}`
+                  : singleClient.nit || 'N/A'
+              }</li>
+              <li><span className="font-medium">Código SAP:</span> {singleClient.cardcode_sap || 'No asignado'}</li>
+              <li><span className="font-medium">Lista de Precios:</span> {singleClient.price_list || 'No asignada'}</li>
+            </ul>
           </div>
 
-          <div className="flex items-center gap-2">
-            <FaIdCard className="text-lg" style={{ color: 'var(--accent-color)' }} />
-            <span className="font-semibold">NIT:</span>
-            <span>
-              {singleClient.nit_number
-                ? `${singleClient.nit_number}-${singleClient.verification_digit}`
-                : singleClient.nit || 'N/A'
-              }
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <FaFileAlt className="text-lg" style={{ color: 'var(--accent-color)' }} />
-            <span className="font-semibold">Email:</span>
-            <span>{singleClient.email || user.mail || user.email || 'N/A'}</span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <FaPhone className="text-lg" style={{ color: 'var(--accent-color)' }} />
-            <span className="font-semibold">Teléfono:</span>
-            <span>{singleClient.telefono || 'N/A'}</span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <FaUniversity className="text-lg" style={{ color: 'var(--accent-color)' }} />
-            <span className="font-semibold">Dirección:</span>
-            <span>
-              {singleClient.direccion
-                ? `${singleClient.direccion}, ${singleClient.ciudad || ''}, ${singleClient.pais || ''}`.replace(/,\s*,/g, ',').replace(/,\s*$/, '')
-                : 'N/A'
-              }
-            </span>
+          {/* Información Adicional */}
+          <div
+            className="bg-white rounded-lg shadow-sm p-4 border border-slate-200 flex-1 min-w-[300px] max-w-[400px]"
+            style={{ alignSelf: 'flex-start', marginTop: '0px' }}
+          >
+            <div className="flex items-center space-x-2 mb-4" style={{ height: '32px' }}>
+              <FaFileAlt className="text-green-500" />
+              <h3 className="text-lg font-medium text-gray-700">Información Adicional</h3>
+            </div>
+            <ul className="space-y-2 text-sm">
+              {singleClient.extraInfo ? (
+                <>
+                  <li><span className="font-medium">Tipo Documento:</span> {singleClient.extraInfo.tipoDocumento || 'N/A'}</li>
+                  <li><span className="font-medium">Número Documento:</span> {singleClient.extraInfo.numeroDocumento || 'N/A'}</li>
+                  <li><span className="font-medium">Tamaño Empresa:</span> {singleClient.extraInfo.tamanoEmpresa || 'N/A'}</li>
+                  <li><span className="font-medium">Tipo Cuenta:</span> {singleClient.extraInfo.tipoCuenta || 'N/A'}</li>
+                </>
+              ) : (
+                <>
+                  <li><span className="font-medium">Tipo Documento:</span> N/A</li>
+                  <li><span className="font-medium">Número Documento:</span> N/A</li>
+                  <li><span className="font-medium">Tamaño Empresa:</span> N/A</li>
+                  <li><span className="font-medium">Tipo Cuenta:</span> N/A</li>
+                </>
+              )}
+              <li><span className="font-medium">Creado:</span> {singleClient.created_at ? new Date(singleClient.created_at).toLocaleDateString() : 'N/A'}</li>
+              <li><span className="font-medium">Actualizado:</span> {singleClient.updated_at ? new Date(singleClient.updated_at).toLocaleDateString() : 'N/A'}</li>
+            </ul>
           </div>
         </div>
 
-        <div className="mt-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold" style={{ color: 'var(--primary-color)' }}>
-              Documentos
-            </h3>
-            <button
-              onClick={() => fetchData(true)}
-              className="text-sm px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 flex items-center gap-1"
-              title="Actualizar URLs de descarga"
-            >
-              <FaSync className="text-xs" />
-              Actualizar
-            </button>
+        {/* Contactos - Calculando exactamente el ancho */}
+        {singleClient.contacts && singleClient.contacts.length > 0 && (
+          <div className="mt-6">
+            <div className="flex justify-end">
+              <div
+                className="bg-white rounded-lg shadow-sm p-4 border border-slate-200"
+                style={{
+                  width: 'calc((100% - 3rem) / 3)',
+                  minWidth: '300px',
+                  maxWidth: '400px'
+                }}
+              >
+                <div className="flex items-center space-x-2 mb-4" style={{ height: '32px' }}>
+                  <FaPhone className="text-purple-500" />
+                  <h3 className="text-lg font-medium text-gray-700">Contactos</h3>
+                </div>
+                <ul className="space-y-2 text-sm">
+                  {singleClient.contacts.map((contact, index) => (
+                    <li key={index} className="border-b border-gray-100 pb-2 last:border-b-0">
+                      <span className="font-medium">{contact.name}</span>
+                      {contact.is_primary && <span className="text-blue-500 text-xs ml-1">(Principal)</span>}
+                      <br />
+                      <span className="text-gray-600">{contact.position || 'N/A'}</span>
+                      <br />
+                      <span className="text-gray-600">{contact.phone || 'N/A'} | {contact.email || 'N/A'}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
           </div>
+        )}
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Cédula */}
-            <div className="border rounded-lg p-4 text-center">
-              <FaIdCard className="mx-auto text-2xl text-blue-500 mb-2" />
-              <h4 className="font-medium mb-2">Cédula</h4>
-              <DownloadButton
-                client={singleClient}
-                documentType="cedula"
-                documentName="cedula"
-                icon={FaDownload}
-                color="blue"
-                label="Cédula"
-              />
+        {/* Documentos - Sección separada */}
+        <div className="mt-6">
+          <div className="bg-white rounded-lg shadow-sm p-4 border border-slate-200">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center space-x-2">
+                <FaFileAlt className="text-red-500" />
+                <h3 className="text-lg font-medium text-gray-700">Documentos</h3>
+              </div>
+              <button
+                onClick={() => fetchData(true)}
+                className="text-sm px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 flex items-center gap-1"
+              >
+                <FaSync className="text-xs" />
+                Actualizar
+              </button>
             </div>
 
-            {/* RUT */}
-            <div className="border rounded-lg p-4 text-center">
-              <FaFileInvoice className="mx-auto text-2xl text-green-500 mb-2" />
-              <h4 className="font-medium mb-2">RUT</h4>
-              <DownloadButton
-                client={singleClient}
-                documentType="rut"
-                documentName="rut"
-                icon={FaDownload}
-                color="green"
-                label="RUT"
-              />
-            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Cédula */}
+              <div className="border rounded-lg p-4 text-center">
+                <FaIdCard className="mx-auto text-2xl text-blue-500 mb-2" />
+                <h4 className="font-medium mb-2">Cédula</h4>
+                <DownloadButton
+                  clientData={singleClient}
+                  documentType="cedula"
+                  documentName="cedula"
+                  icon={FaDownload}
+                  color="blue"
+                  label="Cédula"
+                />
+              </div>
 
-            {/* Anexos */}
-            <div className="border rounded-lg p-4 text-center">
-              <FaFileAlt className="mx-auto text-2xl text-amber-500 mb-2" />
-              <h4 className="font-medium mb-2">Anexos</h4>
-              <DownloadButton
-                client={singleClient}
-                documentType="anexos"
-                documentName="anexos"
-                icon={FaDownload}
-                color="amber"
-                label="Anexos"
-              />
+              {/* RUT */}
+              <div className="border rounded-lg p-4 text-center">
+                <FaFileInvoice className="mx-auto text-2xl text-green-500 mb-2" />
+                <h4 className="font-medium mb-2">RUT</h4>
+                <DownloadButton
+                  clientData={singleClient}
+                  documentType="rut"
+                  documentName="rut"
+                  icon={FaDownload}
+                  color="green"
+                  label="RUT"
+                />
+              </div>
+
+              {/* Anexos */}
+              <div className="border rounded-lg p-4 text-center">
+                <FaFileAlt className="mx-auto text-2xl text-amber-500 mb-2" />
+                <h4 className="font-medium mb-2">Anexos</h4>
+                <DownloadButton
+                  clientData={singleClient}
+                  documentType="anexos"
+                  documentName="anexos"
+                  icon={FaDownload}
+                  color="amber"
+                  label="Anexos"
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -509,10 +550,9 @@ const ClientList = () => {
     );
   }
 
-  // **RENDERIZADO PARA ADMIN (UI RICA DE VERSIÓN 1 + FUNCIONALIDAD MEJORADA)**
+  // **RENDERIZADO PARA ADMIN - CON ALINEACIÓN PERFECTA**
   return (
     <div className="client-list-container p-6">
-      {/* Header con información del entorno */}
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-semibold text-slate-800">
           Lista de Clientes {isAdmin && '(Vista Administrador)'}
@@ -533,7 +573,6 @@ const ClientList = () => {
         </div>
       </div>
 
-      {/* Barra de búsqueda y filtros */}
       <div className="flex flex-wrap items-center justify-between mb-6 gap-4">
         <div className="relative w-full md:w-64">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -553,7 +592,6 @@ const ClientList = () => {
         </div>
       </div>
 
-      {/* Tabla de clientes */}
       <div className="overflow-x-auto shadow-md rounded-lg">
         <table className="min-w-full bg-white border">
           <thead className="bg-gray-100">
@@ -596,117 +634,149 @@ const ClientList = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
-            {currentItems.map((client) => (
-              <React.Fragment key={client.client_id || client.user_id}>
+            {currentItems.map((clientItem) => (
+              <React.Fragment key={clientItem.client_id || clientItem.user_id}>
                 <tr className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {client.nombre || client.user_name || 'N/A'}
+                    {clientItem.nombre || clientItem.user_name || 'N/A'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {client.razonSocial || 'N/A'}
+                    {clientItem.razonSocial || 'N/A'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {client.nit_number
-                      ? `${client.nit_number}-${client.verification_digit}`
-                      : client.nit || 'N/A'
+                    {clientItem.nit_number
+                      ? `${clientItem.nit_number}-${clientItem.verification_digit}`
+                      : clientItem.nit || 'N/A'
                     }
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {client.email || 'N/A'}
+                    {clientItem.email || 'N/A'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <button
-                      onClick={() => toggleRowExpansion(client.client_id || client.user_id)}
+                      onClick={() => toggleRowExpansion(clientItem.client_id || clientItem.user_id)}
                       className="text-sky-600 hover:bg-sky-100 p-2 rounded-md transition-colors flex items-center"
                     >
                       <FaEye className="mr-1" />
-                      {expandedRows[client.client_id || client.user_id] ? "Ocultar" : "Ver detalles"}
+                      {expandedRows[clientItem.client_id || clientItem.user_id] ? "Ocultar" : "Ver detalles"}
                     </button>
                   </td>
                 </tr>
 
-                {/* Fila expandida con información detallada (UI RICA) */}
-                {expandedRows[client.client_id || client.user_id] && (
+                {/* **FILA EXPANDIDA CON ALINEACIÓN PERFECTA GARANTIZADA** */}
+                {expandedRows[clientItem.client_id || clientItem.user_id] && (
                   <tr>
                     <td colSpan="5" className="border-b bg-slate-50 p-0">
                       <div className="p-6 animate-fadeIn">
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 
-                          {/* Información Personal */}
-                          <div className="bg-white rounded-lg shadow p-4 border border-slate-200">
-                            <div className="flex items-center space-x-2 mb-4">
+                        {/* **ALINEACIÓN PERFECTA CON FLEXBOX Y ESTILOS INLINE** */}
+                        <div
+                          className="flex flex-wrap gap-6"
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'row',
+                            flexWrap: 'wrap',
+                            alignItems: 'flex-start',
+                            justifyContent: 'flex-start',
+                            minHeight: 'auto'
+                          }}
+                        >
+
+                          {/* **INFORMACIÓN PERSONAL** */}
+                          <div
+                            className="bg-white rounded-lg shadow p-4 border border-slate-200 flex-1 min-w-[300px] max-w-[400px]"
+                            style={{ alignSelf: 'flex-start', marginTop: '0px' }}
+                          >
+                            <div className="flex items-center space-x-2 mb-4" style={{ height: '32px' }}>
                               <FaUser className="text-blue-500" />
                               <h3 className="text-lg font-medium text-gray-700">Información Personal</h3>
                             </div>
                             <ul className="space-y-2 text-sm">
-                              <li><span className="font-medium">Nombre:</span> {client.nombre || client.user_name || 'N/A'}</li>
-                              <li><span className="font-medium">Email:</span> {client.email || 'N/A'}</li>
-                              <li><span className="font-medium">Teléfono:</span> {client.telefono || 'N/A'}</li>
-                              <li><span className="font-medium">Dirección:</span> {client.direccion || 'N/A'}</li>
-                              <li><span className="font-medium">Ciudad:</span> {client.ciudad || 'N/A'}</li>
-                              <li><span className="font-medium">País:</span> {client.pais || 'N/A'}</li>
+                              <li><span className="font-medium">Nombre:</span> {clientItem.nombre || clientItem.user_name || 'N/A'}</li>
+                              <li><span className="font-medium">Email:</span> {clientItem.email || 'N/A'}</li>
+                              <li><span className="font-medium">Teléfono:</span> {clientItem.telefono || 'N/A'}</li>
+                              <li><span className="font-medium">Dirección:</span> {clientItem.direccion || 'N/A'}</li>
+                              <li><span className="font-medium">Ciudad:</span> {clientItem.ciudad || 'N/A'}</li>
+                              <li><span className="font-medium">País:</span> {clientItem.pais || 'N/A'}</li>
                             </ul>
                           </div>
 
-                          {/* Información Empresarial */}
-                          <div className="bg-white rounded-lg shadow p-4 border border-slate-200">
-                            <div className="flex items-center space-x-2 mb-4">
+                          {/* **INFORMACIÓN EMPRESARIAL** */}
+                          <div
+                            className="bg-white rounded-lg shadow p-4 border border-slate-200 flex-1 min-w-[300px] max-w-[400px]"
+                            style={{ alignSelf: 'flex-start', marginTop: '0px' }}
+                          >
+                            <div className="flex items-center space-x-2 mb-4" style={{ height: '32px' }}>
                               <FaBuilding className="text-amber-500" />
                               <h3 className="text-lg font-medium text-gray-700">Información Empresarial</h3>
                             </div>
                             <ul className="space-y-2 text-sm">
-                              <li><span className="font-medium">Razón Social:</span> {client.razonSocial || 'N/A'}</li>
-                              <li><span className="font-medium">NIT:</span> {client.nit_number ? `${client.nit_number}-${client.verification_digit}` : client.nit || 'N/A'}</li>
-                              <li><span className="font-medium">Código SAP:</span> {client.cardcode_sap || 'No asignado'}</li>
-                              <li><span className="font-medium">Lista de Precios:</span> {client.price_list || 'No asignada'}</li>
+                              <li><span className="font-medium">Razón Social:</span> {clientItem.razonSocial || 'N/A'}</li>
+                              <li><span className="font-medium">NIT:</span> {clientItem.nit_number ? `${clientItem.nit_number}-${clientItem.verification_digit}` : clientItem.nit || 'N/A'}</li>
+                              <li><span className="font-medium">Código SAP:</span> {clientItem.cardcode_sap || 'No asignado'}</li>
+                              <li><span className="font-medium">Lista de Precios:</span> {clientItem.price_list || 'No asignada'}</li>
                             </ul>
                           </div>
 
-                          {/* Información Adicional */}
-                          <div className="bg-white rounded-lg shadow p-4 border border-slate-200">
-                            <div className="flex items-center space-x-2 mb-4">
+                          {/* **INFORMACIÓN ADICIONAL** */}
+                          <div
+                            className="bg-white rounded-lg shadow p-4 border border-slate-200 flex-1 min-w-[300px] max-w-[400px]"
+                            style={{ alignSelf: 'flex-start', marginTop: '0px' }}
+                          >
+                            <div className="flex items-center space-x-2 mb-4" style={{ height: '32px' }}>
                               <FaFileAlt className="text-green-500" />
                               <h3 className="text-lg font-medium text-gray-700">Información Adicional</h3>
                             </div>
                             <ul className="space-y-2 text-sm">
-                              {client.extraInfo && (
+                              {clientItem.extraInfo ? (
                                 <>
-                                  <li><span className="font-medium">Tipo Documento:</span> {client.extraInfo.tipoDocumento || 'N/A'}</li>
-                                  <li><span className="font-medium">Número Documento:</span> {client.extraInfo.numeroDocumento || 'N/A'}</li>
-                                  <li><span className="font-medium">Tamaño Empresa:</span> {client.extraInfo.tamanoEmpresa || 'N/A'}</li>
-                                  <li><span className="font-medium">Tipo Cuenta:</span> {client.extraInfo.tipoCuenta || 'N/A'}</li>
+                                  <li><span className="font-medium">Tipo Documento:</span> {clientItem.extraInfo.tipoDocumento || 'N/A'}</li>
+                                  <li><span className="font-medium">Número Documento:</span> {clientItem.extraInfo.numeroDocumento || 'N/A'}</li>
+                                  <li><span className="font-medium">Tamaño Empresa:</span> {clientItem.extraInfo.tamanoEmpresa || 'N/A'}</li>
+                                  <li><span className="font-medium">Tipo Cuenta:</span> {clientItem.extraInfo.tipoCuenta || 'N/A'}</li>
+                                </>
+                              ) : (
+                                <>
+                                  <li><span className="font-medium">Tipo Documento:</span> N/A</li>
+                                  <li><span className="font-medium">Número Documento:</span> N/A</li>
+                                  <li><span className="font-medium">Tamaño Empresa:</span> N/A</li>
+                                  <li><span className="font-medium">Tipo Cuenta:</span> N/A</li>
                                 </>
                               )}
-                              <li><span className="font-medium">Creado:</span> {new Date(client.created_at).toLocaleDateString() || 'N/A'}</li>
-                              <li><span className="font-medium">Actualizado:</span> {new Date(client.updated_at).toLocaleDateString() || 'N/A'}</li>
+                              <li><span className="font-medium">Creado:</span> {clientItem.created_at ? new Date(clientItem.created_at).toLocaleDateString() : 'N/A'}</li>
+                              <li><span className="font-medium">Actualizado:</span> {clientItem.updated_at ? new Date(clientItem.updated_at).toLocaleDateString() : 'N/A'}</li>
                             </ul>
                           </div>
+                        </div>
 
-                          {/* Contactos */}
-                          {client.contacts && client.contacts.length > 0 && (
+                        {/* **FILA SEPARADA PARA CONTACTOS (SI EXISTEN)** */}
+                        {clientItem.contacts && clientItem.contacts.length > 0 && (
+                          <div className="mt-6">
                             <div className="bg-white rounded-lg shadow p-4 border border-slate-200">
-                              <div className="flex items-center space-x-2 mb-4">
+                              <div className="flex items-center space-x-2 mb-4" style={{ height: '32px' }}>
                                 <FaPhone className="text-purple-500" />
                                 <h3 className="text-lg font-medium text-gray-700">Contactos</h3>
                               </div>
                               <ul className="space-y-2 text-sm">
-                                {client.contacts.map((contact, index) => (
-                                  <li key={index} className="border-b border-gray-100 pb-2">
+                                {clientItem.contacts.map((contact, index) => (
+                                  <li key={index} className="border-b border-gray-100 pb-2 last:border-b-0">
                                     <span className="font-medium">{contact.name}</span>
                                     {contact.is_primary && <span className="text-blue-500 text-xs ml-1">(Principal)</span>}
                                     <br />
-                                    <span className="text-gray-600">{contact.position}</span>
+                                    <span className="text-gray-600">{contact.position || 'N/A'}</span>
                                     <br />
-                                    <span className="text-gray-600">{contact.phone} | {contact.email}</span>
+                                    <span className="text-gray-600">{contact.phone || 'N/A'} | {contact.email || 'N/A'}</span>
                                   </li>
                                 ))}
                               </ul>
                             </div>
-                          )}
+                          </div>
+                        )}
 
-                          {/* Documentos */}
-                          <div className="bg-white rounded-lg shadow p-4 border border-slate-200 md:col-span-3">
-                            <div className="flex items-center space-x-2 mb-4">
+                        {/* **FILA SEPARADA PARA DOCUMENTOS** */}
+                        <div className="mt-6">
+                          <div className="bg-white rounded-lg shadow p-4 border border-slate-200">
+                            <div className="flex items-center space-x-2 mb-4" style={{ height: '32px' }}>
                               <FaFileAlt className="text-red-500" />
                               <h3 className="text-lg font-medium text-gray-700">Documentos</h3>
                             </div>
@@ -717,7 +787,7 @@ const ClientList = () => {
                                 <FaIdCard className="mx-auto text-2xl text-blue-500 mb-2" />
                                 <h4 className="font-medium mb-2">Fotocopia Cédula</h4>
                                 <DownloadButton
-                                  client={client}
+                                  clientData={clientItem}
                                   documentType="cedula"
                                   documentName="cedula"
                                   icon={FaDownload}
@@ -731,7 +801,7 @@ const ClientList = () => {
                                 <FaFileInvoice className="mx-auto text-2xl text-green-500 mb-2" />
                                 <h4 className="font-medium mb-2">Fotocopia RUT</h4>
                                 <DownloadButton
-                                  client={client}
+                                  clientData={clientItem}
                                   documentType="rut"
                                   documentName="rut"
                                   icon={FaDownload}
@@ -740,12 +810,12 @@ const ClientList = () => {
                                 />
                               </div>
 
-                              {/* Anexos adicionales */}
+                              {/* Anexos */}
                               <div className="border rounded-lg p-4 text-center">
                                 <FaFileAlt className="mx-auto text-2xl text-amber-500 mb-2" />
                                 <h4 className="font-medium mb-2">Anexos Adicionales</h4>
                                 <DownloadButton
-                                  client={client}
+                                  clientData={clientItem}
                                   documentType="anexos"
                                   documentName="anexos"
                                   icon={FaDownload}
@@ -756,6 +826,7 @@ const ClientList = () => {
                             </div>
                           </div>
                         </div>
+
                       </div>
                     </td>
                   </tr>
@@ -787,11 +858,10 @@ const ClientList = () => {
             <button
               onClick={() => paginate(Math.max(1, currentPage - 1))}
               disabled={currentPage === 1}
-              className={`px-3 py-1 rounded transition-colors ${
-                currentPage === 1
+              className={`px-3 py-1 rounded transition-colors ${currentPage === 1
                   ? 'bg-gray-200 cursor-not-allowed'
                   : 'bg-slate-600 text-white hover:bg-slate-700'
-              }`}
+                }`}
             >
               Anterior
             </button>
@@ -806,11 +876,10 @@ const ClientList = () => {
                   <button
                     key={i}
                     onClick={() => paginate(i + 1)}
-                    className={`px-3 py-1 rounded transition-colors ${
-                      currentPage === i + 1
+                    className={`px-3 py-1 rounded transition-colors ${currentPage === i + 1
                         ? 'bg-blue-600 text-white'
                         : 'bg-white border hover:bg-gray-100'
-                    }`}
+                      }`}
                   >
                     {i + 1}
                   </button>
@@ -824,11 +893,10 @@ const ClientList = () => {
             <button
               onClick={() => paginate(Math.min(totalPages, currentPage + 1))}
               disabled={currentPage === totalPages}
-              className={`px-3 py-1 rounded transition-colors ${
-                currentPage === totalPages
+              className={`px-3 py-1 rounded transition-colors ${currentPage === totalPages
                   ? 'bg-gray-200 cursor-not-allowed'
                   : 'bg-slate-600 text-white hover:bg-slate-700'
-              }`}
+                }`}
             >
               Siguiente
             </button>
