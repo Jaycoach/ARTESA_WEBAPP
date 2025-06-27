@@ -892,7 +892,7 @@ const checkUserCanCreateOrders = async (req, res) => {
         canCreate,
         isActive: userResult.rows[0].is_active,
         hasProfile: profileResult.rows.length > 0,
-        hasCardCode: profileResult.rows.length > 0 && !!profileResult.rows[0].cardcode_sap,
+        hasCardCode: profileResult.rows.length > 0 && !!profileResult.rows[0].cardcode_sap && profileResult.rows[0].cardtype_sap !== 'cLid',
         cardTypeSap: profileResult.rows.length > 0 ? profileResult.rows[0].cardtype_sap : null,
         reason
       }
