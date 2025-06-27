@@ -76,15 +76,19 @@ export default ({ mode }) => {
           target: 'https://ec2-44-216-131-63.compute-1.amazonaws.com',
           changeOrigin: true,
           secure: false,
+          rewrite: (path) => path,
           configure: (proxy, _options) => {
             proxy.on('error', (err, _req, _res) => {
-              console.log('proxy error', err);
+              console.log('❌ Proxy error:', err.message);
             });
             proxy.on('proxyReq', (proxyReq, req, _res) => {
-              console.log('Sending Request to the Target:', req.method, req.url);
+              console.log('📡 Proxy request:', req.method, req.url);
+              // Agregar headers necesarios
+              proxyReq.setHeader('ngrok-skip-browser-warning', '69420');
+              proxyReq.setHeader('Bypass-Tunnel-Reminder', 'true');
             });
             proxy.on('proxyRes', (proxyRes, req, _res) => {
-              console.log('Received Response from the Target:', proxyRes.statusCode, req.url);
+              console.log('📥 Proxy response:', proxyRes.statusCode, req.url);
             });
           },
         }
