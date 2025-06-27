@@ -862,17 +862,28 @@ const checkUserCanCreateOrders = async (req, res) => {
     let canCreate = false;
     let reason = '';
 
-    // Opción 1: Usuario activo
-    if (userResult.rows[0].is_active) {
+    // Verificar primero si tiene perfil y cardtype_sap válido
+    if (profileResult.rows.length > 0 && 
+        profileResult.rows[0].cardcode_sap && 
+        profileResult.rows[0].cardtype_sap === 'cCli') {
       canCreate = true;
-      reason = 'Usuario activo';
+      reason = userResult.rows[0].is_active ? 'Usuario activo con cliente confirmado en SAP' : 'Cliente confirmado en SAP (no es Lead)';
     } 
-    // Opción 2: Usuario inactivo PERO tiene perfil completo Y cardtype_sap = 'cCli' (ya no es Lead)
-    else if (profileResult.rows.length > 0 && 
-            profileResult.rows[0].cardcode_sap && 
-            profileResult.rows[0].cardtype_sap === 'cCli') {
-      canCreate = true;
-      reason = 'Cliente confirmado en SAP (no es Lead)';
+    // Si es usuario activo PERO es Lead (cLid) o no tiene perfil completo
+    else if (userResult.rows[0].is_active) {
+      if (profileResult.rows.length === 0) {
+        canCreate = false;
+        reason = 'Usuario activo pero sin perfil de cliente';
+      } else if (!profileResult.rows[0].cardcode_sap) {
+        canCreate = false;
+        reason = 'Usuario activo pero sin código SAP asignado';
+      } else if (profileResult.rows[0].cardtype_sap === 'cLid') {
+        canCreate = false;
+        reason = 'Usuario activo pero cliente aún es Lead en SAP';
+      } else {
+        canCreate = true;
+        reason = 'Usuario activo';
+      }
     } else {
       canCreate = false;
       if (profileResult.rows.length === 0) {
