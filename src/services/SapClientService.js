@@ -252,9 +252,20 @@ class SapClientService extends SapBaseService {
         const result = await this.request(method, endpoint, businessPartnerData);
         // Inicializar resultCardCode con el valor esperado
         let resultCardCode = clientProfile.cardcode_sap || cardCode;
+
+        // Log para debug de la respuesta de SAP
+        this.logger.debug('Respuesta completa de SAP para análisis', {
+          result: result,
+          resultType: typeof result,
+          resultKeys: result ? Object.keys(result) : null,
+          hasCardCode: result && result.CardCode ? true : false,
+          isUpdate
+        });
+
         // Si es creación exitosa, guardar el CardCode real asignado por SAP
-        if (!isUpdate && result && result.CardCode) {
-          resultCardCode = result.CardCode;
+        if (!isUpdate && result) {
+          // SAP puede devolver el CardCode en diferentes ubicaciones
+          resultCardCode = result.CardCode || result.cardCode || cardCode;
           
           // Actualizar el perfil del cliente con el código real de SAP y marcar como sincronizado
           await pool.query(
@@ -268,7 +279,8 @@ class SapClientService extends SapBaseService {
           
           this.logger.info('Perfil de cliente actualizado con CardCode real de SAP', {
             clientId: clientProfile.client_id,
-            sapCardCode: resultCardCode
+            sapCardCode: resultCardCode,
+            originalResponse: result
           });
         } else if (isUpdate) {
           resultCardCode = clientProfile.cardcode_sap;
@@ -277,7 +289,7 @@ class SapClientService extends SapBaseService {
             `UPDATE client_profiles 
             SET sap_lead_synced = true,
                 updated_at = CURRENT_TIMESTAMP
-            WHERE client_id = $1 AND sap_lead_synced = false`,
+            WHERE client_id = $1`,
             [clientProfile.client_id]
           );
           

@@ -528,10 +528,17 @@ scheduleInvoiceCheckTask() {
       unchanged: 0,
       notFound: 0
     };
-  
+
     try {
       this.logger.info('Iniciando verificación de órdenes entregadas desde SAP');
-  
+
+      // Asegurar conexión con SAP
+      if (!this.sessionId) {
+        await this.login();
+      }
+
+      this.logger.info('Utilizando consulta directa al Service Layer para verificar órdenes entregadas completamente');
+
       // Obtener órdenes sincronizadas con SAP que estén en estado "En Producción" (3)
       const query = `
         SELECT order_id, sap_doc_entry, status_id
@@ -540,10 +547,10 @@ scheduleInvoiceCheckTask() {
         AND sap_doc_entry IS NOT NULL
         AND status_id = 3  -- En Producción
         ORDER BY updated_at ASC
+        LIMIT 50  -- Procesar en lotes para evitar timeouts
       `;
       
       const { rows } = await pool.query(query);
-      stats.total = rows.length;
       
       if (rows.length === 0) {
         this.logger.info('No se encontraron órdenes para verificar entrega');
@@ -551,117 +558,98 @@ scheduleInvoiceCheckTask() {
       }
       
       this.logger.info(`Encontradas ${rows.length} órdenes para verificar entrega`);
-      
-      // Consultar la vista de órdenes entregadas en SAP
-      const viewEndpoint = 'view.svc/B1_DeliveredOrdersB1SLQuery';
-      
-      try {
-        const deliveredOrdersData = await this.request('GET', viewEndpoint);
-        
-        this.logger.debug('Respuesta de vista de órdenes entregadas', {
-          endpoint: viewEndpoint,
-          responseSize: deliveredOrdersData ? 
-            (deliveredOrdersData.value ? deliveredOrdersData.value.length : 'sin valor') : 
-            'respuesta vacía'
-        });
-        
-        if (!deliveredOrdersData || !deliveredOrdersData.value) {
-          this.logger.warn('Respuesta inesperada de la vista de órdenes entregadas', {
-            hasData: !!deliveredOrdersData,
-            hasValue: deliveredOrdersData ? !!deliveredOrdersData.value : false
-          });
-          return {
-            ...stats,
-            error: 'Respuesta inesperada de SAP'
-          };
-        }
-        
-        // Crear un conjunto con los DocEntry de las órdenes entregadas en SAP
-        const deliveredDocEntries = new Set();
-        deliveredOrdersData.value.forEach(order => {
-          if (order.OrderDocEntry && order.DeliveryStatus === 'Completa') {
-            deliveredDocEntries.add(parseInt(order.OrderDocEntry));
+
+      // Procesar cada orden individualmente usando consultas directas al Service Layer
+      for (const order of rows) {
+        try {
+          // Obtener detalles completos de la orden desde SAP
+          const orderDetailEndpoint = `Orders(${order.sap_doc_entry})`;
+          const orderDetail = await this.request('GET', orderDetailEndpoint);
+          
+          if (!orderDetail || !orderDetail.DocumentLines || !Array.isArray(orderDetail.DocumentLines)) {
+            this.logger.warn('Orden sin líneas válidas en SAP', { 
+              orderId: order.order_id,
+              sapDocEntry: order.sap_doc_entry 
+            });
+            continue;
           }
-        });
-        
-        this.logger.info(`Se encontraron ${deliveredDocEntries.size} órdenes entregadas en SAP`);
-        
-        // Para cada orden en la respuesta de SAP que tenga entrega completa
-        for (const sapOrder of deliveredOrdersData.value) {
-          try {
-            // Verificar si es una entrega completa
-            if (sapOrder.DeliveryStatus !== 'Completa') {
-              continue; // Saltar si no es completa
-            }
+
+          // Calcular totales de la orden (simular GROUP BY del SQL)
+          let totalOrderedQuantity = 0;
+          let remainingOpenQuantity = 0;
+          
+          for (const line of orderDetail.DocumentLines) {
+            totalOrderedQuantity += parseFloat(line.Quantity) || 0;
+            remainingOpenQuantity += parseFloat(line.RemainingOpenQuantity) || 0;
+          }
+
+          // Determinar estado de entrega (simular CASE del SQL)
+          let deliveryStatus;
+          if (remainingOpenQuantity === 0) {
+            deliveryStatus = 'Completa';
+          } else if (remainingOpenQuantity < totalOrderedQuantity) {
+            deliveryStatus = 'Parcial';
+          } else {
+            deliveryStatus = 'No Entregada';
+          }
+
+          stats.total++;
+
+          // Solo procesar órdenes que estén completamente entregadas
+          if (deliveryStatus === 'Completa' && order.status_id !== 4) {
+            const deliveredQuantity = totalOrderedQuantity; // Si está completa, todo fue entregado
             
-            // Buscar la orden en nuestra base de datos
-            const orderQuery = 'SELECT order_id, status_id FROM orders WHERE sap_doc_entry = $1';
-            const orderResult = await pool.query(orderQuery, [sapOrder.OrderDocEntry]);
-            
-            if (orderResult.rows.length === 0) {
-              this.logger.warn('Orden SAP no encontrada en nuestra base de datos', {
-                sapDocEntry: sapOrder.OrderDocEntry,
-                sapDocNum: sapOrder.OrderDocNum
-              });
-              continue;
-            }
-            
-            const order = orderResult.rows[0];
-            
-            // Si ya está marcada como entregada, no hacer nada
-            if (order.status_id === 4) {
-              stats.unchanged++;
-              continue;
-            }
-            
-            // Actualizar a estado entregado
             await pool.query(
               `UPDATE orders 
               SET status_id = 4, 
-                  docnum_sap = $1,
-                  delivered_quantity = $2,
-                  total_quantity = $3,
-                  last_status_update = CURRENT_TIMESTAMP, 
+                  delivered_quantity = $1,
+                  total_quantity = $2,
+                  status_update = CURRENT_TIMESTAMP, 
                   updated_at = CURRENT_TIMESTAMP, 
                   sap_last_sync = CURRENT_TIMESTAMP 
-              WHERE order_id = $4`,
-              [
-                sapOrder.OrderDocNum,
-                sapOrder.TotalOrderedQuantity - sapOrder.RemainingOpenQuantity,
-                sapOrder.TotalOrderedQuantity,
-                order.order_id
-              ]
+              WHERE order_id = $3`,
+              [deliveredQuantity, totalOrderedQuantity, order.order_id]
             );
             
             stats.updated++;
-            this.logger.info('Orden marcada como entregada desde SAP', {
+            this.logger.info('Orden marcada como entregada completamente', {
               orderId: order.order_id,
-              sapDocEntry: sapOrder.OrderDocEntry
+              sapDocEntry: order.sap_doc_entry,
+              deliveredQuantity: deliveredQuantity,
+              totalQuantity: totalOrderedQuantity,
+              deliveryStatus
             });
-            
-          } catch (orderError) {
-            stats.errors++;
-            this.logger.error('Error al procesar orden para marcar entrega', {
-              sapOrder: sapOrder.OrderDocEntry,
-              error: orderError.message,
-              stack: orderError.stack
+          } else {
+            stats.unchanged++;
+            this.logger.debug('Orden sin cambios de estado', {
+              orderId: order.order_id,
+              sapDocEntry: order.sap_doc_entry,
+              currentStatus: order.status_id,
+              deliveryStatus,
+              totalOrdered: totalOrderedQuantity,
+              remaining: remainingOpenQuantity
             });
           }
+          
+          // Pausa para evitar sobrecarga del Service Layer
+          await new Promise(resolve => setTimeout(resolve, 150));
+          
+        } catch (orderError) {
+          stats.errors++;
+          this.logger.error('Error al verificar entrega completa de orden', {
+            orderId: order.order_id,
+            sapDocEntry: order.sap_doc_entry,
+            error: orderError.message
+          });
         }
-      } catch (viewError) {
-        this.logger.error('Error al consultar vista de órdenes entregadas en SAP', {
-          endpoint: viewEndpoint,
-          error: viewError.message,
-          stack: viewError.stack
-        });
-        throw viewError;
       }
       
       this.logger.info('Verificación de órdenes entregadas completada', {
         total: stats.total,
         updated: stats.updated,
         unchanged: stats.unchanged,
-        errors: stats.errors
+        errors: stats.errors,
+        notFound: stats.notFound
       });
       
       return stats;
@@ -694,31 +682,76 @@ scheduleInvoiceCheckTask() {
         await this.login();
       }
 
-      // Consultar vista personalizada para órdenes con entregas
-      const endpoint = 'view.svc/B1_DeliveredOrdersB1SLQuery';
-      const deliveryData = await this.request('GET', endpoint);
-      
-      if (!deliveryData || !deliveryData.value || !Array.isArray(deliveryData.value)) {
-        this.logger.warn('No se obtuvo respuesta válida de la vista de entregas');
+      this.logger.info('Utilizando consulta directa al Service Layer para simular vista B1_DeliveredOrdersB1SLQuery');
+
+      // Paso 1: Obtener órdenes no canceladas y abiertas desde SAP
+      const ordersEndpoint = "Orders?$filter=Cancelled eq 'tNO' and DocumentStatus eq 'bost_Open'&$top=50";
+      const ordersResponse = await this.request('GET', ordersEndpoint);
+
+      if (!ordersResponse || !ordersResponse.value || !Array.isArray(ordersResponse.value)) {
+        this.logger.warn('No se obtuvieron órdenes válidas desde SAP');
         return stats;
       }
 
-      this.logger.info(`Recuperadas ${deliveryData.value.length} órdenes con información de entrega`);
-      stats.total = deliveryData.value.length;
+      this.logger.info(`Procesando ${ordersResponse.value.length} órdenes desde SAP`);
 
-      // Procesar cada registro de entrega
-      for (const deliveryRecord of deliveryData.value) {
+      // Paso 2: Para cada orden, obtener detalles completos y calcular estado de entrega
+      for (const orderSummary of ordersResponse.value) {
         try {
-          // Buscar orden en base de datos por DocEntry de SAP
+          // Obtener detalles completos de la orden incluyendo líneas
+          const orderDetailEndpoint = `Orders(${orderSummary.DocEntry})`;
+          const orderDetail = await this.request('GET', orderDetailEndpoint);
+          
+          if (!orderDetail || !orderDetail.DocumentLines || !Array.isArray(orderDetail.DocumentLines)) {
+            this.logger.warn('Orden sin líneas válidas', { docEntry: orderSummary.DocEntry });
+            continue;
+          }
+
+          // Calcular totales de la orden (simular GROUP BY del SQL)
+          let totalOrderedQuantity = 0;
+          let remainingOpenQuantity = 0;
+          
+          for (const line of orderDetail.DocumentLines) {
+            totalOrderedQuantity += parseFloat(line.Quantity) || 0;
+            remainingOpenQuantity += parseFloat(line.RemainingOpenQuantity) || 0;
+          }
+
+          // Determinar estado de entrega (simular CASE del SQL)
+          let deliveryStatus;
+          if (remainingOpenQuantity === 0) {
+            deliveryStatus = 'Completa';
+          } else if (remainingOpenQuantity < totalOrderedQuantity) {
+            deliveryStatus = 'Parcial';
+          } else {
+            deliveryStatus = 'No Entregada';
+          }
+
+          // Solo procesar órdenes con alguna entrega (simular HAVING del SQL)
+          if (remainingOpenQuantity >= totalOrderedQuantity) {
+            // Sin entregas, omitir
+            continue;
+          }
+
+          this.logger.debug('Orden con entrega detectada', {
+            docEntry: orderDetail.DocEntry,
+            docNum: orderDetail.DocNum,
+            totalOrdered: totalOrderedQuantity,
+            remaining: remainingOpenQuantity,
+            deliveryStatus
+          });
+
+          stats.total++;
+
+          // Buscar orden en base de datos local
           const { rows } = await pool.query(
             'SELECT order_id, status_id, delivered_quantity, total_quantity FROM orders WHERE sap_doc_entry = $1',
-            [deliveryRecord.OrderDocEntry]
+            [orderDetail.DocEntry]
           );
 
           if (rows.length === 0) {
             this.logger.warn('Orden no encontrada en base de datos local', { 
-              sapDocEntry: deliveryRecord.OrderDocEntry, 
-              sapDocNum: deliveryRecord.OrderDocNum 
+              sapDocEntry: orderDetail.DocEntry, 
+              sapDocNum: orderDetail.DocNum 
             });
             continue;
           }
@@ -728,66 +761,69 @@ scheduleInvoiceCheckTask() {
           
           // Determinar nuevo estado basado en el DeliveryStatus
           let newStatusId;
-          if (deliveryRecord.DeliveryStatus === 'Completa') {
+          if (deliveryStatus === 'Completa') {
             newStatusId = 4; // Entregado completo
-          } else if (deliveryRecord.DeliveryStatus === 'Parcial') {
+          } else if (deliveryStatus === 'Parcial') {
             newStatusId = 7; // Entregado parcial
           } else {
-            // No cambiar estado si no hay entrega o está cancelada
-            newStatusId = currentStatus;
+            newStatusId = currentStatus; // No cambiar
           }
 
-          // Si hay cambio de estado o cantidades, actualizar
+          const deliveredQuantity = totalOrderedQuantity - remainingOpenQuantity;
+
+          // Actualizar si hay cambios
           if (newStatusId !== currentStatus || 
-              order.delivered_quantity !== deliveryRecord.TotalOrderedQuantity - deliveryRecord.RemainingOpenQuantity ||
-              order.total_quantity !== deliveryRecord.TotalOrderedQuantity) {
+              Math.abs(parseFloat(order.delivered_quantity || 0) - deliveredQuantity) > 0.01) {
             
-                await pool.query(
-                  `UPDATE orders 
-                  SET status_id = $1, 
-                      delivered_quantity = $2,
-                      total_quantity = $3,
-                      last_status_update = CURRENT_TIMESTAMP, 
-                      updated_at = CURRENT_TIMESTAMP,
-                      sap_last_sync = CURRENT_TIMESTAMP,
-                      docnum_sap = $4
-                  WHERE order_id = $5`,
-                  [
-                    newStatusId, 
-                    deliveryRecord.TotalOrderedQuantity - deliveryRecord.RemainingOpenQuantity,
-                    deliveryRecord.TotalOrderedQuantity,
-                    deliveryRecord.OrderDocNum,
-                    order.order_id
-                  ]
-                );
+            await pool.query(
+              `UPDATE orders 
+              SET status_id = $1, 
+                  delivered_quantity = $2,
+                  total_quantity = $3,
+                  status_update = CURRENT_TIMESTAMP, 
+                  updated_at = CURRENT_TIMESTAMP, 
+                  sap_last_sync = CURRENT_TIMESTAMP 
+              WHERE order_id = $4`,
+              [newStatusId, deliveredQuantity, totalOrderedQuantity, order.order_id]
+            );
             
             stats.updated++;
-            this.logger.info('Orden actualizada con información de entrega', {
+            this.logger.info('Orden actualizada con estado de entrega', {
               orderId: order.order_id,
-              sapDocEntry: deliveryRecord.OrderDocEntry,
+              sapDocEntry: orderDetail.DocEntry,
               oldStatus: currentStatus,
               newStatus: newStatusId,
-              deliveryStatus: deliveryRecord.DeliveryStatus,
-              deliveredQty: deliveryRecord.TotalOrderedQuantity - deliveryRecord.RemainingOpenQuantity,
-              totalQty: deliveryRecord.TotalOrderedQuantity
+              deliveredQuantity,
+              totalQuantity: totalOrderedQuantity,
+              deliveryStatus
             });
           } else {
             stats.unchanged++;
           }
+
+          // Pausa para evitar sobrecarga del Service Layer
+          await new Promise(resolve => setTimeout(resolve, 200));
+          
         } catch (orderError) {
           stats.errors++;
-          this.logger.error('Error al procesar información de entrega para orden', {
-            sapDocEntry: deliveryRecord.OrderDocEntry,
+          this.logger.error('Error al procesar orden individual', {
+            docEntry: orderSummary.DocEntry,
             error: orderError.message,
             stack: orderError.stack
           });
         }
       }
+
+      this.logger.info('Verificación de órdenes con entregas parciales completada', {
+        total: stats.total,
+        updated: stats.updated,
+        unchanged: stats.unchanged,
+        errors: stats.errors
+      });
       
-      this.logger.info('Verificación de órdenes con entregas parciales completada', stats);
       return stats;
     } catch (error) {
-      this.logger.error('Error en verificación de órdenes con entregas parciales', {
+      this.logger.error('Error en verificación de órdenes con entregas parciales desde SAP', {
         error: error.message,
         stack: error.stack
       });
@@ -815,93 +851,208 @@ scheduleInvoiceCheckTask() {
         await this.login();
       }
 
-      // Consultar vista personalizada para órdenes facturadas
-      const endpoint = 'view.svc/B1_InvoicedOrdersB1SLQuery';
-      const invoiceData = await this.request('GET', endpoint);
+      // Paso 1: Obtener órdenes locales que podrían estar facturadas
+      const ordersQuery = `
+        SELECT order_id, sap_doc_entry, status_id, invoice_doc_entry, user_id
+        FROM orders
+        WHERE sap_synced = true 
+        AND sap_doc_entry IS NOT NULL
+        AND status_id IN (3, 4, 7)  -- En Producción, Entregado completo, Entregado parcial
+        ORDER BY updated_at DESC
+        LIMIT 100
+      `;
       
-      if (!invoiceData || !invoiceData.value || !Array.isArray(invoiceData.value)) {
-        this.logger.warn('No se obtuvo respuesta válida de la vista de facturas');
+      const { rows: localOrders } = await pool.query(ordersQuery);
+      
+      if (localOrders.length === 0) {
+        this.logger.info('No se encontraron órdenes para verificar facturación');
         return stats;
       }
 
-      this.logger.info(`Recuperadas ${invoiceData.value.length} órdenes con información de factura`);
-      stats.total = invoiceData.value.length;
+      this.logger.info(`Encontradas ${localOrders.length} órdenes locales para verificar facturación`);
+      stats.total = localOrders.length;
 
-      // Procesar cada registro de factura
-      for (const invoiceRecord of invoiceData.value) {
+      // Paso 2: Crear un mapa de DocEntry a orden local
+      const orderMap = new Map();
+      const sapDocEntries = [];
+      
+      for (const order of localOrders) {
+        orderMap.set(order.sap_doc_entry, order);
+        sapDocEntries.push(order.sap_doc_entry);
+      }
+
+      // Paso 3: Obtener órdenes desde SAP para obtener CardCode
+      const ordersEndpoint = `Orders?$select=DocEntry,CardCode,DocDate,DocTotal&$top=200`;
+      const sapOrdersResponse = await this.request('GET', ordersEndpoint);
+      
+      if (!sapOrdersResponse || !sapOrdersResponse.value) {
+        this.logger.warn('No se pudieron obtener órdenes desde SAP');
+        return stats;
+      }
+
+      // Crear mapa de DocEntry a CardCode
+      const orderCardCodeMap = new Map();
+      for (const sapOrder of sapOrdersResponse.value) {
+        orderCardCodeMap.set(sapOrder.DocEntry, {
+          cardCode: sapOrder.CardCode,
+          docDate: sapOrder.DocDate,
+          docTotal: sapOrder.DocTotal
+        });
+      }
+
+      // Paso 4: Obtener todas las facturas recientes
+      const invoicesEndpoint = `Invoices?$filter=Cancelled eq 'tNO'&$select=DocEntry,DocNum,DocDate,DocTotal,CardCode&$orderby=DocDate desc&$top=500`;
+      const invoicesResponse = await this.request('GET', invoicesEndpoint);
+      
+      if (!invoicesResponse || !invoicesResponse.value) {
+        this.logger.warn('No se pudieron obtener facturas desde SAP');
+        return stats;
+      }
+
+      // Crear mapa de CardCode a facturas
+      const invoicesByCardCode = new Map();
+      for (const invoice of invoicesResponse.value) {
+        if (!invoicesByCardCode.has(invoice.CardCode)) {
+          invoicesByCardCode.set(invoice.CardCode, []);
+        }
+        invoicesByCardCode.get(invoice.CardCode).push({
+          DocEntry: invoice.DocEntry,
+          DocNum: invoice.DocNum,
+          DocDate: new Date(invoice.DocDate),
+          DocTotal: invoice.DocTotal,
+          CardCode: invoice.CardCode
+        });
+      }
+
+      this.logger.info(`Procesadas ${invoicesResponse.value.length} facturas desde SAP`);
+
+      // Paso 5: Procesar cada orden local
+      for (const localOrder of localOrders) {
         try {
-          // Convertir la fecha de factura a formato ISO
-          const invoiceDate = new Date(invoiceRecord.InvoiceDate);
+          const sapOrderInfo = orderCardCodeMap.get(localOrder.sap_doc_entry);
           
-          // Buscar orden en base de datos por DocEntry de SAP
-          const { rows } = await pool.query(
-            'SELECT order_id, status_id, invoice_doc_entry FROM orders WHERE sap_doc_entry = $1',
-            [invoiceRecord.OrderDocEntry]
-          );
-
-          if (rows.length === 0) {
-            this.logger.warn('Orden no encontrada en base de datos local', { 
-              sapDocEntry: invoiceRecord.OrderDocEntry, 
-              sapDocNum: invoiceRecord.OrderDocNum 
-            });
-            continue;
-          }
-
-          const order = rows[0];
-          
-          // Si es la misma factura que ya teníamos registrada, no hay cambios
-          if (order.invoice_doc_entry === invoiceRecord.InvoiceDocEntry) {
+          if (!sapOrderInfo) {
+            this.logger.warn(`Orden SAP ${localOrder.sap_doc_entry} no encontrada en SAP`);
             stats.unchanged++;
             continue;
           }
+
+          const orderDate = new Date(sapOrderInfo.docDate);
+          const clientInvoices = invoicesByCardCode.get(sapOrderInfo.cardCode) || [];
           
-          // Actualizar información de factura y cambiar estado a "Facturado" (8)
-          await pool.query(
-            `UPDATE orders 
-            SET status_id = 8, 
-                invoice_doc_entry = $1,
-                invoice_doc_num = $2,
-                invoice_date = $3,
-                invoice_total = $4,
-                invoice_url = $5,
-                last_status_update = CURRENT_TIMESTAMP, 
-                updated_at = CURRENT_TIMESTAMP,
-                sap_last_sync = CURRENT_TIMESTAMP
-            WHERE order_id = $6`,
-            [
-              invoiceRecord.InvoiceDocEntry,
-              invoiceRecord.InvoiceDocNum,
-              invoiceDate,
-              invoiceRecord.InvoiceTotal,
-              invoiceRecord.InvoicePdfUrl || null,
-              order.order_id
-            ]
-          );
-          
-          stats.updated++;
-          this.logger.info('Orden actualizada con información de factura', {
-            orderId: order.order_id,
-            sapDocEntry: invoiceRecord.OrderDocEntry,
-            oldStatus: order.status_id,
-            newStatus: 8, // Facturado
-            invoiceDocEntry: invoiceRecord.InvoiceDocEntry,
-            invoiceDocNum: invoiceRecord.InvoiceDocNum,
-            invoiceDate: invoiceDate
+          // Buscar facturas del mismo cliente posteriores a la orden
+          const matchingInvoices = clientInvoices.filter(invoice => {
+            const invoiceDate = invoice.DocDate;
+            const timeDiffDays = (invoiceDate - orderDate) / (1000 * 60 * 60 * 24);
+            
+            // Facturas hasta 30 días después de la orden
+            return timeDiffDays >= 0 && timeDiffDays <= 30;
           });
+
+          if (matchingInvoices.length === 0) {
+            // No hay facturas para este cliente después de la orden
+            stats.unchanged++;
+            continue;
+          }
+
+          // Buscar la factura más probable (misma cantidad o fecha más cercana)
+          let bestMatch = null;
+          let bestScore = 0;
+
+          for (const invoice of matchingInvoices) {
+            let score = 0;
+            
+            // Puntaje por coincidencia de monto (exacto = 100, similar = 50)
+            const totalDiff = Math.abs(invoice.DocTotal - sapOrderInfo.docTotal);
+            if (totalDiff === 0) {
+              score += 100;
+            } else if (totalDiff <= sapOrderInfo.docTotal * 0.1) {
+              score += 50;
+            }
+            
+            // Puntaje por proximidad de fecha (más cercana = más puntos)
+            const timeDiffDays = (invoice.DocDate - orderDate) / (1000 * 60 * 60 * 24);
+            score += Math.max(0, 30 - timeDiffDays);
+            
+            if (score > bestScore) {
+              bestScore = score;
+              bestMatch = invoice;
+            }
+          }
+
+          // Solo actualizar si hay un buen match (score >= 50)
+          if (bestMatch && bestScore >= 50) {
+            // Verificar si ya tenemos esta factura registrada
+            if (localOrder.invoice_doc_entry === bestMatch.DocEntry) {
+              stats.unchanged++;
+              continue;
+            }
+
+            // Actualizar orden con información de factura
+            const updateResult = await pool.query(
+              `UPDATE orders 
+               SET status_id = 5,  -- Estado "Facturado"
+                   invoice_doc_entry = $1,
+                   invoice_doc_num = $2,
+                   invoice_date = $3,
+                   invoice_total = $4,
+                   updated_at = CURRENT_TIMESTAMP
+               WHERE order_id = $5`,
+              [
+                bestMatch.DocEntry,
+                bestMatch.DocNum,
+                bestMatch.DocDate,
+                bestMatch.DocTotal,
+                localOrder.order_id
+              ]
+            );
+
+            if (updateResult.rowCount > 0) {
+              stats.updated++;
+              this.logger.info('Orden actualizada con factura correlacionada', {
+                orderId: localOrder.order_id,
+                sapDocEntry: localOrder.sap_doc_entry,
+                invoiceDocEntry: bestMatch.DocEntry,
+                invoiceDocNum: bestMatch.DocNum,
+                matchScore: bestScore,
+                clientCode: sapOrderInfo.cardCode
+              });
+            } else {
+              stats.unchanged++;
+            }
+          } else {
+            // No hay suficiente correlación
+            stats.unchanged++;
+            this.logger.debug('No se encontró correlación suficiente para factura', {
+              orderId: localOrder.order_id,
+              sapDocEntry: localOrder.sap_doc_entry,
+              clientCode: sapOrderInfo.cardCode,
+              invoicesFound: matchingInvoices.length,
+              bestScore: bestScore
+            });
+          }
+
         } catch (orderError) {
           stats.errors++;
-          this.logger.error('Error al procesar información de factura para orden', {
-            sapDocEntry: invoiceRecord.OrderDocEntry,
-            error: orderError.message,
-            stack: orderError.stack
+          this.logger.error('Error al procesar orden para verificar facturación', {
+            orderId: localOrder.order_id,
+            sapDocEntry: localOrder.sap_doc_entry,
+            error: orderError.message
           });
         }
       }
-      
-      this.logger.info('Verificación de órdenes facturadas completada', stats);
+
+      this.logger.info('Verificación de órdenes facturadas completada', {
+        total: stats.total,
+        updated: stats.updated,
+        errors: stats.errors,
+        unchanged: stats.unchanged
+      });
+
       return stats;
+
     } catch (error) {
-      this.logger.error('Error en verificación de órdenes facturadas', {
+      this.logger.error('Error en verificación de órdenes facturadas desde SAP', {
         error: error.message,
         stack: error.stack
       });
