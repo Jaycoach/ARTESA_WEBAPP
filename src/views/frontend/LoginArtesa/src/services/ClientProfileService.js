@@ -12,13 +12,31 @@ class ClientProfileService {
   // =========================================
 
   createApiClient() {
+    // Determinar la URL base según el entorno
+    const getBaseURL = () => {
+      // En desarrollo, usar la URL directa del backend
+      if (import.meta.env.DEV || import.meta.env.MODE === 'development') {
+        return import.meta.env.VITE_API_URL || 'https://ec2-44-216-131-63.compute-1.amazonaws.com';
+      }
+      // En producción/staging, usar proxy
+      return '';
+    };
+
+    const baseURL = getBaseURL();
+    const fullURL = baseURL ? `${baseURL}/api` : '/api';
+
+    console.log('🔧 Configurando API Client con URL:', fullURL);
+
     const client = axios.create({
-      baseURL: '/api', // Usar proxy local para evitar CORS
+      baseURL: fullURL,
       timeout: 30000,
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-      }
+        'ngrok-skip-browser-warning': '69420',
+        'Bypass-Tunnel-Reminder': 'true'
+      },
+      withCredentials: false // Cambiar a false para evitar problemas CORS
     });
 
     // Interceptor para agregar token
@@ -27,10 +45,63 @@ class ClientProfileService {
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
+      console.log(`📡 Request: ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
       return config;
     });
 
+    // NUEVO: Interceptor de respuesta para validar Content-Type
+    client.interceptors.response.use(
+      (response) => {
+        const contentType = response.headers['content-type'] || '';
+        
+        // Verificar que la respuesta sea JSON válido
+        if (!contentType.includes('application/json')) {
+          console.error('❌ Respuesta no es JSON:', {
+            url: response.config.url,
+            contentType,
+            status: response.status,
+            data: typeof response.data === 'string' ? response.data.substring(0, 200) + '...' : response.data
+          });
+          throw new Error('El servidor devolvió una respuesta inválida (no JSON)');
+        }
+        
+        console.log(`✅ Response: ${response.status} ${response.config.url}`);
+        return response;
+      },
+      (error) => {
+        console.error('❌ API Error:', {
+          url: error.config?.url,
+          status: error.response?.status,
+          message: error.message
+        });
+        return Promise.reject(error);
+      }
+    );
+
     return client;
+  }
+
+  /**
+   * Validar que la respuesta sea JSON válido
+   */
+  validateJsonResponse(response) {
+    const contentType = response.headers['content-type'] || '';
+    
+    if (!contentType.includes('application/json')) {
+      console.error('❌ Respuesta inválida - no es JSON:', {
+        contentType,
+        status: response.status,
+        url: response.config?.url
+      });
+      throw new Error('El servidor devolvió HTML en lugar de JSON. Verifica la configuración del backend.');
+    }
+    
+    if (typeof response.data === 'string' && response.data.includes('<!doctype html>')) {
+      console.error('❌ Respuesta es HTML en lugar de JSON');
+      throw new Error('Error de configuración: el servidor está devolviendo la página web en lugar de datos JSON.');
+    }
+    
+    return response;
   }
 
   // =========================================
@@ -52,12 +123,23 @@ class ClientProfileService {
       let response;
       
       if (userId) {
-        console.log(`👤 Obteniendo perfil del usuario ${userId}`);
-        response = await this.apiClient.get(`/client-profiles/user/${userId}`);
-      } else {
-        console.log('📊 Obteniendo todos los perfiles (Admin)');
-        response = await this.apiClient.get('/client-profiles');
-      }
+      console.log(`👤 Obteniendo perfil del usuario ${userId}`);
+      response = await this.apiClient.get(`/client-profiles/user/${userId}`);
+      this.validateJsonResponse(response);
+    } else {
+      console.log('📊 Obteniendo todos los perfiles (Admin)');
+      response = await this.apiClient.get('/client-profiles');
+      this.validateJsonResponse(response);
+    }
+
+    // Verificar estructura de respuesta antes de procesar
+    console.log('📥 Respuesta recibida:', {
+      status: response.status,
+      contentType: response.headers['content-type'],
+      dataType: typeof response.data,
+      hasData: !!response.data?.data,
+      dataKeys: response.data ? Object.keys(response.data) : []
+    });
 
       const data = response.data.data || response.data;
       
