@@ -145,27 +145,41 @@ const createOrder = async (req, res) => {
     }
 
     if (!userResult.rows[0].is_active) {
-    // Verificar si el usuario tiene un perfil de cliente
-    const profileQuery = 'SELECT client_id, cardcode_sap FROM client_profiles WHERE user_id = $1';
-    const profileResult = await pool.query(profileQuery, [user_id]);
+      // Verificar si el usuario tiene un perfil de cliente con cardtype_sap válido
+      const profileQuery = 'SELECT client_id, cardcode_sap, cardtype_sap FROM client_profiles WHERE user_id = $1';
+      const profileResult = await pool.query(profileQuery, [user_id]);
 
-    // Si tiene perfil y tiene un código SAP asignado, permitir la creación
-    if (profileResult.rows.length > 0 && profileResult.rows[0].cardcode_sap) {
-      logger.info('Usuario inactivo con perfil y código SAP, permitiendo creación de orden', {
-        userId: user_id,
-        cardcodeSap: profileResult.rows[0].cardcode_sap
-      });
-    } else {
-      logger.warn('Intento de crear orden con usuario inactivo sin perfil completo', { 
-        userId: user_id 
-      });
-      
-      return res.status(403).json({
-        success: false,
-        message: 'Usuario inactivo o perfil incompleto. No puede crear órdenes.'
-      });
+      // Solo permitir si tiene perfil completo Y cardtype_sap = 'cCli' (ya no es Lead)
+      if (profileResult.rows.length > 0 && 
+          profileResult.rows[0].cardcode_sap && 
+          profileResult.rows[0].cardtype_sap === 'cCli') {
+        logger.info('Usuario inactivo con perfil completo y cliente confirmado en SAP, permitiendo creación de orden', {
+          userId: user_id,
+          cardcodeSap: profileResult.rows[0].cardcode_sap,
+          cardTypeSap: profileResult.rows[0].cardtype_sap
+        });
+      } else {
+        let reason = 'Usuario inactivo';
+        if (profileResult.rows.length === 0) {
+          reason = 'Usuario inactivo sin perfil de cliente';
+        } else if (!profileResult.rows[0].cardcode_sap) {
+          reason = 'Usuario inactivo sin código SAP asignado';
+        } else if (profileResult.rows[0].cardtype_sap === 'cLid') {
+          reason = 'Usuario inactivo - cliente aún es Lead en SAP';
+        }
+        
+        logger.warn('Intento de crear orden con usuario inactivo sin perfil completo o cliente Lead', { 
+          userId: user_id,
+          reason,
+          cardTypeSap: profileResult.rows.length > 0 ? profileResult.rows[0].cardtype_sap : null
+        });
+        
+        return res.status(403).json({
+          success: false,
+          message: `${reason}. No puede crear órdenes.`
+        });
+      }
     }
-  }
     
     // Validar fecha de entrega si se proporciona
     let parsedDeliveryDate = null;
@@ -841,12 +855,36 @@ const checkUserCanCreateOrders = async (req, res) => {
       });
     }
     
-    // Verificar si tiene perfil de cliente y código SAP
-    const profileQuery = 'SELECT client_id, cardcode_sap FROM client_profiles WHERE user_id = $1';
+    // Verificar si tiene perfil de cliente y cardtype_sap
+    const profileQuery = 'SELECT client_id, cardcode_sap, cardtype_sap FROM client_profiles WHERE user_id = $1';
     const profileResult = await pool.query(profileQuery, [userId]);
-    
-    const canCreate = userResult.rows[0].is_active || 
-                      (profileResult.rows.length > 0 && profileResult.rows[0].cardcode_sap);
+
+    let canCreate = false;
+    let reason = '';
+
+    // Opción 1: Usuario activo
+    if (userResult.rows[0].is_active) {
+      canCreate = true;
+      reason = 'Usuario activo';
+    } 
+    // Opción 2: Usuario inactivo PERO tiene perfil completo Y cardtype_sap = 'cCli' (ya no es Lead)
+    else if (profileResult.rows.length > 0 && 
+            profileResult.rows[0].cardcode_sap && 
+            profileResult.rows[0].cardtype_sap === 'cCli') {
+      canCreate = true;
+      reason = 'Cliente confirmado en SAP (no es Lead)';
+    } else {
+      canCreate = false;
+      if (profileResult.rows.length === 0) {
+        reason = 'Sin perfil de cliente';
+      } else if (!profileResult.rows[0].cardcode_sap) {
+        reason = 'Sin código SAP asignado';
+      } else if (profileResult.rows[0].cardtype_sap === 'cLid') {
+        reason = 'Cliente aún es Lead en SAP';
+      } else {
+        reason = 'Usuario inactivo';
+      }
+    }
     
     res.status(200).json({
       success: true,
@@ -854,7 +892,9 @@ const checkUserCanCreateOrders = async (req, res) => {
         canCreate,
         isActive: userResult.rows[0].is_active,
         hasProfile: profileResult.rows.length > 0,
-        hasCardCode: profileResult.rows.length > 0 && !!profileResult.rows[0].cardcode_sap
+        hasCardCode: profileResult.rows.length > 0 && !!profileResult.rows[0].cardcode_sap,
+        cardTypeSap: profileResult.rows.length > 0 ? profileResult.rows[0].cardtype_sap : null,
+        reason
       }
     });
   } catch (error) {

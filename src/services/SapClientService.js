@@ -489,9 +489,9 @@ class SapClientService extends SapBaseService {
         SELECT cp.*, u.id as user_id, u.is_active, u.name, u.mail
         FROM client_profiles cp
         JOIN users u ON cp.user_id = u.id
-        WHERE ((cp.cardcode_sap IS NOT NULL OR cp.clientprofilecode_sap IS NOT NULL) 
+        WHERE cp.cardcode_sap IS NOT NULL
         AND cp.sap_lead_synced = true
-        AND u.is_active = false)
+        AND (cp.cardtype_sap = 'cLid' OR cp.cardtype_sap IS NULL)
       `;
       
       const { rows } = await pool.query(query);
@@ -840,6 +840,18 @@ class SapClientService extends SapBaseService {
             // Si el cliente ya no es Lead en SAP (CardType !== 'cLid'), activar el usuario si no está activo
             if (sapClient.CardType !== 'cLid' && !profile.is_active) {
               await dbClient.query('UPDATE users SET is_active = true WHERE id = $1', [profile.user_id]);
+              // Actualizar cardtype_sap en el perfil
+              await dbClient.query(
+                'UPDATE client_profiles SET cardtype_sap = $1, updated_at = CURRENT_TIMESTAMP WHERE client_id = $2',
+                [sapClient.CardType, profile.client_id]
+              );
+
+              logger.info('CardType actualizado en perfil', {
+                clientId: profile.client_id,
+                userId: profile.user_id,
+                oldCardType: profile.cardtype_sap,
+                newCardType: sapClient.CardType
+              });
               this.logger.info('Usuario activado porque ya no es Lead en SAP', {
                 userId: profile.user_id,
                 clientId: profile.client_id,

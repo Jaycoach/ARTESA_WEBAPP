@@ -293,13 +293,12 @@ static async create(clientData) {
     
     // Mapear los campos del formulario a los campos de la base de datos
     const query = `
-      INSERT INTO client_profiles
-      (user_id, company_name, contact_name, contact_phone, contact_email, 
-       address, city, country, tax_id, notes,
-       fotocopia_cedula, fotocopia_rut, anexos_adicionales, price_list, 
-       nit_number, verification_digit, cardcode_sap, clientprofilecode_sap)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18 )
-      RETURNING *;
+      INSERT INTO client_profiles (
+        user_id, company_name, contact_name, contact_phone, contact_email,
+        address, city, country, tax_id, notes, fotocopia_cedula, fotocopia_rut, anexos_adicionales,
+        price_list, nit_number, verification_digit, cardcode_sap, cardtype_sap, clientprofilecode_sap
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+      RETURNING *
     `;
     
     // Crear JSON con campos adicionales
@@ -324,6 +323,7 @@ static async create(clientData) {
       clientData.nit_number,   // nit_number
       clientData.verification_digit, // verification_digit
       null, // cardcode_sap
+      'cLid', // cardtype_sap (inicialmente es Lead)
       clientProfileCode        // clientprofilecode_sap
     ];
 
