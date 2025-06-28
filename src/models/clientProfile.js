@@ -256,6 +256,8 @@ static async create(clientData) {
       direccion = null,
       ciudad = null,
       pais = null,
+      telefonoContacto = null,
+      emailContacto = null,
       razonSocial = null,
       nit = null,
       // Campos de archivos
@@ -287,7 +289,8 @@ static async create(clientData) {
     // Eliminar campos que ya están mapeados a columnas de la base de datos
     ['userId', 'nombre', 'email', 'telefono', 'direccion', 'ciudad', 'pais', 
       'razonSocial', 'nit', 'fotocopiaCedula', 'fotocopiaRut', 'anexosAdicionales',
-      'nit_number', 'verification_digit', 'cardcode_sap', 'clientprofilecode_sap', 'listaPrecios'].forEach(key => {
+      'nit_number', 'verification_digit', 'cardcode_sap', 'clientprofilecode_sap', 'listaPrecios',
+      'telefonoContacto', 'emailContacto'].forEach(key => {
       delete additionalFields[key];
     });
     
@@ -305,12 +308,16 @@ static async create(clientData) {
     const notesJSON = Object.keys(additionalFields).length > 0 ? 
       JSON.stringify(additionalFields) : null;
   
+    // En lugar de solo usar email y telefono, priorizar los campos específicos
+    const contactPhone = telefonoContacto || telefono;
+    const contactEmail = emailContacto || email;
+
     const values = [
       userId,                  // user_id
       razonSocial,             // company_name
       nombre,                  // contact_name
-      telefono,                // contact_phone
-      email,                   // contact_email
+      contactPhone,            // contact_phone (CORREGIDO)
+      contactEmail,            // contact_email (CORREGIDO)
       direccion,               // address
       ciudad,                  // city
       pais || 'Colombia',      // country (valor por defecto)
@@ -429,9 +436,10 @@ static async create(clientData) {
       }
       
       // Eliminar campos que ya están mapeados a columnas de la base de datos
-      ['nombre', 'email', 'telefono', 'direccion', 'ciudad', 'pais', 
-        'razonSocial', 'nit', 'nit_number', 'verification_digit', 'fotocopiaCedula', 'fotocopiaRut', 'anexosAdicionales',
-        'cardcode_sap', 'clientprofilecode_sap', 'sap_lead_synced'].forEach(key => {
+      ['userId', 'nombre', 'email', 'telefono', 'direccion', 'ciudad', 'pais', 
+        'razonSocial', 'nit', 'fotocopiaCedula', 'fotocopiaRut', 'anexosAdicionales',
+        'nit_number', 'verification_digit', 'cardcode_sap', 'clientprofilecode_sap', 'listaPrecios',
+        'telefonoContacto', 'emailContacto'].forEach(key => {
         delete additionalFields[key];
       });
       
@@ -481,24 +489,31 @@ static async create(clientData) {
       const notesJSON = Object.keys(mergedAdditionalData).length > 0 ? 
         JSON.stringify(mergedAdditionalData) : null;
 
+      // Definir ANTES del array values, después de extraer additionalFields
+      const { telefonoContacto, emailContacto } = updateData;
+
+      // En lugar de solo usar email y telefono, priorizar los campos específicos  
+      const contactPhone = telefonoContacto || telefono;
+      const contactEmail = emailContacto || email;
+
       const values = [
-      razonSocial,          // company_name
-      nombre,               // contact_name
-      telefono,             // contact_phone
-      email,                // contact_email
-      direccion,            // address
-      ciudad,               // city
-      pais,                 // country
-      nit,                  // tax_id
-      nit_number,           // nit_number (nuevo)
-      verification_digit,   // verification_digit
-      updateData.cardcode_sap, // cardcode_sap
-      clientProfileCode,    // Para generar clientprofilecode_sap
-      notesJSON,            // notes
-      fotocopiaCedula,      // fotocopia_cedula
-      fotocopiaRut,         // fotocopia_rut
-      anexosAdicionales,    // anexos_adicionales
-      userId                // user_id para WHERE
+        razonSocial,          // company_name
+        nombre,               // contact_name
+        contactPhone,         // contact_phone (CORREGIDO)
+        contactEmail,         // contact_email (CORREGIDO)
+        direccion,            // address
+        ciudad,               // city
+        pais,                 // country
+        nit,                  // tax_id
+        nit_number,           // nit_number (nuevo)
+        verification_digit,   // verification_digit
+        updateData.cardcode_sap, // cardcode_sap
+        clientProfileCode,    // Para generar clientprofilecode_sap
+        notesJSON,            // notes
+        fotocopiaCedula,      // fotocopia_cedula
+        fotocopiaRut,         // fotocopia_rut
+        anexosAdicionales,    // anexos_adicionales
+        userId                // user_id para WHERE
       ];
 
       // También actualizar is_active en la tabla de usuarios

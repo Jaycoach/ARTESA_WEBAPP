@@ -594,15 +594,6 @@ async createProfile(req, res) {
       'country': 'pais',
       'tax_id': 'nit'
     };
-
-    // Extraer campos adicionales
-    const additionalFields = {};
-    
-    Object.keys(req.body).forEach(key => {
-      if (!fieldMap[key] && req.body[key] !== undefined && req.body[key] !== '') {
-        additionalFields[key] = req.body[key];
-      }
-    });
     
     // Asignar campos mapeados
     Object.keys(req.body).forEach(key => {
@@ -755,108 +746,31 @@ async createProfile(req, res) {
     }
 
     // TRANSACCIÓN COMPLETA
-    const dbClient = await pool.connect();
-    let profile = null;
-
     try {
-      await dbClient.query('BEGIN');
-      
-      logger.info('Creando nuevo perfil de cliente en transacción', {
+      logger.info('Creando nuevo perfil de cliente usando el modelo', {
         userId: clientData.userId,
         email: clientData.email,
         nombre: clientData.nombre
       });
       
-      // Crear perfil en BD
-      const insertQuery = `
-      INSERT INTO client_profiles (
-        user_id, company_name, contact_name, contact_phone, contact_email,
-        address, nit_number, verification_digit, fotocopia_cedula, fotocopia_rut, anexos_adicionales,
-        notes, created_at, updated_at, sap_lead_synced
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false)
-      RETURNING *
-    `;
+      // Usar el modelo ClientProfile.create que ya tiene toda la lógica
+      const profile = await ClientProfile.create(clientData);
       
-      const values = [
-      clientData.userId,
-      clientData.razonSocial,
-      clientData.nombre,
-      clientData.telefono,
-      clientData.email,
-      clientData.direccion,
-      clientData.nit_number,
-      clientData.verification_digit,
-      clientData.fotocopiaCedula,
-      clientData.fotocopiaRut,
-      clientData.anexosAdicionales,
-      clientData.notes
-    ];
-      
-      const result = await dbClient.query(insertQuery, values);
-      profile = result.rows[0];
-      
-      // Insertar contacto principal en client_contacts
-      if (profile.client_id) {
-        const primaryContactQuery = `
-          INSERT INTO client_contacts (client_id, name, position, phone, email, is_primary, created_at, updated_at)
-          VALUES ($1, $2, $3, $4, $5, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-          RETURNING *
-        `;
-        
-        await dbClient.query(primaryContactQuery, [
-          profile.client_id,
-          clientData.nombre,
-          'Contacto Principal',
-          clientData.telefono,
-          clientData.email
-        ]);
-        
-        logger.debug('Contacto principal creado', {
-          clientId: profile.client_id,
-          contactName: clientData.nombre
-        });
-        
-        // Insertar contacto alternativo si existe
-        if (clientData.nombreContacto) {
-          const alternativeContactQuery = `
-            INSERT INTO client_contacts (client_id, name, position, phone, email, is_primary, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-            RETURNING *
-          `;
-          
-          await dbClient.query(alternativeContactQuery, [
-            profile.client_id,
-            clientData.nombreContacto,
-            clientData.cargoContacto || 'Contacto Alternativo',
-            clientData.telefonoContacto,
-            clientData.emailContacto
-          ]);
-          
-          logger.debug('Contacto alternativo creado', {
-            clientId: profile.client_id,
-            contactName: clientData.nombreContacto
-          });
-        }
-      }
-
-      logger.info('Perfil creado en base de datos, iniciando sincronización SAP', {
+      logger.info('Perfil de cliente creado exitosamente por el modelo', {
         clientId: profile.client_id,
         userId: profile.user_id
       });
-      
-      // Marcar usuario como inactivo hasta completar SAP
-      await dbClient.query('UPDATE users SET is_active = false WHERE id = $1', [profile.user_id]);
       
       // Sincronizar con SAP si tenemos datos necesarios
       if (profile.nit_number && profile.verification_digit !== undefined) {
         const sapProfileData = {
           client_id: profile.client_id,
           user_id: profile.user_id,
-          razonSocial: profile.company_name,
-          nombre: profile.contact_name,
-          telefono: profile.contact_phone,
-          email: profile.contact_email,
-          direccion: profile.address,
+          razonSocial: profile.razonSocial,
+          nombre: profile.nombre,
+          telefono: profile.telefono,
+          email: profile.email,
+          direccion: profile.direccion,
           nit_number: profile.nit_number,
           verification_digit: profile.verification_digit
         };
@@ -879,8 +793,8 @@ async createProfile(req, res) {
           isNew: sapResult.isNew
         });
         
-        // Actualizar perfil con datos de SAP
-        await dbClient.query(
+        // Actualizar perfil con datos de SAP usando el pool directo
+        await pool.query(
           `UPDATE client_profiles 
           SET cardcode_sap = $1, sap_lead_synced = true, updated_at = CURRENT_TIMESTAMP
           WHERE client_id = $2`,
@@ -891,12 +805,6 @@ async createProfile(req, res) {
         profile.sap_lead_synced = true;
       }
       
-      // Activar usuario después de sincronización exitosa
-      await dbClient.query('UPDATE users SET is_active = true WHERE id = $1', [profile.user_id]);
-      
-      // Confirmar transacción
-      await dbClient.query('COMMIT');
-      
       logger.info('Perfil de cliente creado y sincronizado exitosamente', {
         clientId: profile.client_id,
         userId: profile.user_id,
@@ -904,9 +812,6 @@ async createProfile(req, res) {
       });
       
     } catch (error) {
-      // Revertir transacción
-      await dbClient.query('ROLLBACK');
-      
       logger.error('Error al crear perfil, transacción revertida', {
         error: error.message,
         stack: error.stack,
@@ -940,11 +845,7 @@ async createProfile(req, res) {
         message: 'Error al crear perfil de cliente. La sincronización con SAP falló.',
         error: process.env.NODE_ENV === 'development' ? error.message : 'Error interno del sistema'
       });
-      
-    } finally {
-      dbClient.release();
     }
-
     // Agregar URLs para archivos
     const baseUrl = `${req.protocol}://${req.get('host')}`;
 
@@ -966,10 +867,34 @@ async createProfile(req, res) {
     });
 
     res.status(201).json({
-      success: true,
-      message: 'Perfil de cliente creado exitosamente',
-      data: profile
-    });
+    success: true,
+    message: 'Perfil de cliente creado exitosamente',
+    data: {
+      client_id: profile.client_id,
+      user_id: profile.user_id,
+      company_name: profile.razonSocial,
+      contact_name: profile.nombre,
+      contact_phone: profile.telefono,
+      contact_email: profile.email,
+      address: profile.direccion,
+      city: profile.ciudad,
+      country: profile.pais,
+      tax_id: profile.nit,
+      price_list: null,
+      notes: profile.notes,
+      fotocopia_cedula: profile.fotocopiaCedulaUrl,
+      fotocopia_rut: profile.fotocopiaRutUrl,
+      anexos_adicionales: profile.anexosAdicionalesUrl,
+      created_at: profile.created_at,
+      updated_at: profile.updated_at,
+      nit_number: profile.nit_number,
+      verification_digit: profile.verification_digit,
+      cardcode_sap: profile.cardcode_sap,
+      clientprofilecode_sap: profile.clientprofilecode_sap,
+      sap_lead_synced: profile.sap_lead_synced,
+      cardtype_sap: "cLid"
+    }
+  });
     
   } catch (error) {
     logger.error('Error al crear perfil de cliente', {
@@ -1129,10 +1054,27 @@ async updateProfileByUserId(req, res) {
     };
 
     // Extraer campos adicionales
+    // Lista de campos que van específicamente a notes
+    const fieldsForNotes = [
+      'tipoDocumento', 'actividadComercial', 'numeroCuenta', 'entidadBancaria', 
+      'tamanoEmpresa', 'cargoContacto', 'ingresosMensuales', 'representanteLegal', 
+      'sectorEconomico', 'numeroDocumento', 'nombreContacto', 'patrimonio', 'tipoCuenta'
+    ];
+
+    // Extraer campos adicionales
     const additionalFields = {};
-    
+
+    // Procesar campos específicos para notes
+    fieldsForNotes.forEach(field => {
+      if (req.body[field] !== undefined && req.body[field] !== '') {
+        additionalFields[field] = req.body[field];
+      }
+    });
+
+    // Procesar cualquier otro campo que no esté en el fieldMap
     Object.keys(req.body).forEach(key => {
-      if (!fieldMap[key] && req.body[key] !== undefined && req.body[key] !== '') {
+      if (!fieldMap[key] && !fieldsForNotes.includes(key) && 
+          req.body[key] !== undefined && req.body[key] !== '') {
         additionalFields[key] = req.body[key];
       }
     });
