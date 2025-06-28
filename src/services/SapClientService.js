@@ -182,11 +182,58 @@ class SapClientService extends SapBaseService {
         verification_digit: clientProfile.verification_digit
       });
 
-      // Determinar si es creación o actualización
-      const isUpdate = !!clientProfile.cardcode_sap;
-      const endpoint = isUpdate 
-        ? `BusinessPartners('${clientProfile.cardcode_sap}')` 
-        : 'BusinessPartners';
+      // Verificar si ya existe en SAP antes de decidir crear o actualizar
+      let isUpdate = false;
+      let existingPartner = null;
+
+      if (clientProfile.cardcode_sap) {
+        // Si tenemos cardcode_sap, verificar que aún existe en SAP
+        try {
+          existingPartner = await this.getBusinessPartnerBySapCode(clientProfile.cardcode_sap);
+          isUpdate = !!existingPartner;
+          if (isUpdate) {
+            this.logger.info('Encontrado BusinessPartner existente por cardcode_sap', {
+              cardcode_sap: clientProfile.cardcode_sap,
+              existingCardCode: existingPartner.CardCode
+            });
+          }
+        } catch (error) {
+          this.logger.warn('El CardCode guardado no existe en SAP, verificando por NIT', {
+            cardcode_sap: clientProfile.cardcode_sap,
+            error: error.message
+          });
+          // Si el cardcode_sap guardado no existe, verificar por NIT
+          try {
+            existingPartner = await this.getBusinessPartnerBySapCode(cardCode);
+            isUpdate = !!existingPartner;
+            if (isUpdate) {
+              this.logger.info('Encontrado BusinessPartner existente por NIT (cardcode_sap inválido)', {
+                cardCode,
+                invalidCardcodeSap: clientProfile.cardcode_sap,
+                existingCardCode: existingPartner.CardCode
+              });
+            }
+          } catch (nitError) {
+            // No existe por ningún código, proceder con creación
+            isUpdate = false;
+          }
+        }
+      } else {
+        // Si no tenemos cardcode_sap, verificar si existe por NIT
+        try {
+          existingPartner = await this.getBusinessPartnerBySapCode(cardCode);
+          isUpdate = !!existingPartner;
+          if (isUpdate) {
+            this.logger.info('Encontrado BusinessPartner existente por NIT', {
+              cardCode,
+              existingCardCode: existingPartner.CardCode
+            });
+          }
+        } catch (error) {
+          // No existe, proceder con creación
+          isUpdate = false;
+        }
+      }
       
       // Formatear teléfono (asegurar que solo tenga dígitos numéricos)
       let phone = clientProfile.telefono || clientProfile.contact_phone || '';
@@ -238,6 +285,10 @@ class SapClientService extends SapBaseService {
 
       // Si es actualización, usamos PATCH, si es creación usamos POST
       const method = isUpdate ? 'PATCH' : 'POST';
+
+      const endpoint = isUpdate 
+      ? `BusinessPartners('${existingPartner ? existingPartner.CardCode : clientProfile.cardcode_sap}')` 
+      : 'BusinessPartners';
       
       this.logger.info('Enviando datos a SAP B1', {
         endpoint,

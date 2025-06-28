@@ -510,12 +510,7 @@ static async create(clientData) {
         fotocopiaRut,         // fotocopia_rut
         anexosAdicionales,    // anexos_adicionales
         userId                // user_id para WHERE
-      ];
-
-      // También actualizar is_active en la tabla de usuarios
-      await pool.query('UPDATE users SET is_active = false WHERE id = $1', [userId]);
-      logger.debug('Usuario marcado como inactivo hasta aprobación por SAP', { userId });
-            
+      ];    
       const { rows } = await pool.query(query, values);
       
       if (rows.length === 0) {
@@ -583,7 +578,7 @@ static async create(clientData) {
       
       // Iniciar transacción
       await client.query('BEGIN');
-      
+
       // Luego, eliminar el perfil
       const query = 'DELETE FROM client_profiles WHERE user_id = $1 RETURNING *;';
       const { rows } = await client.query(query, [userId]);

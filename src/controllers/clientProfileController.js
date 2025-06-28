@@ -774,6 +774,8 @@ async createProfile(req, res) {
       }
     }
 
+    let profileForResponse = null;
+
     // TRANSACCIÓN COMPLETA
     try {
       logger.info('Creando nuevo perfil de cliente usando el modelo', {
@@ -833,16 +835,17 @@ async createProfile(req, res) {
         profile.cardcode_sap = sapResult.cardCode;
         profile.sap_lead_synced = true;
       }
-      
+
       logger.info('Perfil de cliente creado y sincronizado exitosamente', {
         clientId: profile.client_id,
         userId: profile.user_id,
         cardCode: profile.cardcode_sap
       });
-      // Obtener el perfil completo recién creado para construir la respuesta
-      const profileForResponse = await ClientProfile.getByUserId(clientData.userId);
+
+      // Obtener el perfil completo actualizado para la respuesta final
+      profileForResponse = await ClientProfile.getByUserId(profile.user_id);
       if (!profileForResponse) {
-        throw new Error('Error al obtener el perfil recién creado');
+        throw new Error('Error al obtener el perfil recién creado para la respuesta');
       }
       
     } catch (error) {
@@ -851,6 +854,17 @@ async createProfile(req, res) {
         stack: error.stack,
         userId: clientData.userId
       });
+      
+      // Si hay error en SAP pero el perfil se creó, intentar obtenerlo para la respuesta
+      if (!profileForResponse) {
+        try {
+          profileForResponse = await ClientProfile.getByUserId(clientData.userId);
+        } catch (getProfileError) {
+          logger.warn('No se pudo obtener el perfil creado después del error de SAP', {
+            error: getProfileError.message
+          });
+        }
+      }
       
       // Limpiar archivos subidos
       const filesToClean = [
@@ -880,19 +894,29 @@ async createProfile(req, res) {
         error: process.env.NODE_ENV === 'development' ? error.message : 'Error interno del sistema'
       });
     }
+    
+    // Verificar que tenemos el perfil para la respuesta
+    if (!profileForResponse) {
+      return res.status(500).json({
+        success: false,
+        message: 'Error al crear perfil de cliente. No se pudo obtener los datos del perfil creado.',
+        error: process.env.NODE_ENV === 'development' ? 'profileForResponse is null' : 'Error interno del sistema'
+      });
+    }
+    
     // Agregar URLs para archivos
     const baseUrl = `${req.protocol}://${req.get('host')}`;
 
     if (profileForResponse.fotocopiaCedula) {
-      profileForResponse.fotocopiaCedulaUrl = `${baseUrl}/api/client-profiles/${profile.user_id}/file/cedula`;
+      profileForResponse.fotocopiaCedulaUrl = `${baseUrl}/api/client-profiles/${profileForResponse.user_id}/file/cedula`;
     }
 
     if (profileForResponse.fotocopiaRut) {
-      profileForResponse.fotocopiaRutUrl = `${baseUrl}/api/client-profiles/${profile.user_id}/file/rut`;
+      profileForResponse.fotocopiaRutUrl = `${baseUrl}/api/client-profiles/${profileForResponse.user_id}/file/rut`;
     }
 
     if (profileForResponse.anexosAdicionales) {
-      profileForResponse.anexosAdicionalesUrl = `${baseUrl}/api/client-profiles/${profile.user_id}/file/anexos`;
+      profileForResponse.anexosAdicionalesUrl = `${baseUrl}/api/client-profiles/${profileForResponse.user_id}/file/anexos`;
     }
 
     logger.info('Perfil de cliente creado exitosamente', {
@@ -901,34 +925,34 @@ async createProfile(req, res) {
     });
 
     res.status(201).json({
-    success: true,
-    message: 'Perfil de cliente creado exitosamente',
-    data: {
-    client_id: profileForResponse.client_id,
-    user_id: profileForResponse.user_id,
-    company_name: profileForResponse.razonSocial,
-    contact_name: profileForResponse.nombre,
-    contact_phone: profileForResponse.telefono,
-    contact_email: profileForResponse.email,
-    address: profileForResponse.direccion,
-    city: profileForResponse.ciudad,
-    country: profileForResponse.pais,
-    tax_id: profileForResponse.nit,
-    price_list: null,
-    notes: profileForResponse.notes,
-    fotocopia_cedula: profileForResponse.fotocopiaCedulaUrl,
-    fotocopia_rut: profileForResponse.fotocopiaRutUrl,
-    anexos_adicionales: profileForResponse.anexosAdicionalesUrl,
-    created_at: profileForResponse.created_at,
-    updated_at: profileForResponse.updated_at,
-    nit_number: profileForResponse.nit_number,
-    verification_digit: profileForResponse.verification_digit,
-    cardcode_sap: profileForResponse.cardcode_sap,
-    clientprofilecode_sap: profileForResponse.clientprofilecode_sap,
-    sap_lead_synced: profileForResponse.sap_lead_synced,
-    cardtype_sap: "cLid"
-  }
-  });
+      success: true,
+      message: 'Perfil de cliente creado exitosamente',
+      data: {
+        client_id: profileForResponse.client_id,
+        user_id: profileForResponse.user_id,
+        company_name: profileForResponse.razonSocial,
+        contact_name: profileForResponse.nombre,
+        contact_phone: profileForResponse.telefono,
+        contact_email: profileForResponse.email,
+        address: profileForResponse.direccion,
+        city: profileForResponse.ciudad,
+        country: profileForResponse.pais,
+        tax_id: profileForResponse.nit,
+        price_list: null,
+        notes: profileForResponse.notes,
+        fotocopia_cedula: profileForResponse.fotocopiaCedulaUrl,
+        fotocopia_rut: profileForResponse.fotocopiaRutUrl,
+        anexos_adicionales: profileForResponse.anexosAdicionalesUrl,
+        created_at: profileForResponse.created_at,
+        updated_at: profileForResponse.updated_at,
+        nit_number: profileForResponse.nit_number,
+        verification_digit: profileForResponse.verification_digit,
+        cardcode_sap: profileForResponse.cardcode_sap,
+        clientprofilecode_sap: profileForResponse.clientprofilecode_sap,
+        sap_lead_synced: profileForResponse.sap_lead_synced,
+        cardtype_sap: "cLid"
+      }
+    });
     
   } catch (error) {
     logger.error('Error al crear perfil de cliente', {
