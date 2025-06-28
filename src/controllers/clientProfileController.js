@@ -701,6 +701,35 @@ async createProfile(req, res) {
       clientData.nit = `${clientData.nit_number}-${clientData.verification_digit}`;
     }
 
+    // Extraer campos adicionales
+    // Lista de campos que van específicamente a notes
+    const fieldsForNotes = [
+      'tipoDocumento', 'actividadComercial', 'numeroCuenta', 'entidadBancaria', 
+      'tamanoEmpresa', 'cargoContacto', 'ingresosMensuales', 'representanteLegal', 
+      'sectorEconomico', 'numeroDocumento', 'nombreContacto', 'patrimonio', 'tipoCuenta'
+    ];
+
+    // Extraer campos adicionales
+    const additionalFields = {};
+
+    // Procesar campos específicos para notes
+    fieldsForNotes.forEach(field => {
+      if (req.body[field] !== undefined && req.body[field] !== '') {
+        additionalFields[field] = req.body[field];
+      }
+    });
+
+    // Procesar cualquier otro campo que no esté en el fieldMap principal
+    const mainFields = ['userId', 'nombre', 'email', 'telefono', 'direccion', 'ciudad', 'pais', 
+      'razonSocial', 'nit', 'nit_number', 'verification_digit'];
+
+    Object.keys(req.body).forEach(key => {
+      if (!mainFields.includes(key) && !fieldsForNotes.includes(key) && 
+          req.body[key] !== undefined && req.body[key] !== '') {
+        additionalFields[key] = req.body[key];
+      }
+    });
+
     // Procesar campos adicionales
     const criticalFields = ['nit_number', 'verification_digit', 'cardcode_sap', 'clientprofilecode_sap'];
     criticalFields.forEach(field => {
