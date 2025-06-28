@@ -839,6 +839,11 @@ async createProfile(req, res) {
         userId: profile.user_id,
         cardCode: profile.cardcode_sap
       });
+      // Obtener el perfil completo recién creado para construir la respuesta
+      const profileForResponse = await ClientProfile.getByUserId(clientData.userId);
+      if (!profileForResponse) {
+        throw new Error('Error al obtener el perfil recién creado');
+      }
       
     } catch (error) {
       logger.error('Error al crear perfil, transacción revertida', {
@@ -878,51 +883,51 @@ async createProfile(req, res) {
     // Agregar URLs para archivos
     const baseUrl = `${req.protocol}://${req.get('host')}`;
 
-    if (profile.fotocopiaCedula) {
-      profile.fotocopiaCedulaUrl = `${baseUrl}/api/client-profiles/${profile.user_id}/file/cedula`;
+    if (profileForResponse.fotocopiaCedula) {
+      profileForResponse.fotocopiaCedulaUrl = `${baseUrl}/api/client-profiles/${profile.user_id}/file/cedula`;
     }
 
-    if (profile.fotocopiaRut) {
-      profile.fotocopiaRutUrl = `${baseUrl}/api/client-profiles/${profile.user_id}/file/rut`;
+    if (profileForResponse.fotocopiaRut) {
+      profileForResponse.fotocopiaRutUrl = `${baseUrl}/api/client-profiles/${profile.user_id}/file/rut`;
     }
 
-    if (profile.anexosAdicionales) {
-      profile.anexosAdicionalesUrl = `${baseUrl}/api/client-profiles/${profile.user_id}/file/anexos`;
+    if (profileForResponse.anexosAdicionales) {
+      profileForResponse.anexosAdicionalesUrl = `${baseUrl}/api/client-profiles/${profile.user_id}/file/anexos`;
     }
 
     logger.info('Perfil de cliente creado exitosamente', {
-      userId: profile.user_id,
-      clientId: profile.client_id
+      userId: profileForResponse.user_id,
+      clientId: profileForResponse.client_id
     });
 
     res.status(201).json({
     success: true,
     message: 'Perfil de cliente creado exitosamente',
     data: {
-      client_id: profile.client_id,
-      user_id: profile.user_id,
-      company_name: profile.razonSocial,
-      contact_name: profile.nombre,
-      contact_phone: profile.telefono,
-      contact_email: profile.email,
-      address: profile.direccion,
-      city: profile.ciudad,
-      country: profile.pais,
-      tax_id: profile.nit,
-      price_list: null,
-      notes: profile.notes,
-      fotocopia_cedula: profile.fotocopiaCedulaUrl,
-      fotocopia_rut: profile.fotocopiaRutUrl,
-      anexos_adicionales: profile.anexosAdicionalesUrl,
-      created_at: profile.created_at,
-      updated_at: profile.updated_at,
-      nit_number: profile.nit_number,
-      verification_digit: profile.verification_digit,
-      cardcode_sap: profile.cardcode_sap,
-      clientprofilecode_sap: profile.clientprofilecode_sap,
-      sap_lead_synced: profile.sap_lead_synced,
-      cardtype_sap: "cLid"
-    }
+    client_id: profileForResponse.client_id,
+    user_id: profileForResponse.user_id,
+    company_name: profileForResponse.razonSocial,
+    contact_name: profileForResponse.nombre,
+    contact_phone: profileForResponse.telefono,
+    contact_email: profileForResponse.email,
+    address: profileForResponse.direccion,
+    city: profileForResponse.ciudad,
+    country: profileForResponse.pais,
+    tax_id: profileForResponse.nit,
+    price_list: null,
+    notes: profileForResponse.notes,
+    fotocopia_cedula: profileForResponse.fotocopiaCedulaUrl,
+    fotocopia_rut: profileForResponse.fotocopiaRutUrl,
+    anexos_adicionales: profileForResponse.anexosAdicionalesUrl,
+    created_at: profileForResponse.created_at,
+    updated_at: profileForResponse.updated_at,
+    nit_number: profileForResponse.nit_number,
+    verification_digit: profileForResponse.verification_digit,
+    cardcode_sap: profileForResponse.cardcode_sap,
+    clientprofilecode_sap: profileForResponse.clientprofilecode_sap,
+    sap_lead_synced: profileForResponse.sap_lead_synced,
+    cardtype_sap: "cLid"
+  }
   });
     
   } catch (error) {

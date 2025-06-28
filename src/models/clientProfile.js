@@ -334,10 +334,6 @@ static async create(clientData) {
       clientProfileCode        // clientprofilecode_sap
     ];
 
-    // También actualizar is_active en la tabla de usuarios
-    await pool.query('UPDATE users SET is_active = false WHERE id = $1', [userId]);
-    logger.debug('Usuario marcado como inactivo hasta aprobación por SAP', { userId });
-    
     const { rows } = await pool.query(query, values);
     
     if (rows.length === 0) {
@@ -587,9 +583,6 @@ static async create(clientData) {
       
       // Iniciar transacción
       await client.query('BEGIN');
-      
-      // Primero, actualizar is_active a false en la tabla users
-      await client.query('UPDATE users SET is_active = false WHERE id = $1', [userId]);
       
       // Luego, eliminar el perfil
       const query = 'DELETE FROM client_profiles WHERE user_id = $1 RETURNING *;';

@@ -1073,7 +1073,7 @@ class SapClientService extends SapBaseService {
             // Hash temporal para activación posterior
             const tempPassword = '$2b$10$temporary.hash.for.inactive.user'; // Hash temporal
             const roleId = 2; // Role USER
-            const isActive = false; // INACTIVO - requiere activación por olvido de contraseña
+            const isActive = true; // ACTIVO - solo se inactiva por razones de seguridad
             
             const { rows: [newUser] } = await client.query(userInsertQuery, [
               username, email, tempPassword, roleId, isActive
