@@ -815,7 +815,13 @@ async createProfile(req, res) {
         const sapResult = await sapServiceManager.clientService.createOrUpdateBusinessPartnerLead(sapProfileData);
         
         if (!sapResult || !sapResult.success) {
-          throw new Error(`Error en sincronización SAP: ${sapResult?.error || 'Resultado inválido'}`);
+          const errorDetails = sapResult?.error || 'Resultado inválido';
+          logger.error('Error detallado en sincronización SAP', {
+            clientId: profile.client_id,
+            error: errorDetails,
+            sapProfileData: JSON.stringify(sapProfileData, null, 2)
+          });
+          throw new Error(`Error en sincronización SAP: ${errorDetails}`);
         }
         
         logger.info('Sincronización SAP exitosa', {

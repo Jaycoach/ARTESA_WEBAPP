@@ -166,6 +166,17 @@ class SapClientService extends SapBaseService {
       // Crear CardCode único con formato requerido
       const cardCode = `CI${clientProfile.nit_number}`;
 
+      // Validar que el NIT no esté ya en uso por otro cliente
+      const existingByNIT = await this.checkExistingBusinessPartnerByNIT(
+        clientProfile.nit_number, 
+        clientProfile.verification_digit,
+        clientProfile.client_id
+      );
+
+      if (existingByNIT && existingByNIT.client_id !== clientProfile.client_id) {
+        throw new Error(`El NIT ${clientProfile.nit_number}-${clientProfile.verification_digit} ya está siendo utilizado por otro cliente`);
+      }
+
       // Validar requisitos mínimos
       if (!clientProfile.nit_number || clientProfile.verification_digit === undefined) {
         const errorMsg = 'El NIT y dígito de verificación son requeridos para crear un Lead en SAP';
@@ -189,12 +200,30 @@ class SapClientService extends SapBaseService {
       if (clientProfile.cardcode_sap) {
         // Si tenemos cardcode_sap, verificar que aún existe en SAP
         try {
-          existingPartner = await this.getBusinessPartnerBySapCode(clientProfile.cardcode_sap);
+          // Buscar si existe el BusinessPartner por múltiples criterios
+          existingPartner = await this.findExistingBusinessPartner(clientProfile, cardCode);
           isUpdate = !!existingPartner;
+
           if (isUpdate) {
-            this.logger.info('Encontrado BusinessPartner existente por cardcode_sap', {
-              cardcode_sap: clientProfile.cardcode_sap,
-              existingCardCode: existingPartner.CardCode
+            this.logger.info('BusinessPartner existente encontrado', {
+              clientId: clientProfile.client_id,
+              foundBy: existingPartner._foundBy,
+              existingCardCode: existingPartner.CardCode,
+              requestedCardCode: cardCode
+            });
+            
+            // Si el CardCode encontrado es diferente al generado, usar el existente
+            if (existingPartner.CardCode !== cardCode) {
+              this.logger.warn('CardCode generado difiere del existente, usando el existente', {
+                generated: cardCode,
+                existing: existingPartner.CardCode
+              });
+              cardCode = existingPartner.CardCode;
+            }
+          } else {
+            this.logger.info('No se encontró BusinessPartner existente, procederá con creación', {
+              cardCode,
+              clientId: clientProfile.client_id
             });
           }
         } catch (error) {
@@ -2078,8 +2107,12 @@ class SapClientService extends SapBaseService {
 
       return null;
     } catch (error) {
-      if (error.response?.status === 404) {
-        this.logger.debug('Business Partner no encontrado', { sapCode });
+      if (error.response?.status === 404 || (error.response?.data?.error?.code === '-2028')) {
+        this.logger.debug('Business Partner no encontrado en SAP', { 
+          sapCode,
+          errorCode: error.response?.data?.error?.code,
+          errorMessage: error.response?.data?.error?.message
+        });
         return null;
       }
       
@@ -2153,6 +2186,154 @@ class SapClientService extends SapBaseService {
         stack: error.stack,
         cardCode,
         clientId
+      });
+      throw error;
+    }
+  }
+  /**
+   * Busca un BusinessPartner existente por múltiples criterios
+   * @param {Object} clientProfile - Datos del perfil del cliente
+   * @param {string} expectedCardCode - CardCode esperado
+   * @returns {Promise<Object|null>} BusinessPartner encontrado o null
+   */
+  async findExistingBusinessPartner(clientProfile, expectedCardCode) {
+    // Criterio 1: Por cardcode_sap guardado en BD
+    if (clientProfile.cardcode_sap) {
+      try {
+        const byStoredCardCode = await this.getBusinessPartnerBySapCode(clientProfile.cardcode_sap);
+        if (byStoredCardCode) {
+          byStoredCardCode._foundBy = 'stored_cardcode';
+          return byStoredCardCode;
+        }
+      } catch (error) {
+        this.logger.warn('CardCode almacenado no existe en SAP', {
+          stored: clientProfile.cardcode_sap,
+          error: error.message
+        });
+      }
+    }
+
+    // Criterio 2: Por CardCode generado (CI + NIT)
+    try {
+      const byGeneratedCardCode = await this.getBusinessPartnerBySapCode(expectedCardCode);
+      if (byGeneratedCardCode) {
+        byGeneratedCardCode._foundBy = 'generated_cardcode';
+        return byGeneratedCardCode;
+      }
+    } catch (error) {
+      this.logger.debug('CardCode generado no existe en SAP', {
+        generated: expectedCardCode,
+        error: error.message
+      });
+    }
+
+    // Criterio 3: Por código Artesa
+    if (clientProfile.clientprofilecode_sap) {
+      try {
+        const byArtesaCode = await this.getBusinessPartnerByArtesaCode(clientProfile.clientprofilecode_sap);
+        if (byArtesaCode) {
+          byArtesaCode._foundBy = 'artesa_code';
+          return byArtesaCode;
+        }
+      } catch (error) {
+        this.logger.debug('Código Artesa no encontrado en SAP', {
+          artesaCode: clientProfile.clientprofilecode_sap,
+          error: error.message
+        });
+      }
+    }
+
+    // Criterio 4: Por FederalTaxID
+    const federalTaxID = `${clientProfile.nit_number}-${clientProfile.verification_digit}`;
+    try {
+      const byTaxID = await this.getBusinessPartnerByTaxID(federalTaxID);
+      if (byTaxID) {
+        byTaxID._foundBy = 'federal_tax_id';
+        return byTaxID;
+      }
+    } catch (error) {
+      this.logger.debug('FederalTaxID no encontrado en SAP', {
+        federalTaxID,
+        error: error.message
+      });
+    }
+
+    return null;
+  }
+
+  /**
+   * Busca BusinessPartner por FederalTaxID
+   * @param {string} federalTaxID - NIT con formato "12345678-9"
+   * @returns {Promise<Object|null>} BusinessPartner encontrado o null
+   */
+  async getBusinessPartnerByTaxID(federalTaxID) {
+    try {
+      this.logger.debug('Buscando BusinessPartner por FederalTaxID', { federalTaxID });
+      
+      const endpoint = `BusinessPartners?$filter=FederalTaxID eq '${federalTaxID}'&$select=CardCode,CardName,CardType,FederalTaxID,Phone1,EmailAddress,Address,U_AR_ArtesaCode`;
+      const result = await this.request('GET', endpoint);
+      
+      if (result && result.value && result.value.length > 0) {
+        this.logger.info('BusinessPartner encontrado por FederalTaxID', {
+          federalTaxID,
+          cardCode: result.value[0].CardCode,
+          cardType: result.value[0].CardType
+        });
+        return result.value[0];
+      }
+      
+      return null;
+    } catch (error) {
+      this.logger.error('Error al buscar BusinessPartner por FederalTaxID', {
+        federalTaxID,
+        error: error.message
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Verifica si un NIT ya está siendo usado por otro cliente
+   * @param {string} nitNumber - Número de NIT
+   * @param {number} verificationDigit - Dígito de verificación
+   * @param {number} currentClientId - ID del cliente actual
+   * @returns {Promise<Object|null>} Cliente que usa el NIT o null
+   */
+  async checkExistingBusinessPartnerByNIT(nitNumber, verificationDigit, currentClientId) {
+    try {
+      const federalTaxID = `${nitNumber}-${verificationDigit}`;
+      
+      // Buscar en SAP por FederalTaxID
+      const sapBP = await this.getBusinessPartnerByTaxID(federalTaxID);
+      if (!sapBP) {
+        return null;
+      }
+
+      // Buscar en BD local para obtener client_id asociado
+      const query = `
+        SELECT client_id, user_id, cardcode_sap 
+        FROM client_profiles 
+        WHERE nit_number = $1 AND verification_digit = $2 AND client_id != $3
+      `;
+      
+      const { rows } = await pool.query(query, [nitNumber, verificationDigit, currentClientId]);
+      
+      if (rows.length > 0) {
+        return {
+          client_id: rows[0].client_id,
+          user_id: rows[0].user_id,
+          sap_card_code: sapBP.CardCode,
+          stored_cardcode: rows[0].cardcode_sap
+        };
+      }
+      
+      return null;
+    } catch (error) {
+      this.logger.error('Error al verificar NIT duplicado', {
+        nitNumber,
+        verificationDigit,
+        currentClientId,
+        error: error.message
       });
       throw error;
     }
