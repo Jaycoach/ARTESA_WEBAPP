@@ -74,6 +74,10 @@ const suspiciousActivityTracker = async (req, res, next) => {
         if (req.path === '/api/health' || req.path === '/api/health/simple' || req.path === '/health') {
             return next();
         }
+        // No registrar uploads como actividad sospechosa
+        if (req.path.startsWith('/api/upload') || req.path.startsWith('/api/client-profiles')) {
+            return next();
+        }
 
         const suspiciousPatterns = [
             req.headers['user-agent'] === undefined,
@@ -87,7 +91,7 @@ const suspiciousActivityTracker = async (req, res, next) => {
             /\/[A-Z]{2,}\//.test(req.originalUrl), // Detecta URLs con códigos de país
             req.headers['user-agent'] && req.headers['user-agent'].toLowerCase().includes('bot'),
             req.headers['user-agent'] && req.headers['user-agent'].toLowerCase().includes('scanner'),
-            req.headers['user-agent'] && req.headers['user-agent'].toLowerCase().includes('curl'),
+            req.headers['user-agent'] && req.headers['user-agent'].toLowerCase().includes('curl') && !req.path.startsWith('/api/upload'),
             !req.headers['accept-language'] && req.method === 'GET'
         ];
 
