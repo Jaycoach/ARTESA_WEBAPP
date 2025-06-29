@@ -70,6 +70,11 @@ const enhancedSecurityHeaders = (req, res, next) => {
 // Middleware para trackear intentos de acceso sospechosos
 const suspiciousActivityTracker = async (req, res, next) => {
     try {
+        // No registrar health checks como actividad sospechosa
+        if (req.path === '/api/health' || req.path === '/api/health/simple' || req.path === '/health') {
+            return next();
+        }
+
         const suspiciousPatterns = [
             req.headers['user-agent'] === undefined,
             req.headers['accept-language'] === undefined,
@@ -87,7 +92,8 @@ const suspiciousActivityTracker = async (req, res, next) => {
         ];
 
         if (suspiciousPatterns.some(pattern => pattern)) {
-            logger.warn('Actividad sospechosa detectada', {
+            const logLevel = req.path.includes('/health') ? 'debug' : 'warn';
+            logger[logLevel]('Actividad sospechosa detectada', {
                 ip: req.ip,
                 path: req.path,
                 method: req.method,
