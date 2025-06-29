@@ -327,6 +327,16 @@ class SapClientService extends SapBaseService {
         federalTaxID: businessPartnerData.FederalTaxID
       });
 
+      // Validar datos antes de enviar a SAP
+      if (!businessPartnerData.CardCode || !businessPartnerData.CardName || !businessPartnerData.FederalTaxID) {
+        const missingFields = [];
+        if (!businessPartnerData.CardCode) missingFields.push('CardCode');
+        if (!businessPartnerData.CardName) missingFields.push('CardName');  
+        if (!businessPartnerData.FederalTaxID) missingFields.push('FederalTaxID');
+        
+        throw new Error(`Campos requeridos faltantes para crear Lead en SAP: ${missingFields.join(', ')}`);
+      }
+
       try {
       // Realizar petición a SAP
         const result = await this.request(method, endpoint, businessPartnerData);

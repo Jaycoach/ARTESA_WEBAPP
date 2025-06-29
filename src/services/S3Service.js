@@ -214,16 +214,37 @@ class S3Service {
     // Calcular tiempo ajustado: tiempo original + compensación de zona horaria + margen de seguridad
     const timezoneCompensation = Math.abs(timezoneOffset * 3600); // Convertir horas a segundos
     const adjustedExpires = expires + timezoneCompensation + safetyMargin;
-    
-    // Log para staging para monitorear el comportamiento
+  
+    // Configurar opciones para URLs más cortas compatible con AWS SDK V3
+    // Configuración adicional para URLs más cortas
+    const usePathStyle = process.env.S3_FORCE_PATH_STYLE === 'true';
+    const useCustomDomain = process.env.S3_CUSTOM_DOMAIN;
+
+    // Configurar opciones para URLs más cortas compatible con AWS SDK V3
+    // IMPORTANTE: Usar adjustedExpires que ya incluye el ajuste de zona horaria colombiana
+    const urlOptions = {
+      expiresIn: Math.min(adjustedExpires, 86400), // Máximo 24 horas pero respetando zona horaria
+      signatureVersion: 'v4',
+      // Configuraciones para URLs más cortas
+      useAccelerateEndpoint: false,
+      s3ForcePathStyle: usePathStyle,
+      // Reducir headers en la firma para URLs más cortas
+      unhoistableHeaders: new Set(),
+      // Optimizar algoritmo de firma
+      algorithm: 'AWS4-HMAC-SHA256'
+    };
+
+    // Log para monitorear el comportamiento de las URLs incluyendo zona horaria
     if (process.env.NODE_ENV === 'staging') {
-      logger.debug('Generando URL firmada con ajuste de zona horaria', {
+      logger.debug('Configuración de URL firmada para AWS SDK V3 con zona horaria', {
         originalExpires: expires,
-        timezoneOffset,
-        timezoneCompensation,
-        safetyMargin,
-        adjustedExpires,
-        totalHours: (adjustedExpires / 3600).toFixed(2)
+        adjustedExpires: adjustedExpires,
+        finalExpiresIn: urlOptions.expiresIn,
+        timezoneOffset: timezoneOffset,
+        key: key,
+        operation: operation,
+        totalHoursOriginal: (expires / 3600).toFixed(2),
+        totalHoursFinal: (urlOptions.expiresIn / 3600).toFixed(2)
       });
     }
     
@@ -237,7 +258,71 @@ class S3Service {
       'putObject': PutObjectCommand
     };
     const command = new commandMap[operation](params);
-    return await getSignedUrl(this.s3, command, { expiresIn: adjustedExpires });
+    // Configurar opciones de firma optimizadas para URLs más cortas
+    const signingOptions = {
+      expiresIn: urlOptions.expiresIn,
+      signableHeaders: new Set(['host']), // Solo headers esenciales
+      unhoistableHeaders: new Set(), // Evitar headers innecesarios
+      // Evitar parámetros de query innecesarios
+      signQuery: true
+    };
+
+    // Log para debugging en staging
+    if (process.env.NODE_ENV === 'staging') {
+      logger.debug('Opciones de firma optimizadas', {
+        expiresIn: signingOptions.expiresIn,
+        signableHeadersCount: signingOptions.signableHeaders.size,
+        key: key.substring(0, 50) // Solo primeros 50 caracteres por seguridad
+      });
+    }
+    
+    try {
+      const signedUrl = await getSignedUrl(this.s3, command, signingOptions, { 
+        expiresIn: urlOptions.expiresIn, // Ya incluye el ajuste de zona horaria colombiana
+        signableHeaders: new Set(['host']) // Reducir headers para URL más corta
+      });
+      
+      // Verificar longitud de URL antes de retornar
+      if (signedUrl.length > 250) {
+        logger.warn('URL generada excede límite recomendado', {
+          urlLength: signedUrl.length,
+          key: key,
+          operation: operation,
+          truncatedUrl: signedUrl.substring(0, 100) + '...[truncated]',
+          timezoneAdjusted: true,
+          colombianHours: (urlOptions.expiresIn / 3600).toFixed(2)
+        });
+        
+        // Intentar generar URL con tiempo de expiración más corto pero manteniendo ajuste de zona horaria
+        const shorterExpires = Math.min(3600 + timezoneCompensation + safetyMargin, urlOptions.expiresIn);
+        const shorterUrl = await getSignedUrl(this.s3, command, { 
+          expiresIn: shorterExpires, // Mantener ajuste de zona horaria even con tiempo reducido
+          signableHeaders: new Set(['host'])
+        });
+        
+        if (shorterUrl.length <= 250) {
+          logger.info('URL acortada exitosamente manteniendo zona horaria colombiana', {
+            originalLength: signedUrl.length,
+            newLength: shorterUrl.length,
+            originalHours: (urlOptions.expiresIn / 3600).toFixed(2),
+            newHours: (shorterExpires / 3600).toFixed(2),
+            timezoneOffset: timezoneOffset
+          });
+          return shorterUrl;
+        }
+      }
+      
+      return signedUrl;
+    } catch (error) {
+      logger.error('Error generando URL firmada con ajuste de zona horaria', {
+        error: error.message,
+        key: key,
+        operation: operation,
+        timezoneOffset: timezoneOffset,
+        adjustedExpires: adjustedExpires
+      });
+      throw error;
+    }
   }
 
   /**

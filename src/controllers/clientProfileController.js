@@ -842,6 +842,38 @@ async createProfile(req, res) {
         profile.sap_lead_synced = true;
       }
 
+      // Verificar que el resultado de SAP sea válido y que realmente se haya creado el Lead
+      if (!sapResult.success) {
+        const errorDetails = sapResult?.error || 'Resultado inválido de sincronización SAP';
+        logger.error('Error detallado en creación de Lead en SAP', {
+          clientId: profile.client_id,
+          error: errorDetails,
+          sapProfileData: JSON.stringify(sapProfileData, null, 2),
+          nitNumber: profile.nit_number,
+          verificationDigit: profile.verification_digit
+        });
+        
+        // Marcar como no sincronizado para que se reintente en el próximo update
+        await pool.query(
+          `UPDATE client_profiles 
+          SET sap_lead_synced = false, updated_at = CURRENT_TIMESTAMP
+          WHERE client_id = $1`,
+          [profile.client_id]
+        );
+        
+        throw new Error(`Error en creación de Lead en SAP: ${errorDetails}`);
+      }
+
+      // Verificar que tengamos un CardCode válido
+      if (!sapResult.cardCode) {
+        logger.error('SAP no devolvió CardCode válido para el Lead creado', {
+          clientId: profile.client_id,
+          sapResult: JSON.stringify(sapResult, null, 2)
+        });
+        
+        throw new Error('SAP no devolvió un CardCode válido para el Lead');
+      }
+
       logger.info('Perfil de cliente creado y sincronizado exitosamente', {
         clientId: profile.client_id,
         userId: profile.user_id,
