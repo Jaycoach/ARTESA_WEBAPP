@@ -1,4 +1,15 @@
-const AWS = require('aws-sdk');
+// Reemplazar por:
+const { 
+  S3Client, 
+  PutObjectCommand, 
+  GetObjectCommand, 
+  DeleteObjectCommand, 
+  HeadObjectCommand, 
+  ListObjectsV2Command 
+} = require('@aws-sdk/client-s3');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
+const { Upload } = require('@aws-sdk/lib-storage');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const path = require('path');
 const fs = require('fs');
 const { createContextLogger } = require('../config/logger');
@@ -41,10 +52,12 @@ class S3Service {
       }
 
       // Configurar SDK de AWS
-      AWS.config.update({
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-        region: this.region
+      this.s3 = new S3Client({
+        region: this.region,
+        credentials: {
+          accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+          secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+        },
       });
 
       this.s3 = new AWS.S3();
@@ -156,7 +169,12 @@ class S3Service {
       ...options.s3Params
     };
 
-    const uploadResult = await this.s3.upload(params).promise();
+    // Reemplazar por:
+    const upload = new Upload({
+      client: this.s3,
+      params: params
+    });
+    const uploadResult = await upload.done();
     
     // Log para staging
     if (process.env.NODE_ENV === 'staging') {
@@ -218,7 +236,12 @@ class S3Service {
       Expires: adjustedExpires
     };
 
-    return this.s3.getSignedUrlPromise(operation, params);
+    const commandMap = {
+      'getObject': GetObjectCommand,
+      'putObject': PutObjectCommand
+    };
+    const command = new commandMap[operation](params);
+    return getSignedUrl(this.s3, command, { expiresIn: adjustedExpires });
   }
 
   /**
@@ -274,7 +297,8 @@ class S3Service {
       Key: key
     };
 
-    await this.s3.deleteObject(params).promise();
+    // Reemplazar por:
+    await this.s3.send(new DeleteObjectCommand(params));
     logger.info('Archivo eliminado de S3', { key });
     return true;
   }
@@ -308,7 +332,7 @@ class S3Service {
       MaxKeys: maxKeys
     };
 
-    const result = await this.s3.listObjectsV2(params).promise();
+    const result = await this.s3.send(new ListObjectsV2Command(params));
     
     return {
       files: result.Contents.map(file => ({
@@ -391,7 +415,7 @@ class S3Service {
           Key: key
         };
         
-        await this.s3.headObject(params).promise();
+        await this.s3.send(new HeadObjectCommand(params));  
         return true;
       }
     } catch (error) {
@@ -429,7 +453,7 @@ class S3Service {
       Key: key
     };
 
-    const result = await this.s3.getObject(params).promise();
+    const result = await this.s3.send(new GetObjectCommand(params));
     
     return {
       content: result.Body,
