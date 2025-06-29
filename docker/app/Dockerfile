@@ -18,6 +18,8 @@ WORKDIR /app
 
 # Copiar archivos de dependencias primero (para cache de Docker)
 COPY package*.json ./
+# Instalar dependencias (incluyendo AWS SDK V3)
+RUN npm ci --only=production
 
 # Crear directorios antes de cambiar de usuario
 RUN mkdir -p uploads tmp logs && \

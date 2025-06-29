@@ -9,7 +9,6 @@ const {
 } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { Upload } = require('@aws-sdk/lib-storage');
-const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const path = require('path');
 const fs = require('fs');
 const { createContextLogger } = require('../config/logger');
@@ -60,7 +59,6 @@ class S3Service {
         },
       });
 
-      this.s3 = new AWS.S3();
       this.isConfigured = true;
       
       // Log específico para verificación en staging/producción
@@ -169,7 +167,6 @@ class S3Service {
       ...options.s3Params
     };
 
-    // Reemplazar por:
     const upload = new Upload({
       client: this.s3,
       params: params
@@ -232,8 +229,7 @@ class S3Service {
     
     const params = {
       Bucket: this.bucketName,
-      Key: key,
-      Expires: adjustedExpires
+      Key: key
     };
 
     const commandMap = {
@@ -241,7 +237,7 @@ class S3Service {
       'putObject': PutObjectCommand
     };
     const command = new commandMap[operation](params);
-    return getSignedUrl(this.s3, command, { expiresIn: adjustedExpires });
+    return await getSignedUrl(this.s3, command, { expiresIn: adjustedExpires });
   }
 
   /**
@@ -575,7 +571,7 @@ class S3Service {
           Key: key
         };
 
-        await this.s3.headObject(params).promise();
+        await this.s3.send(new HeadObjectCommand(params));
         return true;
       }
     } catch (error) {

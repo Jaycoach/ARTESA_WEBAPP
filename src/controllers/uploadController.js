@@ -619,6 +619,8 @@ class UploadController {
       const { STSClient, GetCallerIdentityCommand } = require('@aws-sdk/client-sts');
       const { S3Client, ListObjectsV2Command } = require('@aws-sdk/client-s3');
       
+      const { PutObjectCommand, GetObjectCommand, DeleteObjectCommand, GetBucketLocationCommand } = require('@aws-sdk/client-s3');
+      
       logger.info('Verificando credenciales IAM para S3', {
         userId: req.user?.id,
         bucket: process.env.AWS_S3_BUCKET_NAME,
@@ -651,7 +653,7 @@ class UploadController {
       try {
         // 1. Verificar identidad actual
         logger.info('Verificando identidad del usuario');
-        const identity = await sts.send(new GetCallerIdentityCommand({}))
+        const identity = await sts.send(new GetCallerIdentityCommand({}));
         verificationResults.credentials = {
           success: true,
           userId: identity.UserId,
@@ -674,7 +676,7 @@ class UploadController {
           Bucket: process.env.AWS_S3_BUCKET_NAME,
           MaxKeys: 1
         };
-        await s3.send(new ListObjectsV2Command(listParams))
+        await s3.send(new ListObjectsV2Command(listParams));
         verificationResults.permissions.listBucket = { success: true };
       } catch (error) {
         verificationResults.permissions.listBucket = { 
@@ -687,9 +689,9 @@ class UploadController {
       try {
         // 3. Verificar ubicación del bucket
         logger.info('Verificando ubicación del bucket');
-        const locationResult = await s3.getBucketLocation({
+        const locationResult = await s3.send(new GetBucketLocationCommand({
           Bucket: process.env.AWS_S3_BUCKET_NAME
-        }).promise();
+        }));
         verificationResults.bucket.location = {
           success: true,
           region: locationResult.LocationConstraint || 'us-east-1'
@@ -712,7 +714,7 @@ class UploadController {
           Body: 'IAM Test File',
           ContentType: 'text/plain'
         };
-        await s3.send(new PutObjectCommand(putParams))
+        await s3.send(new PutObjectCommand(putParams));
         verificationResults.permissions.putObject = { success: true, testKey };
 
         // 5. Probar GetObject
@@ -721,7 +723,7 @@ class UploadController {
           Bucket: process.env.AWS_S3_BUCKET_NAME,
           Key: testKey
         };
-        await s3.send(new GetObjectCommand(getParams))
+        await s3.send(new GetObjectCommand(getParams));
         verificationResults.permissions.getObject = { success: true };
 
         // 6. Probar DeleteObject
@@ -730,7 +732,7 @@ class UploadController {
           Bucket: process.env.AWS_S3_BUCKET_NAME,
           Key: testKey
         };
-        await s3.send(new DeleteObjectCommand(deleteParams))
+        await s3.send(new DeleteObjectCommand(deleteParams));
         verificationResults.permissions.deleteObject = { success: true };
 
       } catch (error) {
