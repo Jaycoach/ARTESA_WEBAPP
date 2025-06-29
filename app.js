@@ -19,6 +19,7 @@ const clientSyncRoutes = require('./src/routes/clientSyncRoutes');
 
 // Importaciones de middlewares
 const { errorHandler, notFound } = require('./src/middleware/errorMiddleware');
+const antiBotMiddleware = require('./src/middleware/antiBotMiddleware');
 const security = require('./src/middleware/security');
 const {
   sensitiveApiLimiter,
@@ -171,8 +172,11 @@ app.use(security.blockSensitiveFiles);
 // Aplicar headers de seguridad mejorados a todas las rutas
 app.use(enhancedSecurityHeaders);
 
+// Aplicar middleware anti-bot
+app.use(antiBotMiddleware);
+
 // Aplicar tracker de actividad sospechosa
-//app.use(suspiciousActivityTracker); // Comentado temporalmente para debugging
+app.use(suspiciousActivityTracker); // Habilitado para producción
 
 // Middleware para asegurar respuestas JSON
 app.use(ensureJsonResponse);

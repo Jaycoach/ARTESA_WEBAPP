@@ -13,9 +13,19 @@ const notFound = (req, res, next) => {
   logger.warn(`Ruta no encontrada: ${req.originalUrl}`, {
     method: req.method,
     ip: req.ip,
-    userAgent: req.headers['user-agent'],
-    suspiciousActivity: req.originalUrl.includes('.env') || req.originalUrl.includes('config')
-  });
+    userAgent: req.headers['user-agent'] || 'No User Agent',
+    referer: req.headers['referer'] || 'No Referer',
+    acceptLanguage: req.headers['accept-language'] || 'No Accept-Language',
+    suspiciousActivity: req.originalUrl.includes('.env') || 
+                       req.originalUrl.includes('config') ||
+                       req.originalUrl.includes('.php') ||
+                       req.originalUrl.includes('geoip') ||
+                       req.originalUrl.includes('systembc') ||
+                       req.originalUrl.includes('admin') ||
+                       req.originalUrl.includes('wp-') ||
+                       req.originalUrl.includes('xmlrpc'),
+    timestamp: new Date().toISOString()
+});
   res.status(404);
   next(error);
 };

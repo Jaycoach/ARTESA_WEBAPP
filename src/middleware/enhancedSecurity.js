@@ -74,7 +74,16 @@ const suspiciousActivityTracker = async (req, res, next) => {
             req.headers['user-agent'] === undefined,
             req.headers['accept-language'] === undefined,
             req.method === 'OPTIONS' && !req.headers['access-control-request-method'],
-            req.headers['content-length'] === '0' && req.method === 'POST'
+            req.originalUrl.includes('.php'),
+            req.originalUrl.includes('geoip'),
+            req.originalUrl.includes('systembc'),
+            req.originalUrl.includes('wp-admin'),
+            req.originalUrl.includes('xmlrpc'),
+            /\/[A-Z]{2,}\//.test(req.originalUrl), // Detecta URLs con códigos de país
+            req.headers['user-agent'] && req.headers['user-agent'].toLowerCase().includes('bot'),
+            req.headers['user-agent'] && req.headers['user-agent'].toLowerCase().includes('scanner'),
+            req.headers['user-agent'] && req.headers['user-agent'].toLowerCase().includes('curl'),
+            !req.headers['accept-language'] && req.method === 'GET'
         ];
 
         if (suspiciousPatterns.some(pattern => pattern)) {
