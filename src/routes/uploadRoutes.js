@@ -105,16 +105,7 @@ const handleMulterErrors = (err, req, res, next) => {
 router.post(
   '/images',
   verifyToken,
-  checkRole([1, 2]), // Permitir tanto a administradores como usuarios regulares
-  (req, res, next) => {
-    // Utilizamos single como middleware para procesar un solo archivo
-    upload.single('image')(req, res, (err) => {
-      if (err) {
-        return handleMulterErrors(err, req, res, next);
-      }
-      next();
-    });
-  },
+  checkRole([1, 3]), // Permitir tanto a administradores como admins funcionales
   uploadController.uploadImage
 );
 
