@@ -271,16 +271,71 @@ static async create(clientData) {
       nombre,
       email
     });
+
+    // Validaciones de longitud de campos
+    const fieldLimits = {
+      company_name: 255,
+      contact_name: 255,
+      contact_phone: 255,
+      contact_email: 255,
+      address: 255,
+      city: 255,
+      country: 255,
+      tax_id: 255,
+      nit_number: 255,
+      fotocopia_cedula: 255,
+      fotocopia_rut: 255,
+      anexos_adicionales: 255
+    };
+
+    // Función para truncar campos si exceden el límite
+    const truncateField = (value, limit) => {
+      if (!value) return value;
+      const stringValue = String(value);
+      if (stringValue.length > limit) {
+        logger.warn(`Campo truncado de ${stringValue.length} a ${limit} caracteres`, {
+          originalLength: stringValue.length,
+          truncatedValue: stringValue.substring(0, limit)
+        });
+        return stringValue.substring(0, limit);
+      }
+      return stringValue;
+    };
+
+    // Truncar campos según los límites
+    let razonSocialTruncated = truncateField(razonSocial, fieldLimits.company_name);
+    let nombreTruncated = truncateField(nombre, fieldLimits.contact_name);
+    let direccionTruncated = truncateField(direccion, fieldLimits.address);
+    let ciudadTruncated = truncateField(ciudad, fieldLimits.city);
+    let paisTruncated = truncateField(pais, fieldLimits.country);
+    let nitTruncated = truncateField(nit, fieldLimits.tax_id);
+
+    // Truncar campos de contacto
+    const contactPhone = truncateField(telefonoContacto || telefono, fieldLimits.contact_phone);
+    const contactEmail = truncateField(emailContacto || email, fieldLimits.contact_email);
+
+    // Truncar campos de archivos
+    let fotocopiaCedulaTruncated = truncateField(fotocopiaCedula, fieldLimits.fotocopia_cedula);
+    let fotocopiaRutTruncated = truncateField(fotocopiaRut, fieldLimits.fotocopia_rut);
+    let anexosAdicionalesTruncated = truncateField(anexosAdicionales, fieldLimits.anexos_adicionales);
+
+    // Truncar campos específicos del NIT
+    if (clientData.nit_number) {
+      clientData.nit_number = truncateField(clientData.nit_number, fieldLimits.nit_number);
+    }
+
+    // Generar clientprofilecode_sap después del truncamiento
+    let clientProfileCode = null;
+    if (clientData.nit_number) {
+      clientProfileCode = `CI${clientData.nit_number}`;
+      if (clientProfileCode.length > 255) {
+        clientProfileCode = clientProfileCode.substring(0, 255);
+      }
+    }
     
     // Validar que exista userId
     if (!userId) {
       throw new Error('Se requiere el ID de usuario para crear el perfil');
-    }
-    
-    // Generar clientprofilecode_sap si tenemos nit_number
-    let clientProfileCode = null;
-    if (clientData.nit_number) {
-      clientProfileCode = `CI${clientData.nit_number}`;
     }
 
     // Extraer todos los demás campos para almacenarlos como JSON en notes
@@ -307,25 +362,21 @@ static async create(clientData) {
     // Crear JSON con campos adicionales
     const notesJSON = Object.keys(additionalFields).length > 0 ? 
       JSON.stringify(additionalFields) : null;
-  
-    // En lugar de solo usar email y telefono, priorizar los campos específicos
-    const contactPhone = telefonoContacto || telefono;
-    const contactEmail = emailContacto || email;
 
     const values = [
       userId,                  // user_id
-      razonSocial,             // company_name
-      nombre,                  // contact_name
-      contactPhone,            // contact_phone (CORREGIDO)
-      contactEmail,            // contact_email (CORREGIDO)
-      direccion,               // address
-      ciudad,                  // city
-      pais || 'Colombia',      // country (valor por defecto)
-      nit,                     // tax_id
+      razonSocialTruncated,    // company_name
+      nombreTruncated,         // contact_name
+      contactPhone,            // contact_phone
+      contactEmail,            // contact_email
+      direccionTruncated,      // address
+      ciudadTruncated,         // city
+      paisTruncated || 'Colombia', // country (valor por defecto)
+      nitTruncated,            // tax_id
       notesJSON,               // notes (campos adicionales en JSON)
-      fotocopiaCedula,         // fotocopia_cedula
-      fotocopiaRut,            // fotocopia_rut
-      anexosAdicionales,       // anexos_adicionales
+      fotocopiaCedulaTruncated, // fotocopia_cedula
+      fotocopiaRutTruncated,   // fotocopia_rut
+      anexosAdicionalesTruncated, // anexos_adicionales
       clientData.listaPrecios || 1, // price_list (valor por defecto: 1)
       clientData.nit_number,   // nit_number
       clientData.verification_digit, // verification_digit
@@ -485,12 +536,36 @@ static async create(clientData) {
       const notesJSON = Object.keys(mergedAdditionalData).length > 0 ? 
         JSON.stringify(mergedAdditionalData) : null;
 
+      // Función para truncar campos si exceden el límite
+      const truncateField = (value, limit) => {
+        if (!value) return value;
+        const stringValue = String(value);
+        if (stringValue.length > limit) {
+          logger.warn(`Campo truncado de ${stringValue.length} a ${limit} caracteres`, {
+            originalLength: stringValue.length,
+            truncatedValue: stringValue.substring(0, limit)
+          });
+          return stringValue.substring(0, limit);
+        }
+        return stringValue;
+      };
+
       // Definir ANTES del array values, después de extraer additionalFields
       const { telefonoContacto, emailContacto } = updateData;
+      // Aplicar las mismas validaciones de truncamiento en update
+      razonSocial = truncateField(razonSocial, 255);
+      nombre = truncateField(nombre, 255);
+      direccion = truncateField(direccion, 255);
+      ciudad = truncateField(ciudad, 255);
+      pais = truncateField(pais, 255);
+      nit = truncateField(nit, 255);
+      fotocopiaCedula = truncateField(fotocopiaCedula, 255);
+      fotocopiaRut = truncateField(fotocopiaRut, 255);
+      anexosAdicionales = truncateField(anexosAdicionales, 255);
+      nit_number = truncateField(nit_number, 255);
 
-      // En lugar de solo usar email y telefono, priorizar los campos específicos  
-      const contactPhone = telefonoContacto || telefono;
-      const contactEmail = emailContacto || email;
+      const contactPhone = truncateField(telefonoContacto || telefono, 255);
+      const contactEmail = truncateField(emailContacto || email, 255);
 
       const values = [
         razonSocial,          // company_name

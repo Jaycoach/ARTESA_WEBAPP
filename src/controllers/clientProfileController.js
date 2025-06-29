@@ -883,7 +883,14 @@ async createProfile(req, res) {
         if (fileInfo.url) {
           try {
             if (process.env.STORAGE_MODE === 's3') {
-              await S3Service.deleteFile(fileInfo.url.replace(S3Service.getBaseUrl() + '/', ''));
+              // Extraer la clave del archivo usando el método correcto
+              const fileKey = S3Service.extractKeyFromUrl(fileInfo.url);
+              if (fileKey) {
+                await S3Service.deleteFile(fileKey);
+                logger.info(`Archivo ${fileInfo.type} limpiado exitosamente`, { key: fileKey });
+              } else {
+                logger.warn(`No se pudo extraer la clave del archivo ${fileInfo.type}`, { url: fileInfo.url });
+              }
             } else {
               const filePath = path.join(uploadDir, path.basename(fileInfo.url));
               if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
