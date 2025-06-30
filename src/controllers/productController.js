@@ -245,7 +245,7 @@ class ProductController {
    *       500:
    *         description: Error interno del servidor
    */
-  async updateProductImage(req, res) {
+    async updateProductImage(req, res) {
     try {
       const { productId } = req.params;
       let imageUrl = null;
@@ -261,13 +261,6 @@ class ProductController {
         return res.status(400).json({
           success: false,
           message: 'ID de producto requerido'
-        });
-      }
-
-      if (!imageUrl) {
-        return res.status(400).json({
-          success: false,
-          message: 'URL de imagen requerida'
         });
       }
 
@@ -287,7 +280,10 @@ class ProductController {
       // Si no hay archivo, usar la URL en el body
       else if (req.body.imageUrl) {
         imageUrl = req.body.imageUrl;
-      } else {
+      } 
+
+      // Validar que tengamos una URL de imagen
+      if (!imageUrl) {
         return res.status(400).json({
           success: false,
           message: 'Se requiere un archivo de imagen o una URL de imagen'
@@ -296,6 +292,13 @@ class ProductController {
 
       // Actualizar la imagen
       const updatedProduct = await Product.updateImage(productId, imageUrl);
+      
+      if (!updatedProduct) {
+        return res.status(404).json({
+          success: false,
+          message: 'Producto no encontrado'
+        });
+      }
       
       res.status(200).json({
         success: true,
