@@ -2148,8 +2148,32 @@ async getFile(req, res) {
             });
           }
 
-          // Para navegadores normales, redirigir directamente
-          return res.redirect(signedUrl);
+          // En lugar de redirigir, descargar contenido y enviarlo directamente
+          try {
+            const fileData = await S3Service.getFileContent(key);
+            
+            // Configurar headers para descarga
+            res.setHeader('Content-Type', fileData.contentType || 'application/octet-stream');
+            res.setHeader('Content-Disposition', `attachment; filename="${fileData.fileName || 'documento'}"`);
+            res.setHeader('Content-Length', fileData.content.length);
+            res.setHeader('Cache-Control', 'private, no-cache');
+            
+            // Enviar el contenido como buffer binario
+            return res.end(fileData.content);
+            
+          } catch (downloadError) {
+            logger.error('Error descargando contenido de S3', {
+              error: downloadError.message,
+              key: key,
+              userId: userId,
+              fileType: fileType
+            });
+            
+            return res.status(500).json({
+              success: false,
+              message: 'Error al descargar el documento'
+            });
+          }
           
         } catch (signedUrlError) {
           logger.error('Error generando URL firmada, intentando descarga directa', {
