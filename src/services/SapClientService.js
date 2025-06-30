@@ -290,6 +290,11 @@ class SapClientService extends SapBaseService {
       address: clientProfile.direccion || clientProfile.address || '',
       isUpdate
       });
+
+      this.logger.debug('GroupCode utilizado para Lead', {
+        groupCode: businessPartnerData.GroupCode,
+        source: process.env.SAP_INSTITUTIONAL_GROUP_CODE ? 'ENV_VAR' : 'DEFAULT'
+      });
       
       // Validar que tenemos SessionId antes de proceder
       if (!this.sessionId) {
@@ -306,7 +311,7 @@ class SapClientService extends SapBaseService {
         CardName: businessPartnerName,
         CardType: 'cLid',  // Lead - cambiar a 'cLid' que es el correcto para Leads
         PriceListNum: 1, // Siempre 1
-        GroupCode: 102, // Grupo Por defecto
+        GroupCode: parseInt(process.env.SAP_INSTITUTIONAL_GROUP_CODE) || 106, // Grupo institucional por defecto
         FederalTaxID: `${clientProfile.nit_number}-${clientProfile.verification_digit}`,
         Phone1: phone,
         EmailAddress: clientProfile.email || clientProfile.contact_email || '',
