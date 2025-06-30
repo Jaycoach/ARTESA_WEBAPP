@@ -1959,12 +1959,16 @@ async getFile(req, res) {
         }
         
         // Para Swagger/API testing, devolver el enlace firmado en lugar de redirigir
-        if (req.headers['user-agent'] && req.headers['user-agent'].includes('swagger')) {
+        if (req.headers['user-agent'] && 
+            (req.headers['user-agent'].includes('swagger') || 
+            req.headers['user-agent'].includes('Swagger') ||
+            req.headers['postman-token'] || 
+            req.headers['x-requested-with'])) {
           const signedUrl = await S3Service.getSignedUrl('getObject', key, 3600);
           return res.json({
             success: true,
             downloadUrl: signedUrl,
-            message: 'Use la URL downloadUrl para acceder al documento'
+            message: 'Use la URL downloadUrl para acceder al documento directamente'
           });
         }
         
@@ -2131,7 +2135,20 @@ async getFile(req, res) {
             fileType: fileType
           });
           
-          // Redirigir a la URL firmada en lugar de descargar contenido
+          // Para Swagger/API testing, devolver el enlace en lugar de redirigir
+          if (req.headers['user-agent'] && 
+              (req.headers['user-agent'].includes('swagger') || 
+              req.headers['user-agent'].includes('Swagger') ||
+              req.headers['postman-token'] || 
+              req.headers['x-requested-with'])) {
+            return res.json({
+              success: true,
+              downloadUrl: signedUrl,
+              message: 'Use la URL downloadUrl para acceder al documento directamente'
+            });
+          }
+
+          // Para navegadores normales, redirigir directamente
           return res.redirect(signedUrl);
           
         } catch (signedUrlError) {
