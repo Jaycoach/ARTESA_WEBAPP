@@ -2119,17 +2119,40 @@ async getFile(req, res) {
             message: 'Documento no encontrado'
           });
         }
-        
-        // Obtener el contenido del archivo
-        const fileData = await S3Service.getFileContent(key);
-        
-        // Configurar headers para descarga
-        res.setHeader('Content-Type', fileData.contentType);
-        res.setHeader('Content-Disposition', `attachment; filename="${fileData.fileName}"`);
-        res.setHeader('Content-Length', fileData.content.length);
 
-        // Enviar el contenido como buffer binario
-        return res.end(fileData.content);
+        // Generar URL firmada nueva para descarga directa
+        try {
+          const signedUrl = await S3Service.getSignedUrl('getObject', key, 3600);
+          
+          logger.debug('URL firmada generada exitosamente', {
+            key: key,
+            urlLength: signedUrl.length,
+            userId: userId,
+            fileType: fileType
+          });
+          
+          // Redirigir a la URL firmada en lugar de descargar contenido
+          return res.redirect(signedUrl);
+          
+        } catch (signedUrlError) {
+          logger.error('Error generando URL firmada, intentando descarga directa', {
+            error: signedUrlError.message,
+            key: key,
+            userId: userId,
+            fileType: fileType
+          });
+          
+          // Fallback: intentar descarga directa del contenido
+          const fileData = await S3Service.getFileContent(key);
+          
+          // Configurar headers para descarga
+          res.setHeader('Content-Type', fileData.contentType);
+          res.setHeader('Content-Disposition', `attachment; filename="${fileData.fileName}"`);
+          res.setHeader('Content-Length', fileData.content.length);
+
+          // Enviar el contenido como buffer binario
+          return res.end(fileData.content);
+        }
       }
       // Modo local - usar método existente
       else {

@@ -71,7 +71,6 @@ class S3Service {
       }
       
       logger.info('S3Service inicializado correctamente', { bucket: this.bucketName, region: this.region });
-      logger.info('S3Service inicializado correctamente', { bucket: this.bucketName, region: this.region });
     } catch (error) {
       logger.error('Error al inicializar S3Service', { error: error.message, stack: error.stack });
       this.localMode = true;
@@ -257,6 +256,11 @@ class S3Service {
       'getObject': GetObjectCommand,
       'putObject': PutObjectCommand
     };
+
+    if (!commandMap[operation]) {
+      throw new Error(`Operación no soportada: ${operation}`);
+    }
+
     const command = new commandMap[operation](params);
     // Configurar opciones de firma optimizadas para URLs más cortas
     const signingOptions = {
@@ -277,9 +281,9 @@ class S3Service {
     }
     
     try {
-      const signedUrl = await getSignedUrl(this.s3, command, signingOptions, { 
-        expiresIn: urlOptions.expiresIn, // Ya incluye el ajuste de zona horaria colombiana
-        signableHeaders: new Set(['host']) // Reducir headers para URL más corta
+      // Usar solo los parámetros esenciales para evitar conflictos
+      const signedUrl = await getSignedUrl(this.s3, command, {
+        expiresIn: urlOptions.expiresIn
       });
       
       // Verificar longitud de URL antes de retornar
@@ -477,53 +481,7 @@ class S3Service {
       prefix: prefix
     };
   }
-
-  /**
-   * Verifica si un archivo existe
-   * @param {string} key - Clave del archivo
-   * @returns {Promise<boolean>} True si existe
-   */
-  async fileExists(key) {
-    try {
-      key = this.normalizeKey(key);
-      
-      if (this.localMode) {
-        const filePath = path.join(process.cwd(), 'uploads', key);
-        return fs.existsSync(filePath);
-      } else {
-        const params = {
-          Bucket: this.bucketName,
-          Key: key
-        };
-        
-        await this.s3.send(new HeadObjectCommand(params));  
-        return true;
-      }
-    } catch (error) {
-      return false;
-    }
-  }
-
-  /**
-   * Obtiene el contenido de un archivo desde S3 o sistema local
-   * @param {string} key - Clave del archivo
-   * @returns {Promise<{content: Buffer, contentType: string, fileName: string}>}
-   */
-  async getFileContent(key) {
-    try {
-      key = this.normalizeKey(key);
-      
-      if (this.localMode) {
-        return await this.getFileContentLocally(key);
-      } else {
-        return await this.getFileContentFromS3(key);
-      }
-    } catch (error) {
-      logger.error('Error al obtener contenido de archivo', { error: error.message, key });
-      throw error;
-    }
-  }
-
+  
   /**
    * Obtiene contenido de archivo desde S3
    * @private
@@ -855,6 +813,77 @@ async uploadBannerImage(file, customName) {
       safetyMarginHours: (safetyMargin / 3600).toFixed(2),
       totalExtraTime: Math.abs(timezoneOffset) + (safetyMargin / 3600)
     };
+  }
+  /**
+   * Obtiene el contenido completo de un archivo desde S3
+   * @param {string} key - Clave del objeto en S3
+   * @returns {Promise<Object>} Contenido del archivo y metadatos
+   */
+  async getFileContent(key) {
+    if (this.localMode) {
+      const filePath = path.join(process.cwd(), 'uploads', key);
+      const content = fs.readFileSync(filePath);
+      const stats = fs.statSync(filePath);
+      
+      return {
+        content: content,
+        contentType: this.getMimeType(path.extname(key)),
+        fileName: path.basename(key),
+        size: stats.size
+      };
+    }
+
+    try {
+      const command = new GetObjectCommand({
+        Bucket: this.bucketName,
+        Key: this.normalizeKey(key)
+      });
+      
+      const response = await this.s3.send(command);
+      
+      // Convertir el stream a buffer
+      const chunks = [];
+      for await (const chunk of response.Body) {
+        chunks.push(chunk);
+      }
+      const content = Buffer.concat(chunks);
+      
+      return {
+        content: content,
+        contentType: response.ContentType || 'application/octet-stream',
+        fileName: path.basename(key),
+        size: response.ContentLength || content.length
+      };
+      
+    } catch (error) {
+      logger.error('Error obteniendo contenido de archivo desde S3', {
+        error: error.message,
+        key: key,
+        bucket: this.bucketName
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Obtiene el tipo MIME basado en la extensión del archivo
+   * @param {string} extension - Extensión del archivo
+   * @returns {string} Tipo MIME
+   */
+  getMimeType(extension) {
+    const mimeTypes = {
+      '.pdf': 'application/pdf',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.png': 'image/png',
+      '.gif': 'image/gif',
+      '.doc': 'application/msword',
+      '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      '.xls': 'application/vnd.ms-excel',
+      '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    };
+    
+    return mimeTypes[extension.toLowerCase()] || 'application/octet-stream';
   }
 }
 
