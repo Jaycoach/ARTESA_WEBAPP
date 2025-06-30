@@ -777,172 +777,194 @@ async createProfile(req, res) {
     let profileForResponse = null;
 
     // TRANSACCIÓN COMPLETA
+    const client = await pool.connect();
     try {
-      logger.info('Creando nuevo perfil de cliente usando el modelo', {
+      await client.query('BEGIN');
+      
+      logger.info('Iniciando transacción para crear perfil de cliente', {
         userId: clientData.userId,
         email: clientData.email,
         nombre: clientData.nombre
       });
       
-      // Usar el modelo ClientProfile.create que ya tiene toda la lógica
+      // Crear el perfil usando el modelo (que maneja su propia lógica de BD)
       const profile = await ClientProfile.create(clientData);
-      
+
       logger.info('Perfil de cliente creado exitosamente por el modelo', {
         clientId: profile.client_id,
         userId: profile.user_id
       });
-      
-      // Declarar variable para resultado de SAP fuera del bloque condicional
-      let sapResult = null;
 
-      // Sincronizar con SAP si tenemos datos necesarios
-      if (profile.nit_number && profile.verification_digit !== undefined) {
-        const sapProfileData = {
-          client_id: profile.client_id,
-          user_id: profile.user_id,
-          razonSocial: profile.razonSocial,
-          nombre: profile.nombre,
-          telefono: profile.telefono,
-          email: profile.email,
-          direccion: profile.direccion,
-          nit_number: profile.nit_number,
-          verification_digit: profile.verification_digit
+      profileForResponse = profile;
+      
+      // Procesar archivos de forma transaccional
+      const uploadPromises = [];
+      const uploadedFiles = [];
+      
+      if (req.files) {
+        const fileFieldMap = {
+          'fotocopiaCedula': 'cedula',
+          'fotocopia_cedula': 'cedula', 
+          'fotocopiaRut': 'rut',
+          'fotocopia_rut': 'rut',
+          'anexosAdicionales': 'anexos',
+          'anexos_adicionales': 'anexos'
         };
         
-        logger.info('Datos preparados para SAP:', sapProfileData);
-        
-        if (!sapServiceManager.initialized) {
-          await sapServiceManager.initialize();
+        for (const field in req.files) {
+          if (fileFieldMap[field]) {
+            const docType = fileFieldMap[field];
+            try {
+              const uploadedUrl = await saveFile(req.files[field], clientData.userId, docType);
+              uploadedFiles.push({ field, docType, url: uploadedUrl });
+              logger.info('Archivo subido exitosamente', { field, docType, url: uploadedUrl });
+            } catch (uploadError) {
+              logger.error('Error al subir archivo', { 
+                field, 
+                docType, 
+                error: uploadError.message 
+              });
+              throw new Error(`Error al subir archivo ${field}: ${uploadError.message}`);
+            }
+          }
         }
-        
-        sapResult = await sapServiceManager.clientService.createOrUpdateBusinessPartnerLead(sapProfileData);
-        
-        if (!sapResult || !sapResult.success) {
-          const errorDetails = sapResult?.error || 'Resultado inválido';
-          logger.error('Error detallado en sincronización SAP', {
-            clientId: profile.client_id,
-            error: errorDetails,
-            sapProfileData: JSON.stringify(sapProfileData, null, 2)
-          });
-          throw new Error(`Error en sincronización SAP: ${errorDetails}`);
-        }
-        
-        logger.info('Sincronización SAP exitosa', {
-          clientId: profile.client_id,
-          cardCode: sapResult.cardCode,
-          isNew: sapResult.isNew
-        });
-        
-        // Actualizar perfil con datos de SAP usando el pool directo
-        await pool.query(
-          `UPDATE client_profiles 
-          SET cardcode_sap = $1, sap_lead_synced = true, updated_at = CURRENT_TIMESTAMP
-          WHERE client_id = $2`,
-          [sapResult.cardCode, profile.client_id]
-        );
-        
-        profile.cardcode_sap = sapResult.cardCode;
-        profile.sap_lead_synced = true;
-
-        // Verificar que el resultado de SAP sea válido y que realmente se haya creado el Lead
-        if (!sapResult.success) {
-          const errorDetails = sapResult?.error || 'Resultado inválido de sincronización SAP';
-          logger.error('Error detallado en creación de Lead en SAP', {
-            clientId: profile.client_id,
-            error: errorDetails,
-            sapProfileData: JSON.stringify(sapProfileData, null, 2),
-            nitNumber: profile.nit_number,
-            verificationDigit: profile.verification_digit
-          });
-          
-          // Marcar como no sincronizado para que se reintente en el próximo update
-          await pool.query(
-            `UPDATE client_profiles 
-            SET sap_lead_synced = false, updated_at = CURRENT_TIMESTAMP
-            WHERE client_id = $1`,
-            [profile.client_id]
-          );
-          
-          throw new Error(`Error en creación de Lead en SAP: ${errorDetails}`);
-        }
-
-        // Verificar que tengamos un CardCode válido
-        if (!sapResult.cardCode) {
-          logger.error('SAP no devolvió CardCode válido para el Lead creado', {
-            clientId: profile.client_id,
-            sapResult: JSON.stringify(sapResult, null, 2)
-          });
-          
-          throw new Error('SAP no devolvió un CardCode válido para el Lead');
-        }
-      }
-
-      logger.info('Perfil de cliente creado y sincronizado exitosamente', {
-        clientId: profile.client_id,
-        userId: profile.user_id,
-        cardCode: profile.cardcode_sap
-      });
-
-      // Obtener el perfil completo actualizado para la respuesta final
-      profileForResponse = await ClientProfile.getByUserId(profile.user_id);
-      if (!profileForResponse) {
-        throw new Error('Error al obtener el perfil recién creado para la respuesta');
       }
       
+      // Sincronizar con SAP (sin hacer rollback si falla)
+      let sapSyncResult = null;
+      try {
+        if (profile.nit_number && profile.verification_digit !== undefined) {
+          const sapProfileData = {
+            client_id: profile.client_id,
+            user_id: profile.user_id,
+            razonSocial: profile.razonSocial,
+            nombre: profile.nombre, 
+            telefono: profile.telefono,
+            email: profile.email,
+            direccion: profile.direccion,
+            nit_number: profile.nit_number,
+            verification_digit: profile.verification_digit
+          };
+          
+          logger.info('Iniciando sincronización con SAP', {
+            clientId: profile.client_id,
+            sapProfileData
+          });
+          
+          if (!sapServiceManager.initialized) {
+            await sapServiceManager.initialize();
+          }
+          
+          sapSyncResult = await sapServiceManager.createOrUpdateLead(sapProfileData);
+          
+          if (sapSyncResult && sapSyncResult.success) {
+            // Actualizar perfil con datos de SAP dentro de la transacción
+            const updateResult = await client.query(
+              `UPDATE client_profiles 
+              SET cardcode_sap = $1, 
+                  clientprofilecode_sap = $2, 
+                  sap_lead_synced = true,
+                  updated_at = CURRENT_TIMESTAMP
+              WHERE client_id = $3 
+              RETURNING *`,
+              [sapSyncResult.cardCode, sapSyncResult.artesaCode, profile.client_id]
+            );
+            
+            if (updateResult.rows.length > 0) {
+              profileForResponse = updateResult.rows[0];
+              logger.info('Perfil actualizado con datos de SAP', {
+                clientId: profile.client_id,
+                cardCode: sapSyncResult.cardCode
+              });
+            }
+          } else {
+            logger.warn('SAP no devolvió resultado exitoso', {
+              sapSyncResult
+            });
+          }
+        }
+      } catch (sapError) {
+        // SOLO logear error de SAP, NO hacer rollback
+        logger.error('Error de SAP (no crítico, continúa transacción)', {
+          error: sapError.message,
+          stack: sapError.stack,
+          clientId: profile.client_id
+        });
+        
+        logger.warn('Perfil creado pero sin sincronización SAP', {
+          clientId: profile.client_id
+        });
+      }
+      
+      // CONFIRMAR transacción - todo lo crítico fue exitoso
+      await client.query('COMMIT');
+      
+      logger.info('Transacción confirmada exitosamente', {
+        clientId: profileForResponse.client_id,
+        userId: profileForResponse.user_id,
+        sapSynced: !!sapSyncResult?.success
+      });
+      
     } catch (error) {
-      logger.error('Error al crear perfil, transacción revertida', {
+      // Hacer rollback en caso de error crítico
+      try {
+        await client.query('ROLLBACK');
+        logger.info('Rollback ejecutado exitosamente debido a error crítico');
+      } catch (rollbackError) {
+        logger.error('Error al ejecutar rollback', { 
+          error: rollbackError.message 
+        });
+      }
+      
+      // Limpiar archivos subidos en caso de rollback
+      if (req.files) {
+        const filesToClean = [
+          { field: 'fotocopiaCedula', type: 'cedula' },
+          { field: 'fotocopiaRut', type: 'rut' },
+          { field: 'anexosAdicionales', type: 'anexos' }
+        ];
+        
+        for (const fileInfo of filesToClean) {
+          if (clientData[fileInfo.field]) {
+            try {
+              if (process.env.STORAGE_MODE === 's3') {
+                const fileKey = S3Service.extractKeyFromUrl(clientData[fileInfo.field]);
+                if (fileKey) {
+                  await S3Service.deleteFile(fileKey);
+                  logger.info(`Archivo ${fileInfo.type} limpiado de S3`, { key: fileKey });
+                }
+              } else {
+                const filePath = path.join(uploadDir, path.basename(clientData[fileInfo.field]));
+                if (fs.existsSync(filePath)) {
+                  fs.unlinkSync(filePath);
+                  logger.info(`Archivo ${fileInfo.type} limpiado localmente`, { path: filePath });
+                }
+              }
+            } catch (cleanupError) {
+              logger.warn(`Error al limpiar archivo ${fileInfo.type}`, { 
+                error: cleanupError.message 
+              });
+            }
+          }
+        }
+      }
+      
+      logger.error('Error crítico al crear perfil, transacción revertida', {
         error: error.message,
         stack: error.stack,
         userId: clientData.userId
       });
       
-      // Si hay error en SAP pero el perfil se creó, intentar obtenerlo para la respuesta
-      if (!profileForResponse) {
-        try {
-          profileForResponse = await ClientProfile.getByUserId(clientData.userId);
-        } catch (getProfileError) {
-          logger.warn('No se pudo obtener el perfil creado después del error de SAP', {
-            error: getProfileError.message
-          });
-        }
-      }
-      
-      // Limpiar archivos subidos
-      const filesToClean = [
-        { url: clientData.fotocopiaCedula, type: 'cedula' },
-        { url: clientData.fotocopiaRut, type: 'rut' },
-        { url: clientData.anexosAdicionales, type: 'anexos' }
-      ];
-      
-      for (const fileInfo of filesToClean) {
-        if (fileInfo.url) {
-          try {
-            if (process.env.STORAGE_MODE === 's3') {
-              // Extraer la clave del archivo usando el método correcto
-              const fileKey = S3Service.extractKeyFromUrl(fileInfo.url);
-              if (fileKey) {
-                await S3Service.deleteFile(fileKey);
-                logger.info(`Archivo ${fileInfo.type} limpiado exitosamente`, { key: fileKey });
-              } else {
-                logger.warn(`No se pudo extraer la clave del archivo ${fileInfo.type}`, { url: fileInfo.url });
-              }
-            } else {
-              const filePath = path.join(uploadDir, path.basename(fileInfo.url));
-              if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-            }
-          } catch (cleanupError) {
-            logger.warn(`Error al limpiar archivo ${fileInfo.type}`, { error: cleanupError.message });
-          }
-        }
-      }
-      
       return res.status(500).json({
         success: false,
-        message: 'Error al crear perfil de cliente. La sincronización con SAP falló.',
+        message: 'Error al crear perfil de cliente. Proceso cancelado.',
         error: process.env.NODE_ENV === 'development' ? error.message : 'Error interno del sistema'
       });
+    } finally {
+      // Liberar conexión siempre
+      client.release();
     }
-    
+
     // Verificar que tenemos el perfil para la respuesta
     if (!profileForResponse) {
       return res.status(500).json({
@@ -951,7 +973,7 @@ async createProfile(req, res) {
         error: process.env.NODE_ENV === 'development' ? 'profileForResponse is null' : 'Error interno del sistema'
       });
     }
-    
+
     // Agregar URLs para archivos
     const baseUrl = `${req.protocol}://${req.get('host')}`;
 

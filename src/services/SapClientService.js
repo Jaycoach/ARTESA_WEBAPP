@@ -318,135 +318,39 @@ class SapClientService extends SapBaseService {
       const endpoint = isUpdate 
       ? `BusinessPartners('${existingPartner ? existingPartner.CardCode : clientProfile.cardcode_sap}')` 
       : 'BusinessPartners';
-      
-      this.logger.info('Enviando datos a SAP B1', {
-        endpoint,
-        method,
-        cardCode: businessPartnerData.CardCode,
-        cardName: businessPartnerData.CardName,
-        federalTaxID: businessPartnerData.FederalTaxID
-      });
 
-      // Validar datos antes de enviar a SAP
-      if (!businessPartnerData.CardCode || !businessPartnerData.CardName || !businessPartnerData.FederalTaxID) {
-        const missingFields = [];
-        if (!businessPartnerData.CardCode) missingFields.push('CardCode');
-        if (!businessPartnerData.CardName) missingFields.push('CardName');  
-        if (!businessPartnerData.FederalTaxID) missingFields.push('FederalTaxID');
-        
-        throw new Error(`Campos requeridos faltantes para crear Lead en SAP: ${missingFields.join(', ')}`);
+    this.logger.info('Enviando solicitud a SAP', {
+      method,
+      endpoint,
+      cardCode: businessPartnerData.CardCode,
+      isUpdate
+    });
+
+    const response = await this.request(method, endpoint, businessPartnerData);
+
+    if (!response) {
+      throw new Error('No se recibió respuesta de SAP');
+    }
+
+    this.logger.info('BusinessPartner procesado exitosamente en SAP', {
+      cardCode: businessPartnerData.CardCode,
+      method,
+      isUpdate,
+      responseCardCode: response.CardCode
+    });
+
+    return {
+      success: true,
+      cardCode: response.CardCode,
+      artesaCode: businessPartnerData.U_AR_ArtesaCode,
+      isNew: !isUpdate,
+      sapResponse: {
+        CardCode: response.CardCode,
+        CardName: response.CardName,
+        CardType: response.CardType
       }
-
-      try {
-      // Realizar petición a SAP
-        const result = await this.request(method, endpoint, businessPartnerData);
-        // Inicializar resultCardCode con el valor esperado
-        let resultCardCode = clientProfile.cardcode_sap || cardCode;
-
-        // Log para debug de la respuesta de SAP
-        this.logger.debug('Respuesta completa de SAP para análisis', {
-          result: result,
-          resultType: typeof result,
-          resultKeys: result ? Object.keys(result) : null,
-          hasCardCode: result && result.CardCode ? true : false,
-          isUpdate
-        });
-
-        // Si es creación exitosa, guardar el CardCode real asignado por SAP
-        if (!isUpdate && result) {
-          // SAP puede devolver el CardCode en diferentes ubicaciones
-          resultCardCode = result.CardCode || result.cardCode || cardCode;
-          
-          // Actualizar el perfil del cliente con el código real de SAP y marcar como sincronizado
-          await pool.query(
-            `UPDATE client_profiles 
-            SET cardcode_sap = $1, 
-                sap_lead_synced = true,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE client_id = $2`,
-            [resultCardCode, clientProfile.client_id]
-          );
-          
-          this.logger.info('Perfil de cliente actualizado con CardCode real de SAP', {
-            clientId: clientProfile.client_id,
-            sapCardCode: resultCardCode,
-            originalResponse: result
-          });
-        } else if (isUpdate) {
-          resultCardCode = clientProfile.cardcode_sap;
-          // Para actualizaciones, marcar como sincronizado
-          await pool.query(
-            `UPDATE client_profiles 
-            SET sap_lead_synced = true,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE client_id = $1`,
-            [clientProfile.client_id]
-          );
-          
-          this.logger.info('Perfil de cliente actualizado en SAP', {
-            clientId: clientProfile.client_id,
-            cardCode: clientProfile.cardcode_sap
-          });
-        }
-
-        // Si la creación fue exitosa y tenemos contactos, crearlos en SAP
-        if (result && !isUpdate && clientProfile.client_id) {
-          try {
-            await this.createContactPersonsInSAP(resultCardCode, clientProfile.client_id);
-          } catch (contactError) {
-            this.logger.warn('Error al crear contactos en SAP', {
-              error: contactError.message,
-              cardCode: resultCardCode,
-              clientId: clientProfile.client_id
-            });
-            // No fallar la operación principal por error en contactos
-          }
-        }
-        
-        return {
-          success: true,
-          cardCode: resultCardCode,
-          isNew: !isUpdate
-        };
-
-      } catch (error) {
-        this.logger.error('Error al crear/actualizar socio de negocios Lead en SAP', {
-          error: error.message,
-          stack: error.stack,
-          clientId: clientProfile.client_id,
-          requestData: JSON.stringify(businessPartnerData)
-        });
-
-        // Reenviar el error para que se maneje en el nivel superior
-        throw error;
-        
-        // Intentar reautenticar y reintentar una vez si el error es de autenticación
-        /*if (requestError.response && requestError.response.status === 401) {
-          this.logger.info('Reintentando después de reautenticar', { cardCode });
-          this.sessionId = null;
-          await this.login();
-          
-          const retryResult = await this.request(method, endpoint, businessPartnerData);
-          
-          let resultCardCode = clientProfile.cardcode_sap;
-          if (!isUpdate && retryResult && retryResult.CardCode) {
-            resultCardCode = retryResult.CardCode;
-          }
-          
-          this.logger.info('Reintento exitoso después de reautenticar', {
-            cardCode: resultCardCode,
-            clientId: clientProfile.client_id
-          });
-          
-          return {
-            success: true,
-            cardCode: resultCardCode,
-            isNew: !isUpdate
-          };
-        }
-        
-        throw requestError;*/
-      }
+    };
+    
     } catch (error) {
       this.logger.error('Error al crear/actualizar socio de negocios Lead en SAP', {
         error: error.message,

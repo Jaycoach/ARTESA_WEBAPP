@@ -110,6 +110,17 @@ router.post(
 );
 
 /**
+ * Subir archivo general
+ * @route POST /upload
+ */
+router.post(
+  '/',
+  verifyToken,
+  checkRole([1, 3]), // Permitir tanto a administradores como admins funcionales
+  uploadController.uploadImage
+);
+
+/**
  * @typedef {object} DeleteImageResponse
  * @property {boolean} success - Estado de la operación
  * @property {string} message - Mensaje descriptivo

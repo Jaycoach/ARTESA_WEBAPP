@@ -99,9 +99,21 @@ class UploadController {
         fileName = file.name;
       }
   
+      // Determinar el tipo de archivo y la carpeta destino
+      let folderPrefix = 'general';
+      const fileMimeType = req.file ? req.file.mimetype : file.mimetype;
+      const isImage = /^image\//i.test(fileMimeType);
+      const isDocument = /^application\/(pdf|msword|vnd\.openxmlformats)/i.test(fileMimeType);
+
+      if (isImage) {
+        folderPrefix = 'images';
+      } else if (isDocument) {
+        folderPrefix = 'documents';
+      }
+
       // Generar una clave única para S3
       const uniquePrefix = `${Date.now()}-${Math.round(Math.random() * 1E9)}`;
-      const key = `general/${uniquePrefix}-${path.basename(fileName)}`;
+      const key = `${folderPrefix}/${uniquePrefix}-${path.basename(fileName)}`;
       
       // Subir a S3
       const fileUrl = req.file 
