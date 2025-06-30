@@ -164,7 +164,7 @@ class SapClientService extends SapBaseService {
       });
       
       // Crear CardCode único con formato requerido
-      const cardCode = `CI${clientProfile.nit_number}`;
+      let cardCode = `CI${clientProfile.nit_number}`;
 
       // Validar que el NIT no esté ya en uso por otro cliente
       const existingByNIT = await this.checkExistingBusinessPartnerByNIT(
@@ -197,6 +197,12 @@ class SapClientService extends SapBaseService {
       let isUpdate = false;
       let existingPartner = null;
 
+      // Asegurar que tenemos sesión activa antes de hacer consultas
+      if (!this.sessionId) {
+        this.logger.debug('No hay sesión activa, iniciando login con SAP');
+        await this.login();
+      }
+
       if (clientProfile.cardcode_sap) {
         // Si tenemos cardcode_sap, verificar que aún existe en SAP
         try {
@@ -218,7 +224,7 @@ class SapClientService extends SapBaseService {
                 generated: cardCode,
                 existing: existingPartner.CardCode
               });
-              cardCode = existingPartner.CardCode;
+              // No reasignar cardCode aquí, usar businessPartnerData.CardCode más adelante
             }
           } else {
             this.logger.info('No se encontró BusinessPartner existente, procederá con creación', {
@@ -285,11 +291,20 @@ class SapClientService extends SapBaseService {
       isUpdate
       });
       
+      // Validar que tenemos SessionId antes de proceder
+      if (!this.sessionId) {
+        logger.debug('No hay SessionId, intentando login antes de crear BP');
+        await this.login();
+        if (!this.sessionId) {
+          throw new Error('No se pudo establecer sesión con SAP');
+        }
+      }
+
       // Preparar datos para SAP
       const businessPartnerData = {
         CardCode: cardCode,
         CardName: businessPartnerName,
-        CardType: 'L',  // Lead - siempre L
+        CardType: 'cLid',  // Lead - cambiar a 'cLid' que es el correcto para Leads
         PriceListNum: 1, // Siempre 1
         GroupCode: 102, // Grupo Por defecto
         FederalTaxID: `${clientProfile.nit_number}-${clientProfile.verification_digit}`,
@@ -307,8 +322,9 @@ class SapClientService extends SapBaseService {
         isUpdate
       });
 
-      // Si no estamos ya autenticados, hacerlo
+      // Verificar sesión antes de hacer la petición crítica
       if (!this.sessionId) {
+        this.logger.warn('Sesión perdida antes de crear/actualizar BP, relogueando');
         await this.login();
       }
 
@@ -316,14 +332,15 @@ class SapClientService extends SapBaseService {
       const method = isUpdate ? 'PATCH' : 'POST';
 
       const endpoint = isUpdate 
-      ? `BusinessPartners('${existingPartner ? existingPartner.CardCode : clientProfile.cardcode_sap}')` 
+      ? `BusinessPartners('${existingPartner ? existingPartner.CardCode : cardCode}')` 
       : 'BusinessPartners';
 
     this.logger.info('Enviando solicitud a SAP', {
       method,
       endpoint,
       cardCode: businessPartnerData.CardCode,
-      isUpdate
+      isUpdate,
+      sessionActive: !!this.sessionId
     });
 
     const response = await this.request(method, endpoint, businessPartnerData);
@@ -341,11 +358,11 @@ class SapClientService extends SapBaseService {
 
     return {
       success: true,
-      cardCode: response.CardCode,
+      cardCode: response.CardCode || businessPartnerData.CardCode,
       artesaCode: businessPartnerData.U_AR_ArtesaCode,
       isNew: !isUpdate,
       sapResponse: {
-        CardCode: response.CardCode,
+        CardCode: response.CardCode || businessPartnerData.CardCode,
         CardName: response.CardName,
         CardType: response.CardType
       }
@@ -357,317 +374,21 @@ class SapClientService extends SapBaseService {
         stack: error.stack,
         clientId: clientProfile.client_id,
         nit: clientProfile.nit_number,
-        verification_digit: clientProfile.verification_digit
+        verification_digit: clientProfile.verification_digit,
+        sessionActive: !!this.sessionId
       });
       
       // Devolvemos un objeto con success: false en lugar de lanzar el error
       // para que el controlador pueda manejarlo mejor
       return {
         success: false,
-        error: error.message
-      };
-    }
-  }
-
-  /**
-   * Verifica si un NIT ya existe en SAP
-   * @param {string} nitNumber - Número de NIT sin DV
-   * @param {string} verificationDigit - Dígito de verificación
-   * @returns {Promise<{exists: boolean, cardCode: string|null}>} - Resultado de la verificación
-   */
-  async nitExistsInSAP(nitNumber, verificationDigit) {
-    try {
-      this.logger.debug('Verificando si NIT existe en SAP', { 
-        nitNumber, 
-        verificationDigit 
-      });
-      
-      // Construir el FederalTaxID con el formato correcto
-      const federalTaxID = `${nitNumber}-${verificationDigit}`;
-      
-      // Construir la consulta para buscar por FederalTaxID
-      const endpoint = `BusinessPartners?$filter=FederalTaxID eq '${federalTaxID}'`;
-      
-      // Realizar la consulta a SAP
-      const result = await this.request('GET', endpoint);
-      
-      // Si no hay resultado o no hay valores, el NIT no existe
-      if (!result || !result.value || result.value.length === 0) {
-        return { exists: false, cardCode: null };
-      }
-      
-      // El NIT existe, devolver el CardCode del primer resultado
-      const cardCode = result.value[0].CardCode;
-      
-      this.logger.info('NIT encontrado en SAP', {
-        nitNumber,
-        verificationDigit,
-        federalTaxID,
-        cardCode
-      });
-      
-      return { exists: true, cardCode };
-    } catch (error) {
-      this.logger.error('Error al verificar NIT en SAP', {
         error: error.message,
-        nitNumber,
-        stack: error.stack
-      });
-      
-      // Si hay un error, asumimos que no existe (mejor ser conservador)
-      return { exists: false, cardCode: null };
-    }
-  }
-
-  /**
-   * Procesa el FederalTaxID para extraer nit_number y verification_digit
-   * @param {string} federalTaxID - Valor de FederalTaxID desde SAP (formato: "123456789-0")
-   * @returns {Object} - Objeto con tax_id, nit_number y verification_digit
-   */
-  processFederalTaxID(federalTaxID) {
-    if (!federalTaxID) {
-      return { tax_id: null, nit_number: null, verification_digit: null };
-    }
-    
-    // Verificar si ya tiene el formato con guión
-    if (federalTaxID.includes('-')) {
-      const [nitNumber, verificationDigit] = federalTaxID.split('-');
-      return {
-        tax_id: federalTaxID,
-        nit_number: nitNumber,
-        verification_digit: verificationDigit
-      };
-    } 
-    
-    // Si no tiene guión, intentar extraer el último dígito como dígito de verificación
-    const nitLength = federalTaxID.length;
-    if (nitLength > 1) {
-      const nitNumber = federalTaxID.substring(0, nitLength - 1);
-      const verificationDigit = federalTaxID.substring(nitLength - 1);
-      const formattedTaxId = `${nitNumber}-${verificationDigit}`;
-      return {
-        tax_id: formattedTaxId,
-        nit_number: nitNumber,
-        verification_digit: verificationDigit
-      };
-    }
-    
-    // Si no se puede parsear, devolver el valor original como tax_id
-    return {
-      tax_id: federalTaxID,
-      nit_number: federalTaxID,
-      verification_digit: null
-    };
-  }
-
-  /**
-   * Sincroniza clientes de SAP B1 y actualiza su estado
-   * @returns {Promise<Object>} Resultados de la sincronización
-   */
-  async syncClientsWithSAP() {
-    const stats = {
-      total: 0,
-      activated: 0,
-      errors: 0,
-      skipped: 0
-    };
-  
-    try {
-      this.logger.info('Iniciando sincronización de clientes con SAP B1');
-      
-      // Registrar inicio de sincronización
-      const syncStartTime = new Date();
-      
-      // Obtener clientes que necesitan ser verificados (sap_lead_synced = true, is_active = false)
-      const query = `
-        SELECT cp.*, u.id as user_id, u.is_active, u.name, u.mail
-        FROM client_profiles cp
-        JOIN users u ON cp.user_id = u.id
-        WHERE cp.cardcode_sap IS NOT NULL
-        AND cp.sap_lead_synced = true
-        AND (cp.cardtype_sap = 'cLid' OR cp.cardtype_sap IS NULL)
-      `;
-      
-      const { rows } = await pool.query(query);
-      stats.total = rows.length;
-      
-      this.logger.info(`Encontrados ${rows.length} clientes para verificar`);
-      
-      // Para cada cliente, verificar en SAP su estado
-      for (const client of rows) {
-        try {
-          // Buscar el cliente en SAP prioritariamente por clientprofilecode_sap 
-          let sapClient = null;
-          
-          if (client.clientprofilecode_sap) {
-            sapClient = await this.getBusinessPartnerByArtesaCode(client.clientprofilecode_sap);
-          }
-          
-          // Si no se encontró, intentar con cardcode_sap
-          if (!sapClient && client.cardcode_sap) {
-            sapClient = await this.getBusinessPartnerBySapCode(client.cardcode_sap);
-          }
-          
-          // Si no se encontró por ninguno de los dos códigos, saltar
-          if (!sapClient) {
-            this.logger.warn('Cliente no encontrado en SAP, saltando', { 
-              clientId: client.client_id,
-              cardcode_sap: client.cardcode_sap,
-              clientprofilecode_sap: client.clientprofilecode_sap 
-            });
-            stats.skipped++;
-            continue;
-          }
-          
-          // Si ya no es Lead (CardType !== 'cLid'), activar al usuario
-          if (sapClient.CardType !== 'cLid') {
-            // Iniciar transacción para actualizar datos y activar usuario
-            const dbClient = await pool.connect();
-            try {
-              await dbClient.query('BEGIN');
-          
-              // Procesar el FederalTaxID para extraer nit_number y verification_digit
-              const taxInfo = this.processFederalTaxID(sapClient.FederalTaxID);
-  
-              // Actualizar todos los campos relevantes del cliente
-              const updateClientQuery = `
-                UPDATE client_profiles
-                SET 
-                  cardcode_sap = $1,
-                  tax_id = $2,
-                  nit_number = $3,
-                  verification_digit = $4,
-                  company_name = $5,
-                  contact_phone = $6,
-                  contact_email = $7,
-                  address = $8,
-                  city = $9,
-                  country = $10,
-                  updated_at = CURRENT_TIMESTAMP
-                WHERE client_id = $11
-              `;
-  
-              await dbClient.query(updateClientQuery, [
-                sapClient.CardCode, // Actualiza el cardcode_sap con el CardCode de SAP
-                taxInfo.tax_id || client.tax_id, // Actualiza el tax_id con FederalTaxID procesado
-                taxInfo.nit_number || client.nit_number, // Actualiza nit_number
-                taxInfo.verification_digit || client.verification_digit, // Actualiza verification_digit
-                sapClient.CardName || client.company_name, // Actualiza el company_name con CardName de SAP
-                sapClient.Phone1 || client.contact_phone, // Actualiza el teléfono
-                sapClient.EmailAddress || client.contact_email, // Actualiza el email
-                sapClient.Address || client.address, // Actualiza la dirección
-                sapClient.City || client.city, // Ciudad
-                sapClient.Country || client.country, // País
-                client.client_id
-              ]);
-          
-              // Activar al usuario
-              await dbClient.query('UPDATE users SET is_active = true WHERE id = $1', [client.user_id]);
-              
-              await dbClient.query('COMMIT');
-              
-              this.logger.info('Cliente sincronizado y usuario activado exitosamente', {
-                userId: client.user_id,
-                clientId: client.client_id,
-                cardCode: sapClient.CardCode,
-                cardType: sapClient.CardType,
-                oldTaxId: client.tax_id,
-                newTaxId: taxInfo.tax_id,
-                dataUpdated: true
-              });
-              
-              stats.activated++;
-            } catch (updateError) {
-              await dbClient.query('ROLLBACK');
-              this.logger.error('Error al actualizar y activar cliente', {
-                error: updateError.message,
-                stack: updateError.stack,
-                clientId: client.client_id,
-                userId: client.user_id
-              });
-              stats.errors++;
-            } finally {
-              dbClient.release();
-            }
-          } else {
-            // Actualizar datos del cliente aunque siga siendo Lead
-            try {
-              // Procesar el FederalTaxID para extraer nit_number y verification_digit
-              const taxInfo = this.processFederalTaxID(sapClient.FederalTaxID);
-  
-              // Solo actualizamos los datos para mantener sincronización, sin activar el usuario
-              await pool.query(`
-                UPDATE client_profiles
-                SET 
-                  cardcode_sap = $1,
-                  tax_id = $2,
-                  nit_number = $3, 
-                  verification_digit = $4,
-                  company_name = $5,
-                  contact_phone = $6,
-                  contact_email = $7,
-                  address = $8,
-                  updated_at = CURRENT_TIMESTAMP
-                WHERE client_id = $9
-              `, [
-                sapClient.CardCode,
-                taxInfo.tax_id || client.tax_id,
-                taxInfo.nit_number || client.nit_number,
-                taxInfo.verification_digit || client.verification_digit,
-                sapClient.CardName || client.company_name,
-                sapClient.Phone1 || client.contact_phone,
-                sapClient.EmailAddress || client.contact_email,
-                sapClient.Address || client.address,
-                client.client_id
-              ]);
-          
-              this.logger.debug('Cliente actualizado pero sigue siendo Lead, no se activa', {
-                userId: client.user_id,
-                clientId: client.client_id,
-                cardCode: sapClient.CardCode,
-                oldTaxId: client.tax_id,
-                newTaxId: taxInfo.tax_id,
-                dataUpdated: true
-              });
-              
-              stats.skipped++;
-            } catch (updateLeadError) {
-              this.logger.error('Error al actualizar datos de cliente Lead', {
-                error: updateLeadError.message,
-                clientId: client.client_id,
-                userId: client.user_id
-              });
-              stats.errors++;
-            }
-          }
-        } catch (clientError) {
-          this.logger.error('Error al procesar cliente', {
-            error: clientError.message,
-            stack: clientError.stack,
-            clientId: client.client_id,
-            cardCode: client.cardcode_sap
-          });
-          stats.errors++;
+        details: {
+          clientId: clientProfile.client_id,
+          nit: `${clientProfile.nit_number}-${clientProfile.verification_digit}`,
+          sessionActive: !!this.sessionId
         }
-      }
-      
-      // Actualizar timestamp de última sincronización
-      this.lastSyncTime = syncStartTime;
-      
-      this.logger.info('Sincronización de clientes completada', {
-        total: stats.total,
-        activated: stats.activated,
-        errors: stats.errors,
-        skipped: stats.skipped
-      });
-      
-      return stats;
-    } catch (error) {
-      this.logger.error('Error en sincronización de clientes con SAP B1', {
-        error: error.message,
-        stack: error.stack
-      });
-      throw error;
+      };
     }
   }
 

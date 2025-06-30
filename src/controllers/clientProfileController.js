@@ -830,7 +830,7 @@ async createProfile(req, res) {
         }
       }
       
-      // Sincronizar con SAP (sin hacer rollback si falla)
+      // Sincronizar con SAP (CRÍTICO - hacer rollback si falla)
       let sapSyncResult = null;
       try {
         if (profile.nit_number && profile.verification_digit !== undefined) {
@@ -848,7 +848,10 @@ async createProfile(req, res) {
           
           logger.info('Iniciando sincronización con SAP', {
             clientId: profile.client_id,
-            sapProfileData
+            sapProfileData: {
+              razonSocial: sapProfileData.razonSocial,
+              nit: `${sapProfileData.nit_number}-${sapProfileData.verification_digit}`
+            }
           });
           
           if (!sapServiceManager.initialized) {
@@ -864,6 +867,7 @@ async createProfile(req, res) {
               SET cardcode_sap = $1, 
                   clientprofilecode_sap = $2, 
                   sap_lead_synced = true,
+                  cardtype_sap = 'cLid',
                   updated_at = CURRENT_TIMESTAMP
               WHERE client_id = $3 
               RETURNING *`,
@@ -874,26 +878,29 @@ async createProfile(req, res) {
               profileForResponse = updateResult.rows[0];
               logger.info('Perfil actualizado con datos de SAP', {
                 clientId: profile.client_id,
-                cardCode: sapSyncResult.cardCode
+                cardCode: sapSyncResult.cardCode,
+                artesaCode: sapSyncResult.artesaCode
               });
             }
           } else {
-            logger.warn('SAP no devolvió resultado exitoso', {
-              sapSyncResult
+            // SI SAP FALLA, HACER ROLLBACK COMPLETO
+            logger.error('Error crítico en sincronización SAP, revirtiendo transacción', {
+              sapError: sapSyncResult?.error || 'No response from SAP',
+              clientId: profile.client_id
             });
+            throw new Error(`Error en sincronización SAP: ${sapSyncResult?.error || 'No response from SAP'}`);
           }
         }
       } catch (sapError) {
-        // SOLO logear error de SAP, NO hacer rollback
-        logger.error('Error de SAP (no crítico, continúa transacción)', {
+        // HACER ROLLBACK CRÍTICO SI SAP FALLA
+        logger.error('Error crítico de SAP, debe hacer rollback de transacción', {
           error: sapError.message,
           stack: sapError.stack,
           clientId: profile.client_id
         });
         
-        logger.warn('Perfil creado pero sin sincronización SAP', {
-          clientId: profile.client_id
-        });
+        // Lanzar el error para que sea capturado por el catch principal
+        throw new Error(`Error crítico en SAP: ${sapError.message}`);
       }
       
       // CONFIRMAR transacción - todo lo crítico fue exitoso
