@@ -291,33 +291,33 @@ class SapClientService extends SapBaseService {
       isUpdate
       });
 
-      this.logger.debug('GroupCode utilizado para Lead', {
-        groupCode: businessPartnerData.GroupCode,
-        source: process.env.SAP_INSTITUTIONAL_GROUP_CODE ? 'ENV_VAR' : 'DEFAULT'
-      });
-      
-      // Validar que tenemos SessionId antes de proceder
-      if (!this.sessionId) {
-        logger.debug('No hay SessionId, intentando login antes de crear BP');
-        await this.login();
-        if (!this.sessionId) {
-          throw new Error('No se pudo establecer sesión con SAP');
-        }
-      }
-
       // Preparar datos para SAP
       const businessPartnerData = {
         CardCode: cardCode,
         CardName: businessPartnerName,
         CardType: 'cLid',  // Lead - cambiar a 'cLid' que es el correcto para Leads
         PriceListNum: 1, // Siempre 1
-        GroupCode: parseInt(process.env.SAP_INSTITUTIONAL_GROUP_CODE) || 106, // Grupo institucional por defecto
+        GroupCode: parseInt(process.env.SAP_INSTITUTIONAL_GROUP_CODE) || 103, // Grupo institucional por defecto
         FederalTaxID: `${clientProfile.nit_number}-${clientProfile.verification_digit}`,
         Phone1: phone,
         EmailAddress: clientProfile.email || clientProfile.contact_email || '',
         Address: clientProfile.direccion || clientProfile.address || '',
         U_AR_ArtesaCode: cardCode // Añadir campo personalizado
       };
+
+      this.logger.debug('GroupCode utilizado para Lead', {
+        groupCode: businessPartnerData.GroupCode,
+        source: process.env.SAP_INSTITUTIONAL_GROUP_CODE ? 'ENV_VAR' : 'DEFAULT'
+      });
+
+      // Validar que tenemos SessionId antes de proceder
+      if (!this.sessionId) {
+        this.logger.debug('No hay SessionId, intentando login antes de crear BP');
+        await this.login();
+        if (!this.sessionId) {
+          throw new Error('No se pudo establecer sesión con SAP');
+        }
+      }
 
       this.logger.debug('Objeto BusinessPartner a enviar a SAP', {
         CardCode: businessPartnerData.CardCode,
@@ -345,10 +345,29 @@ class SapClientService extends SapBaseService {
       endpoint,
       cardCode: businessPartnerData.CardCode,
       isUpdate,
-      sessionActive: !!this.sessionId
+      sessionActive: !!this.sessionId,
+      businessPartnerData: {
+        CardCode: businessPartnerData.CardCode,
+        CardName: businessPartnerData.CardName,
+        CardType: businessPartnerData.CardType,
+        GroupCode: businessPartnerData.GroupCode,
+        FederalTaxID: businessPartnerData.FederalTaxID
+      }
+    });
+
+    this.logger.debug('Datos completos a enviar a SAP', {
+      method,
+      endpoint,
+      data: businessPartnerData
     });
 
     const response = await this.request(method, endpoint, businessPartnerData);
+
+    this.logger.debug('Respuesta recibida de SAP', {
+      hasResponse: !!response,
+      responseKeys: response ? Object.keys(response) : null,
+      cardCode: response?.CardCode
+    });
 
     if (!response) {
       throw new Error('No se recibió respuesta de SAP');

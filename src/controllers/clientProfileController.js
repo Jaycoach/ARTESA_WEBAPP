@@ -886,6 +886,7 @@ async createProfile(req, res) {
             // SI SAP FALLA, HACER ROLLBACK COMPLETO
             logger.error('Error crítico en sincronización SAP, revirtiendo transacción', {
               sapError: sapSyncResult?.error || 'No response from SAP',
+              sapResult: sapSyncResult,
               clientId: profile.client_id
             });
             throw new Error(`Error en sincronización SAP: ${sapSyncResult?.error || 'No response from SAP'}`);
@@ -1248,6 +1249,15 @@ async updateProfileByUserId(req, res) {
       try {
         if (!sapServiceManager.initialized) {
           await sapServiceManager.initialize();
+        }
+
+        // Verificar conexión SAP específicamente
+        if (!sapServiceManager.clientService.sessionId) {
+          logger.info('Sesión SAP no activa, iniciando login');
+          await sapServiceManager.clientService.login();
+          if (!sapServiceManager.clientService.sessionId) {
+            throw new Error('No se pudo establecer sesión con SAP para crear Lead');
+          }
         }
         
         const sapCheck = await sapServiceManager.clientService.nitExistsInSAP(
