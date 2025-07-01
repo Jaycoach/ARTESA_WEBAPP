@@ -186,9 +186,17 @@ class ProductController {
         });
       }
       
+      // Asegurar que la URL de respuesta esté limpia
+      if (product && product.image_url) {
+          product.image_url = product.image_url
+              .replace(/&amp;amp;#x2F;/g, '/')
+              .replace(/&amp;#x2F;/g, '/')
+              .replace(/&#x2F;/g, '/');
+      }
+
       res.status(200).json({
-        success: true,
-        data: product
+          success: true,
+          data: product
       });
     } catch (error) {
       logger.error('Error al obtener producto', {
@@ -300,10 +308,18 @@ class ProductController {
         });
       }
       
+      // Asegurar que la URL de respuesta esté limpia
+      if (updatedProduct && updatedProduct.image_url) {
+          updatedProduct.image_url = updatedProduct.image_url
+              .replace(/&amp;amp;#x2F;/g, '/')
+              .replace(/&amp;#x2F;/g, '/')
+              .replace(/&#x2F;/g, '/');
+      }
+
       res.status(200).json({
-        success: true,
-        message: 'Imagen de producto actualizada exitosamente',
-        data: updatedProduct
+          success: true,
+          message: 'Imagen de producto actualizada exitosamente',
+          data: updatedProduct
       });
     } catch (error) {
       logger.error('Error al actualizar imagen de producto', {

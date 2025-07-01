@@ -300,6 +300,14 @@ class Product {
             'UPDATE products SET image_url = $1, updated_at = CURRENT_TIMESTAMP WHERE product_id = $2 RETURNING *;',
             [imageUrl, productId]
         );
+
+        // Decodificar la URL si está codificada con entidades HTML
+        if (rows.length > 0 && rows[0].image_url) {
+            rows[0].image_url = rows[0].image_url
+                .replace(/&amp;amp;#x2F;/g, '/')
+                .replace(/&amp;#x2F;/g, '/')
+                .replace(/&#x2F;/g, '/');
+        }
         
         if (rows.length === 0) {
             logger.warn('Producto no encontrado al actualizar imagen', { productId });
@@ -334,6 +342,14 @@ class Product {
             success: true
         });
         
+        // Asegurar que la URL del producto esté decodificada
+        if (rows[0] && rows[0].image_url) {
+            rows[0].image_url = rows[0].image_url
+                .replace(/&amp;amp;#x2F;/g, '/')
+                .replace(/&amp;#x2F;/g, '/')
+                .replace(/&#x2F;/g, '/');
+        }
+
         return rows[0];
     } catch (error) {
         logger.error('Error al actualizar imagen de producto', { 
