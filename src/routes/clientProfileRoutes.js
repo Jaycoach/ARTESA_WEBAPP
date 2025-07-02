@@ -735,6 +735,7 @@ router.post('/debug/test-sap-sync', verifyToken, async (req, res) => {
   try {
     console.log('\n=== INICIO TEST SAP SYNC ===');
     console.log('Body recibido:', JSON.stringify(req.body, null, 2));
+    console.log('Usuario autenticado:', req.user);
     
     const testProfile = {
       client_id: req.body.client_id || 999999,
@@ -750,11 +751,15 @@ router.post('/debug/test-sap-sync', verifyToken, async (req, res) => {
     
     console.log('Perfil de prueba creado:', JSON.stringify(testProfile, null, 2));
     
-    const { sapServiceManager } = require('../services/SapServiceManager');
+    // Importar correctamente el sapServiceManager
+    const sapServiceManager = require('../services/SapServiceManager');
+    console.log('sapServiceManager importado:', !!sapServiceManager);
+    console.log('sapServiceManager.initialized:', sapServiceManager.initialized);
     
     if (!sapServiceManager.initialized) {
       console.log('Inicializando SAP Service Manager...');
       await sapServiceManager.initialize();
+      console.log('SAP Service Manager inicializado:', sapServiceManager.initialized);
     }
     
     console.log('Llamando a createOrUpdateLead...');
