@@ -83,7 +83,17 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       ...helmet.contentSecurityPolicy.getDefaultDirectives(),
-      "img-src": ["'self'", "data:", "https:", "https://*.s3.us-east-1.amazonaws.com", "https://*.s3.amazonaws.com", "https://artesa-documents-staging.s3.us-east-1.amazonaws.com"],
+      "img-src": [
+        "'self'", 
+        "data:", 
+        "https:", 
+        "https://*.s3.us-east-1.amazonaws.com", 
+        "https://*.s3.amazonaws.com", 
+        "https://artesa-documents-staging.s3.us-east-1.amazonaws.com",
+        "https://artesa-documents-staging.s3.amazonaws.com",
+        "https://s3.us-east-1.amazonaws.com",
+        "https://s3.amazonaws.com"
+      ],
       "script-src": ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdnjs.cloudflare.com"],
       "connect-src": [
         "'self'", 
@@ -92,7 +102,9 @@ app.use(helmet({
         "https://*.s3.us-east-1.amazonaws.com", 
         "https://*.s3.amazonaws.com", 
         "https://artesa-documents-staging.s3.us-east-1.amazonaws.com",
-        "https://artesa-documents-staging.s3.amazonaws.com"
+        "https://artesa-documents-staging.s3.amazonaws.com",
+        "https://s3.us-east-1.amazonaws.com",
+        "https://s3.amazonaws.com"
       ]
     }
   }
