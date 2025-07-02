@@ -8,6 +8,13 @@ import API from '../../../../api/config';
 import { useAuth } from '../../../../hooks/useAuth';
 import { getEnvironmentInfo } from '../../../../utils/environment';
 
+
+console.log('🔧 Debug configuración API:', {
+  baseURL: API.defaults.baseURL,
+  mode: import.meta.env.MODE,
+  apiUrl: import.meta.env.VITE_API_URL,
+  fullUploadUrl: `${API.defaults.baseURL}/upload`
+});
 // **SERVICIO DE DESCARGA CON NUEVO ENDPOINT**
 class DocumentDownloadService {
   constructor() {
