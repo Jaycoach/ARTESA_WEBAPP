@@ -889,6 +889,75 @@ async uploadBannerImage(file, customName) {
     
     return mimeTypes[extension.toLowerCase()] || 'application/octet-stream';
   }
+  /**
+   * Obtiene el contenido completo de un archivo desde S3
+   * @param {string} key - Clave del archivo en S3
+   * @returns {Object} Objeto con content, contentType, etag
+   */
+  async getFileContent(key) {
+    if (this.localMode) {
+      const localPath = path.join('uploads', key);
+      if (!fs.existsSync(localPath)) {
+        throw new Error('Archivo no encontrado');
+      }
+      
+      const content = fs.readFileSync(localPath);
+      const ext = path.extname(key).toLowerCase();
+      const contentType = this.getContentType(ext);
+      
+      return {
+        content,
+        contentType,
+        etag: '"local-file"'
+      };
+    }
+
+    try {
+      const command = new GetObjectCommand({
+        Bucket: this.bucketName,
+        Key: key,
+      });
+
+      const response = await this.s3.send(command);
+      
+      // Convertir stream a buffer
+      const chunks = [];
+      for await (const chunk of response.Body) {
+        chunks.push(chunk);
+      }
+      const content = Buffer.concat(chunks);
+
+      return {
+        content,
+        contentType: response.ContentType || 'application/octet-stream',
+        etag: response.ETag
+      };
+    } catch (error) {
+      logger.error('Error al obtener contenido de archivo', {
+        error: error.message,
+        key,
+        bucket: this.bucketName
+      });
+      throw new Error('Archivo no encontrado');
+    }
+  }
+
+  /**
+   * Determina el tipo de contenido basado en la extensión
+   * @param {string} ext - Extensión del archivo
+   * @returns {string} Tipo MIME
+   */
+  getContentType(ext) {
+    const mimeTypes = {
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.png': 'image/png',
+      '.gif': 'image/gif',
+      '.webp': 'image/webp',
+      '.svg': 'image/svg+xml'
+    };
+    return mimeTypes[ext] || 'application/octet-stream';
+  }
 }
 
 module.exports = new S3Service();
