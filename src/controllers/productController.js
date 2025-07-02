@@ -3,6 +3,7 @@ const Product = require('../models/Product');
 const { createContextLogger } = require('../config/logger');
 const sapServiceManager = require('../services/SapServiceManager');
 const S3Service = require('../services/S3Service');
+const path = require('path');
 
 // Crear una instancia del logger con contexto
 const logger = createContextLogger('ProductController');
@@ -275,7 +276,25 @@ class ProductController {
       // Primero intentamos obtener la imagen del formulario
       if (req.files && req.files.image) {
         const file = req.files.image;
-        const key = `products/${productId}/${Date.now()}-${file.name}`;
+        // Generar nombre único preservando la extensión
+        let fileExtension = path.extname(file.name);
+        if (!fileExtension) {
+          // Determinar extensión basada en MIME type si no tiene extensión
+          const mimeToExt = {
+            'image/jpeg': '.jpg',
+            'image/jpg': '.jpg',
+            'image/png': '.png',
+            'image/gif': '.gif',
+            'image/webp': '.webp',
+            'image/svg+xml': '.svg'
+          };
+          fileExtension = mimeToExt[file.mimetype] || '.jpg';
+        }
+
+        // Limpiar nombre de archivo y generar clave
+        const cleanFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '-'); // Limpiar caracteres especiales
+        const uniquePrefix = `${Date.now()}-${Math.round(Math.random() * 1E9)}`;
+        const key = `products/${productId}/${uniquePrefix}${fileExtension}`;
         
         // Subir a S3 (o local según configuración)
         imageUrl = await S3Service.uploadFormFile(file, key, { 
