@@ -728,4 +728,58 @@ router.post('/:userId/documents/:documentType',
   clientProfileController.uploadProfileDocument
 );
 
+// RUTA TEMPORAL PARA DEBUGGING - REMOVER DESPUÉS
+router.post('/debug/test-sap-sync', verifyToken, async (req, res) => {
+  const logger = require('../config/logger').createContextLogger('DebugSAPSync');
+  
+  try {
+    console.log('\n=== INICIO TEST SAP SYNC ===');
+    console.log('Body recibido:', JSON.stringify(req.body, null, 2));
+    
+    const testProfile = {
+      client_id: req.body.client_id || 999999,
+      user_id: req.body.user_id || req.user.id,
+      razonSocial: req.body.razonSocial || 'EMPRESA TEST DEBUG',
+      nombre: req.body.nombre || 'CONTACTO TEST',
+      telefono: req.body.telefono || '1234567890',
+      email: req.body.email || 'test@debug.com',
+      direccion: req.body.direccion || 'CALLE TEST 123',
+      nit_number: req.body.nit_number || '123456789',
+      verification_digit: req.body.verification_digit || 1
+    };
+    
+    console.log('Perfil de prueba creado:', JSON.stringify(testProfile, null, 2));
+    
+    const { sapServiceManager } = require('../services/SapServiceManager');
+    
+    if (!sapServiceManager.initialized) {
+      console.log('Inicializando SAP Service Manager...');
+      await sapServiceManager.initialize();
+    }
+    
+    console.log('Llamando a createOrUpdateLead...');
+    const result = await sapServiceManager.createOrUpdateLead(testProfile);
+    
+    console.log('Resultado final:', JSON.stringify(result, null, 2));
+    console.log('=== FIN TEST SAP SYNC ===\n');
+    
+    res.json({
+      success: true,
+      message: 'Test de sincronización completado',
+      testProfile,
+      sapResult: result
+    });
+    
+  } catch (error) {
+    console.log('ERROR en test:', error.message);
+    console.log('Stack:', error.stack);
+    
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      stack: error.stack
+    });
+  }
+});
+
 module.exports = router;

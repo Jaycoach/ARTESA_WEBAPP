@@ -153,6 +153,18 @@ class SapClientService extends SapBaseService {
    */
   async createOrUpdateBusinessPartnerLead(clientProfile) {
     try {
+      // DEBUGGING TEMPORAL - REMOVER DESPUÉS  
+      console.log('\n=== DEBUG SAP SERVICE START ===');
+      console.log('sessionId existe:', !!this.sessionId);
+      console.log('clientProfile recibido:', JSON.stringify({
+        client_id: clientProfile.client_id,
+        nit_number: clientProfile.nit_number,
+        verification_digit: clientProfile.verification_digit,
+        razonSocial: clientProfile.razonSocial,
+        nombre: clientProfile.nombre
+      }, null, 2));
+      console.log('================================\n');
+
       this.logger.info('Inicio de createOrUpdateBusinessPartnerLead', {
         clientProfile: JSON.stringify({
           client_id: clientProfile.client_id,
@@ -402,6 +414,12 @@ class SapClientService extends SapBaseService {
         sessionActive: !!this.sessionId
       });
       
+      // DEBUGGING TEMPORAL - REMOVER DESPUÉS
+      console.log('\n=== DEBUG SAP SERVICE END ===');
+      console.log('isUpdate:', isUpdate);
+      console.log('businessPartnerData:', JSON.stringify(businessPartnerData, null, 2));
+      console.log('About to return result...');
+      console.log('==============================\n');
       // Devolvemos un objeto con success: false en lugar de lanzar el error
       // para que el controlador pueda manejarlo mejor
       return {

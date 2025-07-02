@@ -860,6 +860,15 @@ async createProfile(req, res) {
           
           sapSyncResult = await sapServiceManager.createOrUpdateLead(sapProfileData);
           
+          // DEBUGGING TEMPORAL - REMOVER DESPUÉS
+          console.log('\n=== DEBUG SAP SYNC RESULT ===');
+          console.log('sapSyncResult completo:', JSON.stringify(sapSyncResult, null, 2));
+          console.log('sapSyncResult.success:', sapSyncResult?.success);
+          console.log('sapSyncResult.cardCode:', sapSyncResult?.cardCode);
+          console.log('sapSyncResult.error:', sapSyncResult?.error);
+          console.log('sapSyncResult.details:', sapSyncResult?.details);
+          console.log('==============================\n');
+
           if (sapSyncResult && sapSyncResult.success) {
             // Actualizar perfil con datos de SAP dentro de la transacción
             const updateResult = await client.query(
