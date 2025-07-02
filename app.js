@@ -16,6 +16,7 @@ const { logger, createContextLogger } = require('./src/config/logger');
 const S3Service = require('./src/services/S3Service');
 const orderScheduler = require('./src/services/OrderScheduler');
 const clientSyncRoutes = require('./src/routes/clientSyncRoutes');
+const imageProxyRoutes = require('./src/routes/imageProxyRoutes');
 
 // Importaciones de middlewares
 const { errorHandler, notFound } = require('./src/middleware/errorMiddleware');
@@ -410,6 +411,8 @@ app.use(`${API_PREFIX}/client-profiles`, fileUpload(fileUploadOptions), clientPr
 // Rutas que no necesitan fileUpload
 app.use(`${API_PREFIX}/password`, passwordResetRoutes);
 app.use(`${API_PREFIX}/payments`, paymentRoutes);
+
+app.use(`${API_PREFIX}/images`, imageProxyRoutes);
 
 // Ruta de prueba/estado para verificar que el servidor está funcionando
 app.get('/', (req, res) => {

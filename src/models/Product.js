@@ -164,6 +164,11 @@ class Product {
                 
                 if (imageResult.rows.length > 0 && imageResult.rows[0].image_url) {
                     rows[0].image_url = imageResult.rows[0].image_url;
+                    // Convertir URL de S3 a URL proxy si es necesario
+                    if (rows[0].image_url && rows[0].image_url.includes('s3.')) {
+                        const key = rows[0].image_url.split('/').slice(-2).join('/'); // Extraer carpeta/archivo
+                        rows[0].image_url = `/api/images/proxy/${key}`;
+                    }
                 }
             } catch (imageError) {
                 logger.warn('Error al obtener imagen del producto', {
