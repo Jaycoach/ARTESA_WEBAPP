@@ -23,6 +23,10 @@ class S3Service {
     this.region = process.env.AWS_REGION;
     this.localMode = process.env.STORAGE_MODE === 'local';
     this.baseUrl = process.env.AWS_S3_BASE_URL || `https://${this.bucketName}.s3.${this.region}.amazonaws.com`;
+    // Configuración específica para staging
+    if (process.env.NODE_ENV === 'staging') {
+      this.baseUrl = `https://${this.bucketName}.s3.amazonaws.com`;
+    }
     
     // Inicializar S3 si estamos en modo S3 (no local)
     if (!this.localMode) {
