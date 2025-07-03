@@ -86,6 +86,7 @@ app.use(helmet({
       "img-src": [
         "'self'", 
         "data:", 
+        "blob:",
         "https:", 
         "https://*.s3.us-east-1.amazonaws.com", 
         "https://*.s3.amazonaws.com", 
