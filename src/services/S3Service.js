@@ -957,7 +957,13 @@ async uploadBannerImage(file, customName) {
       '.png': 'image/png',
       '.gif': 'image/gif',
       '.webp': 'image/webp',
-      '.svg': 'image/svg+xml'
+      '.svg': 'image/svg+xml',
+      'jpg': 'image/jpeg',
+      'jpeg': 'image/jpeg', 
+      'png': 'image/png',
+      'gif': 'image/gif',
+      'webp': 'image/webp',
+      'svg': 'image/svg+xml'
     };
     return mimeTypes[ext] || 'application/octet-stream';
   }

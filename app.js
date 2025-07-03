@@ -306,7 +306,7 @@ app.use('/api-docs', (req, res, next) => {
     "default-src 'self'; " +
     "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
     "style-src 'self' 'unsafe-inline'; " +
-    "img-src 'self' data: https:; " +
+    "img-src 'self' data: blob: https:; " +
     "font-src 'self' data:; " +
     "connect-src 'self' " +
     "http://ec2-44-216-131-63.compute-1.amazonaws.com " +
