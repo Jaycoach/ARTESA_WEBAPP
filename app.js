@@ -424,6 +424,7 @@ app.use(`${API_PREFIX}/sap`, sapSyncRoutes);
 app.use(`${API_PREFIX}/admin`, adminRoutes);
 app.use(`${API_PREFIX}/client-sync`, clientSyncRoutes);
 app.use(`${API_PREFIX}`, imageProxyRoutes);
+app.use('/api/images', require('./src/routes/imageProxyRoutes'));
 
 // Aplicamos fileUpload sólo a las rutas específicas que lo necesitan
 app.use(`${API_PREFIX}/upload`, fileUpload(fileUploadOptions), uploadRoutes);
