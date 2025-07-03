@@ -828,47 +828,49 @@ async uploadBannerImage(file, customName) {
    */
   async getFileContent(key) {
     if (this.localMode) {
-      const filePath = path.join(process.cwd(), 'uploads', key);
-      const content = fs.readFileSync(filePath);
-      const stats = fs.statSync(filePath);
+      const localPath = path.join('uploads', key);
+      if (!fs.existsSync(localPath)) {
+        throw new Error('Archivo no encontrado');
+      }
+      
+      const content = fs.readFileSync(localPath);
+      const ext = path.extname(key).toLowerCase();
+      const contentType = this.getContentType(ext);
       
       return {
-        content: content,
-        contentType: this.getMimeType(path.extname(key)),
-        fileName: path.basename(key),
-        size: stats.size
+        content,
+        contentType,
+        etag: '"local-file"'
       };
     }
 
     try {
       const command = new GetObjectCommand({
         Bucket: this.bucketName,
-        Key: this.normalizeKey(key)
+        Key: key,
       });
-      
+
       const response = await this.s3.send(command);
       
-      // Convertir el stream a buffer
+      // Convertir stream a buffer CORRECTAMENTE
       const chunks = [];
       for await (const chunk of response.Body) {
         chunks.push(chunk);
       }
       const content = Buffer.concat(chunks);
-      
+
       return {
-        content: content,
+        content,
         contentType: response.ContentType || 'application/octet-stream',
-        fileName: path.basename(key),
-        size: response.ContentLength || content.length
+        etag: response.ETag
       };
-      
     } catch (error) {
-      logger.error('Error obteniendo contenido de archivo desde S3', {
+      logger.error('Error al obtener contenido de archivo', {
         error: error.message,
-        key: key,
+        key,
         bucket: this.bucketName
       });
-      throw error;
+      throw new Error('Archivo no encontrado');
     }
   }
 
