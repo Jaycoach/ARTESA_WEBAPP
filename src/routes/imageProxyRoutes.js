@@ -24,8 +24,15 @@ router.get('/proxy/:key(*)', async (req, res) => {
     const fileData = await S3Service.getFileContent(key);
     
     // Configurar headers apropiados
+    const contentType = fileData.contentType || 
+      (key.match(/png$/i) ? 'image/png' : 
+       key.match(/jpe?g$/i) ? 'image/jpeg' : 
+       key.match(/gif$/i) ? 'image/gif' : 
+       key.match(/webp$/i) ? 'image/webp' : 
+       'image/jpeg');
+    
     res.set({
-      'Content-Type': fileData.contentType,
+      'Content-Type': contentType,
       'Content-Length': fileData.content.length,
       'Cache-Control': 'public, max-age=31536000', // Cache por 1 año
       'ETag': fileData.etag
