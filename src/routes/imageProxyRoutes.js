@@ -13,7 +13,7 @@ router.get('/proxy/:key(*)', async (req, res) => {
     const key = req.params.key;
     
     // Verificar que la clave sea válida (solo imágenes)
-    if (!key.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i)) {
+    if (!key.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i) && !key.match(/(jpg|jpeg|png|gif|webp|svg)$/i)) {
       return res.status(400).json({
         success: false,
         message: 'Tipo de archivo no permitido'

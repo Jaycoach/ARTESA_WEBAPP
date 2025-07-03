@@ -301,6 +301,11 @@ class ProductController {
           public: true,  // Imágenes de productos públicas
           contentType: file.mimetype
         });
+
+        // Asegurar que la URL sea accesible mediante proxy
+        if (imageUrl && !imageUrl.startsWith('/api/images/proxy/')) {
+          imageUrl = `/api/images/proxy/${imageUrl}`;
+        }
         
         logger.info('Imagen subida exitosamente', { productId, key });
       } 
