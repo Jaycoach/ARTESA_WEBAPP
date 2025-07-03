@@ -24,12 +24,19 @@ router.get('/proxy/:key(*)', async (req, res) => {
     const fileData = await S3Service.getFileContent(key);
     
     // Configurar headers apropiados
-    const contentType = fileData.contentType || 
-      (key.match(/png$/i) ? 'image/png' : 
-       key.match(/jpe?g$/i) ? 'image/jpeg' : 
-       key.match(/gif$/i) ? 'image/gif' : 
-       key.match(/webp$/i) ? 'image/webp' : 
-       'image/jpeg');
+    let contentType = fileData.contentType || 'image/jpeg';
+    
+    // Limpiar charset de imágenes (no es necesario)
+    if (contentType.includes('image/')) {
+      contentType = contentType.split(';')[0];
+    }
+    
+    // Determinar tipo basado en extensión del archivo
+    if (key.match(/png$/i)) contentType = 'image/png';
+    else if (key.match(/jpe?g$/i)) contentType = 'image/jpeg';
+    else if (key.match(/gif$/i)) contentType = 'image/gif';
+    else if (key.match(/webp$/i)) contentType = 'image/webp';
+    else if (key.match(/svg$/i)) contentType = 'image/svg+xml';
     
     res.set({
       'Content-Type': contentType,
