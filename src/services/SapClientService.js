@@ -317,6 +317,21 @@ class SapClientService extends SapBaseService {
         U_AR_ArtesaCode: cardCode // Añadir campo personalizado
       };
 
+      // Después de definir businessPartnerData y antes de this.logger.debug('GroupCode utilizado para Lead'...)
+      this.logger.info('=== DATOS COMPLETOS ANTES DE ENVIAR A SAP ===', {
+        method: isUpdate ? 'PATCH' : 'POST',
+        endpoint: isUpdate ? `BusinessPartners('${existingPartner ? existingPartner.CardCode : cardCode}')` : 'BusinessPartners',
+        isUpdate: isUpdate,
+        existingPartner: existingPartner ? {
+          CardCode: existingPartner.CardCode,
+          CardName: existingPartner.CardName,
+          CardType: existingPartner.CardType
+        } : null,
+        sessionId: this.sessionId ? 'ACTIVA' : 'INACTIVA',
+        businessPartnerDataComplete: JSON.stringify(businessPartnerData, null, 2),
+        clientId: clientProfile.client_id
+      });
+
       this.logger.debug('GroupCode utilizado para Lead', {
         groupCode: businessPartnerData.GroupCode,
         source: process.env.SAP_INSTITUTIONAL_GROUP_CODE ? 'ENV_VAR' : 'DEFAULT'
@@ -404,34 +419,42 @@ class SapClientService extends SapBaseService {
       }
     };
     
-    } catch (error) {
-      this.logger.error('Error al crear/actualizar socio de negocios Lead en SAP', {
-        error: error.message,
-        stack: error.stack,
-        clientId: clientProfile.client_id,
-        nit: clientProfile.nit_number,
-        verification_digit: clientProfile.verification_digit,
-        sessionActive: !!this.sessionId
-      });
-      
-      // DEBUGGING TEMPORAL - REMOVER DESPUÉS
-      console.log('\n=== DEBUG SAP SERVICE END ===');
-      console.log('isUpdate:', isUpdate);
-      console.log('businessPartnerData:', JSON.stringify(businessPartnerData, null, 2));
-      console.log('About to return result...');
-      console.log('==============================\n');
-      // Devolvemos un objeto con success: false en lugar de lanzar el error
-      // para que el controlador pueda manejarlo mejor
-      return {
-        success: false,
-        error: error.message,
-        details: {
+      } catch (error) {
+        this.logger.error('=== ERROR DETALLADO EN SINCRONIZACIÓN SAP ===', {
+          error: error.message,
+          stack: error.stack,
           clientId: clientProfile.client_id,
-          nit: `${clientProfile.nit_number}-${clientProfile.verification_digit}`,
-          sessionActive: !!this.sessionId
-        }
-      };
-    }
+          nit: clientProfile.nit_number,
+          verification_digit: clientProfile.verification_digit,
+          sessionActive: !!this.sessionId,
+          requestMethod: isUpdate ? 'PATCH' : 'POST',
+          requestEndpoint: isUpdate ? `BusinessPartners('${existingPartner ? existingPartner.CardCode : cardCode}')` : 'BusinessPartners',
+          businessPartnerData: JSON.stringify(businessPartnerData, null, 2),
+          errorResponse: error.response ? {
+            status: error.response.status,
+            statusText: error.response.statusText,
+            data: error.response.data
+          } : null,
+          isNetworkError: error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT' || error.message.includes('Network Error'),
+          timestamp: new Date().toISOString()
+        });
+
+        // Retornar un objeto de error más detallado
+        return {
+          success: false,
+          error: error.message,
+          errorDetails: {
+            type: error.name || 'UnknownError',
+            code: error.code,
+            status: error.response?.status,
+            sapErrorCode: error.response?.data?.error?.code,
+            sapErrorMessage: error.response?.data?.error?.message,
+            isConnectivityIssue: error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT' || error.message.includes('Network Error')
+          },
+          clientId: clientProfile.client_id,
+          timestamp: new Date().toISOString()
+        };
+      }
   }
 
   /**

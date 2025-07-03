@@ -888,6 +888,50 @@ async createProfile(req, res) {
           
           sapSyncResult = await sapServiceManager.createOrUpdateLead(sapProfileData);
           
+          // Después de la línea: sapSyncResult = await sapServiceManager.createOrUpdateLead(sapProfileData);
+          logger.info('=== DEBUGGING SINCRONIZACIÓN SAP - RESULTADO COMPLETO ===', {
+            sapSyncResultExists: !!sapSyncResult,
+            sapSyncResultType: typeof sapSyncResult,
+            sapSyncResultKeys: sapSyncResult ? Object.keys(sapSyncResult) : null,
+            success: sapSyncResult?.success,
+            cardCode: sapSyncResult?.cardCode,
+            artesaCode: sapSyncResult?.artesaCode,
+            isNew: sapSyncResult?.isNew,
+            error: sapSyncResult?.error,
+            clientId: profile.client_id,
+            hasCardCode: !!sapSyncResult?.cardCode,
+            hasArtesaCode: !!sapSyncResult?.artesaCode,
+            rawSapSyncResult: JSON.stringify(sapSyncResult),
+            sessionId: sapServiceManager?.clientService?.sessionId ? 'ACTIVA' : 'INACTIVA'
+          });
+
+          // Si sapSyncResult es null o undefined, agregar logging adicional
+          if (!sapSyncResult) {
+            logger.error('=== SAP SYNC RESULT ES NULL/UNDEFINED ===', {
+              clientId: profile.client_id,
+              sapServiceManagerInitialized: sapServiceManager?.initialized,
+              clientServiceInitialized: sapServiceManager?.clientService?.initialized,
+              sessionId: sapServiceManager?.clientService?.sessionId ? 'EXISTE' : 'NO_EXISTE',
+              nitNumber: profile.nit_number,
+              verificationDigit: profile.verification_digit,
+              razonSocial: profile.razonSocial,
+              timestamp: new Date().toISOString()
+            });
+          }
+
+          // Si sapSyncResult existe pero success no es true, agregar logging
+          if (sapSyncResult && sapSyncResult.success !== true) {
+            logger.error('=== SAP SYNC FALLÓ - ANÁLISIS DETALLADO ===', {
+              sapSyncResult: sapSyncResult,
+              success: sapSyncResult.success,
+              error: sapSyncResult.error,
+              clientId: profile.client_id,
+              sessionActive: !!sapServiceManager?.clientService?.sessionId,
+              hasError: !!sapSyncResult.error,
+              errorType: typeof sapSyncResult.error,
+              timestamp: new Date().toISOString()
+            });
+          }
           // DEBUGGING TEMPORAL - VERIFICAR RESPUESTA SAP
           if (sapSyncResult) {
             logger.info('Resultado completo de sincronización SAP', {
