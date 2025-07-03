@@ -821,58 +821,6 @@ async uploadBannerImage(file, customName) {
       totalExtraTime: Math.abs(timezoneOffset) + (safetyMargin / 3600)
     };
   }
-  /**
-   * Obtiene el contenido completo de un archivo desde S3
-   * @param {string} key - Clave del objeto en S3
-   * @returns {Promise<Object>} Contenido del archivo y metadatos
-   */
-  async getFileContent(key) {
-    if (this.localMode) {
-      const localPath = path.join('uploads', key);
-      if (!fs.existsSync(localPath)) {
-        throw new Error('Archivo no encontrado');
-      }
-      
-      const content = fs.readFileSync(localPath);
-      const ext = path.extname(key).toLowerCase();
-      const contentType = this.getContentType(ext);
-      
-      return {
-        content,
-        contentType,
-        etag: '"local-file"'
-      };
-    }
-
-    try {
-      const command = new GetObjectCommand({
-        Bucket: this.bucketName,
-        Key: key,
-      });
-
-      const response = await this.s3.send(command);
-      
-      // Convertir stream a buffer CORRECTAMENTE
-      const chunks = [];
-      for await (const chunk of response.Body) {
-        chunks.push(chunk);
-      }
-      const content = Buffer.concat(chunks);
-
-      return {
-        content,
-        contentType: response.ContentType || 'application/octet-stream',
-        etag: response.ETag
-      };
-    } catch (error) {
-      logger.error('Error al obtener contenido de archivo', {
-        error: error.message,
-        key,
-        bucket: this.bucketName
-      });
-      throw new Error('Archivo no encontrado');
-    }
-  }
 
   /**
    * Obtiene el tipo MIME basado en la extensión del archivo
