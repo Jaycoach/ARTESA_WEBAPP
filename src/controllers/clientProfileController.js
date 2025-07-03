@@ -833,7 +833,7 @@ async createProfile(req, res) {
       // Sincronizar con SAP (CRÍTICO - hacer rollback si falla)
       let sapSyncResult = null;
       try {
-        if (profile.nit_number && profile.verification_digit !== undefined) {
+        if (profileForResponse.nit_number && profileForResponse.verification_digit !== undefined) {
           const sapProfileData = {
             client_id: profile.client_id,
             user_id: profile.user_id,
@@ -1008,9 +1008,9 @@ async createProfile(req, res) {
           }
         } else {
           logger.warn('No se puede sincronizar con SAP: faltan datos de NIT', {
-            clientId: profile.client_id,
-            hasNitNumber: !!profile.nit_number,
-            hasVerificationDigit: profile.verification_digit !== undefined
+            clientId: profileForResponse.client_id,
+            hasNitNumber: !!profileForResponse.nit_number,
+            hasVerificationDigit: profileForResponse.verification_digit !== undefined
           });
         }
       } catch (sapError) {
