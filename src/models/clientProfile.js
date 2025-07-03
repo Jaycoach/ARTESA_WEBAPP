@@ -352,37 +352,41 @@ static async create(clientData) {
     // Mapear los campos del formulario a los campos de la base de datos
     const query = `
       INSERT INTO client_profiles (
-        user_id, company_name, contact_name, contact_phone, contact_email,
-        address, city, country, tax_id, notes, fotocopia_cedula, fotocopia_rut, anexos_adicionales,
-        price_list, nit_number, verification_digit, cardcode_sap, cardtype_sap, clientprofilecode_sap
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
-      RETURNING *
+        user_id, company_name, contact_name, contact_phone, contact_email, 
+        address, city, country, tax_id, nit_number, verification_digit, 
+        fotocopia_cedula, fotocopia_rut, anexos_adicionales, notes, 
+        price_list, cardcode_sap, cardtype_sap, clientprofilecode_sap,
+        created_at, updated_at
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19,
+        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+      ) RETURNING *
     `;
-    
+
     // Crear JSON con campos adicionales
     const notesJSON = Object.keys(additionalFields).length > 0 ? 
       JSON.stringify(additionalFields) : null;
 
     const values = [
-      userId,                  // user_id
-      razonSocialTruncated,    // company_name
-      nombreTruncated,         // contact_name
-      contactPhone,            // contact_phone
-      contactEmail,            // contact_email
-      direccionTruncated,      // address
-      ciudadTruncated,         // city
-      paisTruncated || 'Colombia', // country (valor por defecto)
-      nitTruncated,            // tax_id
-      notesJSON,               // notes (campos adicionales en JSON)
-      fotocopiaCedulaTruncated, // fotocopia_cedula
-      fotocopiaRutTruncated,   // fotocopia_rut
-      anexosAdicionalesTruncated, // anexos_adicionales
-      clientData.listaPrecios || 1, // price_list (valor por defecto: 1)
-      clientData.nit_number,   // nit_number
-      clientData.verification_digit, // verification_digit
-      null, // cardcode_sap
-      'cLid', // cardtype_sap (inicialmente es Lead)
-      clientProfileCode        // clientprofilecode_sap
+      userId,                           // $1 - user_id
+      razonSocialTruncated,            // $2 - company_name
+      nombreTruncated,                 // $3 - contact_name
+      contactPhone,                    // $4 - contact_phone
+      contactEmail,                    // $5 - contact_email
+      direccionTruncated,              // $6 - address
+      ciudadTruncated,                 // $7 - city
+      paisTruncated || 'Colombia',     // $8 - country
+      nitTruncated,                    // $9 - tax_id
+      clientData.nit_number,           // $10 - nit_number
+      clientData.verification_digit,   // $11 - verification_digit
+      fotocopiaCedulaTruncated,        // $12 - fotocopia_cedula
+      fotocopiaRutTruncated,           // $13 - fotocopia_rut
+      anexosAdicionalesTruncated,      // $14 - anexos_adicionales
+      notesJSON,                       // $15 - notes
+      clientData.listaPrecios || 1,    // $16 - price_list
+      null,                            // $17 - cardcode_sap
+      'cLid',                          // $18 - cardtype_sap
+      clientProfileCode                // $19 - clientprofilecode_sap
     ];
 
     const { rows } = await pool.query(query, values);
@@ -414,6 +418,8 @@ static async create(clientData) {
       pais: createdProfile.country,
       razonSocial: createdProfile.company_name,
       nit: createdProfile.tax_id,
+      nit_number: createdProfile.nit_number,              // ← AGREGAR ESTO
+      verification_digit: createdProfile.verification_digit, // ← Y ESTO
       fotocopiaCedula: createdProfile.fotocopia_cedula,
       fotocopiaRut: createdProfile.fotocopia_rut,
       anexosAdicionales: createdProfile.anexos_adicionales,

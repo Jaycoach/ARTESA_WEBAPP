@@ -790,6 +790,16 @@ async createProfile(req, res) {
       // Crear el perfil usando el modelo (que maneja su propia lógica de BD)
       const profile = await ClientProfile.create(clientData);
 
+      // DEBUGGING TEMPORAL - agregar esto
+      logger.info('=== DEBUGGING PERFIL CREADO ===', {
+        profile: profile,
+        hasNitNumber: !!profile.nit_number,
+        hasVerificationDigit: profile.verification_digit !== undefined,
+        nitNumber: profile.nit_number,
+        verificationDigit: profile.verification_digit,
+        allKeys: Object.keys(profile)
+      });
+
       logger.info('Perfil de cliente creado exitosamente por el modelo', {
         clientId: profile.client_id,
         userId: profile.user_id
