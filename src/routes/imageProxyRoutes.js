@@ -22,6 +22,26 @@ router.get('/proxy/:key(*)', async (req, res) => {
     
     // Obtener archivo desde S3
     const fileData = await S3Service.getFileContent(key);
+
+    // Debug: verificar qué tipo de datos estamos recibiendo
+    logger.debug('Datos recibidos de S3Service', {
+      contentType: fileData.contentType,
+      isBuffer: Buffer.isBuffer(fileData.content),
+      contentLength: fileData.content?.length,
+      firstBytes: fileData.content ? Array.from(fileData.content.slice(0, 10)).map(b => b.toString(16)).join(' ') : 'no content'
+    });
+
+    // Verificar que el contenido sea realmente un Buffer
+    if (!Buffer.isBuffer(fileData.content)) {
+      logger.error('El contenido no es un Buffer válido', {
+        contentType: typeof fileData.content,
+        key: key
+      });
+      return res.status(500).json({
+        success: false,
+        message: 'Error interno: contenido no válido'
+      });
+    }
     
     // Configurar headers apropiados
     let contentType = (fileData.contentType || 'image/jpeg').split(';')[0];

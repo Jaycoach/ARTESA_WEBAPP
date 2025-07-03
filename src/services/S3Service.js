@@ -523,6 +523,17 @@ class S3Service {
 
     const stats = fs.statSync(filePath);
     const content = fs.readFileSync(filePath);
+
+    // Verificar que el archivo leído sea un Buffer válido
+    if (!Buffer.isBuffer(content)) {
+      throw new Error('Error al leer archivo local: no es un buffer válido');
+    }
+
+    logger.debug('Archivo local leído correctamente', {
+      isBuffer: Buffer.isBuffer(content),
+      size: content.length,
+      key: key
+    });
     
     // Determinar tipo de contenido basado en extensión
     const ext = path.extname(key).toLowerCase();
@@ -873,12 +884,38 @@ async uploadBannerImage(file, customName) {
 
       const response = await this.s3.send(command);
       
-      // Convertir stream a buffer
-      const chunks = [];
-      for await (const chunk of response.Body) {
-        chunks.push(chunk);
+      // Convertir stream a buffer de forma correcta
+      let content;
+      if (response.Body instanceof Buffer) {
+        content = response.Body;
+      } else {
+        // Para streams
+        const chunks = [];
+        const reader = response.Body.getReader ? response.Body.getReader() : response.Body;
+        
+        if (response.Body.getReader) {
+          // ReadableStream (navegador)
+          let done = false;
+          while (!done) {
+            const { value, done: streamDone } = await reader.read();
+            done = streamDone;
+            if (value) chunks.push(value);
+          }
+          content = new Uint8Array(chunks.reduce((acc, chunk) => acc + chunk.length, 0));
+          let offset = 0;
+          for (const chunk of chunks) {
+            content.set(chunk, offset);
+            offset += chunk.length;
+          }
+          content = Buffer.from(content);
+        } else {
+          // Stream de Node.js
+          for await (const chunk of response.Body) {
+            chunks.push(chunk);
+          }
+          content = Buffer.concat(chunks);
+        }
       }
-      const content = Buffer.concat(chunks);
 
       return {
         content,
