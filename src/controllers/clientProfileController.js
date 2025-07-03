@@ -869,7 +869,24 @@ async createProfile(req, res) {
           console.log('sapSyncResult.details:', sapSyncResult?.details);
           console.log('==============================\n');
 
-          if (sapSyncResult && sapSyncResult.success) {
+          // DEBUGGING TEMPORAL - VERIFICAR RESPUESTA SAP
+          if (sapSyncResult) {
+            logger.info('Resultado completo de sincronización SAP', {
+              success: sapSyncResult.success,
+              cardCode: sapSyncResult.cardCode,
+              artesaCode: sapSyncResult.artesaCode,
+              isNew: sapSyncResult.isNew,
+              error: sapSyncResult.error,
+              clientId: profile.client_id
+            });
+          } else {
+            logger.error('sapSyncResult es null o undefined', {
+              clientId: profile.client_id,
+              sapServiceManagerInitialized: sapServiceManager.initialized
+            });
+          }
+
+          if (sapSyncResult && sapSyncResult.success === true && sapSyncResult.cardCode) {
             // Actualizar perfil con datos de SAP dentro de la transacción
             const updateResult = await client.query(
               `UPDATE client_profiles 
@@ -885,20 +902,24 @@ async createProfile(req, res) {
             
             if (updateResult.rows.length > 0) {
               profileForResponse = updateResult.rows[0];
-              logger.info('Perfil actualizado con datos de SAP', {
+              logger.info('Perfil actualizado con datos de SAP exitosamente', {
                 clientId: profile.client_id,
                 cardCode: sapSyncResult.cardCode,
                 artesaCode: sapSyncResult.artesaCode
               });
             }
           } else {
-            // SI SAP FALLA, HACER ROLLBACK COMPLETO
-            logger.error('Error crítico en sincronización SAP, revirtiendo transacción', {
-              sapError: sapSyncResult?.error || 'No response from SAP',
-              sapResult: sapSyncResult,
+            // Logging más detallado del error
+            const errorDetails = {
+              sapSyncResult: sapSyncResult,
+              hasSuccess: sapSyncResult?.success,
+              hasCardCode: !!sapSyncResult?.cardCode,
+              error: sapSyncResult?.error,
               clientId: profile.client_id
-            });
-            throw new Error(`Error en sincronización SAP: ${sapSyncResult?.error || 'No response from SAP'}`);
+            };
+            
+            logger.error('Error crítico en sincronización SAP, revirtiendo transacción', errorDetails);
+            throw new Error(`Error en sincronización SAP: ${sapSyncResult?.error || 'Respuesta incompleta de SAP'}`);
           }
         }
       } catch (sapError) {
@@ -912,6 +933,14 @@ async createProfile(req, res) {
         // Lanzar el error para que sea capturado por el catch principal
         throw new Error(`Error crítico en SAP: ${sapError.message}`);
       }
+
+      // Verificar estado final antes de confirmar
+      logger.info('Estado final antes de confirmar transacción', {
+        clientId: profile.client_id,
+        sapSyncSuccess: !!sapSyncResult?.success,
+        cardCodeSap: sapSyncResult?.cardCode,
+        profileForResponseExists: !!profileForResponse
+      });
       
       // CONFIRMAR transacción - todo lo crítico fue exitoso
       await client.query('COMMIT');
@@ -1256,6 +1285,12 @@ async updateProfileByUserId(req, res) {
     // Verificar NIT en SAP DESPUÉS de definir updateData
     if (updateData.nit_number && updateData.verification_digit) {
       try {
+        logger.info('Verificando estado de SAP antes de sincronización', {
+          sapServiceManagerExists: !!sapServiceManager,
+          isInitialized: sapServiceManager?.initialized,
+          clientServiceExists: !!sapServiceManager?.clientService,
+          clientId: profile.client_id
+        });
         if (!sapServiceManager.initialized) {
           await sapServiceManager.initialize();
         }
@@ -1283,10 +1318,29 @@ async updateProfileByUserId(req, res) {
           updateData.cardcode_sap = sapCheck.cardCode;
         }
       } catch (sapError) {
-        logger.warn('Error al verificar NIT en SAP', {
+        // Logging detallado del error de SAP
+        logger.error('Error crítico de SAP - detalles completos', {
           error: sapError.message,
-          nit_number: updateData.nit_number
+          stack: sapError.stack,
+          clientId: profile.client_id,
+          sapServiceManagerInitialized: sapServiceManager?.initialized,
+          clientServiceInitialized: sapServiceManager?.clientService?.initialized,
+          sessionId: sapServiceManager?.clientService?.sessionId ? 'EXISTE' : 'NO_EXISTE',
+          nit_number: profile.nit_number,
+          verification_digit: profile.verification_digit
         });
+        
+        // Verificar si es un error de conectividad vs error de lógica
+        if (sapError.message.includes('Network Error') || sapError.message.includes('ECONNREFUSED')) {
+          logger.warn('Error de conectividad con SAP, continuando sin sincronización', {
+            clientId: profile.client_id,
+            error: sapError.message
+          });
+          // No hacer rollback por errores de conectividad
+        } else {
+          // Para errores de lógica, sí hacer rollback
+          throw new Error(`Error crítico en SAP: ${sapError.message}`);
+        }
       }
     }
     
