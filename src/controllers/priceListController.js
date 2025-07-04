@@ -439,4 +439,10 @@ class PriceListController {
   }
 }
 
-module.exports = new PriceListController();
+module.exports = {
+  getAllPriceLists,
+  getPriceListProducts,
+  getProductPrice,
+  getMultipleProductPrices,
+  getPriceListStatistics  // Esta línea debe estar presente
+};
