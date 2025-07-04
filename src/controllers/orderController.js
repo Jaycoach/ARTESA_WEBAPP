@@ -145,27 +145,41 @@ const createOrder = async (req, res) => {
     }
 
     if (!userResult.rows[0].is_active) {
-    // Verificar si el usuario tiene un perfil de cliente
-    const profileQuery = 'SELECT client_id, cardcode_sap FROM client_profiles WHERE user_id = $1';
-    const profileResult = await pool.query(profileQuery, [user_id]);
+      // Verificar si el usuario tiene un perfil de cliente con cardtype_sap válido
+      const profileQuery = 'SELECT client_id, cardcode_sap, cardtype_sap FROM client_profiles WHERE user_id = $1';
+      const profileResult = await pool.query(profileQuery, [user_id]);
 
-    // Si tiene perfil y tiene un código SAP asignado, permitir la creación
-    if (profileResult.rows.length > 0 && profileResult.rows[0].cardcode_sap) {
-      logger.info('Usuario inactivo con perfil y código SAP, permitiendo creación de orden', {
-        userId: user_id,
-        cardcodeSap: profileResult.rows[0].cardcode_sap
-      });
-    } else {
-      logger.warn('Intento de crear orden con usuario inactivo sin perfil completo', { 
-        userId: user_id 
-      });
-      
-      return res.status(403).json({
-        success: false,
-        message: 'Usuario inactivo o perfil incompleto. No puede crear órdenes.'
-      });
+      // Solo permitir si tiene perfil completo Y cardtype_sap = 'cCli' (ya no es Lead)
+      if (profileResult.rows.length > 0 && 
+          profileResult.rows[0].cardcode_sap && 
+          profileResult.rows[0].cardtype_sap === 'cCli') {
+        logger.info('Usuario inactivo con perfil completo y cliente confirmado en SAP, permitiendo creación de orden', {
+          userId: user_id,
+          cardcodeSap: profileResult.rows[0].cardcode_sap,
+          cardTypeSap: profileResult.rows[0].cardtype_sap
+        });
+      } else {
+        let reason = 'Usuario inactivo';
+        if (profileResult.rows.length === 0) {
+          reason = 'Usuario inactivo sin perfil de cliente';
+        } else if (!profileResult.rows[0].cardcode_sap) {
+          reason = 'Usuario inactivo sin código SAP asignado';
+        } else if (profileResult.rows[0].cardtype_sap === 'cLid') {
+          reason = 'Usuario inactivo - cliente aún es Lead en SAP';
+        }
+        
+        logger.warn('Intento de crear orden con usuario inactivo sin perfil completo o cliente Lead', { 
+          userId: user_id,
+          reason,
+          cardTypeSap: profileResult.rows.length > 0 ? profileResult.rows[0].cardtype_sap : null
+        });
+        
+        return res.status(403).json({
+          success: false,
+          message: `${reason}. No puede crear órdenes.`
+        });
+      }
     }
-  }
     
     // Validar fecha de entrega si se proporciona
     let parsedDeliveryDate = null;
@@ -841,12 +855,47 @@ const checkUserCanCreateOrders = async (req, res) => {
       });
     }
     
-    // Verificar si tiene perfil de cliente y código SAP
-    const profileQuery = 'SELECT client_id, cardcode_sap FROM client_profiles WHERE user_id = $1';
+    // Verificar si tiene perfil de cliente y cardtype_sap
+    const profileQuery = 'SELECT client_id, cardcode_sap, cardtype_sap FROM client_profiles WHERE user_id = $1';
     const profileResult = await pool.query(profileQuery, [userId]);
-    
-    const canCreate = userResult.rows[0].is_active || 
-                      (profileResult.rows.length > 0 && profileResult.rows[0].cardcode_sap);
+
+    let canCreate = false;
+    let reason = '';
+
+    // Verificar primero si tiene perfil y cardtype_sap válido
+    if (profileResult.rows.length > 0 && 
+        profileResult.rows[0].cardcode_sap && 
+        profileResult.rows[0].cardtype_sap === 'cCli') {
+      canCreate = true;
+      reason = userResult.rows[0].is_active ? 'Usuario activo con cliente confirmado en SAP' : 'Cliente confirmado en SAP (no es Lead)';
+    } 
+    // Si es usuario activo PERO es Lead (cLid) o no tiene perfil completo
+    else if (userResult.rows[0].is_active) {
+      if (profileResult.rows.length === 0) {
+        canCreate = false;
+        reason = 'Usuario activo pero sin perfil de cliente';
+      } else if (!profileResult.rows[0].cardcode_sap) {
+        canCreate = false;
+        reason = 'Usuario activo pero sin código SAP asignado';
+      } else if (profileResult.rows[0].cardtype_sap === 'cLid') {
+        canCreate = false;
+        reason = 'Usuario activo pero cliente aún es Lead en SAP';
+      } else {
+        canCreate = true;
+        reason = 'Usuario activo';
+      }
+    } else {
+      canCreate = false;
+      if (profileResult.rows.length === 0) {
+        reason = 'Sin perfil de cliente';
+      } else if (!profileResult.rows[0].cardcode_sap) {
+        reason = 'Sin código SAP asignado';
+      } else if (profileResult.rows[0].cardtype_sap === 'cLid') {
+        reason = 'Cliente aún es Lead en SAP';
+      } else {
+        reason = 'Usuario inactivo';
+      }
+    }
     
     res.status(200).json({
       success: true,
@@ -854,7 +903,9 @@ const checkUserCanCreateOrders = async (req, res) => {
         canCreate,
         isActive: userResult.rows[0].is_active,
         hasProfile: profileResult.rows.length > 0,
-        hasCardCode: profileResult.rows.length > 0 && !!profileResult.rows[0].cardcode_sap
+        hasCardCode: profileResult.rows.length > 0 && !!profileResult.rows[0].cardcode_sap && profileResult.rows[0].cardtype_sap !== 'cLid',
+        cardTypeSap: profileResult.rows.length > 0 ? profileResult.rows[0].cardtype_sap : null,
+        reason
       }
     });
   } catch (error) {
@@ -2408,6 +2459,112 @@ const debugUserOrders = async (req, res) => {
   }
 };
 
+/**
+ * @swagger
+ * /api/orders/prices:
+ *   post:
+ *     summary: Obtener precios de productos con IVA para el cliente logueado
+ *     description: Obtiene los precios de productos específicos según la lista de precios del cliente, incluyendo cálculo de IVA
+ *     tags: [Orders]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - product_codes
+ *             properties:
+ *               product_codes:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: Array de códigos de productos
+ *                 example: ["PROD001", "PROD002"]
+ *     responses:
+ *       200:
+ *         description: Precios obtenidos exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       product_code:
+ *                         type: string
+ *                         example: "PROD001"
+ *                       product_name:
+ *                         type: string
+ *                         example: "Producto de ejemplo"
+ *                       base_price:
+ *                         type: number
+ *                         format: float
+ *                         example: 100.00
+ *                       tax_rate:
+ *                         type: number
+ *                         format: float
+ *                         example: 0.19
+ *                       tax_amount:
+ *                         type: number
+ *                         format: float
+ *                         example: 19.00
+ *                       total_price_with_tax:
+ *                         type: number
+ *                         format: float
+ *                         example: 119.00
+ *                 message:
+ *                   type: string
+ *                   example: "Precios obtenidos exitosamente"
+ *       400:
+ *         description: Datos inválidos
+ *       401:
+ *         description: Token inválido
+ *       500:
+ *         description: Error interno del servidor
+ */
+const getProductPricesWithTax = async (req, res) => {
+  try {
+    const { product_codes } = req.body;
+    const userId = req.user.id;
+
+    if (!product_codes || !Array.isArray(product_codes) || product_codes.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Se requiere un array de códigos de productos'
+      });
+    }
+
+    const pricesWithTax = await Order.getProductPricesWithTax(userId, product_codes);
+
+    res.json({
+      success: true,
+      data: pricesWithTax,
+      message: 'Precios obtenidos exitosamente'
+    });
+
+  } catch (error) {
+    logger.error('Error en getProductPricesWithTax', {
+      error: error.message,
+      userId: req.user?.id
+    });
+
+    res.status(500).json({
+      success: false,
+      message: 'Error interno del servidor',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
 module.exports = { 
   createOrder,
   getOrderById,
@@ -2428,5 +2585,6 @@ module.exports = {
   getInvoicesByUser,
   getTopSellingProducts,
   getMonthlyStats,
-  debugUserOrders
+  debugUserOrders,
+  getProductPricesWithTax 
 };

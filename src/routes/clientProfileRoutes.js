@@ -554,7 +554,61 @@ router.delete('/user/:userId',
   checkRole([1]), // Solo administradores pueden eliminar
   clientProfileController.deleteProfileByUserId
 );
-
+/**
+ * @swagger
+ * /api/client-profiles/user/{userId}/documents:
+ *   get:
+ *     summary: Listar documentos disponibles del perfil
+ *     description: Obtiene la lista de documentos disponibles para un perfil de cliente
+ *     tags: [ClientProfiles]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID del usuario
+ *     responses:
+ *       200:
+ *         description: Lista de documentos obtenida exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     cedula:
+ *                       type: object
+ *                       properties:
+ *                         available:
+ *                           type: boolean
+ *                         downloadUrl:
+ *                           type: string
+ *                     rut:
+ *                       type: object
+ *                       properties:
+ *                         available:
+ *                           type: boolean
+ *                         downloadUrl:
+ *                           type: string
+ *                     anexos:
+ *                       type: object
+ *                       properties:
+ *                         available:
+ *                           type: boolean
+ *                         downloadUrl:
+ *                           type: string
+ */
+router.get('/user/:userId/documents', 
+  verifyToken,
+  clientProfileController.listDocuments
+);
 /**
  * @swagger
  * /api/client-profiles/user/{userId}/file/{fileType}:
@@ -596,6 +650,37 @@ router.delete('/user/:userId',
 router.get('/user/:userId/file/:fileType',
   verifyToken,
   clientProfileController.getFileByUserId
+);
+/**
+ * @swagger
+ * /api/client-profiles/user/{userId}/download/{fileType}:
+ *   get:
+ *     summary: Descarga directa de documento
+ *     description: Descarga el contenido del documento directamente sin redirección
+ *     tags: [ClientProfiles]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID del usuario
+ *       - in: path
+ *         name: fileType
+ *         required: true
+ *         schema:
+ *           type: string
+ *           enum: [cedula, rut, anexos]
+ *         description: Tipo de archivo a descargar
+ *     responses:
+ *       200:
+ *         description: Archivo descargado exitosamente
+ */
+router.get('/user/:userId/download/:fileType',
+  verifyToken,
+  clientProfileController.downloadDocument
 );
 
 /**
@@ -642,5 +727,64 @@ router.post('/:userId/documents/:documentType',
   verifyToken,
   clientProfileController.uploadProfileDocument
 );
+
+// RUTA TEMPORAL PARA DEBUGGING - REMOVER DESPUÉS
+router.post('/debug/test-sap-sync', verifyToken, async (req, res) => {
+  const logger = require('../config/logger').createContextLogger('DebugSAPSync');
+  
+  try {
+    console.log('\n=== INICIO TEST SAP SYNC ===');
+    console.log('Body recibido:', JSON.stringify(req.body, null, 2));
+    console.log('Usuario autenticado:', req.user);
+    
+    const testProfile = {
+      client_id: req.body.client_id || 999999,
+      user_id: req.body.user_id || req.user.id,
+      razonSocial: req.body.razonSocial || 'EMPRESA TEST DEBUG',
+      nombre: req.body.nombre || 'CONTACTO TEST',
+      telefono: req.body.telefono || '1234567890',
+      email: req.body.email || 'test@debug.com',
+      direccion: req.body.direccion || 'CALLE TEST 123',
+      nit_number: req.body.nit_number || '123456789',
+      verification_digit: req.body.verification_digit || 1
+    };
+    
+    console.log('Perfil de prueba creado:', JSON.stringify(testProfile, null, 2));
+    
+    // Importar correctamente el sapServiceManager
+    const sapServiceManager = require('../services/SapServiceManager');
+    console.log('sapServiceManager importado:', !!sapServiceManager);
+    console.log('sapServiceManager.initialized:', sapServiceManager.initialized);
+    
+    if (!sapServiceManager.initialized) {
+      console.log('Inicializando SAP Service Manager...');
+      await sapServiceManager.initialize();
+      console.log('SAP Service Manager inicializado:', sapServiceManager.initialized);
+    }
+    
+    console.log('Llamando a createOrUpdateLead...');
+    const result = await sapServiceManager.createOrUpdateLead(testProfile);
+    
+    console.log('Resultado final:', JSON.stringify(result, null, 2));
+    console.log('=== FIN TEST SAP SYNC ===\n');
+    
+    res.json({
+      success: true,
+      message: 'Test de sincronización completado',
+      testProfile,
+      sapResult: result
+    });
+    
+  } catch (error) {
+    console.log('ERROR en test:', error.message);
+    console.log('Stack:', error.stack);
+    
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      stack: error.stack
+    });
+  }
+});
 
 module.exports = router;

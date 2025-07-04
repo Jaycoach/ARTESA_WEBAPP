@@ -4,17 +4,25 @@ const logger = createContextLogger('PaymentSanitization');
 
 class PaymentSanitization {
     // Sanitizar datos de entrada
-    static sanitizeInput = (input) => {
+    static sanitizeInput = (input, fieldName = '') => {
+        // Lista de campos que contienen URLs y no deben ser sanitizados
+        const urlFields = ['imageUrl', 'image_url', 'banner_image_url', 'home_banner_image_url', 'url', 'avatar_url', 'profile_image_url'];
+        const isUrlField = urlFields.includes(fieldName) || fieldName.toLowerCase().includes('url') || fieldName.toLowerCase().includes('image');
+        
         if (typeof input === 'string') {
+            // No sanitizar URLs para evitar romper enlaces
+            if (isUrlField || /^https?:\/\//.test(input.trim())) {
+                return input.trim();
+            }
             return validator.escape(input.trim());
         }
         if (Array.isArray(input)) {
-            return input.map(item => this.sanitizeInput(item));
+            return input.map(item => this.sanitizeInput(item, fieldName));
         }
         if (typeof input === 'object' && input !== null) {
             const sanitized = {};
             for (const [key, value] of Object.entries(input)) {
-                sanitized[key] = this.sanitizeInput(value);
+                sanitized[key] = this.sanitizeInput(value, key);
             }
             return sanitized;
         }

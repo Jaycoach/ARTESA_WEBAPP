@@ -482,6 +482,96 @@ class SapSyncController {
   }
 
   /**
+   * @swagger
+   * /api/sap/products/direct:
+   *   get:
+   *     summary: Obtener productos usando consulta SQL directa
+   *     description: Obtiene productos de SAP B1 ejecutando la consulta SQL directamente sin usar la vista
+   *     tags: [SAP]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: query
+   *         name: skip
+   *         schema:
+   *           type: integer
+   *           default: 0
+   *         description: Número de registros a omitir (paginación)
+   *       - in: query
+   *         name: groupCode
+   *         schema:
+   *           type: integer
+   *         description: Código del grupo de productos a filtrar
+   *       - in: query
+   *         name: limit
+   *         schema:
+   *           type: integer
+   *           default: 20
+   *         description: Número máximo de registros a devolver
+   *     responses:
+   *       200:
+   *         description: Productos obtenidos exitosamente
+   *       401:
+   *         description: No autorizado
+   *       403:
+   *         description: No tiene permisos suficientes
+   *       500:
+   *         description: Error al obtener productos
+   */
+  async getProductsDirectQuery(req, res) {
+    try {
+      const { skip = 0, groupCode, limit = 20 } = req.query;
+      
+      logger.info('Obteniendo productos usando consulta SQL directa', {
+        skip: parseInt(skip),
+        groupCode: groupCode ? parseInt(groupCode) : null,
+        limit: parseInt(limit),
+        userId: req.user?.id
+      });
+      
+      const productService = sapServiceManager.productService;
+      await productService.login();
+      
+      // Llamar al método modificado que usa SQL directa
+      const result = await productService.getProductsFromSAP({
+        skip: parseInt(skip),
+        groupCode: groupCode ? parseInt(groupCode) : null
+      });
+      
+      // Aplicar límite si se especifica
+      let products = result.value || [];
+      if (limit && limit > 0) {
+        products = products.slice(0, parseInt(limit));
+      }
+      
+      res.status(200).json({
+        success: true,
+        message: 'Productos obtenidos exitosamente usando consulta SQL directa',
+        data: {
+          products,
+          count: products.length,
+          skip: parseInt(skip),
+          groupCode: groupCode ? parseInt(groupCode) : null,
+          limit: parseInt(limit)
+        }
+      });
+    } catch (error) {
+      logger.error('Error al obtener productos con consulta SQL directa', {
+        error: error.message,
+        stack: error.stack,
+        userId: req.user?.id,
+        query: req.query
+      });
+      
+      res.status(500).json({
+        success: false,
+        message: 'Error al obtener productos usando consulta SQL directa',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
+
+  /**
    * Actualiza la descripción de un producto y la sincroniza con SAP B1
    * @async
    * @param {object} req - Objeto de solicitud Express
@@ -748,5 +838,6 @@ module.exports = {
   syncProductsByGroup: sapSyncController.syncProductsByGroup,
   getGroupSyncStatus: sapSyncController.getGroupSyncStatus,
   configureGroupSync: sapSyncController.configureGroupSync,
-  updateProductDescription: sapSyncController.updateProductDescription
+  updateProductDescription: sapSyncController.updateProductDescription,
+  getProductsDirectQuery: sapSyncController.getProductsDirectQuery
 };

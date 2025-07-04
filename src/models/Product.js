@@ -164,6 +164,11 @@ class Product {
                 
                 if (imageResult.rows.length > 0 && imageResult.rows[0].image_url) {
                     rows[0].image_url = imageResult.rows[0].image_url;
+                    // Convertir URL de S3 a URL proxy si es necesario
+                    if (rows[0].image_url && rows[0].image_url.includes('s3.')) {
+                        const key = rows[0].image_url.split('/').slice(-2).join('/'); // Extraer carpeta/archivo
+                        rows[0].image_url = `/api/images/proxy/${key}`;
+                    }
                 }
             } catch (imageError) {
                 logger.warn('Error al obtener imagen del producto', {
@@ -300,6 +305,14 @@ class Product {
             'UPDATE products SET image_url = $1, updated_at = CURRENT_TIMESTAMP WHERE product_id = $2 RETURNING *;',
             [imageUrl, productId]
         );
+
+        // Decodificar la URL si está codificada con entidades HTML
+        if (rows.length > 0 && rows[0].image_url) {
+            rows[0].image_url = rows[0].image_url
+                .replace(/&amp;amp;#x2F;/g, '/')
+                .replace(/&amp;#x2F;/g, '/')
+                .replace(/&#x2F;/g, '/');
+        }
         
         if (rows.length === 0) {
             logger.warn('Producto no encontrado al actualizar imagen', { productId });
@@ -333,7 +346,22 @@ class Product {
             productId,
             success: true
         });
+
+        // AGREGAR ESTE LOGGING:
+        logger.debug('URL final de imagen', {
+          productId,
+          finalImageUrl: rows[0]?.image_url,
+          urlLength: rows[0]?.image_url?.length
+        });
         
+        // Asegurar que la URL del producto esté decodificada
+        if (rows[0] && rows[0].image_url) {
+            rows[0].image_url = rows[0].image_url
+                .replace(/&amp;amp;#x2F;/g, '/')
+                .replace(/&amp;#x2F;/g, '/')
+                .replace(/&#x2F;/g, '/');
+        }
+
         return rows[0];
     } catch (error) {
         logger.error('Error al actualizar imagen de producto', { 

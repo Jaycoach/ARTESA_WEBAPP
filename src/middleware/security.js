@@ -1,8 +1,12 @@
 const validator = require('validator');
 
 // Sanitizar strings
-const sanitizeString = (str) => {
+const sanitizeString = (str, isUrl = false) => {
   if (!str) return str;
+  // No sanitizar URLs para evitar romper enlaces
+  if (isUrl || /^https?:\/\//.test(str.trim())) {
+    return str.trim();
+  }
   return validator.escape(str.trim());
 };
 
@@ -18,22 +22,27 @@ const sanitizeBody = (req, res, next) => {
   if (req.body) {
     const sanitizedBody = {};
     
+    // Lista de campos que contienen URLs y no deben ser sanitizados
+    const urlFields = ['imageUrl', 'image_url', 'banner_image_url', 'home_banner_image_url', 'url', 'avatar_url', 'profile_image_url'];
+    
     Object.keys(req.body).forEach(key => {
       const value = req.body[key];
+      const isUrlField = urlFields.includes(key) || key.toLowerCase().includes('url') || key.toLowerCase().includes('image');
       
       if (typeof value === 'string') {
-        sanitizedBody[key] = sanitizeString(value);
+        sanitizedBody[key] = sanitizeString(value, isUrlField);
       } else if (typeof value === 'number') {
         sanitizedBody[key] = sanitizeNumber(value);
       } else if (Array.isArray(value)) {
         sanitizedBody[key] = value.map(item => {
-          if (typeof item === 'string') return sanitizeString(item);
+          if (typeof item === 'string') return sanitizeString(item, isUrlField);
           if (typeof item === 'number') return sanitizeNumber(item);
           return item;
         });
       } else if (typeof value === 'object' && value !== null) {
         sanitizedBody[key] = Object.keys(value).reduce((acc, k) => {
-          if (typeof value[k] === 'string') acc[k] = sanitizeString(value[k]);
+          const isNestedUrlField = urlFields.includes(k) || k.toLowerCase().includes('url') || k.toLowerCase().includes('image');
+          if (typeof value[k] === 'string') acc[k] = sanitizeString(value[k], isNestedUrlField);
           else if (typeof value[k] === 'number') acc[k] = sanitizeNumber(value[k]);
           else acc[k] = value[k];
           return acc;
@@ -129,9 +138,29 @@ const securityHeaders = (req, res, next) => {
   next();
 };
 
+// Bloquear acceso a archivos sensibles
+const blockSensitiveFiles = (req, res, next) => {
+  const sensitiveFiles = ['.env', '.git', 'package.json', 'config', 'logs'];
+  const requestedPath = req.path.toLowerCase();
+  
+  if (sensitiveFiles.some(file => requestedPath.includes(file))) {
+    logger.warn('Intento de acceso a archivo sensible bloqueado', {
+      path: req.path,
+      ip: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+    return res.status(403).json({
+      status: 'error',
+      message: 'Acceso prohibido'
+    });
+  }
+  next();
+};
+
 module.exports = {
   sanitizeBody,
   sanitizeParams,
   validateQueryParams,
-  securityHeaders
+  securityHeaders,
+  blockSensitiveFiles
 };

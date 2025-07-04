@@ -16,9 +16,11 @@ const { logger, createContextLogger } = require('./src/config/logger');
 const S3Service = require('./src/services/S3Service');
 const orderScheduler = require('./src/services/OrderScheduler');
 const clientSyncRoutes = require('./src/routes/clientSyncRoutes');
+const imageProxyRoutes = require('./src/routes/imageProxyRoutes');
 
 // Importaciones de middlewares
 const { errorHandler, notFound } = require('./src/middleware/errorMiddleware');
+const antiBotMiddleware = require('./src/middleware/antiBotMiddleware');
 const security = require('./src/middleware/security');
 const {
   sensitiveApiLimiter,
@@ -37,6 +39,14 @@ app.set('trust proxy', 1); // Solo confiar en el primer proxy (nginx)
 
 // Constantes de configuración
 const API_PREFIX = '/api';
+// Ruta raíz básica
+app.get('/', (req, res) => {
+  res.json({
+    status: 'success',
+    message: 'API Artesa funcionando correctamente',
+    version: process.env.API_VERSION || '1.0.0'
+  });
+});
 // Configuración de puerto según el entorno
 const getPort = () => {
   // En Docker, usar siempre el puerto desde la variable de entorno
@@ -73,8 +83,34 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       ...helmet.contentSecurityPolicy.getDefaultDirectives(),
-      "img-src": ["'self'", "data:", "https:"],
-      "script-src": ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdnjs.cloudflare.com"]
+      "img-src": [
+        "'self'", 
+        "data:", 
+        "blob:",
+        "https:", 
+        "https://*.s3.us-east-1.amazonaws.com", 
+        "https://*.s3.amazonaws.com", 
+        "https://artesa-documents-staging.s3.us-east-1.amazonaws.com",
+        "https://artesa-documents-staging.s3.amazonaws.com",
+        "https://s3.us-east-1.amazonaws.com",
+        "https://s3.amazonaws.com"
+      ],
+      "script-src": ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdnjs.cloudflare.com"],
+      "connect-src": [
+        "'self'", 
+        "http://ec2-44-216-131-63.compute-1.amazonaws.com", 
+        "https://ec2-44-216-131-63.compute-1.amazonaws.com",
+        "https://*.s3.us-east-1.amazonaws.com", 
+        "https://*.s3.amazonaws.com", 
+        "https://artesa-documents-staging.s3.us-east-1.amazonaws.com",
+        "https://artesa-documents-staging.s3.amazonaws.com",
+        "https://s3.us-east-1.amazonaws.com",
+        "https://s3.amazonaws.com",
+        // AGREGAR ESTAS LÍNEAS PARA reCAPTCHA:
+        "https://www.google.com",
+        "https://www.recaptcha.net", 
+        "https://apis.google.com"
+      ]
     }
   }
 }));
@@ -158,12 +194,16 @@ app.use(security.securityHeaders);
 app.use(security.sanitizeBody);
 app.use(security.sanitizeParams);
 app.use(security.validateQueryParams);
+app.use(security.blockSensitiveFiles);
 
 // Aplicar headers de seguridad mejorados a todas las rutas
 app.use(enhancedSecurityHeaders);
 
+// Aplicar middleware anti-bot
+app.use(antiBotMiddleware);
+
 // Aplicar tracker de actividad sospechosa
-//app.use(suspiciousActivityTracker); // Comentado temporalmente para debugging
+app.use(suspiciousActivityTracker); // Habilitado para producción
 
 // Middleware para asegurar respuestas JSON
 app.use(ensureJsonResponse);
@@ -264,7 +304,20 @@ const swaggerUiOptions = {
   customSiteTitle: "API LAARTESA - Documentación",
 };
 
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpecs, swaggerUiOptions));
+// Configurar CSP específico para Swagger
+app.use('/api-docs', (req, res, next) => {
+  res.setHeader('Content-Security-Policy', 
+    "default-src 'self'; " +
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
+    "style-src 'self' 'unsafe-inline'; " +
+    "img-src 'self' data: blob: https:; " +
+    "font-src 'self' data:; " +
+    "connect-src 'self' " +
+    "http://ec2-44-216-131-63.compute-1.amazonaws.com " +
+    "https://ec2-44-216-131-63.compute-1.amazonaws.com;"
+  );
+  next();
+}, swaggerUi.serve, swaggerUi.setup(swaggerSpecs, swaggerUiOptions));
 
 // Mejorar el endpoint de swagger.json con CORS
 app.get('/swagger.json', (req, res) => {
@@ -284,6 +337,8 @@ app.get('/swagger.json', (req, res) => {
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
     res.setHeader('Access-Control-Allow-Credentials', 'true');*/
     res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('X-Swagger-Source', 'nodejs');
+    res.setHeader('X-Content-Source', 'generated');
     
     console.log('✅ Enviando swagger.json exitosamente');
     console.log('========================\n');
@@ -346,6 +401,7 @@ const clientBranchRoutes = require('./src/routes/clientBranchRoutes');
 // =========================================================================
 // Health check routes (sin autenticación para ALB)
 app.use('/api', healthRoutes);
+
 // Endpoint específico para debugging CORS
 app.get('/api/cors-debug', (req, res) => {
   console.log('\n=== CORS DEBUG ENDPOINT ===');
@@ -362,17 +418,19 @@ app.get('/api/cors-debug', (req, res) => {
     timestamp: new Date().toISOString()
   });
 });
+
+// Rutas principales de la API
 app.use(API_PREFIX, userRoutes);
 app.use(`${API_PREFIX}/auth`, authRoutes);
 app.use(API_PREFIX, productRoutes);
 app.use(API_PREFIX, secureProductRoutes);
 app.use(API_PREFIX, orderRoutes);
 app.use(`${API_PREFIX}/client-branches`, clientBranchRoutes);
-app.use(`${API_PREFIX}/client-branches`, require('./src/routes/clientBranchRoutes'));
-// Nueva ruta para SAP
 app.use(`${API_PREFIX}/sap`, sapSyncRoutes);
 app.use(`${API_PREFIX}/admin`, adminRoutes);
 app.use(`${API_PREFIX}/client-sync`, clientSyncRoutes);
+app.use(`${API_PREFIX}/price-lists`, require('./src/routes/priceListRoutes'));
+app.use(`${API_PREFIX}/images`, require('./src/routes/imageProxyRoutes'));
 
 // Aplicamos fileUpload sólo a las rutas específicas que lo necesitan
 app.use(`${API_PREFIX}/upload`, fileUpload(fileUploadOptions), uploadRoutes);
@@ -386,7 +444,7 @@ app.use(`${API_PREFIX}/payments`, paymentRoutes);
 app.get('/', (req, res) => {
   res.status(200).json({ 
     message: 'API LA ARTESA funcionando correctamente', 
-    version: '1.2.1',
+    version: '1.3.0',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development',
     port: PORT
