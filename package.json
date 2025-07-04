@@ -15,7 +15,11 @@
     "docker:dev": "docker-compose up --build",
     "docker:prod": "docker-compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d",
     "docker:stop": "docker-compose down",
-    "docker:logs": "docker-compose logs -f"
+    "docker:logs": "docker-compose logs -f",
+    "sync:price-lists": "node scripts/production/syncPriceLists.js",
+    "sync:price-lists:oro": "node scripts/production/syncPriceLists.js --priceList 1",
+    "sync:price-lists:plata": "node scripts/production/syncPriceLists.js --priceList 2",
+    "sync:price-lists:bronce": "node scripts/production/syncPriceLists.js --priceList 3"
   },
   "engines": {
     "node": "22.x",

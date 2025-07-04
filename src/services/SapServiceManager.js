@@ -17,6 +17,7 @@ class SapServiceManager {
     this.productService = SapProductService;
     this.clientService = SapClientService;
     this.orderService = SapOrderService;
+    this.priceListService = require('./SapPriceListService');
   }
 
   /**
@@ -64,6 +65,19 @@ class SapServiceManager {
             this.logger.error('Error al inicializar servicio de productos SAP', {
               error: error.message,
               stack: error.stack
+            });
+          })
+      );
+
+      // Inicializar servicio de listas de precios
+      initTasks.push(
+        this.priceListService.initialize()
+          .then(() => {
+            this.logger.info('Servicio de listas de precios de SAP inicializado');
+          })
+          .catch(error => {
+            this.logger.error('Error inicializando servicio de listas de precios', {
+              error: error.message
             });
           })
       );

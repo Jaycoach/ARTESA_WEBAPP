@@ -401,6 +401,7 @@ const clientBranchRoutes = require('./src/routes/clientBranchRoutes');
 // =========================================================================
 // Health check routes (sin autenticación para ALB)
 app.use('/api', healthRoutes);
+
 // Endpoint específico para debugging CORS
 app.get('/api/cors-debug', (req, res) => {
   console.log('\n=== CORS DEBUG ENDPOINT ===');
@@ -417,19 +418,19 @@ app.get('/api/cors-debug', (req, res) => {
     timestamp: new Date().toISOString()
   });
 });
+
+// Rutas principales de la API
 app.use(API_PREFIX, userRoutes);
 app.use(`${API_PREFIX}/auth`, authRoutes);
 app.use(API_PREFIX, productRoutes);
 app.use(API_PREFIX, secureProductRoutes);
 app.use(API_PREFIX, orderRoutes);
 app.use(`${API_PREFIX}/client-branches`, clientBranchRoutes);
-app.use(`${API_PREFIX}/client-branches`, require('./src/routes/clientBranchRoutes'));
-// Nueva ruta para SAP
 app.use(`${API_PREFIX}/sap`, sapSyncRoutes);
 app.use(`${API_PREFIX}/admin`, adminRoutes);
 app.use(`${API_PREFIX}/client-sync`, clientSyncRoutes);
-app.use(`${API_PREFIX}`, imageProxyRoutes);
-app.use('/api/images', require('./src/routes/imageProxyRoutes'));
+app.use(`${API_PREFIX}/price-lists`, require('./src/routes/priceListRoutes'));
+app.use(`${API_PREFIX}/images`, require('./src/routes/imageProxyRoutes'));
 
 // Aplicamos fileUpload sólo a las rutas específicas que lo necesitan
 app.use(`${API_PREFIX}/upload`, fileUpload(fileUploadOptions), uploadRoutes);
@@ -443,7 +444,7 @@ app.use(`${API_PREFIX}/payments`, paymentRoutes);
 app.get('/', (req, res) => {
   res.status(200).json({ 
     message: 'API LA ARTESA funcionando correctamente', 
-    version: '1.2.1',
+    version: '1.3.0',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development',
     port: PORT

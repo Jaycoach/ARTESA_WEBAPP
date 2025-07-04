@@ -41,6 +41,7 @@ class ClientProfile {
           cp.cardcode_sap,
           cp.clientprofilecode_sap,
           cp.price_list,
+          cp.price_list_code,
           cp.notes,
           cp.fotocopia_cedula AS "fotocopiaCedula",
           cp.fotocopia_rut AS "fotocopiaRut",
@@ -116,6 +117,7 @@ class ClientProfile {
           cp.cardcode_sap,
           cp.clientprofilecode_sap,
           cp.price_list,
+          cp.price_list_code,
           cp.notes,
           cp.fotocopia_cedula AS "fotocopiaCedula",
           cp.fotocopia_rut AS "fotocopiaRut",
@@ -190,6 +192,7 @@ class ClientProfile {
           cp.cardcode_sap,
           cp.clientprofilecode_sap,
           cp.price_list,
+          cp.price_list_code,
           cp.notes,
           cp.fotocopia_cedula AS "fotocopiaCedula",
           cp.fotocopia_rut AS "fotocopiaRut",
@@ -355,7 +358,7 @@ static async create(clientData) {
         user_id, company_name, contact_name, contact_phone, contact_email, 
         address, city, country, tax_id, nit_number, verification_digit, 
         fotocopia_cedula, fotocopia_rut, anexos_adicionales, notes, 
-        price_list, cardcode_sap, cardtype_sap, clientprofilecode_sap,
+        price_list, price_list_code, cardcode_sap, cardtype_sap, clientprofilecode_sap,
         created_at, updated_at
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19,
@@ -384,6 +387,7 @@ static async create(clientData) {
       anexosAdicionalesTruncated,      // $14 - anexos_adicionales
       notesJSON,                       // $15 - notes
       clientData.listaPrecios || 1,    // $16 - price_list
+      clientData.listaPreciosCodigo || null,    // $17 - price_list_code
       null,                            // $17 - cardcode_sap
       'cLid',                          // $18 - cardtype_sap
       clientProfileCode                // $19 - clientprofilecode_sap
@@ -459,7 +463,6 @@ static async create(clientData) {
         fields: Object.keys(updateData)
       });
       
-      // Extraer campos del formulario
       const {
         nombre,
         email,
@@ -476,7 +479,8 @@ static async create(clientData) {
         tipoDocumento,
         numeroDocumento,
         nit_number,
-        verification_digit
+        verification_digit,
+        listaPreciosCodigo
       } = updateData;
       
       // Extraer campos adicionales para almacenar en notes
@@ -492,7 +496,7 @@ static async create(clientData) {
       ['userId', 'nombre', 'email', 'telefono', 'direccion', 'ciudad', 'pais', 
         'razonSocial', 'nit', 'fotocopiaCedula', 'fotocopiaRut', 'anexosAdicionales',
         'nit_number', 'verification_digit', 'cardcode_sap', 'clientprofilecode_sap', 'listaPrecios',
-        'telefonoContacto', 'emailContacto'].forEach(key => {
+        'telefonoContacto', 'emailContacto', 'listaPreciosCodigo'].forEach(key => {
         delete additionalFields[key];
       });
       
@@ -517,8 +521,9 @@ static async create(clientData) {
         fotocopia_cedula = COALESCE($14, fotocopia_cedula),
         fotocopia_rut = COALESCE($15, fotocopia_rut),
         anexos_adicionales = COALESCE($16, anexos_adicionales),
+        price_list_code = COALESCE($17, price_list_code),
         updated_at = CURRENT_TIMESTAMP
-      WHERE user_id = $17
+      WHERE user_id = $18
       RETURNING *;
       `;
 
@@ -559,39 +564,41 @@ static async create(clientData) {
       // Definir ANTES del array values, después de extraer additionalFields
       const { telefonoContacto, emailContacto } = updateData;
       // Aplicar las mismas validaciones de truncamiento en update
-      razonSocial = truncateField(razonSocial, 255);
-      nombre = truncateField(nombre, 255);
-      direccion = truncateField(direccion, 255);
-      ciudad = truncateField(ciudad, 255);
-      pais = truncateField(pais, 255);
-      nit = truncateField(nit, 255);
-      fotocopiaCedula = truncateField(fotocopiaCedula, 255);
-      fotocopiaRut = truncateField(fotocopiaRut, 255);
-      anexosAdicionales = truncateField(anexosAdicionales, 255);
-      nit_number = truncateField(nit_number, 255);
+      const razonSocialTrunc = truncateField(razonSocial, 255);
+      const nombreTrunc = truncateField(nombre, 255);
+      const direccionTrunc = truncateField(direccion, 255);
+      const ciudadTrunc = truncateField(ciudad, 255);
+      const paisTrunc = truncateField(pais, 255);
+      const nitTrunc = truncateField(nit, 255);
+      const fotocopiaCedulaTrunc = truncateField(fotocopiaCedula, 255);
+      const fotocopiaRutTrunc = truncateField(fotocopiaRut, 255);
+      const anexosAdicionalesTrunc = truncateField(anexosAdicionales, 255);
+      const nitNumberTrunc = truncateField(nit_number, 255);
 
       const contactPhone = truncateField(telefonoContacto || telefono, 255);
       const contactEmail = truncateField(emailContacto || email, 255);
 
       const values = [
-        razonSocial,          // company_name
-        nombre,               // contact_name
-        contactPhone,         // contact_phone (CORREGIDO)
-        contactEmail,         // contact_email (CORREGIDO)
-        direccion,            // address
-        ciudad,               // city
-        pais,                 // country
-        nit,                  // tax_id
-        nit_number,           // nit_number (nuevo)
-        verification_digit,   // verification_digit
-        updateData.cardcode_sap, // cardcode_sap
-        clientProfileCode,    // Para generar clientprofilecode_sap
-        notesJSON,            // notes
-        fotocopiaCedula,      // fotocopia_cedula
-        fotocopiaRut,         // fotocopia_rut
-        anexosAdicionales,    // anexos_adicionales
-        userId                // user_id para WHERE
-      ];    
+        razonSocialTrunc,          // $1 - company_name
+        nombreTrunc,               // $2 - contact_name
+        contactPhone,              // $3 - contact_phone
+        contactEmail,              // $4 - contact_email
+        direccionTrunc,            // $5 - address
+        ciudadTrunc,               // $6 - city
+        paisTrunc,                 // $7 - country
+        nitTrunc,                  // $8 - tax_id
+        nitNumberTrunc,            // $9 - nit_number
+        verification_digit,        // $10 - verification_digit
+        updateData.cardcode_sap,   // $11 - cardcode_sap
+        clientProfileCode,         // $12 - Para generar clientprofilecode_sap
+        notesJSON,                 // $13 - notes
+        fotocopiaCedulaTrunc,      // $14 - fotocopia_cedula
+        fotocopiaRutTrunc,         // $15 - fotocopia_rut
+        anexosAdicionalesTrunc,    // $16 - anexos_adicionales
+        updateData.listaPreciosCodigo || null, // $17 - price_list_code
+        userId                     // $18 - user_id para WHERE
+      ];
+
       const { rows } = await pool.query(query, values);
       
       if (rows.length === 0) {

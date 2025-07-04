@@ -8,11 +8,19 @@ node_modules/
 /database.md
 /scripts/docs/database-structure.md
 
-# Scripts sensibles
+# Scripts sensibles (solo los que contienen datos sensibles)
 /scripts/hashPasswords.js
 /scripts/dbdocs.config.js
-/scripts
-scripts/
+/scripts/generateDbDocs.js
+/scripts/migrateToS3.js
+
+# Permitir scripts de producción
+!/scripts/production/
+
+# El resto de scripts por seguridad
+/scripts/*
+!/scripts/production/
+
 # Implementaciones de seguridad
 /src/security/
 
