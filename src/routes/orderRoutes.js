@@ -23,7 +23,8 @@ const {
   getInvoicesByUser,
   getTopSellingProducts,
   getMonthlyStats,
-  debugUserOrders    
+  debugUserOrders,
+  getProductPricesWithTax
 } = require('../controllers/orderController');
 
 const router = express.Router();
@@ -286,7 +287,7 @@ router.put('/orders/:orderId', verifyToken, updateOrder);
  * @returns {object} 500 - Error interno del servidor
  */
 // Obtener precios con IVA para productos específicos
-router.post('/prices', verifyToken, sanitizeBody, orderController.getProductPricesWithTax);
+router.post('/prices', verifyToken, sanitizeBody, getProductPricesWithTax);
 
 /**
  * Cancelar una orden
