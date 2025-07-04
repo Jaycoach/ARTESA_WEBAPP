@@ -55,7 +55,8 @@ async function syncPriceLists() {
 
     // Mostrar resumen antes de sincronizar
     console.log('\n📊 Obteniendo resumen actual...');
-    const summary = await SapPriceListService.getSyncSummary();
+    const sapPriceListService = new SapPriceListService();
+    const summary = await sapPriceListService.getSyncSummary();
     
     console.log('📈 Estado actual:');
     console.log(`   • Listas en SAP: ${summary.syncStatus.totalSapLists}`);
@@ -73,7 +74,7 @@ async function syncPriceLists() {
     const startTime = Date.now();
 
     // Ejecutar sincronización
-    const result = await SapPriceListService.syncAllPriceLists(options);
+    const result = await sapPriceListService.syncAllPriceLists(options);
 
     const endTime = Date.now();
     const duration = ((endTime - startTime) / 1000).toFixed(2);
