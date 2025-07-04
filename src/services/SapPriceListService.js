@@ -368,8 +368,8 @@ class SapPriceListService extends SapBaseService {
    */
   async validatePriceListInSap(priceListNo) {
     try {
-      await this.ensureAuthentication();
-      
+        await this.ensureAuthentication();
+            
       const url = `${this.baseUrl}/PriceLists(${priceListNo})`;
       const response = await this.makeRequest('GET', url);
       
@@ -509,4 +509,4 @@ class SapPriceListService extends SapBaseService {
   }
 }
 
-module.exports = new SapPriceListService();
+module.exports = SapPriceListService;
