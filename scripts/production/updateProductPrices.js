@@ -1,6 +1,6 @@
 // scripts/production/updateProductPrices.js
 require('dotenv').config();
-const PriceListController = require('../../src/controllers/priceListController');
+const { PriceListController } = require('../../src/controllers/priceListController');
 const { createContextLogger } = require('../../src/config/logger');
 
 const logger = createContextLogger('UpdateProductPricesScript');

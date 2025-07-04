@@ -582,6 +582,8 @@ class PriceListController {
 const priceListControllerInstance = new PriceListController();
 
 module.exports = {
+  // Exportar también la clase para uso en scripts
+  PriceListController: PriceListController,
   getAllPriceLists: (req, res) => priceListControllerInstance.getAllPriceLists(req, res),
   getPriceListProducts: (req, res) => priceListControllerInstance.getPriceListProducts(req, res),
   getProductPrice: (req, res) => priceListControllerInstance.getProductPrice(req, res),
