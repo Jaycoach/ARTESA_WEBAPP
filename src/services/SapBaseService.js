@@ -260,6 +260,29 @@ class SapBaseService {
   }
 
   /**
+   * Asegurar que tenemos una sesión de autenticación válida
+   * @returns {Promise<void>}
+   */
+  async ensureAuthentication() {
+    if (!this.sessionId) {
+      await this.login();
+    }
+  }
+
+  /**
+   * Realizar petición HTTP a SAP (alias para request)
+   * @param {string} method - Método HTTP
+   * @param {string} url - URL completa (incluye baseUrl)
+   * @param {Object} data - Datos para la petición
+   * @returns {Promise<any>} Respuesta de SAP
+   */
+  async makeRequest(method, url, data = null) {
+    // Extraer endpoint de la URL completa
+    const endpoint = url.replace(`${this.baseUrl}/`, '');
+    return await this.request(method, endpoint, data);
+  }
+
+  /**
    * Cierra la sesión con SAP B1
    */
   async logout() {
