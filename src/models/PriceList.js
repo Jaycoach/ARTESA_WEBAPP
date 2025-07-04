@@ -159,7 +159,7 @@ class PriceList {
           p.name as local_product_name,
           p.description as local_product_description
         FROM price_lists pl
-        LEFT JOIN products p ON pl.product_code = p.code
+        LEFT JOIN products p ON pl.product_code = p.sap_code
         ${whereClause}
         ORDER BY ${orderBy} ${orderDirection}
         LIMIT $${paramIndex} OFFSET $${paramIndex + 1};
@@ -218,7 +218,7 @@ class PriceList {
           p.name as local_product_name,
           p.description as local_product_description
         FROM price_lists pl
-        LEFT JOIN products p ON pl.product_code = p.code
+        LEFT JOIN products p ON pl.product_code = p.sap_code
         WHERE pl.price_list_code = $1 
           AND pl.product_code = $2 
           AND pl.is_active = true
@@ -269,7 +269,7 @@ class PriceList {
           p.name as local_product_name,
           p.description as local_product_description
         FROM price_lists pl
-        LEFT JOIN products p ON pl.product_code = p.code
+        LEFT JOIN products p ON pl.product_code = p.sap_code
         WHERE pl.price_list_code = $1 
           AND pl.product_code IN (${placeholders})
           AND pl.is_active = true
