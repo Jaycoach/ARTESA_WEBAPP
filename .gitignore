@@ -85,3 +85,9 @@ npm-debug.log*
 laartesa-backend.zip
 laartesa-backend-v2.zip
 artesa-api-docker.zip
+
+# Python virtual environments
+venv/
+.venv/
+env/
+.env/
