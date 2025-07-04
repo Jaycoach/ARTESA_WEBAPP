@@ -1,7 +1,7 @@
 // scripts/syncPriceLists.js
 require('dotenv').config();
-const SapPriceListService = require('../src/services/SapPriceListService');
-const { createContextLogger } = require('../src/config/logger');
+const SapPriceListService = require('../../src/services/SapPriceListService');
+const { createContextLogger } = require('../../src/config/logger');
 
 const logger = createContextLogger('SyncPriceListsScript');
 
