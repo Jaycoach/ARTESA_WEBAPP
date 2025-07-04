@@ -912,6 +912,12 @@ async createProfile(req, res) {
               [sapSyncResult.cardCode, sapSyncResult.artesaCode, profile.client_id]
             );
             
+            logger.info('Perfil creado con CardType inicial', {
+              clientId: profile.client_id,
+              initialCardType: 'cLid',
+              cardCode: sapSyncResult.cardCode
+            });
+            
             if (updateResult.rows.length > 0) {
               profileForResponse = updateResult.rows[0];
               logger.info('Perfil actualizado con datos de SAP exitosamente', {

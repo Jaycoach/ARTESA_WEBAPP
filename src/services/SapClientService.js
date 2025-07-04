@@ -415,7 +415,7 @@ class SapClientService extends SapBaseService {
       sapResponse: {
         CardCode: response.CardCode || businessPartnerData.CardCode,
         CardName: response.CardName,
-        CardType: response.CardType
+        CardType: response.CardType || businessPartnerData.CardType
       }
     };
     
@@ -466,7 +466,9 @@ class SapClientService extends SapBaseService {
       total: 0,
       updated: 0,
       errors: 0,
-      skipped: 0
+      skipped: 0,
+      cardTypeChanges: 0,
+      leadsToClients: 0
     };
 
     try {
@@ -642,7 +644,7 @@ class SapClientService extends SapBaseService {
             }
             
             // Si el cliente ya no es Lead en SAP (CardType !== 'cLid'), activar el usuario si no está activo
-            if (sapClient.CardType !== 'cLid' && !profile.is_active) {
+            /*if (sapClient.CardType !== 'cLid' && !profile.is_active) {
               await dbClient.query('UPDATE users SET is_active = true WHERE id = $1', [profile.user_id]);
               // Actualizar cardtype_sap en el perfil
               await dbClient.query(
@@ -662,7 +664,56 @@ class SapClientService extends SapBaseService {
                 cardCode: sapClient.CardCode,
                 cardType: sapClient.CardType
               });
+            }*/
+
+
+          // NUEVA LÓGICA: Siempre actualizar cardtype_sap si ha cambiado, independientemente del estado del usuario
+          if (sapClient.CardType !== profile.cardtype_sap) {
+            await dbClient.query(
+              'UPDATE client_profiles SET cardtype_sap = $1, updated_at = CURRENT_TIMESTAMP WHERE client_id = $2',
+              [sapClient.CardType, profile.client_id]
+            );
+
+            this.logger.info('CardType actualizado en perfil', {
+              clientId: profile.client_id,
+              userId: profile.user_id,
+              oldCardType: profile.cardtype_sap,
+              newCardType: sapClient.CardType
+            });
+            
+            this.logger.info('CardType sincronizado desde SAP', {
+              userId: profile.user_id,
+              clientId: profile.client_id,
+              cardCode: sapClient.CardCode,
+              oldCardType: profile.cardtype_sap,
+              newCardType: sapClient.CardType
+            });
+
+            // Incrementar contador de cambios de CardType
+            stats.cardTypeChanges++;
+
+            // Si cambió de Lead a Cliente, incrementar contador específico
+            if (profile.cardtype_sap === 'cLid' && sapClient.CardType === 'cCli') {
+              stats.leadsToClients++;
+              this.logger.info('Cliente promovido de Lead a Cliente en SAP', {
+                userId: profile.user_id,
+                clientId: profile.client_id,
+                cardCode: sapClient.CardCode
+              });
             }
+          }
+
+          // Si el cliente ya no es Lead en SAP (CardType !== 'cLid'), activar el usuario si no está activo
+          if (sapClient.CardType !== 'cLid' && !profile.is_active) {
+            await dbClient.query('UPDATE users SET is_active = true WHERE id = $1', [profile.user_id]);
+            
+            this.logger.info('Usuario activado porque ya no es Lead en SAP', {
+              userId: profile.user_id,
+              clientId: profile.client_id,
+              cardCode: sapClient.CardCode,
+              cardType: sapClient.CardType
+            });
+          }
             
             await dbClient.query('COMMIT');
             
@@ -699,7 +750,9 @@ class SapClientService extends SapBaseService {
         total: stats.total,
         updated: stats.updated,
         errors: stats.errors,
-        skipped: stats.skipped
+        skipped: stats.skipped,
+        cardTypeChanges: stats.cardTypeChanges,
+        leadsToClients: stats.leadsToClients
       });
       
       return stats;
