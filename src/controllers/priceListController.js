@@ -416,9 +416,8 @@ class PriceListController {
       };
 
       // Obtener todos los productos activos
-      const products = await Product.findAll({ 
-        includeInactive: false,
-        pagination: false 
+      const products = await Product.getAll({ 
+        active: true
       });
 
       logger.info(`Found ${products.length} products to process`);
