@@ -272,7 +272,7 @@ class SapPriceListService extends SapBaseService {
     try {
       const { batchSize = 50, maxItems = null } = options;
       
-      const priceListCode = priceList.PriceListName;
+      const priceListCode = priceList.PriceListNo.toString();
       const sapPriceListNo = priceList.PriceListNo;
       
       let totalProcessed = 0;
