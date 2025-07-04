@@ -437,52 +437,6 @@ class PriceListController {
       });
     }
   }
-  /**
-   * Obtener estadísticas de una lista de precios
-   */
-  async getPriceListStatistics(req, res) {
-    try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return res.status(400).json({
-          success: false,
-          message: 'Datos de entrada inválidos',
-          errors: errors.array()
-        });
-      }
-
-      const { priceListCode } = req.params;
-
-      logger.debug('Getting price list statistics', { priceListCode });
-
-      const statistics = await PriceList.getPriceListStatistics(priceListCode);
-
-      if (!statistics) {
-        return res.status(404).json({
-          success: false,
-          message: 'Lista de precios no encontrada'
-        });
-      }
-
-      res.status(200).json({
-        success: true,
-        priceListCode,
-        data: statistics
-      });
-    } catch (error) {
-      logger.error('Error getting price list statistics', {
-        priceListCode: req.params.priceListCode,
-        error: error.message,
-        stack: error.stack
-      });
-      
-      res.status(500).json({
-        success: false,
-        message: 'Error al obtener estadísticas de la lista de precios',
-        error: process.env.NODE_ENV === 'development' ? error.message : undefined
-      });
-    }
-  }
 }
 
 module.exports = new PriceListController();
