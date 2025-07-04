@@ -16,7 +16,7 @@ console.log('getSyncSummary:', priceListController.getSyncSummary);
 console.log('searchProductsInSap:', priceListController.searchProductsInSap);
 console.log('=== END DEBUGGING ===');
 const { verifyToken, checkRole } = require('../middleware/auth');
-const { sanitizeBody, sanitizeParams, sanitizeQuery } = require('../middleware/security');
+const { sanitizeBody, sanitizeParams } = require('../middleware/security');
 const { body, param, query } = require('express-validator');
 
 /**
@@ -232,7 +232,6 @@ router.get('/:priceListCode/products',
     query('orderDirection').optional().isIn(['ASC', 'DESC']).withMessage('Dirección de ordenamiento debe ser ASC o DESC')
   ],
   sanitizeParams,
-  sanitizeQuery,
   (req, res) => {
     console.log('=== DEBUGGING getPriceListProducts ===');
     console.log('Function type:', typeof priceListController.getPriceListProducts);
@@ -673,7 +672,6 @@ router.get('/sap/search',
       .isInt({ min: 1 })
       .withMessage('Número de lista de precios debe ser un entero positivo')
   ],
-  sanitizeQuery,
   priceListController.searchProductsInSap
 );
 
