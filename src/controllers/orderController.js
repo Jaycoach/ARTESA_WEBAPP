@@ -2459,6 +2459,112 @@ const debugUserOrders = async (req, res) => {
   }
 };
 
+/**
+ * @swagger
+ * /api/orders/prices:
+ *   post:
+ *     summary: Obtener precios de productos con IVA para el cliente logueado
+ *     description: Obtiene los precios de productos específicos según la lista de precios del cliente, incluyendo cálculo de IVA
+ *     tags: [Orders]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - product_codes
+ *             properties:
+ *               product_codes:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: Array de códigos de productos
+ *                 example: ["PROD001", "PROD002"]
+ *     responses:
+ *       200:
+ *         description: Precios obtenidos exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       product_code:
+ *                         type: string
+ *                         example: "PROD001"
+ *                       product_name:
+ *                         type: string
+ *                         example: "Producto de ejemplo"
+ *                       base_price:
+ *                         type: number
+ *                         format: float
+ *                         example: 100.00
+ *                       tax_rate:
+ *                         type: number
+ *                         format: float
+ *                         example: 0.19
+ *                       tax_amount:
+ *                         type: number
+ *                         format: float
+ *                         example: 19.00
+ *                       total_price_with_tax:
+ *                         type: number
+ *                         format: float
+ *                         example: 119.00
+ *                 message:
+ *                   type: string
+ *                   example: "Precios obtenidos exitosamente"
+ *       400:
+ *         description: Datos inválidos
+ *       401:
+ *         description: Token inválido
+ *       500:
+ *         description: Error interno del servidor
+ */
+const getProductPricesWithTax = async (req, res) => {
+  try {
+    const { product_codes } = req.body;
+    const userId = req.user.id;
+
+    if (!product_codes || !Array.isArray(product_codes) || product_codes.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Se requiere un array de códigos de productos'
+      });
+    }
+
+    const pricesWithTax = await Order.getProductPricesWithTax(userId, product_codes);
+
+    res.json({
+      success: true,
+      data: pricesWithTax,
+      message: 'Precios obtenidos exitosamente'
+    });
+
+  } catch (error) {
+    logger.error('Error en getProductPricesWithTax', {
+      error: error.message,
+      userId: req.user?.id
+    });
+
+    res.status(500).json({
+      success: false,
+      message: 'Error interno del servidor',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
 module.exports = { 
   createOrder,
   getOrderById,
@@ -2479,5 +2585,6 @@ module.exports = {
   getInvoicesByUser,
   getTopSellingProducts,
   getMonthlyStats,
-  debugUserOrders
+  debugUserOrders,
+  getProductPricesWithTax 
 };

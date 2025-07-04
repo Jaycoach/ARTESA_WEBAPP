@@ -274,6 +274,20 @@ router.get('/orders/:orderId', verifyToken, getOrderById);
 router.put('/orders/:orderId', verifyToken, updateOrder);
 
 /**
+ * Obtener precios de productos con IVA
+ * @route POST /orders/prices
+ * @group Orders - Operaciones relacionadas con órdenes
+ * @param {object} request.body.required - Códigos de productos
+ * @security bearerAuth
+ * @returns {object} 200 - Precios obtenidos exitosamente
+ * @returns {object} 400 - Datos inválidos
+ * @returns {object} 401 - No autorizado
+ * @returns {object} 500 - Error interno del servidor
+ */
+// Obtener precios con IVA para productos específicos
+router.post('/prices', verifyToken, sanitizeBody, orderController.getProductPricesWithTax);
+
+/**
  * Cancelar una orden
  * @route PUT /orders/{orderId}/cancel
  * @group Orders - Operaciones relacionadas con órdenes

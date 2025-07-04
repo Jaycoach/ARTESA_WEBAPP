@@ -587,6 +587,30 @@ class SapClientService extends SapBaseService {
               updates.country = sapClient.Country;
               changesDetected.push('country');
             }
+
+            // Capturar PriceListNum desde SAP y mapearlo al price_list_code
+            if (sapClient.PriceListNum !== undefined && sapClient.PriceListNum !== null) {
+              // Mapear PriceListNum a price_list_code según tu lógica de negocio
+              let priceListCode = null;
+              switch(sapClient.PriceListNum) {
+                case 1:
+                  priceListCode = 'BRONCE';
+                  break;
+                case 2:
+                  priceListCode = 'PLATA';
+                  break;
+                case 3:
+                  priceListCode = 'ORO';
+                  break;
+                default:
+                  priceListCode = 'BRONCE'; // Valor por defecto
+              }
+              
+              if (priceListCode !== profile.price_list_code) {
+                updates.price_list_code = priceListCode;
+                changesDetected.push('price_list_code');
+              }
+            }
             
             // Asegurar que siempre se actualice sap_lead_synced
             updates.sap_lead_synced = true;
