@@ -105,7 +105,11 @@ app.use(helmet({
         "https://artesa-documents-staging.s3.us-east-1.amazonaws.com",
         "https://artesa-documents-staging.s3.amazonaws.com",
         "https://s3.us-east-1.amazonaws.com",
-        "https://s3.amazonaws.com"
+        "https://s3.amazonaws.com",
+        // AGREGAR ESTAS LÍNEAS PARA reCAPTCHA:
+        "https://www.google.com",
+        "https://www.recaptcha.net", 
+        "https://apis.google.com"
       ]
     }
   }

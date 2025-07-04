@@ -266,6 +266,12 @@ class ProductController {
         userId: req.user?.id
       });
 
+      // AGREGAR ESTE LOGGING ADICIONAL:
+      logger.debug('URL de imagen recibida', {
+        imageUrl: req.body.imageUrl,
+        originalImageUrl: req.body.imageUrl ? req.body.imageUrl.substring(0, 100) : 'No URL provided'
+      });
+
       if (!productId) {
         return res.status(400).json({
           success: false,

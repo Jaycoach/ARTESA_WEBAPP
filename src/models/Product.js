@@ -346,6 +346,13 @@ class Product {
             productId,
             success: true
         });
+
+        // AGREGAR ESTE LOGGING:
+        logger.debug('URL final de imagen', {
+          productId,
+          finalImageUrl: rows[0]?.image_url,
+          urlLength: rows[0]?.image_url?.length
+        });
         
         // Asegurar que la URL del producto esté decodificada
         if (rows[0] && rows[0].image_url) {
