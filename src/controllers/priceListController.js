@@ -590,5 +590,6 @@ module.exports = {
   validatePriceListInSap: (req, res) => priceListControllerInstance.validatePriceListInSap(req, res),
   syncPriceListsFromSap: (req, res) => priceListControllerInstance.syncPriceListsFromSap(req, res),
   getSyncSummary: (req, res) => priceListControllerInstance.getSyncSummary(req, res),
-  searchProductsInSap: (req, res) => priceListControllerInstance.searchProductsInSap(req, res)
+  searchProductsInSap: (req, res) => priceListControllerInstance.searchProductsInSap(req, res),
+  updateProductPricesFromLists: (req, res) => priceListControllerInstance.updateProductPricesFromLists(req, res)
 };
