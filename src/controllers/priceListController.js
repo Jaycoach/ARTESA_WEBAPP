@@ -293,35 +293,6 @@ class PriceListController {
       });
     }
   }
-
-  /**
-   * Obtener resumen de sincronización
-   */
-  async getSyncSummary(req, res) {
-    try {
-      logger.debug('Getting sync summary');
-
-      const sapPriceListService = new SapPriceListService();
-      const summary = await sapPriceListService.getSyncSummary();
-
-      res.status(200).json({
-        success: true,
-        data: summary
-      });
-    } catch (error) {
-      logger.error('Error getting sync summary', {
-        error: error.message,
-        stack: error.stack
-      });
-      
-      res.status(500).json({
-        success: false,
-        message: 'Error al obtener resumen de sincronización',
-        error: process.env.NODE_ENV === 'development' ? error.message : undefined
-      });
-    }
-  }
-
   /**
    * Buscar productos en SAP por término
    */
@@ -438,35 +409,6 @@ class PriceListController {
     }
   }
   /**
-   * Sincronizar listas de precios desde SAP
-   */
-  async syncPriceListsFromSap(req, res) {
-    try {
-      logger.debug('Initiating price list sync from SAP');
-      
-      const sapPriceListService = new SapPriceListService();
-      const syncResult = await sapPriceListService.syncPriceListsFromSap();
-      
-      res.status(200).json({
-        success: true,
-        message: 'Sincronización completada',
-        data: syncResult
-      });
-    } catch (error) {
-      logger.error('Error syncing price lists from SAP', {
-        error: error.message,
-        stack: error.stack
-      });
-      
-      res.status(500).json({
-        success: false,
-        message: 'Error al sincronizar listas de precios desde SAP',
-        error: process.env.NODE_ENV === 'development' ? error.message : undefined
-      });
-    }
-  }
-
-  /**
    * Obtener resumen de sincronización
    */
   async getSyncSummary(req, res) {
@@ -489,45 +431,6 @@ class PriceListController {
       res.status(500).json({
         success: false,
         message: 'Error al obtener resumen de sincronización',
-        error: process.env.NODE_ENV === 'development' ? error.message : undefined
-      });
-    }
-  }
-
-  /**
-   * Buscar productos en SAP
-   */
-  async searchProductsInSap(req, res) {
-    try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return res.status(400).json({
-          success: false,
-          message: 'Datos de entrada inválidos',
-          errors: errors.array()
-        });
-      }
-
-      const { priceListNo, search } = req.query;
-      
-      logger.debug('Searching products in SAP', { priceListNo, search });
-
-      const sapPriceListService = new SapPriceListService();
-      const products = await sapPriceListService.searchProductsInSap(priceListNo, search);
-
-      res.status(200).json({
-        success: true,
-        data: products
-      });
-    } catch (error) {
-      logger.error('Error searching products in SAP', {
-        error: error.message,
-        stack: error.stack
-      });
-      
-      res.status(500).json({
-        success: false,
-        message: 'Error al buscar productos en SAP',
         error: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
