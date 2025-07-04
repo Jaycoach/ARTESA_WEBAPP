@@ -12,62 +12,11 @@ import Modal from '../../../../Components/ui/Modal';
 import Input from '../../../../Components/ui/Input';
 import Card from '../../../../Components/ui/Card';
 import Button from '../../../../Components/ui/Button';
-
-// Limpia entidades HTML y convierte a URL estándar
-function cleanImageUrl(rawUrl) {
-  if (!rawUrl || typeof rawUrl !== 'string') return rawUrl;
-  
-  console.log('🧹 Limpiando URL original:', rawUrl);
-  
-  let cleanUrl = rawUrl;
-  
-  // **PASO 1**: Decodificar múltiples niveles de &amp;
-  // Reemplazar &amp;amp; por &amp; primero
-  cleanUrl = cleanUrl.replace(/&amp;amp;/g, '&amp;');
-  // Luego reemplazar &amp; por &
-  cleanUrl = cleanUrl.replace(/&amp;/g, '&');
-  
-  // **PASO 2**: Decodificar entidades numéricas hexadecimales y decimales
-  cleanUrl = cleanUrl.replace(/&#x2F;/g, '/');
-  cleanUrl = cleanUrl.replace(/&#47;/g, '/');
-  cleanUrl = cleanUrl.replace(/&#x3A;/g, ':');
-  cleanUrl = cleanUrl.replace(/&#58;/g, ':');
-  
-  // **PASO 3**: Otras entidades HTML comunes
-  cleanUrl = cleanUrl.replace(/&lt;/g, '<');
-  cleanUrl = cleanUrl.replace(/&gt;/g, '>');
-  cleanUrl = cleanUrl.replace(/&quot;/g, '"');
-  cleanUrl = cleanUrl.replace(/&#39;/g, "'");
-  cleanUrl = cleanUrl.replace(/&#96;/g, '`');
-  
-  // **PASO 4**: Decodificar usando DOMParser para casos complejos
-  try {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(`<!doctype html><body>${cleanUrl}</body>`, 'text/html');
-    cleanUrl = doc.body.textContent;
-  } catch (e) {
-    console.warn('⚠️ No se pudo usar DOMParser, continuando con reemplazos manuales');
-  }
-  
-  // **PASO 5**: Limpiar espacios y caracteres extraños
-  cleanUrl = cleanUrl.trim();
-  
-  // **PASO 6**: Validar que sea una URL válida
-  try {
-    new URL(cleanUrl);
-    console.log('✅ URL limpiada correctamente:', cleanUrl);
-    return cleanUrl;
-  } catch (e) {
-    console.error('❌ URL limpiada no es válida:', cleanUrl);
-    return null; // Retornar null si la URL no es válida
-  }
-}
+import ProductImage from './components/ProductImage';
 
 const Products = () => {
-  // **AUTENTICACIÓN USANDO TU AUTHCONTEXT**
+  // **AUTENTICACIÓN**
   const { user, isAuthenticated, isAdmin } = useAuth();
-
-  // **VERIFICACIÓN CORRECTA: Usar la función isAdmin() del contexto**
   const userIsAdmin = isAdmin();
 
   // **ESTADOS PRINCIPALES**
@@ -88,50 +37,23 @@ const Products = () => {
   const [showImageUpload, setShowImageUpload] = useState(false);
   const [selectedProductForImage, setSelectedProductForImage] = useState(null);
 
-  // **ESTADOS PARA PEDIDOS - RECUPERADOS DE VER1**
+  // **ESTADOS PARA PEDIDOS**
   const [orderItems, setOrderItems] = useState([]);
   const [orderTotal, setOrderTotal] = useState(0);
   const [submittingOrder, setSubmittingOrder] = useState(false);
   const [deliveryDate, setDeliveryDate] = useState('');
 
-  // **ESTADOS PARA PAGINACIÓN - RECUPERADOS DE VER1**
+  // **ESTADOS PARA PAGINACIÓN**
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   const [siteSettings, setSiteSettings] = useState({ orderTimeLimit: '18:00' });
 
-  // **FUNCIÓN PARA MOSTRAR NOTIFICACIONES**
+  // **FUNCIÓN PARA NOTIFICACIONES**
   const showNotification = useCallback((message, type = 'success') => {
     setNotification({ show: true, message, type });
   }, []);
 
-  const useImagePreloader = useCallback((imageUrl) => {
-    const [imageLoaded, setImageLoaded] = useState(false);
-    const [imageError, setImageError] = useState(false);
-
-    useEffect(() => {
-      if (!imageUrl) return;
-
-      const img = new Image();
-      img.onload = () => {
-        setImageLoaded(true);
-        setImageError(false);
-      };
-      img.onerror = () => {
-        setImageLoaded(false);
-        setImageError(true);
-      };
-      img.src = imageUrl;
-
-      return () => {
-        img.onload = null;
-        img.onerror = null;
-      };
-    }, [imageUrl]);
-
-    return { imageLoaded, imageError };
-  }, []);
-
-  // **FUNCIÓN AUXILIAR RECUPERADA DE VER1**
+  // **FUNCIONES AUXILIARES**
   const getCurrentUserId = useCallback(() => {
     if (!user || !user.id) {
       console.error("Error: No se pudo obtener el ID de usuario", user);
@@ -140,7 +62,11 @@ const Products = () => {
     return user.id;
   }, [user]);
 
-  // **FUNCIÓN DE PAGINACIÓN AVANZADA RECUPERADA DE VER1**
+  const formatCurrency = useCallback((value) => {
+    return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(value);
+  }, []);
+
+  // **FUNCIÓN DE PAGINACIÓN**
   const getPaginationRange = useCallback((currentPage, totalPages, siblingCount = 1) => {
     const totalPageNumbers = siblingCount * 2 + 5;
 
@@ -190,7 +116,6 @@ const Products = () => {
         const productsData = response.data.data || [];
         setProducts(productsData);
 
-        // **INICIALIZAR CANTIDADES - MÉTODO MEJORADO DE VER1**
         setProductQuantities(
           productsData.reduce((acc, product) => ({
             ...acc,
@@ -210,7 +135,7 @@ const Products = () => {
     }
   }, [search, showNotification]);
 
-
+  // **FUNCIONES CRUD DE PRODUCTOS**
   const handleCreateProduct = useCallback(async (productData) => {
     if (!userIsAdmin) {
       showNotification('No tienes permisos para crear productos', 'error');
@@ -289,11 +214,11 @@ const Products = () => {
     }
   }, [userIsAdmin, showNotification, fetchProducts]);
 
+  // **FUNCIONES DE IMAGEN**
   const assignProductImage = useCallback(async (productId, imageUrl) => {
     try {
       console.log('🖼️ Asignando imagen al producto:', { productId, imageUrl });
 
-      // 1. Asignar imagen al producto usando el endpoint dedicado
       const assignResponse = await API.put(`/products/${productId}/image`, {
         imageUrl: imageUrl
       });
@@ -302,8 +227,6 @@ const Products = () => {
 
       if (assignResponse.data.success) {
         showNotification('Imagen asignada exitosamente', 'success');
-
-        // 2. Refrescar productos
         await fetchProducts();
         return true;
       } else {
@@ -331,7 +254,6 @@ const Products = () => {
         fileType: imageFile.type
       });
 
-      // **PASO 1**: Subir imagen a S3
       const uploadResponse = await UploadAPI.uploadImage(imageFile, {
         productId: productId,
         uploadType: 'product-image'
@@ -339,26 +261,14 @@ const Products = () => {
 
       console.log('✅ Upload exitoso:', uploadResponse.data);
 
-      // **PASO 2**: Extraer URL de la respuesta
       let imageUrl = null;
 
       if (uploadResponse.data && uploadResponse.data.data && uploadResponse.data.data.imageUrl) {
         imageUrl = uploadResponse.data.data.imageUrl;
-        console.log('🔗 URL extraída de data.data.imageUrl:', imageUrl);
       } else if (uploadResponse.data && uploadResponse.data.imageUrl) {
         imageUrl = uploadResponse.data.imageUrl;
-        console.log('🔗 URL extraída de data.imageUrl:', imageUrl);
       } else if (uploadResponse.data && uploadResponse.data.data && uploadResponse.data.data.url) {
         imageUrl = uploadResponse.data.data.url;
-        console.log('🔗 URL extraída de data.data.url:', imageUrl);
-      } else {
-        console.error('❌ No se encontró imageUrl. Estructura completa:', {
-          hasData: !!uploadResponse.data,
-          dataKeys: uploadResponse.data ? Object.keys(uploadResponse.data) : [],
-          hasDataData: !!(uploadResponse.data && uploadResponse.data.data),
-          dataDataKeys: (uploadResponse.data && uploadResponse.data.data) ? Object.keys(uploadResponse.data.data) : [],
-          fullResponse: uploadResponse
-        });
       }
 
       if (!imageUrl) {
@@ -367,25 +277,9 @@ const Products = () => {
 
       console.log('🔗 URL de imagen extraída correctamente:', imageUrl);
 
-      // **PASO 3**: Verificar que la imagen sea accesible (opcional)
-      try {
-        console.log('🔍 Verificando accesibilidad de la imagen...');
-        const imageCheck = await fetch(imageUrl, { method: 'HEAD' });
-        if (!imageCheck.ok) {
-          console.warn('⚠️ La imagen puede no estar disponible inmediatamente:', imageCheck.status);
-        } else {
-          console.log('✅ Imagen accesible desde URL:', imageUrl);
-        }
-      } catch (checkError) {
-        console.warn('⚠️ No se pudo verificar accesibilidad de imagen (puede ser normal):', checkError.message);
-      }
-
-      // **PASO 4**: Usar assignProductImage para asociar la imagen al producto
-      console.log('🔄 Asignando imagen al producto...');
       const asignado = await assignProductImage(productId, imageUrl);
 
       if (asignado) {
-        // Solo cerrar modal si todo fue exitoso
         setShowImageUpload(false);
         setSelectedProductForImage(null);
         console.log('🎉 Proceso completo: imagen subida y asignada exitosamente');
@@ -400,7 +294,7 @@ const Products = () => {
     }
   }, [userIsAdmin, showNotification, assignProductImage]);
 
-  // **FUNCIONES DE GESTIÓN DE PRODUCTOS - MEJORADAS DE VER1**
+  // **FUNCIONES DE GESTIÓN DE PRODUCTOS**
   const openProductDetails = useCallback((product) => {
     setSelectedProduct(product);
     const savedQuantity = productQuantities[product.product_id] || 1;
@@ -432,7 +326,7 @@ const Products = () => {
     setShowImageUpload(true);
   }, [userIsAdmin, showNotification]);
 
-  // **FUNCIONES DE CANTIDAD - RECUPERADAS Y MEJORADAS DE VER1**
+  // **FUNCIONES DE CANTIDAD**
   const updateQuantity = useCallback((productId, quantity) => {
     setProductQuantities(prev => ({
       ...prev,
@@ -474,7 +368,7 @@ const Products = () => {
     }
   }, [quantity, selectedProduct, updateQuantity]);
 
-  // **FUNCIONES DE PEDIDOS - COMPLETAMENTE RECUPERADAS DE VER1**
+  // **FUNCIONES DE PEDIDOS**
   const addToOrder = useCallback((product, qty = 1) => {
     if (!isAuthenticated) {
       showNotification('Debes iniciar sesión para añadir productos al pedido', 'error');
@@ -513,20 +407,22 @@ const Products = () => {
     showNotification('Producto eliminado del pedido');
   }, [showNotification]);
 
-  // **FUNCIÓN SUBMIT ORDER - VERSIÓN COMPLETA Y ROBUSTA DE VER1**
+  const calculateOrderTotal = useCallback(() => {
+    const total = orderItems.reduce((sum, item) => sum + (item.unit_price * item.quantity), 0);
+    setOrderTotal(total);
+  }, [orderItems]);
+
   const submitOrder = useCallback(async () => {
     if (!isAuthenticated) {
       showNotification('Debes iniciar sesión para realizar un pedido', 'error');
       return;
     }
 
-    // **VALIDACIONES ROBUSTAS RECUPERADAS DE VER1**
     if (orderItems.length === 0) {
       showNotification('No hay productos en el pedido', 'error');
       return;
     }
 
-    // Validar que todos los productos tienen datos válidos
     const isValid = orderItems.every(item =>
       item.product_id &&
       item.quantity > 0 &&
@@ -576,7 +472,6 @@ const Products = () => {
     } catch (error) {
       console.error('Error submitting order:', error);
 
-      // **MANEJO DE ERRORES ESPECÍFICO RECUPERADO DE VER1**
       if (error.response) {
         const status = error.response.status;
         if (status === 400) {
@@ -596,16 +491,7 @@ const Products = () => {
     }
   }, [orderItems, orderTotal, deliveryDate, showNotification, getCurrentUserId, isAuthenticated]);
 
-  // **FUNCIONES AUXILIARES**
-  const formatCurrency = useCallback((value) => {
-    return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(value);
-  }, []);
-
-  const calculateOrderTotal = useCallback(() => {
-    const total = orderItems.reduce((sum, item) => sum + (item.unit_price * item.quantity), 0);
-    setOrderTotal(total);
-  }, [orderItems]);
-
+  // **DATOS COMPUTADOS**
   const paginatedProducts = useMemo(() => {
     const startIndex = (currentPage - 1) * itemsPerPage;
     return products.slice(startIndex, startIndex + itemsPerPage);
@@ -613,24 +499,12 @@ const Products = () => {
 
   const totalPages = Math.ceil(products.length / itemsPerPage);
 
-  // **EFFECTS - COMBINADOS DE AMBAS VERSIONES**
+  // **EFFECTS**
   useEffect(() => {
-    if (!isAuthenticated) {
-      console.warn('⚠️ Usuario no autenticado');
-      return;
+    if (isAuthenticated) {
+      fetchProducts();
     }
-
-    if (!user) {
-      console.warn('⚠️ No hay datos de usuario disponibles');
-      return;
-    }
-
-    console.log('✅ Usuario autenticado correctamente:', {
-      isAuthenticated,
-      userIsAdmin,
-      userData: user
-    });
-  }, [isAuthenticated, user, userIsAdmin]);
+  }, [fetchProducts, isAuthenticated]);
 
   useEffect(() => {
     calculateOrderTotal();
@@ -651,13 +525,6 @@ const Products = () => {
   }, []);
 
   useEffect(() => {
-    if (isAuthenticated) {
-      fetchProducts();
-    }
-  }, [fetchProducts, isAuthenticated]);
-
-  // **EFFECT ADICIONAL PARA INICIALIZAR CANTIDADES - RECUPERADO DE VER1**
-  useEffect(() => {
     if (products.length > 0) {
       const initialQuantities = {};
       products.forEach(product => {
@@ -667,7 +534,7 @@ const Products = () => {
     }
   }, [products]);
 
-  // **PROTECCIÓN ADICIONAL: Si no está autenticado, mostrar mensaje**
+  // **PROTECCIÓN DE AUTENTICACIÓN**
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -718,14 +585,10 @@ const Products = () => {
             </p>
           </div>
 
-          {/* **CONTROLES ADMINISTRATIVOS** */}
           {userIsAdmin && (
             <div className="flex items-center space-x-3">
               <button
-                onClick={() => {
-                  console.log('🔄 Toggling admin mode. Current:', adminMode);
-                  setAdminMode(!adminMode);
-                }}
+                onClick={() => setAdminMode(!adminMode)}
                 className={`flex items-center px-4 py-2 rounded-lg transition-all duration-200 border ${adminMode
                   ? 'bg-indigo-50 border-indigo-200 text-indigo-700 border-2'
                   : 'border-gray-300 text-gray-700 hover:bg-gray-50'
@@ -746,10 +609,7 @@ const Products = () => {
 
               {adminMode && (
                 <Button
-                  onClick={() => {
-                    console.log('➕ Opening create product form');
-                    setShowProductForm(true);
-                  }}
+                  onClick={() => setShowProductForm(true)}
                   className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition-colors duration-200"
                 >
                   <FiPlus className="mr-2 w-4 h-4" />
@@ -769,8 +629,7 @@ const Products = () => {
               Role: {user?.role} | Rol: {user?.rol} |
               Es Admin: {userIsAdmin ? 'SÍ' : 'NO'} |
               Modo Admin: {adminMode ? 'ACTIVADO' : 'DESACTIVADO'} |
-              Autenticado: {isAuthenticated ? 'SÍ' : 'NO'} |
-              Usuario Activo: {user?.is_active ? 'SÍ' : 'NO'}
+              Autenticado: {isAuthenticated ? 'SÍ' : 'NO'}
             </p>
           </div>
         )}
@@ -782,9 +641,9 @@ const Products = () => {
           </div>
         )}
 
-        {/* **RESUMEN DE PEDIDO MEJORADO - RECUPERADO DE VER1** */}
+        {/* **RESUMEN DE PEDIDO** */}
         {!adminMode && orderItems.length > 0 && (
-          <div className={`mb-8 transform transition-all duration-300 hover:scale-[1.01] ${orderItems.length > 0 ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-90'}`}>
+          <div className="mb-8 transform transition-all duration-300 hover:scale-[1.01]">
             <Card className="overflow-hidden bg-white border-gray-200">
               <div className="p-1 bg-indigo-100"></div>
               <div className="p-5">
@@ -827,49 +686,49 @@ const Products = () => {
                   </div>
                 </div>
               </div>
-            </Card>
 
-            {/* **PRODUCTOS SELECCIONADOS - SECCIÓN RECUPERADA DE VER1** */}
-            {orderItems.length > 0 && (
-              <div className="mt-6 border-t pt-4">
-                <h3 className="font-semibold mb-3 text-gray-900">
-                  Productos Seleccionados
-                </h3>
-                <div className="space-y-3 max-h-80 overflow-y-auto pr-2">
-                  {orderItems.map((item) => (
-                    <div
-                      key={item.product_id}
-                      className="flex items-center justify-between p-3 rounded-lg bg-gray-50"
-                    >
-                      <div className="flex-1">
-                        <p className="font-medium text-gray-900">
-                          {item.name}
-                        </p>
-                        <div className="flex gap-4 mt-1">
-                          <span className="text-sm text-gray-600">
-                            Cantidad: {item.quantity}
-                          </span>
-                          <span className="text-sm text-gray-600">
-                            Subtotal: {formatCurrency(item.unit_price * item.quantity)}
-                          </span>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => removeFromOrder(item.product_id)}
-                        className="ml-4 px-3 py-1 rounded text-white text-sm flex items-center bg-red-600 hover:bg-red-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
+              {/* **PRODUCTOS SELECCIONADOS** */}
+              {orderItems.length > 0 && (
+                <div className="mt-6 border-t pt-4 px-5 pb-5">
+                  <h3 className="font-semibold mb-3 text-gray-900">
+                    Productos Seleccionados
+                  </h3>
+                  <div className="space-y-3 max-h-80 overflow-y-auto pr-2">
+                    {orderItems.map((item) => (
+                      <div
+                        key={item.product_id}
+                        className="flex items-center justify-between p-3 rounded-lg bg-gray-50"
                       >
-                        <FiMinus className="mr-1" />
-                        Eliminar
-                      </button>
-                    </div>
-                  ))}
+                        <div className="flex-1">
+                          <p className="font-medium text-gray-900">
+                            {item.name}
+                          </p>
+                          <div className="flex gap-4 mt-1">
+                            <span className="text-sm text-gray-600">
+                              Cantidad: {item.quantity}
+                            </span>
+                            <span className="text-sm text-gray-600">
+                              Subtotal: {formatCurrency(item.unit_price * item.quantity)}
+                            </span>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => removeFromOrder(item.product_id)}
+                          className="ml-4 px-3 py-1 rounded text-white text-sm flex items-center bg-red-600 hover:bg-red-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
+                        >
+                          <FiMinus className="mr-1" />
+                          Eliminar
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </Card>
           </div>
         )}
 
-        {/* **FECHA DE ENTREGA - RECUPERADA DE VER1** */}
+        {/* **FECHA DE ENTREGA** */}
         {!adminMode && (
           <div className="mb-4">
             <label className="block text-sm font-medium mb-1 text-gray-700">
@@ -935,7 +794,7 @@ const Products = () => {
           </div>
         </div>
 
-        {/* **TABLA DE PRODUCTOS - VERSIÓN HÍBRIDA** */}
+        {/* **VISTA DE TABLA** */}
         {viewMode === 'table' && (
           <div className="overflow-x-auto rounded-lg shadow bg-white">
             {loading ? (
@@ -948,9 +807,7 @@ const Products = () => {
                 <thead className="bg-gray-50">
                   <tr>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Producto</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Imagen
-                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Imagen</th>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Precio</th>
                     {!adminMode && (
                       <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cantidad</th>
@@ -978,60 +835,14 @@ const Products = () => {
                         </div>
                       </td>
 
-                      {/* **COLUMNA DE IMAGEN MEJORADA** */}
                       <td className="px-6 py-4">
                         <div className="flex items-center space-x-2">
-                          {(product.image_url || product.image) ? (
-                            <div className="relative">
-                              <img
-                                src={cleanImageUrl(product.image_url || product.image)}
-                                alt={product.name}
-                                className="h-12 w-12 rounded-md object-cover border border-gray-200"
-                                onLoad={(e) => {
-                                  console.log('✅ Imagen cargada correctamente:', e.target.src);
-                                  // Mostrar imagen
-                                  e.target.style.display = 'block';
-                                  if (e.target.nextSibling) {
-                                    e.target.nextSibling.style.display = 'none';
-                                  }
-                                }}
-                                onError={(e) => {
-                                  console.error('❌ Error al cargar imagen:', e.target.src);
-                                  // Ocultar imagen rota
-                                  e.target.style.display = 'none';
-                                  // Mostrar placeholder
-                                  if (e.target.nextSibling) {
-                                    e.target.nextSibling.style.display = 'flex';
-                                  }
-
-                                  // **DEBUGGING**: Verificar diferentes problemas
-                                  fetch(e.target.src, { method: 'HEAD' })
-                                    .then(response => {
-                                      if (response.ok) {
-                                        console.log('🔍 La imagen existe pero hay problema de renderizado');
-                                      } else {
-                                        console.log('🔍 La imagen no está disponible:', response.status);
-                                      }
-                                    })
-                                    .catch(err => {
-                                      console.log('🔍 Error de red al acceder a imagen:', err.message);
-                                    });
-                                }}
-                                style={{ display: 'block' }}
-                              />
-                              {/* Placeholder que se muestra en caso de error */}
-                              <div
-                                className="h-12 w-12 rounded-md bg-gray-100 flex items-center justify-center border border-gray-200 absolute inset-0"
-                                style={{ display: 'none' }}
-                              >
-                                <FiImage className="w-4 h-4 text-gray-400" />
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="h-12 w-12 rounded-md bg-gray-100 flex items-center justify-center border border-gray-200">
-                              <FiImage className="w-4 h-4 text-gray-400" />
-                            </div>
-                          )}
+                          <ProductImage
+                            src={product.image_url || product.image}
+                            alt={product.name}
+                            productId={product.product_id}
+                            className="h-12 w-12"
+                          />
 
                           {adminMode && userIsAdmin && (
                             <button
@@ -1168,7 +979,7 @@ const Products = () => {
           </div>
         )}
 
-        {/* **VISTA DE TARJETAS - VERSIÓN HÍBRIDA MEJORADA** */}
+        {/* **VISTA DE TARJETAS** */}
         {viewMode === 'cards' && (
           <div className={`${loading ? 'flex justify-center items-center min-h-[300px]' : ''}`}>
             {loading ? (
@@ -1183,21 +994,14 @@ const Products = () => {
                     key={product.product_id}
                     className="rounded-lg overflow-hidden shadow-md transition-all duration-300 hover:shadow-lg transform hover:-translate-y-1 bg-white"
                   >
-                    {/* **IMAGEN CON OVERLAYS ADMINISTRATIVOS** */}
                     <div className="relative">
-                      {product.image_url || product.image ? (
-                        <img
-                          src={cleanImageUrl(product.image_url || product.image)}
-                          alt={product.name}
-                          className="w-full h-48 object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-48 flex items-center justify-center bg-gray-100">
-                          <FiImage className="w-12 h-12 text-gray-400" />
-                        </div>
-                      )}
+                      <ProductImage
+                        src={product.image_url || product.image}
+                        alt={product.name}
+                        productId={product.product_id}
+                        className="w-full h-48"
+                      />
 
-                      {/* **Overlay administrativo** */}
                       {adminMode && userIsAdmin && (
                         <div className="absolute inset-0 bg-black bg-opacity-0 hover:bg-opacity-40 transition-all duration-300 flex items-center justify-center opacity-0 hover:opacity-100">
                           <button
@@ -1217,7 +1021,6 @@ const Products = () => {
                         </div>
                       )}
 
-                      {/* **Badges de estado** */}
                       <div className="absolute top-3 left-3 flex flex-col gap-1">
                         {adminMode && product.stock <= 5 && (
                           <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
@@ -1243,7 +1046,6 @@ const Products = () => {
                         }
                       </p>
 
-                      {/* **Información administrativa** */}
                       {adminMode && (
                         <div className="mb-4 p-3 bg-gray-50 rounded-lg space-y-2">
                           <div className="flex justify-between text-sm">
@@ -1274,7 +1076,6 @@ const Products = () => {
                           {formatCurrency(product.price_list1)}
                         </span>
 
-                        {/* **Controles de cantidad solo para usuarios normales** */}
                         {!adminMode && (
                           <div className="flex items-center">
                             <button
@@ -1349,7 +1150,7 @@ const Products = () => {
           </div>
         )}
 
-        {/* **PAGINACIÓN AVANZADA - RECUPERADA DE VER1** */}
+        {/* **PAGINACIÓN** */}
         {!loading && products.length > 0 && (
           <div className="flex flex-col items-center mt-4 mb-2">
             <div className="flex items-center justify-center gap-2 mb-3">
@@ -1407,17 +1208,12 @@ const Products = () => {
         {selectedProduct && (
           <div className="flex flex-col md:flex-row gap-6">
             <div className="w-full md:w-1/2">
-              {selectedProduct.image_url || selectedProduct.image ? (
-                <img
-                  src={cleanImageUrl(selectedProduct.image_url || selectedProduct.image)}
-                  alt={selectedProduct.name}
-                  className="w-full h-auto rounded-lg object-cover shadow-md"
-                />
-              ) : (
-                <div className="w-full h-64 flex items-center justify-center rounded-lg bg-gray-100">
-                  <FiImage className="w-12 h-12 text-gray-400" />
-                </div>
-              )}
+              <ProductImage
+                src={selectedProduct.image_url || selectedProduct.image}
+                alt={selectedProduct.name}
+                productId={selectedProduct.product_id}
+                className="w-full h-auto"
+              />
             </div>
             <div className="w-full md:w-1/2">
               <h2 className="text-2xl font-bold mb-2 text-gray-900">{selectedProduct.name}</h2>
@@ -1532,7 +1328,7 @@ const Products = () => {
   );
 };
 
-// **COMPONENTES AUXILIARES - MANTENIDOS DE VER2**
+// **COMPONENTES AUXILIARES**
 const ProductFormSimple = ({ product, onSubmit, onCancel }) => {
   const [formData, setFormData] = useState({
     name: product?.name || '',
@@ -1803,10 +1599,11 @@ const ImageUploadSimple = ({ product, onUpload, onCancel }) => {
         {product?.image_url && (
           <div className="mt-2">
             <p className="text-sm text-gray-600 mb-2">Imagen actual:</p>
-            <img
-              src={cleanImageUrl(product.image_url)}
+            <ProductImage
+              src={product.image_url}
               alt={product.name}
-              className="h-16 w-16 rounded-md object-cover border border-gray-200"
+              productId={product.product_id}
+              className="h-16 w-16"
             />
           </div>
         )}

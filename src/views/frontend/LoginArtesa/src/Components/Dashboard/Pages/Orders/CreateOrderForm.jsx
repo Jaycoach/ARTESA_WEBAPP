@@ -37,6 +37,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
   const SHIPPING_CHARGE = 10000;
   const SHIPPING_LIMIT = 50000;
   const SHIPPING_FREE_LIMIT = 80000;
+  const IVA_RATE = 0.19;
 
   const DELIVERY_ZONES = {
     'MIERCOLES_SABADO': {
@@ -341,9 +342,14 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     return null;
   };
 
+  const calculateIVA = (subtotal) => {
+    return subtotal * IVA_RATE;
+  };
+
   const subtotal = calculateSubtotal();
+  const iva = calculateIVA(subtotal);
   const shipping = calculateShipping(subtotal);
-  const total = shipping !== null ? subtotal + shipping : subtotal;
+  const total = shipping !== null ? subtotal + iva + shipping : subtotal + iva;
 
   const formatProductName = (product) => {
     const price = getProductPrice(product);
@@ -379,10 +385,15 @@ const CreateOrderForm = ({ onOrderCreated }) => {
   };
 
   const calculateTotal = () => {
-    return orderDetails.reduce((total, item) => {
-      const itemTotal = item.quantity * item.unit_price;
+  const subtotal = orderDetails.reduce((total, item) => {
+    const itemTotal = item.quantity * item.unit_price;
       return total + (isNaN(itemTotal) ? 0 : itemTotal);
     }, 0);
+  
+  const iva = calculateIVA(subtotal);
+  const shipping = calculateShipping(subtotal);
+  
+    return shipping !== null ? subtotal + iva + shipping : subtotal + iva;
   };
 
   const showNotification = (message, type = 'success') => {
@@ -428,7 +439,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     }
 
     if (subtotal < MIN_ORDER_AMOUNT) {
-      showNotification(`El monto mínimo para crear un pedido es ${formatCurrencyCOP(MIN_ORDER_AMOUNT)}.`, 'error');
+      showNotification(`El monto mínimo para crear un pedido es ${formatCurrencyCOP(MIN_ORDER_AMOUNT)} (sin IVA).`, 'error');
       return;
     }
 
@@ -1006,19 +1017,38 @@ const CreateOrderForm = ({ onOrderCreated }) => {
         </div>
 
         <div className="my-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <div>
-              <span className="font-semibold text-gray-700">Flete:</span>{" "}
+          <div className="space-y-3">
+            {/* Subtotal */}
+            <div className="flex justify-between items-center">
+              <span className="font-medium text-gray-700">Subtotal:</span>
+              <span className="font-semibold text-gray-800">{formatCurrencyCOP(subtotal)}</span>
+            </div>
+
+            {/* IVA */}
+            <div className="flex justify-between items-center">
+              <span className="font-medium text-gray-700">IVA (19%):</span>
+              <span className="font-semibold text-gray-800">{formatCurrencyCOP(iva)}</span>
+            </div>
+
+            {/* Flete */}
+            <div className="flex justify-between items-center">
+              <span className="font-medium text-gray-700">Flete:</span>
               {shipping === 0 ? (
                 <span className="text-green-600 font-bold">¡Envío gratis!</span>
               ) : shipping === SHIPPING_CHARGE ? (
-                <span className="text-blue-700 font-semibold">{formatCurrencyCOP(SHIPPING_CHARGE)} (aplica por subtotal entre $50.000 y $79.999)</span>
+                <span className="text-blue-700 font-semibold">{formatCurrencyCOP(SHIPPING_CHARGE)}</span>
               ) : (
-                <span className="text-red-600 font-semibold">No aplica (pedido insuficiente para envío)</span>
+                <span className="text-red-600 font-semibold">No aplica</span>
               )}
             </div>
-            <div className="text-xl font-bold text-gray-800">
-              Total a pagar: {formatCurrencyCOP(total)}
+
+            {/* Línea divisoria */}
+            <hr className="border-gray-300" />
+
+            {/* Total final */}
+            <div className="flex justify-between items-center">
+              <span className="text-xl font-bold text-gray-800">Total a pagar:</span>
+              <span className="text-xl font-bold text-gray-800">{formatCurrencyCOP(total)}</span>
             </div>
           </div>
         </div>
@@ -1107,7 +1137,29 @@ const CreateOrderForm = ({ onOrderCreated }) => {
           <div className="bg-white rounded-lg p-6 max-w-md mx-auto">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Confirmar pedido</h3>
             <p className="text-gray-500 mb-2">¿Estás seguro de que deseas crear este pedido?</p>
-            <p className="text-gray-700 font-medium mb-2">Total: {formatCurrencyCOP(calculateTotal())}</p>
+
+            {/* Desglose en el modal */}
+            <div className="bg-gray-50 p-3 rounded-md mb-4">
+              <div className="space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span>Subtotal:</span>
+                  <span>{formatCurrencyCOP(subtotal)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>IVA (19%):</span>
+                  <span>{formatCurrencyCOP(iva)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Flete:</span>
+                  <span>{shipping === 0 ? 'Gratis' : formatCurrencyCOP(shipping || 0)}</span>
+                </div>
+                <hr className="my-1" />
+                <div className="flex justify-between font-bold">
+                  <span>Total:</span>
+                  <span>{formatCurrencyCOP(total)}</span>
+                </div>
+              </div>
+            </div>
             {deliveryZone && (
               <div className="text-gray-600 text-sm mb-4">
                 <p>Zona de entrega: {deliveryZone.name}</p>
