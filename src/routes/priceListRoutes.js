@@ -120,6 +120,18 @@ const { body, param, query } = require('express-validator');
  *       500:
  *         description: Error interno del servidor
  */
+// Debugging adicional - verificar cada función individualmente
+console.log('=== VERIFICACIÓN INDIVIDUAL DE FUNCIONES ===');
+console.log('Type of getAllPriceLists:', typeof priceListController.getAllPriceLists);
+console.log('Type of getPriceListProducts:', typeof priceListController.getPriceListProducts);
+console.log('Type of getProductPrice:', typeof priceListController.getProductPrice);
+console.log('Type of getMultipleProductPrices:', typeof priceListController.getMultipleProductPrices);
+console.log('Type of getPriceListStatistics:', typeof priceListController.getPriceListStatistics);
+console.log('Type of validatePriceListInSap:', typeof priceListController.validatePriceListInSap);
+console.log('Type of syncPriceListsFromSap:', typeof priceListController.syncPriceListsFromSap);
+console.log('Type of getSyncSummary:', typeof priceListController.getSyncSummary);
+console.log('Type of searchProductsInSap:', typeof priceListController.searchProductsInSap);
+console.log('=== FIN VERIFICACIÓN INDIVIDUAL ===');
 router.get('/',
   verifyToken,
   (req, res) => {
@@ -221,7 +233,19 @@ router.get('/:priceListCode/products',
   ],
   sanitizeParams,
   sanitizeQuery,
-  priceListController.getPriceListProducts
+  (req, res) => {
+    console.log('=== DEBUGGING getPriceListProducts ===');
+    console.log('Function type:', typeof priceListController.getPriceListProducts);
+    console.log('Function:', priceListController.getPriceListProducts);
+    console.log('Is function?', typeof priceListController.getPriceListProducts === 'function');
+    
+    if (typeof priceListController.getPriceListProducts === 'function') {
+      return priceListController.getPriceListProducts(req, res);
+    } else {
+      console.error('getPriceListProducts is not a function!');
+      res.status(500).json({ error: 'Controller method getPriceListProducts not available' });
+    }
+  }
 );
 
 /**
