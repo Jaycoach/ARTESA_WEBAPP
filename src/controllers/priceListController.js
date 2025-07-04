@@ -447,5 +447,9 @@ module.exports = {
   getPriceListProducts: priceListControllerInstance.getPriceListProducts.bind(priceListControllerInstance),
   getProductPrice: priceListControllerInstance.getProductPrice.bind(priceListControllerInstance),
   getMultipleProductPrices: priceListControllerInstance.getMultipleProductPrices.bind(priceListControllerInstance),
-  getPriceListStatistics: priceListControllerInstance.getPriceListStatistics.bind(priceListControllerInstance)
-};
+  getPriceListStatistics: priceListControllerInstance.getPriceListStatistics.bind(priceListControllerInstance),
+  validatePriceListInSap: priceListControllerInstance.validatePriceListInSap.bind(priceListControllerInstance),
+  syncPriceListsFromSap: priceListControllerInstance.syncPriceListsFromSap.bind(priceListControllerInstance),
+  getSyncSummary: priceListControllerInstance.getSyncSummary.bind(priceListControllerInstance),
+  searchProductsInSap: priceListControllerInstance.searchProductsInSap.bind(priceListControllerInstance)
+};  
