@@ -361,7 +361,7 @@ static async create(clientData) {
         price_list, price_list_code, cardcode_sap, cardtype_sap, clientprofilecode_sap,
         created_at, updated_at
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19,
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
         CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
       ) RETURNING *
     `;
@@ -387,10 +387,10 @@ static async create(clientData) {
       anexosAdicionalesTruncated,      // $14 - anexos_adicionales
       notesJSON,                       // $15 - notes
       clientData.listaPrecios || 1,    // $16 - price_list
-      clientData.listaPreciosCodigo || null,    // $17 - price_list_code
-      null,                            // $17 - cardcode_sap
-      'cLid',                          // $18 - cardtype_sap
-      clientProfileCode                // $19 - clientprofilecode_sap
+      clientData.listaPreciosCodigo || null, // $17 - price_list_code
+      null,                            // $18 - cardcode_sap
+      'cLid',                          // $19 - cardtype_sap
+      clientProfileCode                // $20 - clientprofilecode_sap
     ];
 
     const { rows } = await pool.query(query, values);
