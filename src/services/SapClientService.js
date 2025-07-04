@@ -728,7 +728,7 @@ class SapClientService extends SapBaseService {
       this.logger.debug('Consultando Business Partner por código Artesa', { artesaCode });
       
       // Construir la consulta con filtro para el campo personalizado U_AR_ArtesaCode
-      const endpoint = `BusinessPartners?$filter=U_AR_ArtesaCode eq '${artesaCode}'&$select=CardCode,CardName,CardType,FederalTaxID,Phone1,EmailAddress,Address,City,Country,ContactPerson,U_AR_ArtesaCode,ListNum`;
+      const endpoint = `BusinessPartners?$filter=U_AR_ArtesaCode eq '${artesaCode}'&$select=CardCode,CardName,CardType,FederalTaxID,Phone1,EmailAddress,Address,City,Country,ContactPerson,U_AR_ArtesaCode,PriceListNum`;
       
       // Realizar la consulta a SAP
       const result = await this.request('GET', endpoint);
@@ -1818,7 +1818,7 @@ class SapClientService extends SapBaseService {
         await this.login();
       }
 
-      const result = await this.request('GET', `BusinessPartners('${sapCode}')?$select=CardCode,CardName,CardType,FederalTaxID,Phone1,EmailAddress,Address,City,Country,ContactPerson,U_AR_ArtesaCode,ListNum`);
+      const result = await this.request('GET', `BusinessPartners('${sapCode}')?$select=CardCode,CardName,CardType,FederalTaxID,Phone1,EmailAddress,Address,City,Country,ContactPerson,U_AR_ArtesaCode,PriceListNum`);
       
       if (result) {
         this.logger.debug('Business Partner encontrado', {
@@ -1994,7 +1994,7 @@ class SapClientService extends SapBaseService {
     try {
       this.logger.debug('Buscando BusinessPartner por FederalTaxID', { federalTaxID });
       
-      const endpoint = `BusinessPartners?$filter=FederalTaxID eq '${federalTaxID}'&$select=CardCode,CardName,CardType,FederalTaxID,Phone1,EmailAddress,Address,U_AR_ArtesaCode,ListNum`;
+      const endpoint = `BusinessPartners?$filter=FederalTaxID eq '${federalTaxID}'&$select=CardCode,CardName,CardType,FederalTaxID,Phone1,EmailAddress,Address,U_AR_ArtesaCode,PriceListNum`
       const result = await this.request('GET', endpoint);
       
       if (result && result.value && result.value.length > 0) {
