@@ -359,6 +359,147 @@ class PriceListController {
   }
 
   /**
+   * Actualizar precios de productos basados en listas de precios
+   */
+  async updateProductPricesFromLists(req, res) {
+    try {
+      logger.info('Starting product prices update from price lists', {
+        userId: req.user?.id
+      });
+
+      const sapPriceListService = new SapPriceListService();
+      
+      // Primero sincronizar todas las listas de precios desde SAP
+      logger.info('Syncing price lists from SAP first...');
+      await sapPriceListService.syncAllPriceLists({
+        batchSize: 100
+      });
+
+      // Ahora actualizar los precios en los productos
+      const result = await this.updateProductPricesFromPriceLists();
+
+      res.status(200).json({
+        success: true,
+        message: 'Precios de productos actualizados exitosamente',
+        data: result
+      });
+    } catch (error) {
+      logger.error('Error updating product prices from lists', {
+        error: error.message,
+        stack: error.stack,
+        userId: req.user?.id
+      });
+      
+      res.status(500).json({
+        success: false,
+        message: 'Error al actualizar precios de productos',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
+
+  /**
+   * Lógica para actualizar precios de productos desde listas de precios
+   */
+  async updateProductPricesFromPriceLists() {
+    const Product = require('../models/Product');
+    
+    try {
+      logger.info('Starting internal product prices update');
+      
+      const stats = {
+        productsProcessed: 0,
+        priceList1Updates: 0,
+        priceList2Updates: 0,
+        priceList3Updates: 0,
+        errors: []
+      };
+
+      // Obtener todos los productos activos
+      const products = await Product.findAll({ 
+        includeInactive: false,
+        pagination: false 
+      });
+
+      logger.info(`Found ${products.length} products to process`);
+
+      for (const product of products) {
+        try {
+          const updates = {};
+          let hasUpdates = false;
+
+          // Buscar precios en cada lista
+          const priceList1Data = await PriceList.getProductPrice('1', product.sap_code || product.code);
+          const priceList2Data = await PriceList.getProductPrice('2', product.sap_code || product.code);
+          const priceList3Data = await PriceList.getProductPrice('3', product.sap_code || product.code);
+
+          // Actualizar price_list1 si existe precio en lista 1
+          if (priceList1Data && priceList1Data.price !== null) {
+            const newPrice = parseFloat(priceList1Data.price);
+            if (newPrice !== product.price_list1) {
+              updates.priceList1 = newPrice;
+              hasUpdates = true;
+              stats.priceList1Updates++;
+            }
+          }
+
+          // Actualizar price_list2 si existe precio en lista 2
+          if (priceList2Data && priceList2Data.price !== null) {
+            const newPrice = parseFloat(priceList2Data.price);
+            if (newPrice !== product.price_list2) {
+              updates.priceList2 = newPrice;
+              hasUpdates = true;
+              stats.priceList2Updates++;
+            }
+          }
+
+          // Actualizar price_list3 si existe precio en lista 3
+          if (priceList3Data && priceList3Data.price !== null) {
+            const newPrice = parseFloat(priceList3Data.price);
+            if (newPrice !== product.price_list3) {
+              updates.priceList3 = newPrice;
+              hasUpdates = true;
+              stats.priceList3Updates++;
+            }
+          }
+
+          // Aplicar actualizaciones si las hay
+          if (hasUpdates) {
+            await Product.update(product.product_id, updates, null, false);
+            logger.debug('Product prices updated', {
+              productId: product.product_id,
+              productCode: product.sap_code || product.code,
+              updates
+            });
+          }
+
+          stats.productsProcessed++;
+
+        } catch (productError) {
+          logger.error('Error updating product prices', {
+            productId: product.product_id,
+            error: productError.message
+          });
+          stats.errors.push({
+            productId: product.product_id,
+            error: productError.message
+          });
+        }
+      }
+
+      logger.info('Product prices update completed', stats);
+      return stats;
+
+    } catch (error) {
+      logger.error('Error in updateProductPricesFromPriceLists', {
+        error: error.message,
+        stack: error.stack
+      });
+      throw error;
+    }
+  }
+
+  /**
    * Validar lista de precios en SAP
    */
   async validatePriceListInSap(req, res) {

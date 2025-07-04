@@ -210,6 +210,7 @@ class PriceList {
    * @returns {Promise<Object|null>} - Precio del producto o null si no existe
    */
   static async getProductPrice(priceListCode, productCode) {
+    const normalizedPriceListCode = String(priceListCode);
     try {
       const query = `
         SELECT 
@@ -225,7 +226,7 @@ class PriceList {
         LIMIT 1;
       `;
       
-      const { rows } = await pool.query(query, [priceListCode, productCode]);
+      const { rows } = await pool.query(query, [normalizedPriceListCode, productCode]);
       
       if (rows.length === 0) {
         logger.debug('Product price not found', { priceListCode, productCode });

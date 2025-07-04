@@ -736,4 +736,49 @@ router.get('/sap/validate/:priceListNo',
   priceListController.validatePriceListInSap
 );
 
+/**
+ * @swagger
+ * /api/price-lists/update-product-prices:
+ *   post:
+ *     summary: Actualizar precios de productos desde listas de precios
+ *     description: Sincroniza precios desde SAP y actualiza los campos price_list1, price_list2 y price_list3 en productos
+ *     tags: [Price Lists]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Precios actualizados exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     productsProcessed:
+ *                       type: integer
+ *                     priceList1Updates:
+ *                       type: integer
+ *                     priceList2Updates:
+ *                       type: integer
+ *                     priceList3Updates:
+ *                       type: integer
+ *                     errors:
+ *                       type: array
+ *       401:
+ *         description: No autorizado
+ *       500:
+ *         description: Error interno del servidor
+ */
+router.post('/update-product-prices',
+  verifyToken,
+  checkRole(['ADMIN', 'MANAGER']),
+  priceListController.updateProductPricesFromLists
+);
+
 module.exports = router;
