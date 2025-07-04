@@ -17,7 +17,8 @@ class SapServiceManager {
     this.productService = SapProductService;
     this.clientService = SapClientService;
     this.orderService = SapOrderService;
-    this.priceListService = require('./SapPriceListService');
+    const SapPriceListService = require('./SapPriceListService');
+    this.priceListService = new SapPriceListService();
   }
 
   /**

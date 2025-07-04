@@ -15,6 +15,28 @@ class SapPriceListService extends SapBaseService {
   }
 
   /**
+   * Inicializa el servicio de listas de precios
+   * @returns {Promise<SapPriceListService>} Instancia de este servicio
+   */
+  async initialize() {
+    if (this.initialized) return this;
+
+    try {
+      // Inicializar servicio base primero
+      await super.initialize();
+      
+      this.logger.info('Servicio de listas de precios SAP inicializado correctamente');
+      return this;
+    } catch (error) {
+      this.logger.error('Error al inicializar servicio de listas de precios SAP', {
+        error: error.message,
+        stack: error.stack
+      });
+      throw error;
+    }
+  }
+
+  /**
    * Obtener todas las listas de precios desde SAP
    * @returns {Promise<Array>} - Array de listas de precios
    */
