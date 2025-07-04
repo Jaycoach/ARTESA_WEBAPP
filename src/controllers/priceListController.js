@@ -441,13 +441,13 @@ class PriceListController {
 const priceListControllerInstance = new PriceListController();
 
 module.exports = {
-  getAllPriceLists: priceListControllerInstance.getAllPriceLists.bind(priceListControllerInstance),
-  getPriceListProducts: priceListControllerInstance.getPriceListProducts.bind(priceListControllerInstance),
-  getProductPrice: priceListControllerInstance.getProductPrice.bind(priceListControllerInstance),
-  getMultipleProductPrices: priceListControllerInstance.getMultipleProductPrices.bind(priceListControllerInstance),
-  getPriceListStatistics: priceListControllerInstance.getPriceListStatistics.bind(priceListControllerInstance),
-  validatePriceListInSap: priceListControllerInstance.validatePriceListInSap.bind(priceListControllerInstance),
-  syncPriceListsFromSap: priceListControllerInstance.syncPriceListsFromSap.bind(priceListControllerInstance),
-  getSyncSummary: priceListControllerInstance.getSyncSummary.bind(priceListControllerInstance),
-  searchProductsInSap: priceListControllerInstance.searchProductsInSap.bind(priceListControllerInstance)
-};  
+  getAllPriceLists: (req, res) => priceListControllerInstance.getAllPriceLists(req, res),
+  getPriceListProducts: (req, res) => priceListControllerInstance.getPriceListProducts(req, res),
+  getProductPrice: (req, res) => priceListControllerInstance.getProductPrice(req, res),
+  getMultipleProductPrices: (req, res) => priceListControllerInstance.getMultipleProductPrices(req, res),
+  getPriceListStatistics: (req, res) => priceListControllerInstance.getPriceListStatistics(req, res),
+  validatePriceListInSap: (req, res) => priceListControllerInstance.validatePriceListInSap(req, res),
+  syncPriceListsFromSap: (req, res) => priceListControllerInstance.syncPriceListsFromSap(req, res),
+  getSyncSummary: (req, res) => priceListControllerInstance.getSyncSummary(req, res),
+  searchProductsInSap: (req, res) => priceListControllerInstance.searchProductsInSap(req, res)
+};
