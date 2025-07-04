@@ -439,10 +439,13 @@ class PriceListController {
   }
 }
 
+// Crear una instancia de la clase
+const priceListControllerInstance = new PriceListController();
+
 module.exports = {
-  getAllPriceLists,
-  getPriceListProducts,
-  getProductPrice,
-  getMultipleProductPrices,
-  getPriceListStatistics  // Esta línea debe estar presente
+  getAllPriceLists: priceListControllerInstance.getAllPriceLists.bind(priceListControllerInstance),
+  getPriceListProducts: priceListControllerInstance.getPriceListProducts.bind(priceListControllerInstance),
+  getProductPrice: priceListControllerInstance.getProductPrice.bind(priceListControllerInstance),
+  getMultipleProductPrices: priceListControllerInstance.getMultipleProductPrices.bind(priceListControllerInstance),
+  getPriceListStatistics: priceListControllerInstance.getPriceListStatistics.bind(priceListControllerInstance)
 };
