@@ -366,6 +366,30 @@ class PriceList {
       throw error;
     }
   }
+  static async getPriceListStatistics(priceListCode) {
+    const query = `
+      SELECT 
+        COUNT(*) as total_products,
+        COUNT(CASE WHEN price > 0 THEN 1 END) as products_with_price,
+        ROUND(AVG(CASE WHEN price > 0 THEN price END), 2) as average_price,
+        MIN(CASE WHEN price > 0 THEN price END) as min_price,
+        MAX(price) as max_price,
+        MAX(updated_at) as last_sync
+      FROM price_lists 
+      WHERE price_list_code = ?
+    `;
+    
+    try {
+      const [rows] = await db.execute(query, [priceListCode]);
+      return rows[0] || null;
+    } catch (error) {
+      logger.error('Error getting price list statistics from DB', {
+        priceListCode,
+        error: error.message
+      });
+      throw error;
+    }
+  }
 }
 
 module.exports = PriceList;
