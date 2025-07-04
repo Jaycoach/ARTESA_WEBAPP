@@ -728,7 +728,7 @@ class SapClientService extends SapBaseService {
       this.logger.debug('Consultando Business Partner por código Artesa', { artesaCode });
       
       // Construir la consulta con filtro para el campo personalizado U_AR_ArtesaCode
-      const endpoint = `BusinessPartners?$filter=U_AR_ArtesaCode eq '${artesaCode}'&$select=CardCode,CardName,CardType,FederalTaxID,Phone1,EmailAddress,Address,City,Country,ContactPerson,U_AR_ArtesaCode`;
+      const endpoint = `BusinessPartners?$filter=U_AR_ArtesaCode eq '${artesaCode}'&$select=CardCode,CardName,CardType,FederalTaxID,Phone1,EmailAddress,Address,City,Country,ContactPerson,U_AR_ArtesaCode,ListNum`;
       
       // Realizar la consulta a SAP
       const result = await this.request('GET', endpoint);
@@ -1818,7 +1818,7 @@ class SapClientService extends SapBaseService {
         await this.login();
       }
 
-      const result = await this.request('GET', `BusinessPartners('${sapCode}')`);
+      const result = await this.request('GET', `BusinessPartners('${sapCode}')?$select=CardCode,CardName,CardType,FederalTaxID,Phone1,EmailAddress,Address,City,Country,ContactPerson,U_AR_ArtesaCode,ListNum`);
       
       if (result) {
         this.logger.debug('Business Partner encontrado', {
@@ -1994,7 +1994,7 @@ class SapClientService extends SapBaseService {
     try {
       this.logger.debug('Buscando BusinessPartner por FederalTaxID', { federalTaxID });
       
-      const endpoint = `BusinessPartners?$filter=FederalTaxID eq '${federalTaxID}'&$select=CardCode,CardName,CardType,FederalTaxID,Phone1,EmailAddress,Address,U_AR_ArtesaCode`;
+      const endpoint = `BusinessPartners?$filter=FederalTaxID eq '${federalTaxID}'&$select=CardCode,CardName,CardType,FederalTaxID,Phone1,EmailAddress,Address,U_AR_ArtesaCode,ListNum`;
       const result = await this.request('GET', endpoint);
       
       if (result && result.value && result.value.length > 0) {
@@ -2060,6 +2060,60 @@ class SapClientService extends SapBaseService {
         error: error.message
       });
       throw error;
+    }
+  }
+  /**
+   * Procesa el FederalTaxID de SAP para extraer NIT y dígito de verificación
+   * @param {string} federalTaxID - FederalTaxID del Business Partner (formato "12345678-9")
+   * @returns {Object} - Objeto con tax_id, nit_number y verification_digit
+   */
+  processFederalTaxID(federalTaxID) {
+    try {
+      if (!federalTaxID || typeof federalTaxID !== 'string') {
+        return {
+          tax_id: null,
+          nit_number: null,
+          verification_digit: null
+        };
+      }
+
+      // Remover espacios y caracteres especiales excepto guión
+      const cleanTaxID = federalTaxID.trim();
+      
+      // Verificar si tiene formato NIT-DV (con guión)
+      if (cleanTaxID.includes('-')) {
+        const parts = cleanTaxID.split('-');
+        if (parts.length === 2 && parts[0] && parts[1]) {
+          const nitNumber = parts[0].trim();
+          const verificationDigit = parseInt(parts[1].trim());
+          
+          // Validar que el dígito de verificación sea numérico
+          if (!isNaN(verificationDigit)) {
+            return {
+              tax_id: cleanTaxID,
+              nit_number: nitNumber,
+              verification_digit: verificationDigit
+            };
+          }
+        }
+      }
+      
+      // Si no tiene guión, asumir que todo es el NIT sin DV
+      return {
+        tax_id: cleanTaxID,
+        nit_number: cleanTaxID,
+        verification_digit: null
+      };
+    } catch (error) {
+      this.logger.error('Error al procesar FederalTaxID', {
+        federalTaxID,
+        error: error.message
+      });
+      return {
+        tax_id: federalTaxID,
+        nit_number: null,
+        verification_digit: null
+      };
     }
   }
 }
