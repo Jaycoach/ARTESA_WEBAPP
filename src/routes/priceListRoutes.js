@@ -2,6 +2,19 @@
 const express = require('express');
 const router = express.Router();
 const priceListController = require('../controllers/priceListController');
+// Debugging - verificar que el controlador se importó correctamente
+console.log('=== DEBUGGING PRICE LIST CONTROLLER ===');
+console.log('priceListController:', priceListController);
+console.log('getAllPriceLists:', priceListController.getAllPriceLists);
+console.log('getPriceListProducts:', priceListController.getPriceListProducts);
+console.log('getProductPrice:', priceListController.getProductPrice);
+console.log('getMultipleProductPrices:', priceListController.getMultipleProductPrices);
+console.log('getPriceListStatistics:', priceListController.getPriceListStatistics);
+console.log('validatePriceListInSap:', priceListController.validatePriceListInSap);
+console.log('syncPriceListsFromSap:', priceListController.syncPriceListsFromSap);
+console.log('getSyncSummary:', priceListController.getSyncSummary);
+console.log('searchProductsInSap:', priceListController.searchProductsInSap);
+console.log('=== END DEBUGGING ===');
 const { verifyToken, checkRole } = require('../middleware/auth');
 const { sanitizeBody, sanitizeParams, sanitizeQuery } = require('../middleware/security');
 const { body, param, query } = require('express-validator');
@@ -109,7 +122,14 @@ const { body, param, query } = require('express-validator');
  */
 router.get('/',
   verifyToken,
-  priceListController.getAllPriceLists
+  (req, res) => {
+    if (typeof priceListController.getAllPriceLists === 'function') {
+      return priceListController.getAllPriceLists(req, res);
+    } else {
+      console.error('getAllPriceLists is not a function:', typeof priceListController.getAllPriceLists);
+      res.status(500).json({ error: 'Controller method not available' });
+    }
+  }
 );
 
 /**
