@@ -2,6 +2,7 @@ const express = require('express');
 const pool = require('../config/db');
 const Order = require('../models/Order');
 const { verifyToken, checkRole } = require('../middleware/auth');
+const { sanitizeBody } = require('../middleware/security');
 const { 
   createOrder, 
   getOrderById, 
