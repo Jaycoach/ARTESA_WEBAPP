@@ -422,6 +422,7 @@ app.get('/api/cors-debug', (req, res) => {
 // Rutas principales de la API
 app.use(API_PREFIX, userRoutes);
 app.use(`${API_PREFIX}/auth`, authRoutes);
+app.use(`${API_PREFIX}/branch-auth`, require('./src/routes/branchAuthRoutes'));
 app.use(API_PREFIX, productRoutes);
 app.use(API_PREFIX, secureProductRoutes);
 app.use(API_PREFIX, orderRoutes);
