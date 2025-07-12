@@ -1,10 +1,151 @@
 // src/middleware/auth.js
 const jwt = require('jsonwebtoken');
 const { createContextLogger } = require('../config/logger');
+const BranchAuth = require('../models/BranchAuth');
 const ROLES = require('../constants/roles');
 const { TokenRevocation } = require('./tokenRevocation');
 
 const logger = createContextLogger('AuthMiddleware');
+
+// Función para verificar tokens de sucursales
+const verifyBranchToken = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Token de autorización requerido. Use: Bearer <token>'
+      });
+    }
+
+    const token = authHeader.split(' ')[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    // Verificar que es un token de sucursal
+    if (decoded.type !== 'branch') {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Tipo de token inválido para esta operación'
+      });
+    }
+    
+    // Verificar que la sucursal existe y está activa
+    const branch = await BranchAuth.findById(decoded.branch_id);
+    if (!branch || !branch.is_login_enabled) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Sucursal no encontrada o deshabilitada'
+      });
+    }
+    
+    req.branch = {
+      branch_id: decoded.branch_id,
+      email: decoded.email,
+      manager_name: decoded.manager_name,
+      branch_name: decoded.branch_name,
+      client_id: decoded.client_id,
+      client_name: decoded.client_name,
+      type: 'branch'
+    };
+    
+    next();
+  } catch (error) {
+    if (error.name === 'TokenExpiredError') {
+      logger.warn('Token de sucursal expirado', {
+        error: error.message,
+        ip: req.ip
+      });
+      
+      return res.status(401).json({
+        status: 'error',
+        message: 'El token ha expirado. Por favor, inicie sesión nuevamente.',
+        code: 'TOKEN_EXPIRED'
+      });
+    }
+    
+    if (error.name === 'JsonWebTokenError') {
+      logger.warn('Token de sucursal inválido', {
+        error: error.message,
+        ip: req.ip
+      });
+      
+      return res.status(401).json({
+        status: 'error',
+        message: 'Token inválido. Por favor, inicie sesión nuevamente.',
+        code: 'INVALID_TOKEN'
+      });
+    }
+    
+    logger.error('Error de verificación de token de sucursal:', {
+      error: error.message,
+      stack: error.stack,
+      name: error.name
+    });
+    
+    return res.status(401).json({
+      status: 'error',
+      message: 'Error de autenticación de sucursal',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// Función para verificar cualquier tipo de token (usuario o sucursal)
+const verifyAnyToken = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Token de autorización requerido. Use: Bearer <token>'
+      });
+    }
+
+    const token = authHeader.split(' ')[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    if (decoded.type === 'branch') {
+      // Es un token de sucursal
+      const branch = await BranchAuth.findById(decoded.branch_id);
+      if (!branch || !branch.is_login_enabled) {
+        return res.status(401).json({
+          status: 'error',
+          message: 'Sucursal no encontrada o deshabilitada'
+        });
+      }
+      
+      req.branch = {
+        branch_id: decoded.branch_id,
+        email: decoded.email,
+        manager_name: decoded.manager_name,
+        branch_name: decoded.branch_name,
+        client_id: decoded.client_id,
+        client_name: decoded.client_name,
+        type: 'branch'
+      };
+      req.authType = 'branch';
+    } else {
+      // Es un token de usuario normal
+      req.user = {
+        id: decoded.id,
+        mail: decoded.mail,
+        name: decoded.name,
+        rol_id: decoded.rol_id
+      };
+      req.authType = 'user';
+    }
+    
+    next();
+  } catch (error) {
+    return res.status(401).json({
+      status: 'error',
+      message: 'Token inválido o expirado',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
 
 const verifyToken = async (req, res, next) => {
   try {
@@ -177,5 +318,7 @@ const checkRole = (allowedRoles) => {
 
 module.exports = {
   verifyToken,
-  checkRole
+  checkRole,
+  verifyBranchToken,
+  verifyAnyToken
 };
