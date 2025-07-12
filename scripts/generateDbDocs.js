@@ -3,7 +3,7 @@ require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 
 // Agregar validación de variables de entorno
 const validateEnvVariables = () => {
-  const required = ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_DATABASE', 'DB_PORT'];
+  const required = ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_DATABASE', 'DB_PORT', 'DB_SSL', 'NODE_ENV'];
   const missing = required.filter(key => !process.env[key]);
   
   if (missing.length > 0) {
@@ -14,6 +14,12 @@ const validateEnvVariables = () => {
   if (typeof process.env.DB_PASSWORD !== 'string') {
     process.env.DB_PASSWORD = String(process.env.DB_PASSWORD);
   }
+  // Validar configuración SSL
+    if (process.env.NODE_ENV === 'staging' || process.env.NODE_ENV === 'production') {
+        if (!process.env.DB_SSL || process.env.DB_SSL !== 'true') {
+            console.warn('Advertencia: DB_SSL debería estar configurado como "true" en staging/production');
+        }
+    }
 };
 
 // Validar antes de crear el pool
@@ -26,13 +32,17 @@ const { Pool } = require('pg');
 const pool = new Pool({
     host: process.env.DB_HOST,
     user: process.env.DB_USER,
-    password: String(process.env.DB_PASSWORD), // Asegurar que sea string
+    password: String(process.env.DB_PASSWORD),
     database: process.env.DB_DATABASE,
     port: parseInt(process.env.DB_PORT),
-    // Agregar opciones adicionales para mayor estabilidad
+    // Agregar configuración SSL basada en variables de entorno
+    ssl: (process.env.DB_SSL === 'true' || process.env.NODE_ENV === 'staging' || process.env.NODE_ENV === 'production') ? {
+        rejectUnauthorized: false,
+        checkServerIdentity: false
+    } : false,
     connectionTimeoutMillis: 5000,
     idleTimeoutMillis: 30000,
-    max: 1 // Limitar a una conexión para scripts
+    max: 1
 });
 
 // Agregar manejo de errores del pool
