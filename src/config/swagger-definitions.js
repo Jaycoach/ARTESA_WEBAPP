@@ -6,7 +6,8 @@
  *       type: http
  *       scheme: bearer
  *       bearerFormat: JWT
- *       description: Ingrese el token JWT en el formato - Bearer <token>
+ *       description: Token JWT para autenticación (usuarios o sucursales)
+ *   
  *   schemas:
  *     User:
  *       type: object
@@ -138,7 +139,7 @@
  *           properties:
  *             id:
  *               type: integer
- *               description: ID del rol
+ *               description: Identificador del rol
  *               example: 2
  *             name:
  *               type: string
@@ -152,7 +153,67 @@
  *           type: boolean
  *           description: Indica si el usuario está activo
  *           example: true
- *
+ *     
+ *     AuthType:
+ *       type: string
+ *       enum: [user, branch]
+ *       description: Tipo de autenticación utilizada
+ *       example: branch
+ *     
+ *     BranchLoginRequest:
+ *       type: object
+ *       required:
+ *         - email
+ *         - password
+ *       properties:
+ *         email:
+ *           type: string
+ *           format: email
+ *           description: Correo electrónico de la sucursal
+ *           example: sucursal@empresa.com
+ *         password:
+ *           type: string
+ *           format: password
+ *           description: Contraseña de la sucursal
+ *           example: contraseña123
+ *     
+ *     BranchLoginResponse:
+ *       type: object
+ *       properties:
+ *         success:
+ *           type: boolean
+ *           example: true
+ *         message:
+ *           type: string
+ *           example: Login exitoso
+ *         data:
+ *           type: object
+ *           properties:
+ *             token:
+ *               type: string
+ *               example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *             branch:
+ *               type: object
+ *               properties:
+ *                 branch_id:
+ *                   type: integer
+ *                   example: 1
+ *                 branch_name:
+ *                   type: string
+ *                   example: Sucursal Centro
+ *                 email:
+ *                   type: string
+ *                   example: centro@empresa.com
+ *                 manager_name:
+ *                   type: string
+ *                   example: Juan Pérez
+ *                 client_name:
+ *                   type: string
+ *                   example: Empresa ABC
+ *                 type:
+ *                   type: string
+ *                   example: branch
+
  *     Product:
  *       type: object
  *       properties:
@@ -203,7 +264,7 @@
  *           type: string
  *           format: date-time
  *           description: Fecha y hora de última actualización
- *
+
  *     Order:
  *       type: object
  *       properties:
@@ -255,7 +316,7 @@
  *               message:
  *                 type: string
  *                 example: Token inválido o expirado
- *
+
  *     ForbiddenError:
  *       description: No tiene permisos suficientes para esta acción
  *       content:

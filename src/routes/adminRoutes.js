@@ -37,5 +37,13 @@ router.post('/settings',
   authorize([1, 3]), // Solo administradores pueden actualizar
   fileUpload(fileUploadOptions), 
   adminController.updateSettings);
+  // Gestión de login de sucursales - solo administradores
+router.post('/branches/:branchId/enable-login', 
+  authorize([1]), // Solo administradores principales
+  adminController.enableBranchLogin);
+
+router.post('/branches/:branchId/disable-login', 
+  authorize([1]), // Solo administradores principales
+  adminController.disableBranchLogin);
 
 module.exports = router;
