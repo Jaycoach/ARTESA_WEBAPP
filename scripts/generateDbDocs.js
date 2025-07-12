@@ -37,8 +37,7 @@ const pool = new Pool({
     port: parseInt(process.env.DB_PORT),
     // Agregar configuración SSL basada en variables de entorno
     ssl: (process.env.DB_SSL === 'true' || process.env.NODE_ENV === 'staging' || process.env.NODE_ENV === 'production') ? {
-        rejectUnauthorized: false,
-        checkServerIdentity: false
+        rejectUnauthorized: false
     } : false,
     connectionTimeoutMillis: 5000,
     idleTimeoutMillis: 30000,
