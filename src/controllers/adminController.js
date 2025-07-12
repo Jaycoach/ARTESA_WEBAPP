@@ -278,6 +278,254 @@ class AdminController {
       });
     }
   }
+  /**
+   * @swagger
+   * /api/admin/branches/{branchId}/enable-login:
+   *   post:
+   *     summary: Habilitar login para una sucursal
+   *     description: Configura las credenciales de acceso para una sucursal específica
+   *     tags: [Admin]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: branchId
+   *         required: true
+   *         schema:
+   *           type: integer
+   *         description: ID de la sucursal
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required:
+   *               - email
+   *               - password
+   *               - manager_name
+   *             properties:
+   *               email:
+   *                 type: string
+   *                 format: email
+   *                 description: Correo electrónico para el login
+   *               password:
+   *                 type: string
+   *                 format: password
+   *                 description: Contraseña para el login
+   *               manager_name:
+   *                 type: string
+   *                 description: Nombre del responsable de la sucursal
+   *     responses:
+   *       200:
+   *         description: Login habilitado exitosamente
+   *       400:
+   *         description: Datos de entrada inválidos
+   *       404:
+   *         description: Sucursal no encontrada
+   *       409:
+   *         description: Email ya registrado
+   *       500:
+   *         description: Error interno del servidor
+   */
+  async enableBranchLogin(req, res) {
+    const { branchId } = req.params;
+    const { email, password, manager_name } = req.body;
+
+    try {
+      // Verificar que la sucursal existe
+      const { rows: branchRows } = await pool.query(
+        'SELECT * FROM client_branches WHERE branch_id = $1',
+        [branchId]
+      );
+
+      if (branchRows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'Sucursal no encontrada'
+        });
+      }
+
+      // Verificar que el email no esté en uso
+      const { rows: emailRows } = await pool.query(
+        'SELECT branch_id FROM client_branches WHERE email = $1 AND branch_id != $2',
+        [email, branchId]
+      );
+
+      if (emailRows.length > 0) {
+        return res.status(409).json({
+          success: false,
+          message: 'El email ya está registrado en otra sucursal'
+        });
+      }
+
+      // Hashear la contraseña
+      const bcrypt = require('bcrypt');
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      // Actualizar la sucursal con las credenciales
+      const updateQuery = `
+        UPDATE client_branches 
+        SET 
+          email = $1,
+          password = $2,
+          manager_name = $3,
+          is_login_enabled = true,
+          updated_at_auth = CURRENT_TIMESTAMP
+        WHERE branch_id = $4
+        RETURNING branch_id, branch_name, email, manager_name, is_login_enabled
+      `;
+
+      const { rows: updatedRows } = await pool.query(updateQuery, [
+        email,
+        hashedPassword,
+        manager_name,
+        branchId
+      ]);
+
+      // Registrar en auditoría
+      await AuditService.logAuditEvent(
+        AuditService.AUDIT_EVENTS.SECURITY_EVENT,
+        {
+          details: {
+            action: 'BRANCH_LOGIN_ENABLED',
+            branchId: parseInt(branchId),
+            email: email,
+            manager: manager_name,
+            enabledBy: req.user.id
+          },
+          ipAddress: req.ip
+        },
+        req.user.id
+      );
+
+      logger.info('Login habilitado para sucursal', {
+        branchId: branchId,
+        email: email,
+        manager: manager_name,
+        enabledBy: req.user.id
+      });
+
+      res.status(200).json({
+        success: true,
+        message: 'Login habilitado exitosamente para la sucursal',
+        data: updatedRows[0]
+      });
+
+    } catch (error) {
+      logger.error('Error al habilitar login de sucursal', {
+        error: error.message,
+        stack: error.stack,
+        branchId: branchId,
+        email: email
+      });
+
+      res.status(500).json({
+        success: false,
+        message: 'Error interno del servidor',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
+
+  /**
+   * @swagger
+   * /api/admin/branches/{branchId}/disable-login:
+   *   post:
+   *     summary: Deshabilitar login para una sucursal
+   *     description: Desactiva el acceso de login para una sucursal específica
+   *     tags: [Admin]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: branchId
+   *         required: true
+   *         schema:
+   *           type: integer
+   *         description: ID de la sucursal
+   *     responses:
+   *       200:
+   *         description: Login deshabilitado exitosamente
+   *       404:
+   *         description: Sucursal no encontrada
+   *       500:
+   *         description: Error interno del servidor
+   */
+  async disableBranchLogin(req, res) {
+    const { branchId } = req.params;
+
+    try {
+      // Verificar que la sucursal existe
+      const { rows: branchRows } = await pool.query(
+        'SELECT branch_id, branch_name FROM client_branches WHERE branch_id = $1',
+        [branchId]
+      );
+
+      if (branchRows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'Sucursal no encontrada'
+        });
+      }
+
+      // Deshabilitar login
+      const updateQuery = `
+        UPDATE client_branches 
+        SET 
+          is_login_enabled = false,
+          updated_at_auth = CURRENT_TIMESTAMP
+        WHERE branch_id = $1
+        RETURNING branch_id, branch_name, is_login_enabled
+      `;
+
+      const { rows: updatedRows } = await pool.query(updateQuery, [branchId]);
+
+      // Revocar todos los tokens activos de esta sucursal
+      await pool.query(
+        'DELETE FROM active_branch_tokens WHERE branch_id = $1',
+        [branchId]
+      );
+
+      // Registrar en auditoría
+      await AuditService.logAuditEvent(
+        AuditService.AUDIT_EVENTS.SECURITY_EVENT,
+        {
+          details: {
+            action: 'BRANCH_LOGIN_DISABLED',
+            branchId: parseInt(branchId),
+            disabledBy: req.user.id
+          },
+          ipAddress: req.ip
+        },
+        req.user.id
+      );
+
+      logger.info('Login deshabilitado para sucursal', {
+        branchId: branchId,
+        disabledBy: req.user.id
+      });
+
+      res.status(200).json({
+        success: true,
+        message: 'Login deshabilitado exitosamente para la sucursal',
+        data: updatedRows[0]
+      });
+
+    } catch (error) {
+      logger.error('Error al deshabilitar login de sucursal', {
+        error: error.message,
+        stack: error.stack,
+        branchId: branchId
+      });
+
+      res.status(500).json({
+        success: false,
+        message: 'Error interno del servidor',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
 }
 
 // Exportar instancia del controlador
