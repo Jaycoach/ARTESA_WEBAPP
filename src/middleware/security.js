@@ -1,4 +1,6 @@
 const validator = require('validator');
+const { createContextLogger } = require('../config/logger');
+const logger = createContextLogger('SecurityMiddleware');
 
 // Sanitizar strings
 const sanitizeString = (str, isUrl = false) => {
