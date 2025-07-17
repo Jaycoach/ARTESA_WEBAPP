@@ -9,7 +9,12 @@ export default ({ mode }) => {
   console.log(`Iniciando en modo: ${mode}`);
   const env = loadEnv(mode, process.cwd(), '');
   
-  // Añadir configuración específica para AWS
+  // **CORRECCIÓN**: Configuración específica por modo
+  if (mode === 'development') {
+    // Para development, usar HTTP puerto 80 (no 3000)
+    env.VITE_API_URL = env.VITE_API_URL || 'http://ec2-44-216-131-63.compute-1.amazonaws.com';
+  }
+  
   if (mode === 'staging') {
     env.VITE_API_URL = env.VITE_STAGING_API_URL || 'https://ec2-44-216-131-63.compute-1.amazonaws.com';
   }
@@ -17,6 +22,7 @@ export default ({ mode }) => {
   if (mode === 'production') {
     env.VITE_API_URL = env.VITE_PROD_API_URL || 'https://api.tudominio.com';
   }
+  
   // Forzar configuración para ngrok
   if (mode === 'ngrok') {
     console.log('Forzando configuración para modo ngrok');
@@ -48,13 +54,10 @@ export default ({ mode }) => {
     css: {
       preprocessorOptions: {
         scss: {
-          // Habilitar source maps para SCSS
           sourceMap: true,
-          // Evitar minimización en desarrollo
           outputStyle: 'expanded',
         }
       },
-      // Configuración global para CSS modules y source maps
       devSourcemap: true,
     },
     resolve: {
@@ -71,8 +74,35 @@ export default ({ mode }) => {
         clientPort: 443,
         protocol: 'wss'
       },
-      proxy: {
+      
+      // **PROXY CORREGIDO**: Diferentes configuraciones según modo
+      proxy: mode === 'development' ? {
         '/api': {
+          // **PRIMERA OPCIÓN**: HTTP puerto 80
+          target: 'http://ec2-44-216-131-63.compute-1.amazonaws.com',
+          changeOrigin: true,
+          secure: false,
+          rewrite: (path) => path.replace(/^\/api/, '/api'),
+          configure: (proxy, _options) => {
+            proxy.on('error', (err, _req, _res) => {
+              console.log('🔴 Proxy error:', err.message);
+              console.log('💡 Intentando con configuración alternativa...');
+            });
+            proxy.on('proxyReq', (proxyReq, req, _res) => {
+              console.log('📤 Enviando request al servidor:', req.method, req.url);
+              console.log('🎯 Target:', 'http://ec2-44-216-131-63.compute-1.amazonaws.com' + req.url);
+            });
+            proxy.on('proxyRes', (proxyRes, req, _res) => {
+              console.log('📥 Respuesta del servidor:', proxyRes.statusCode, req.url);
+              if (proxyRes.statusCode >= 400) {
+                console.log('⚠️ Error del servidor:', proxyRes.statusMessage);
+              }
+            });
+          },
+        },
+        
+        // **FALLBACK PROXY**: Si el primero falla, intentar HTTPS
+        '/api-https': {
           target: 'https://ec2-44-216-131-63.compute-1.amazonaws.com',
           changeOrigin: true,
           secure: false,
@@ -92,14 +122,20 @@ export default ({ mode }) => {
             });
           },
         }
-      },
+      } : undefined,
+
       host: true,
       cors: {
         origin: [
           'https://d1bqegutwmfn98.cloudfront.net',
           'https://ec2-44-216-131-63.compute-1.amazonaws.com',
+          'http://ec2-44-216-131-63.compute-1.amazonaws.com',
+          'https://44.216.131.63',
+          'http://44.216.131.63',
           'http://localhost:5173',
-          'http://localhost:3000'
+          'https://localhost:5173',
+          'http://localhost:3000',
+          
         ],
         credentials: true,
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -109,14 +145,11 @@ export default ({ mode }) => {
       allowedHosts: 'all'
     },
     build: {
-      // Generar source maps incluso en producción
       sourcemap: mode !== 'production',
-      // Configuración específica para staging
       ...(mode === 'staging' && {
         minify: 'esbuild',
         sourcemap: true,
       }),
-      // Opciones específicas para producción
       ...(mode === 'production' && {
         minify: 'terser',
         terserOptions: {
@@ -142,7 +175,6 @@ export default ({ mode }) => {
       }),
       outDir: 'dist',
       assetsDir: 'assets',
-      // Optimizaciones para AWS
       chunkSizeWarningLimit: 1000,
       rollupOptions: {
         output: {

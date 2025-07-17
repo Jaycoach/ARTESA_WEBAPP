@@ -1,47 +1,19 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth';      // ← Import agregado
+import { AUTH_TYPES } from '../constants/AuthTypes';
 
-// Componente para proteger rutas que requieren autenticación
-const ProtectedRoute = ({ children }) => {
-  const [isAuthenticated, setIsAuthenticated] = useState(null);
+const ProtectedRoute = ({ children, allowTypes = [] }) => {
+  const { isAuthenticated, authType, isLoading, error } = useAuth();  // ← Uso de useAuth
+
   const location = useLocation();
-
-  useEffect(() => {
-    // Verificar si hay un token válido en localStorage
-    const checkAuth = () => {
-      const token = localStorage.getItem('token');
-      
-      if (token) {
-        setIsAuthenticated(true);
-      } else {
-        setIsAuthenticated(false);
-      }
-    };
-    
-    checkAuth();
-  }, []);
-
-  // Mientras se verifica la autenticación, mostrar un loader
-  if (isAuthenticated === null) {
-    return (
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        height: '100vh',
-        flexDirection: 'column'
-      }}>
-        <div>Verificando autenticación...</div>
-      </div>
-    );
+  if (isLoading) return <LoadingSpinner />;
+  if (error)       return <Navigate to="/login" state={{ from: location, error }} replace />;
+  if (!isAuthenticated) return <Navigate to="/login" state={{ from: location }} replace />;
+  if (allowTypes.length > 0 && !allowTypes.includes(authType)) {
+    const target = authType === AUTH_TYPES.BRANCH ? '/dashboard-branch' : '/dashboard';
+    return <Navigate to={target} replace />;
   }
-  
-  // Si no está autenticado, redirigir al login
-  if (!isAuthenticated) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
-  }
-  
-  // Si está autenticado, renderizar los hijos (componente protegido)
   return children;
 };
 

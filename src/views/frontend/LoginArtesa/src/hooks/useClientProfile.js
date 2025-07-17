@@ -1,124 +1,248 @@
-import { useState, useEffect, useCallback } from 'react';
-import { useAuth } from './useAuth';
-import ClientProfileService from '../services/ClientProfileService';
-import DocumentDownloadService from '../services/DocumentDownloadService';
+import { useState, useEffect } from 'react';
+import API from '../api/config';
+import { useAuth } from './useAuth'; // Tu hook existente
+import useClientProfileStore from '../stores/clientProfileStore';
 
-export const useClientProfile = (userId = null) => {
-  const { user } = useAuth();
-  const [data, setData] = useState(null);
-  const [clients, setClients] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [downloadingDocs, setDownloadingDocs] = useState({});
+const useClientProfile = () => {
+  const { user, isAuthenticated, updateUserInfo } = useAuth(); // Usar tu hook existente
+  
+  const {
+    profile,
+    isLoading,
+    isSubmitting,
+    isEditable,
+    hasProfile,
+    error,
+    setProfile,
+    setLoading,
+    setSubmitting,
+    setEditable,
+    setError,
+    showConfirmationModal,
+    setFileUploading
+  } = useClientProfileStore();
 
-  const isAdmin = user && (user.role === 1);
+  // Verificar si el usuario puede editar
+  const canEdit = () => {
+    if (!user) return false;
+    const userRole = user.role?.id || user.role || user.rol;
+    return userRole === 1 || userRole === '1' || userRole === 'ADMIN';
+  };
 
-  // **CARGAR DATOS**
-  const loadData = useCallback(async (forceRefresh = false) => {
+  // Cargar perfil existente
+  const loadProfile = async () => {
+    if (!user?.id || !isAuthenticated) return;
+    
+    setLoading(true);
+    setError(null);
+    
     try {
-      setLoading(true);
-      setError(null);
-
-      if (isAdmin) {
-        console.log('📊 Cargando todos los perfiles (Admin)');
-        const allProfiles = await ClientProfileService.getProfile(null, forceRefresh);
-        setClients(Array.isArray(allProfiles) ? allProfiles : [allProfiles]);
-      } else if (user?.id || userId) {
-        console.log(`👤 Cargando perfil del usuario ${userId || user.id}`);
-        const userProfile = await ClientProfileService.getProfile(userId || user.id, forceRefresh);
-        setData(userProfile);
+      const response = await API.get(`/client-profiles/user/${user.id}`);
+      
+      if (response.data.success && response.data.data) {
+        const profileData = response.data.data;
+        setProfile(profileData);
+        
+        // Determinar si es editable
+        const isAdmin = canEdit();
+        const hasExistingProfile = !!profileData.client_id;
+        
+        // Si no es admin y ya tiene perfil, bloquear edición
+        setEditable(isAdmin || !hasExistingProfile);
+        
+        return profileData;
       }
-    } catch (err) {
-      console.error('❌ Error cargando datos:', err);
-      setError(err.message);
+    } catch (error) {
+      if (error.response?.status === 404) {
+        // No tiene perfil, es usuario nuevo
+        setProfile(null);
+        setEditable(true);
+      } else {
+        console.error('Error loading profile:', error);
+        setError('Error al cargar el perfil');
+      }
     } finally {
       setLoading(false);
     }
-  }, [isAdmin, user?.id, userId]);
+  };
 
-  // **DESCARGAR DOCUMENTO**
-  const downloadDocument = useCallback(async (client, documentType, documentName) => {
-    const downloadKey = `${client.user_id}-${documentType}`;
+  // Crear nuevo perfil
+  const createProfile = async (formData) => {
+    setSubmitting(true);
+    setError(null);
     
     try {
-      setDownloadingDocs(prev => ({ ...prev, [downloadKey]: true }));
+      // Preparar FormData
+      const submitData = new FormData();
       
-      console.log(`📥 Iniciando descarga: ${documentType} para ${client.nombre}`);
+      // Añadir userId
+      submitData.append('userId', user.id);
       
-      // Verificar disponibilidad
-      const availability = ClientProfileService.getDocumentAvailability(client);
-      if (!availability[documentType]) {
-        throw new Error(`El documento ${documentType} no está disponible`);
+      // Campos de texto
+      Object.keys(formData).forEach(key => {
+        if (key !== 'files' && formData[key] !== undefined && formData[key] !== '') {
+          submitData.append(key, formData[key]);
+        }
+      });
+      
+      // Archivos
+      if (formData.files) {
+        Object.keys(formData.files).forEach(fileKey => {
+          if (formData.files[fileKey]) {
+            submitData.append(fileKey, formData.files[fileKey]);
+          }
+        });
       }
+      
+      const response = await API.post('/client-profiles', submitData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      
+      if (response.data.success) {
+        const newProfile = response.data.data;
+        setProfile(newProfile);
+        
+        // Actualizar contexto de usuario
+        updateUserInfo({
+          nombre: newProfile.contact_name || newProfile.nombre,
+          email: newProfile.contact_email || newProfile.email
+        });
+        
+        // Determinar editabilidad después de crear
+        const isAdmin = canEdit();
+        setEditable(isAdmin);
+        
+        showConfirmationModal(
+          'Se ha guardado su perfil correctamente, espere a que se realice toda su sincronización',
+          'success'
+        );
+        
+        return newProfile;
+      }
+    } catch (error) {
+      console.error('Error creating profile:', error);
+      const errorMessage = error.response?.data?.message || 'Error al crear el perfil';
+      setError(errorMessage);
+      showConfirmationModal(errorMessage, 'error');
+      throw error;
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
-      // Ejecutar descarga con progreso
-      const result = await DocumentDownloadService.downloadDocument(
-        client, 
-        documentType, 
-        documentName,
-        (progress) => {
-          console.log(`📥 Progreso ${documentType}: ${progress}%`);
+  // Actualizar perfil existente
+  const updateProfile = async (formData) => {
+    if (!profile?.user_id) return;
+    
+    setSubmitting(true);
+    setError(null);
+    
+    try {
+      const submitData = new FormData();
+      
+      // Campos de texto
+      Object.keys(formData).forEach(key => {
+        if (key !== 'files' && formData[key] !== undefined && formData[key] !== '') {
+          submitData.append(key, formData[key]);
+        }
+      });
+      
+      // Archivos
+      if (formData.files) {
+        Object.keys(formData.files).forEach(fileKey => {
+          if (formData.files[fileKey]) {
+            submitData.append(fileKey, formData.files[fileKey]);
+          }
+        });
+      }
+      
+      const response = await API.put(`/client-profiles/user/${profile.user_id}`, submitData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      
+      if (response.data.success) {
+        const updatedProfile = response.data.data;
+        setProfile(updatedProfile);
+        
+        showConfirmationModal(
+          'Perfil actualizado correctamente',
+          'success'
+        );
+        
+        return updatedProfile;
+      }
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      const errorMessage = error.response?.data?.message || 'Error al actualizar el perfil';
+      setError(errorMessage);
+      showConfirmationModal(errorMessage, 'error');
+      throw error;
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Subir archivo individual
+  const uploadFile = async (file, fileType) => {
+    if (!profile?.user_id) return;
+    
+    setFileUploading(fileType, true);
+    
+    try {
+      const formData = new FormData();
+      formData.append('document', file);
+      
+      const response = await API.post(
+        `/client-profiles/${profile.user_id}/documents/${fileType}`,
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
         }
       );
       
-      console.log(`✅ Descarga completada con método ${result.method}`);
-      
-    } catch (err) {
-      console.error('❌ Error en descarga:', err);
-      
-      // Mensajes específicos según el error
-      if (err.message.includes('expirado')) {
-        alert('El enlace de descarga ha expirado. Recargando la página...');
-        window.location.reload();
-      } else if (err.message.includes('no está disponible')) {
-        alert(err.message);
-      } else if (err.message.includes('permisos')) {
-        alert('No tienes permisos para descargar este documento.');
-      } else {
-        alert('Error al descargar el documento. Inténtalo nuevamente.');
+      if (response.data.success) {
+        // Recargar perfil para obtener URL actualizada
+        await loadProfile();
+        showConfirmationModal(`Documento ${fileType} subido correctamente`, 'success');
       }
+    } catch (error) {
+      console.error(`Error uploading ${fileType}:`, error);
+      const errorMessage = error.response?.data?.message || `Error al subir ${fileType}`;
+      showConfirmationModal(errorMessage, 'error');
     } finally {
-      setDownloadingDocs(prev => {
-        const newState = { ...prev };
-        delete newState[downloadKey];
-        return newState;
-      });
+      setFileUploading(fileType, false);
     }
-  }, []);
+  };
 
-  // **OBTENER DISPONIBILIDAD DE DOCUMENTOS**
-  const getDocumentAvailability = useCallback((client) => {
-    return ClientProfileService.getDocumentAvailability(client);
-  }, []);
-
-  // **VERIFICAR SI ESTÁ DESCARGANDO**
-  const isDownloading = useCallback((client, documentType) => {
-    const downloadKey = `${client.user_id}-${documentType}`;
-    return !!downloadingDocs[downloadKey];
-  }, [downloadingDocs]);
-
+  // Cargar perfil al montar el hook
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    if (isAuthenticated && user?.id) {
+      loadProfile();
+    }
+  }, [isAuthenticated, user?.id]);
 
   return {
-    // Datos
-    data,
-    clients,
-    loading,
+    // Estado
+    profile,
+    isLoading,
+    isSubmitting,
+    isEditable,
+    hasProfile,
     error,
-    downloadingDocs,
-    isAdmin,
+    canEdit: canEdit(),
     
-    // Métodos
-    downloadDocument,
-    getDocumentAvailability,
-    isDownloading,
-    reloadData: () => loadData(true),
-    clearCache: ClientProfileService.clearCache.bind(ClientProfileService),
-    
-    // Estados calculados
-    hasData: isAdmin ? clients.length > 0 : !!data,
-    isEmpty: isAdmin ? clients.length === 0 : !data
+    // Acciones
+    loadProfile,
+    createProfile,
+    updateProfile,
+    uploadFile
   };
 };
+
+export default useClientProfile;

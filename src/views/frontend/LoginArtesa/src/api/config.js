@@ -1,5 +1,12 @@
 import axios from 'axios';
 
+export const clearAuthHeader = (instance) => {
+  if (instance.defaults.headers.common?.Authorization) {
+    delete instance.defaults.headers.common.Authorization;
+    console.log("🔑 Authorization header limpiado");
+  }
+};
+
 const determineBaseUrl = () => {
   const mode = import.meta.env.MODE;
   
@@ -73,10 +80,13 @@ const API = axios.create(config);
 // **INTERCEPTOR MEJORADO PARA DEVELOPMENT**
 API.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
+     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
       console.log("🔑 Token añadido a la petición");
+    } else {
+      // Si no hay token, eliminamos cualquier header residual
+      delete config.headers.Authorization;
     }
     
     // **ESPECIAL PARA FORMDATA**

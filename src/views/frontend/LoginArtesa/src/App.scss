@@ -42,7 +42,7 @@ $breakpoints: (
   --white: #ffffff;
   --black: #000000;
   --gray: #808080;
-  --bg-color: #2c3e50;
+  --bg-color: #687e8d;
   
   // Colores funcionales
   --input-color: #f6db8e;
@@ -191,7 +191,7 @@ img, video {
 
 // Páginas de autenticación
 .auth-page {
-  background: var(--bg-color);
+  background: var(--primary-color);
   color: var(--white);
   height: 100vh;
   width: 100%;
