@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from "react-router-dom";
-import { useAuth } from "../../hooks/useAuth";  // Hook unificado de autenticación
+import { useAuth } from "../../hooks/useAuth";
 import { useRecaptcha } from "../../hooks/useRecaptcha";
 import { useFormValidation } from "../../hooks/useFormValidation";
 import { useError } from "../../context/ErrorContext";
@@ -22,15 +22,15 @@ const Login = () => {
     const navigate = useNavigate();
     const location = useLocation();
 
-    // Hook unificado de autenticación (reemplaza useDualAuth)
+    // Hook unificado de autenticación
     const {
         isAuthenticated,
         authType: currentAuthType,
-        login,  // Función unificada para login (user/branch)
+        login,
         clearError,
         isLoading: authLoading,
         error: authError,
-        requestPasswordReset  // Para reset password
+        requestPasswordReset
     } = useAuth();
 
     const { generateRecaptchaToken, loading: recaptchaLoading, error: recaptchaError } = useRecaptcha();
@@ -117,7 +117,6 @@ const Login = () => {
         setGeneralError('');
         if (clearError) clearError();
 
-        // Validar campos
         let formValid = true;
         for (const [key, value] of Object.entries(values)) {
             const rules = key === 'mail' ? ['required', 'email'] : ['required'];
@@ -145,7 +144,6 @@ const Login = () => {
                 recaptchaToken,
             };
 
-            // Llamar a la función unificada login con authType
             const result = await login(credentials, authType);
 
             if (result.success) {
@@ -186,7 +184,6 @@ const Login = () => {
                 return;
             }
 
-            // Usar requestPasswordReset directamente del contexto
             const response = await requestPasswordReset(resetEmail, recaptchaToken);
             setResetMessage(response.message || "Revisa tu correo para continuar.");
         } catch (error) {
@@ -204,7 +201,6 @@ const Login = () => {
     };
 
     const isCurrentlyLoading = loading || authLoading || recaptchaLoading;
-
 
     return (
         <div className="min-h-screen flex items-center justify-center p-3 sm:p-4" style={{ backgroundColor: '#687e8d' }}>
@@ -248,11 +244,14 @@ const Login = () => {
                                 <img
                                     src={logo}
                                     alt="Logo Artesa"
-                                    className="h-12 mx-auto mb-4"
+                                    className="h-16 mx-auto mb-4"
                                 />
                                 <h1 className="text-lg sm:text-xl font-bold text-gray-800 mb-2">
                                     {forgotPassword ? "Recuperar contraseña" : "¡Bienvenido!"}
                                 </h1>
+                                {!forgotPassword && (
+                                    <p className="text-gray-600 text-xs sm:text-sm">Selecciona el tipo de acceso</p>
+                                )}
                             </div>
 
                             {/* Botón de registro para móvil */}

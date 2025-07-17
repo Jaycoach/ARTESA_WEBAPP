@@ -104,7 +104,7 @@ const Home = () => {
   <header className="w-full bg-white py-4">
     <div className="max-w-7xl mx-auto px-4 flex justify-center items-center">
       <div className="h-20 md:h-30 p-2">
-        <img src={imgLogo1} alt="Panadería Logo" className="h-32" />
+        <img src={imgLogo1} alt="Panadería Logo" className="h-24" />
      </div>
     </div>
   </header>
