@@ -90,7 +90,10 @@ const Register = () => {
         setGeneralError('');
 
         try {
+            // CRÍTICO: Generar token justo antes del envío para evitar expiración
+            console.log('[REGISTER] Generando token reCAPTCHA justo antes del envío...');
             const recaptchaToken = await generateRecaptchaToken('register');
+            console.log('[REGISTER] Token reCAPTCHA obtenido:', recaptchaToken ? 'OK' : 'FAILED');
 
             if (!recaptchaToken) {
                 setGeneralError(recaptchaError || 'Verificación de seguridad fallida.');

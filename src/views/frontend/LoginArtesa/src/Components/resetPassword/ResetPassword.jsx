@@ -138,7 +138,10 @@ const ResetPassword = () => {
     try {
       // Generar token de reCAPTCHA
       console.log("Generando token reCAPTCHA para reset_password");
+      // CRÍTICO: Generar token justo antes del envío para evitar expiración
+      console.log('[RESET] Generando token reCAPTCHA justo antes del envío...');
       const recaptchaToken = await generateRecaptchaToken('reset_password');
+      console.log('[RESET] Token reCAPTCHA obtenido:', recaptchaToken ? 'OK' : 'FAILED');
 
       if (!recaptchaToken) {
         setGeneralError(recaptchaError || 'Error en la verificación de seguridad. Por favor, recargue la página e intente nuevamente.');

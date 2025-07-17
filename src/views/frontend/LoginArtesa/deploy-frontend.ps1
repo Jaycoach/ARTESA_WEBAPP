@@ -95,6 +95,26 @@ if ($missingVars.Count -gt 0) {
 Write-Host "✅ Todas las variables críticas están presentes" -ForegroundColor Green
 
 # ================================
+# VALIDACIÓN ESPECÍFICA DE RECAPTCHA
+# ================================
+
+Write-Host "`n🔍 Validando configuración de reCAPTCHA..." -ForegroundColor Yellow
+
+# Verificar que la SITE_KEY no sea la de prueba en producción
+foreach ($line in $envContent) {
+    if ($line -match "^VITE_RECAPTCHA_SITE_KEY=(.+)$") {
+        $recaptchaKey = $matches[1]
+        if ($Environment -eq "production" -and $recaptchaKey -eq "6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI") {
+            Write-Host "❌ Error: Usando clave de prueba de reCAPTCHA en producción" -ForegroundColor Red
+            exit 1
+        } else {
+            Write-Host "✅ Clave reCAPTCHA configurada correctamente para $Environment" -ForegroundColor Green
+        }
+        break
+    }
+}
+
+# ================================
 # NUEVA SECCIÓN: BACKUP DEL BUILD ANTERIOR
 # ================================
 

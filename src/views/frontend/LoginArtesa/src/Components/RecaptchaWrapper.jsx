@@ -31,6 +31,8 @@ const RecaptchaWrapper = ({ children }) => {
                     size="invisible"
                     onLoad={() => console.log('[RECAPTCHA] reCAPTCHA cargado exitosamente')}
                     onError={(error) => console.error('[RECAPTCHA] Error al cargar:', error)}
+                    onExpired={() => console.log('[RECAPTCHA] Token expirado')}
+                    onErrored={() => console.error('[RECAPTCHA] Error en reCAPTCHA')}
                 />
             )}
         </RecaptchaProvider>

@@ -132,7 +132,10 @@ const Login = () => {
         setLoading(true);
 
         try {
+            // CRÍTICO: Generar token justo antes del envío para evitar expiración
+            console.log('[LOGIN] Generando token reCAPTCHA justo antes del envío...');
             const recaptchaToken = await generateRecaptchaToken('login');
+            console.log('[LOGIN] Token reCAPTCHA obtenido:', recaptchaToken ? 'OK' : 'FAILED');
             if (!recaptchaToken) {
                 setGeneralError(recaptchaError || 'Error en verificación de seguridad');
                 return;

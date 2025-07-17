@@ -52,8 +52,16 @@ export const useRecaptcha = () => {
 
       console.log(`[RECAPTCHA] Ejecutando reCAPTCHA para acción: ${action}`);
 
-      // Ejecutar reCAPTCHA usando el método executeAsync de la nueva librería
-      const token = await recaptchaRef.current.executeAsync();
+      // CRÍTICO: Resetear reCAPTCHA antes de ejecutar para evitar tokens expirados
+      recaptchaRef.current.reset();
+      
+      // Ejecutar reCAPTCHA usando el método executeAsync con un timeout
+      const tokenPromise = recaptchaRef.current.executeAsync();
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('reCAPTCHA timeout')), 10000);
+      });
+
+      const token = await Promise.race([tokenPromise, timeoutPromise]);
 
       console.log(`[RECAPTCHA] Token generado: ${token ? 'OK (longitud: ' + token.length + ')' : 'FALLO (sin token)'}`);
 
@@ -69,9 +77,6 @@ export const useRecaptcha = () => {
         setLoading(false);
         return null;
       }
-
-      // Reset reCAPTCHA para uso futuro
-      recaptchaRef.current.reset();
 
       setLoading(false);
       return token;
