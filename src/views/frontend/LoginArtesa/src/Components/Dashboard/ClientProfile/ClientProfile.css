@@ -1,293 +1,78 @@
-@charset "UTF-8";
-:root {
-  --primary-color: #687e8d;
-  --secondary-color: #f6db8e;
-  --hover-color: #f6db8e;
-  --accent-color: #f6754e;
-  --whiteColor: #fff;
-  --blackColor: #000;
-  --greyText: #808080;
-  --bgColor: #687e8d;
-  --inputColor: #f6db8e;
+/* src/components/ClientProfile/ClientProfile.css */
+
+/* Estilos específicos para inputs del formulario de perfil */
+.client-profile-input {
+  @apply w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors;
+  color: #111827 !important; /* gray-900 */
+  background-color: #ffffff !important; /* white */
 }
 
-/* Overlay para el modal */
-.client-profile-overlay {
-  color: #000000 !important;
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.7);
-  display: flex;
-  justify-content: center;
-  align-items: flex-start; /* Cambiado a flex-start para mejor scroll */
-  z-index: 2000;
-  overflow-y: auto;
-  padding: 20px;
+.client-profile-input::placeholder {
+  color: #6B7280 !important; /* gray-500 */
+  opacity: 1;
 }
 
-/* Contenedor principal del formulario */
-.client-profile-container {
-  color: #000000 !important;
-  background-color: var(--whiteColor);
-  border-radius: 10px;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
-  width: 90%;
-  max-width: 900px; /* Reducido para mejor visualización */
-  max-height: 85vh; /* Reducido para permitir scroll */
-  overflow-y: auto;
-  position: relative;
-  margin: 30px 0; /* Añadir margen para mejor visualización */
-}
-
-/* Cabecera del formulario */
-.client-profile-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 15px 20px;
-  border-bottom: 1px solid #eee;
-  position: sticky;
-  top: 0;
-  background-color: var(--whiteColor);
-  z-index: 10;
-}
-.client-profile-header h2 {
-  margin: 0;
-  font-size: 1.5rem;
-  color: #000000 !important;
-}
-.client-profile-header .close-button {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  cursor: pointer;
-  color: var(--greyText);
-}
-.client-profile-header .close-button:hover {
-  color: var(--blackColor);
-}
-
-/* Contenido del formulario */
-.client-profile-content {
-  color: #000000 !important;
-  padding: 20px;
-}
-
-/* Mensajes de error y éxito */
-.profile-error-message,
-.profile-success-message {
-  padding: 10px 15px;
-  margin-bottom: 20px;
-  border-radius: 5px;
-  font-weight: 500;
-}
-
-.profile-error-message {
-  background-color: #ffe6e6;
-  color: #d32f2f;
-  border-left: 4px solid #d32f2f;
-}
-
-.profile-success-message {
-  background-color: #e7f6e7;
-  color: #2e7d32;
-  border-left: 4px solid #2e7d32;
-}
-
-/* Estilos del formulario */
-.client-profile-form {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-/* Secciones del formulario */
-.form-section {
-  background-color: #f9f9f9;
-  border-radius: 8px;
-  padding: 15px;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
-}
-.form-section .section-title {
-  margin-top: 0;
-  margin-bottom: 15px;
-  font-size: 1.2rem;
-  font-weight: 600;
-  color: #000000 !important;
-  border-bottom: 1px solid #eee;
-  padding-bottom: 10px;
-}
-
-/* Filas de campos */
-.form-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 15px;
-  margin-bottom: 15px;
-}
-.form-row:last-child {
-  margin-bottom: 0;
-}
-
-/* Grupos de campos */
-.form-group {
-  flex: 1;
-  min-width: 200px;
-}
-.form-group label {
-  display: block;
-  margin-bottom: 6px;
-  font-weight: 500;
-  font-size: 0.9rem;
-  color: #000000 !important;
-}
-.form-group input, .form-group select {
-  width: 100%;
-  padding: 8px 12px;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  background-color: var(--whiteColor);
-  font-size: 0.95rem;
-  transition: border-color 0.3s;
-  color: #000000 !important;
-}
-.form-group input::-moz-placeholder, .form-group select::-moz-placeholder {
-  color: #666666 !important;
-}
-.form-group input::placeholder, .form-group select::placeholder {
-  color: #666666 !important;
-}
-.form-group input:focus, .form-group select:focus {
-  outline: none;
-  border-color: var(--accent-color);
-  box-shadow: 0 0 3px rgba(246, 117, 78, 0.3);
-}
-
-/* Estilos para los campos de carga de archivos */
-.file-upload {
-  margin-bottom: 15px;
-}
-.file-upload .file-selected {
-  color: #2e7d32;
-  font-size: 0.8rem;
-  margin-left: 5px;
-}
-.file-upload .file-input-container {
-  position: relative;
-  margin-top: 8px;
-}
-.file-upload .file-input-container .file-input {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  cursor: pointer;
-  z-index: 2;
-}
-.file-upload .file-input-container .file-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  background-color: #f0f0f0;
-  border-radius: 6px;
-  font-size: 0.9rem;
-  cursor: pointer;
-  transition: background-color 0.3s;
-  width: 100%;
-}
-.file-upload .file-input-container .file-label:hover {
-  background-color: #e0e0e0;
-}
-
-/* Botones de acción del formulario */
-.form-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 15px;
-  margin-top: 20px;
-}
-.form-actions button {
-  padding: 10px 20px;
-  border-radius: 6px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  border: none;
-}
-.form-actions .cancel-btn {
-  background-color: #e0e0e0;
-  color: #333;
-}
-.form-actions .cancel-btn:hover {
-  background-color: #d0d0d0;
-}
-.form-actions .submit-btn {
-  background-color: var(--accent-color);
-  color: var(--whiteColor);
-}
-.form-actions .submit-btn:hover {
-  background-color: #f44f1d;
-}
-.form-actions .submit-btn:disabled {
-  opacity: 0.7;
+.client-profile-input:disabled {
+  background-color: #F3F4F6 !important; /* gray-100 */
+  color: #6B7280 !important; /* gray-500 */
   cursor: not-allowed;
 }
 
-/* Estilos para campos con error */
-.form-group.error label {
-  color: #d32f2f;
+.client-profile-input:focus {
+  outline: none;
+  border-color: #3B82F6; /* blue-500 */
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
-.input-error {
-  border-color: #d32f2f !important;
-  background-color: rgba(211, 47, 47, 0.05) !important;
+.client-profile-input.error {
+  border-color: #EF4444 !important; /* red-500 */
 }
 
-.error-text {
-  color: #d32f2f;
-  font-size: 0.75rem;
-  margin-top: 4px;
+/* Estilos para select */
+.client-profile-select {
+  @apply w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors;
+  color: #111827 !important; /* gray-900 */
+  background-color: #ffffff !important; /* white */
 }
 
-.error-summary {
-  background-color: #ffe6e6;
-  border-left: 4px solid #d32f2f;
+.client-profile-select:disabled {
+  background-color: #F3F4F6 !important; /* gray-100 */
+  color: #6B7280 !important; /* gray-500 */
+  cursor: not-allowed;
 }
 
-.error-summary ul {
-  margin: 0;
-  padding-left: 20px;
+.client-profile-select option {
+  color: #111827 !important; /* gray-900 */
+  background-color: #ffffff !important; /* white */
 }
 
-.error-summary li {
-  color: #d32f2f;
-  margin-bottom: 4px;
+.client-profile-select option:first-child {
+  color: #6B7280 !important; /* gray-500 para placeholder */
 }
 
-/* Media queries para responsive */
-@media (max-width: 768px) {
-  .client-profile-container {
-    width: 95%;
-    margin: 10px 0;
-    max-height: 90vh;
-  }
-  .form-row {
-    flex-direction: column;
-    gap: 10px;
-  }
-  .form-group {
-    width: 100%;
-  }
-  .form-actions {
-    flex-direction: column;
-  }
-  .form-actions button {
-    width: 100%;
-  }
-}/*# sourceMappingURL=ClientProfile.css.map */
+/* Estilos para labels */
+.client-profile-label {
+  color: #374151 !important; /* gray-700 */
+  font-weight: 500;
+  font-size: 0.875rem;
+  margin-bottom: 0.5rem;
+  display: block;
+}
+
+/* Estilos para mensajes de error */
+.client-profile-error {
+  color: #DC2626 !important; /* red-600 */
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+}
+
+/* Asegurar que el texto se vea bien en modo oscuro también */
+.dark .client-profile-input {
+  background-color: #1F2937 !important; /* gray-800 */
+  color: #F9FAFB !important; /* gray-50 */
+  border-color: #4B5563 !important; /* gray-600 */
+}
+
+.dark .client-profile-input::placeholder {
+  color: #9CA3AF !important; /* gray-400 */
+}

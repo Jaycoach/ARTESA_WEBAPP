@@ -1,55 +1,41 @@
 import React, { useState, useEffect, useRef } from "react";
-import ReactDOM from 'react-dom';
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../../hooks/useAuth";
+import { AUTH_TYPES } from "../../../constants/AuthTypes";
 import {
   FaHome, FaListAlt, FaFileInvoiceDollar, FaBoxes, FaCog,
   FaSignOutAlt, FaTools, FaUsers
 } from "react-icons/fa";
 
-
-const Sidebar = ({ collapsed, mobileMenuOpen, onCloseMobileMenu, onToggleCollapse }) => {
+const Sidebar = ({ collapsed, mobileMenuOpen, onCloseMobileMenu, onToggleCollapse, authType }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const sidebarRef = useRef(null);
   const { user, logout } = useAuth();
   const [hasAdminAccess, setHasAdminAccess] = useState(false);
 
-  // Verificar permisos de administración cuando cambia el usuario
+  // Verificar permisos de administración
   useEffect(() => {
     if (user) {
-      console.log("User en Sidebar:", user);
-
-      // Revisar todas las propiedades posibles donde podría estar el rol
       const role = user.role || user.rol;
-      console.log("Propiedad role encontrada:", role, "Tipo:", typeof role);
-
       let isAdmin = false;
 
-      // Verificar si tiene rol 1 o 3 (intentando múltiples formatos)
       if (role !== undefined && role !== null) {
-        // Intentar convertir a número si es string
         const roleNumber = parseInt(role);
-        console.log("Role convertido a número:", roleNumber);
-
         if (!isNaN(roleNumber)) {
           isAdmin = roleNumber === 1 || roleNumber === 3;
         } else {
-          // Si la conversión falla, intentar comparar como string
           isAdmin = role === "1" || role === "3";
         }
       }
 
-      // Verificar por email o nombre del usuario como alternativa
       if (!isAdmin && user.email) {
         const adminEmails = ['admin@example.com', 'jonathan@example.com'];
         if (adminEmails.includes(user.email)) {
           isAdmin = true;
-          console.log("Admin por correo electrónico");
         }
       }
 
-      console.log("¿Tiene permisos de admin?:", isAdmin);
       setHasAdminAccess(isAdmin);
     } else {
       setHasAdminAccess(false);
@@ -64,9 +50,8 @@ const Sidebar = ({ collapsed, mobileMenuOpen, onCloseMobileMenu, onToggleCollaps
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [mobileMenuOpen, collapsed, onCloseMobileMenu, onToggleCollapse]);
+  }, [mobileMenuOpen, onCloseMobileMenu]);
 
-  // Función para determinar si una ruta está activa
   const isActive = (path) => {
     if (path === '/dashboard') {
       return location.pathname === '/dashboard';
@@ -79,10 +64,27 @@ const Sidebar = ({ collapsed, mobileMenuOpen, onCloseMobileMenu, onToggleCollaps
     if (mobileMenuOpen && onCloseMobileMenu) onCloseMobileMenu();
   };
 
-  const handleLogout = () => {
-    logout();
-    navigate("/");
-  };
+  const handleLogout = async () => {
+  await logout();                // espera limpieza
+  navigate('/login', { replace:true });
+};
+  // Definir ítems del menú y filtrar según authType
+  const menuItems = [
+    { path: "/dashboard", icon: FaHome, label: "Inicio" },
+    { path: "/dashboard/orders", icon: FaListAlt, label: "Pedidos" },
+    { path: "/dashboard/invoices", icon: FaFileInvoiceDollar, label: "Facturas" },
+    { path: "/dashboard/products", icon: FaBoxes, label: "Productos" },
+    { path: "/dashboard/Users", icon: FaUsers, label: "Clientes", restricted: true }, // Ocultar para branches
+    { path: "/dashboard/settings", icon: FaCog, label: "Configuración" },
+    { path: "/dashboard/admin", icon: FaTools, label: "Administración", adminOnly: true } // Solo admins
+  ];
+
+  const filteredItems = menuItems.filter(item => {
+    if (authType === AUTH_TYPES.BRANCH) {
+      return !item.restricted && !item.adminOnly;
+    }
+    return !item.adminOnly || hasAdminAccess;
+  });
 
   return (
     <div className="h-full flex flex-col text-white overflow-y-auto">
@@ -90,115 +92,22 @@ const Sidebar = ({ collapsed, mobileMenuOpen, onCloseMobileMenu, onToggleCollaps
         {!collapsed && <h3 className="text-xs uppercase text-white/70 px-4 mb-2">Menú</h3>}
 
         <ul className="space-y-1 px-2">
-          <li>
-            <button
-              onClick={() => handleMenuClick("/dashboard")}
-              title={collapsed ? "Inicio" : undefined}
-              className={`relative w-full flex items-center py-2 px-3 rounded-md transition-all duration-200 ease-in-out group
-    ${isActive('/dashboard')
-                  ? 'bg-accent text-white'
-                  : 'hover:bg-orange-200/20 hover:text-orange-300 text-white'
-                }
-  `}
-            >
-              <FaHome className={`text-lg transform transition-transform duration-200 group-hover:scale-110 ${collapsed ? 'mx-auto' : 'mr-3'}`} />
-              {!collapsed && <span className="transition-opacity duration-200">Inicio</span>}
-            </button>
-          </li>
-
-          <li>
-            <button
-              onClick={() => handleMenuClick("/dashboard/orders")}
-              title={collapsed ? "Pedidos" : undefined}
-              className={`relative w-full flex items-center py-2 px-3 rounded-md transition-all duration-200 ease-in-out group
-        ${isActive('/dashboard/orders')
-                  ? 'bg-accent text-white'
-                  : 'hover:bg-orange-200/20 hover:text-orange-300 text-white'
-                }`}
-            >
-              <FaListAlt className={`text-lg transform transition-transform duration-200 group-hover:scale-110 ${collapsed ? 'mx-auto' : 'mr-3'}`} />
-              {!collapsed && <span>Pedidos</span>}
-            </button>
-          </li>
-
-          <li>
-            <button
-              onClick={() => handleMenuClick("/dashboard/invoices")}
-              title={collapsed ? "Facturas" : undefined}
-              className={`relative w-full flex items-center py-2 px-3 rounded-md transition-all duration-200 ease-in-out group
-        ${isActive('/dashboard/invoices')
-                  ? 'bg-accent text-white'
-                  : 'hover:bg-orange-200/20 hover:text-orange-300 text-white'
-                }`}
-            >
-              <FaFileInvoiceDollar className={`text-lg transform transition-transform duration-200 group-hover:scale-110 ${collapsed ? 'mx-auto' : 'mr-3'}`} />
-              {!collapsed && <span>Facturas</span>}
-            </button>
-          </li>
-
-          <li>
-            <button
-              onClick={() => handleMenuClick("/dashboard/products")}
-              title={collapsed ? "Productos" : undefined}
-              className={`relative w-full flex items-center py-2 px-3 rounded-md transition-all duration-200 ease-in-out group
-        ${isActive('/dashboard/products')
-                  ? 'bg-accent text-white'
-                  : 'hover:bg-orange-200/20 hover:text-orange-300 text-white'
-                }`}
-            >
-              <FaBoxes className={`text-lg transform transition-transform duration-200 group-hover:scale-110 ${collapsed ? 'mx-auto' : 'mr-3'}`} />
-              {!collapsed && <span>Productos</span>}
-            </button>
-          </li>
-          
-          <li>
-            <button
-              onClick={() => handleMenuClick("/dashboard/Users")}
-              title={collapsed ? "Clientes" : undefined}
-              className={`relative w-full flex items-center py-2 px-3 rounded-md transition-all duration-200 ease-in-out group
-      ${isActive('/dashboard/Users')
-                  ? 'bg-accent text-white'
-                  : 'hover:bg-orange-200/20 hover:text-orange-300 text-white'
-                }`}
-            >
-              <FaUsers className={`text-lg transform transition-transform duration-200 group-hover:scale-110 ${collapsed ? 'mx-auto' : 'mr-3'}`} />
-              {!collapsed && <span>Clientes</span>}
-            </button>
-          </li>
-
-          {!collapsed && <div className="border-t border-white/10 my-2 mx-4"></div>}
-
-          <li>
-            <button
-              onClick={() => handleMenuClick("/dashboard/settings")}
-              title={collapsed ? "Configuración" : undefined}
-              className={`relative w-full flex items-center py-2 px-3 rounded-md transition-all duration-200 ease-in-out group
-        ${isActive('/dashboard/settings')
-                  ? 'bg-accent text-white'
-                  : 'hover:bg-orange-200/20 hover:text-orange-300 text-white'
-                }`}
-            >
-              <FaCog className={`text-lg transform transition-transform duration-200 group-hover:scale-110 ${collapsed ? 'mx-auto' : 'mr-3'}`} />
-              {!collapsed && <span>Configuración</span>}
-            </button>
-          </li>
-
-          {hasAdminAccess && (
-            <li>
+          {filteredItems.map((item) => (
+            <li key={item.path}>
               <button
-                onClick={() => handleMenuClick("/dashboard/admin")}
-                title={collapsed ? "Administración" : undefined}
+                onClick={() => handleMenuClick(item.path)}
+                title={collapsed ? item.label : undefined}
                 className={`relative w-full flex items-center py-2 px-3 rounded-md transition-all duration-200 ease-in-out group
-          ${isActive('/dashboard/admin')
-                    ? 'bg-accent text-white'
-                    : 'hover:bg-orange-200/20 hover:text-orange-300 text-white'
+                  ${isActive(item.path)
+                    ? 'bg-secondary-600 text-white'
+                    : 'hover:bg-secondary-200/20 hover:text-secondary-300 text-white'
                   }`}
               >
-                <FaTools className={`text-lg transform transition-transform duration-200 group-hover:scale-110 ${collapsed ? 'mx-auto' : 'mr-3'}`} />
-                {!collapsed && <span>Administración</span>}
+                <item.icon className={`text-lg transform transition-transform duration-200 group-hover:scale-110 ${collapsed ? 'mx-auto' : 'mr-3'}`} />
+                {!collapsed && <span className="transition-opacity duration-200">{item.label}</span>}
               </button>
             </li>
-          )}
+          ))}
         </ul>
       </div>
 
@@ -207,7 +116,7 @@ const Sidebar = ({ collapsed, mobileMenuOpen, onCloseMobileMenu, onToggleCollaps
         <button
           onClick={handleLogout}
           title={collapsed ? "Cerrar Sesión" : undefined}
-          className="relative w-full flex items-center py-2 px-3 rounded-md hover:bg-orange-200/20 hover:text-orange-300 text-white transition-all duration-200 ease-in-out group"
+          className="relative w-full flex items-center py-2 px-3 rounded-md hover:bg-secondary-200/20 hover:text-secondary-300 text-white transition-all duration-200 ease-in-out group"
         >
           <FaSignOutAlt className={`text-lg transform transition-transform duration-200 group-hover:scale-110 ${collapsed ? 'mx-auto' : 'mr-3'}`} />
           {!collapsed && <span>Cerrar Sesión</span>}

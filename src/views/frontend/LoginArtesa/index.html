@@ -1,25 +1,142 @@
 <!doctype html>
 <html lang="es">
   <head>
-    <script src="https://www.google.com/recaptcha/api.js?render=explicit" async defer></script>
+    <!-- **CONTENT SECURITY POLICY COMPLETO** -->
+    <meta http-equiv="Content-Security-Policy" content="
+      default-src 'self';
+      connect-src 'self' 
+        http://localhost:5173 
+        http://localhost:3000 
+        http://ec2-44-216-131-63.compute-1.amazonaws.com 
+        https://ec2-44-216-131-63.compute-1.amazonaws.com 
+        https://artesa-documents-staging.s3.us-east-1.amazonaws.com 
+        https://artesa-documents-staging.s3.amazonaws.com 
+        https://*.s3.us-east-1.amazonaws.com 
+        https://*.s3.amazonaws.com 
+        https://d1bqegutwmfn98.cloudfront.net 
+        https://www.google.com 
+        https://www.gstatic.com;
+      script-src 'self' 
+        'unsafe-inline' 
+        'unsafe-eval' 
+        https://www.google.com 
+        https://www.gstatic.com 
+        https://www.googletagmanager.com 
+        https://cdnjs.cloudflare.com;
+      style-src 'self' 
+        'unsafe-inline' 
+        https://fonts.googleapis.com 
+        https://fonts.gstatic.com;
+      font-src 'self' 
+        https://fonts.gstatic.com 
+        https://fonts.googleapis.com 
+        data:;
+      img-src 'self' 
+        data: 
+        blob: 
+        https://artesa-documents-staging.s3.us-east-1.amazonaws.com 
+        https://artesa-documents-staging.s3.amazonaws.com 
+        https://*.s3.us-east-1.amazonaws.com 
+        https://*.s3.amazonaws.com 
+        https://d1bqegutwmfn98.cloudfront.net 
+        https://www.google.com 
+        https://www.gstatic.com;
+      media-src 'self' 
+        https://artesa-documents-staging.s3.us-east-1.amazonaws.com 
+        https://*.s3.amazonaws.com;
+      object-src 'none';
+      base-uri 'self';
+      form-action 'self' 
+        https://ec2-44-216-131-63.compute-1.amazonaws.com;
+      frame-ancestors 'none';
+      upgrade-insecure-requests;
+    ">
+
+    <!-- **CHARSET Y VIEWPORT** -->
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/src/LoginsAssets/logo_artesa.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Artesa - Portal de gestión y compras" />
+    
+    <!-- **SEO Y METADATA** -->
+    <meta name="description" content="Artesa - Portal de gestión y compras empresarial" />
+    <meta name="keywords" content="artesa, portal empresarial, gestión, compras, SAP" />
+    <meta name="author" content="Artesa" />
+    <meta name="robots" content="index, follow" />
+    
+    <!-- **FAVICON Y ICONOS** -->
+    <link rel="icon" type="image/png" href="/src/LoginsAssets/logo_artesa.png" />
+    <link rel="apple-touch-icon" href="/src/LoginsAssets/logo_artesa.png" />
+    
+    <!-- **TÍTULO DINÁMICO** -->
     <title>Artesa - Portal Empresarial</title>
 
-    <!-- Precarga de fuentes -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <!-- **PRECARGA DE RECURSOS CRÍTICOS** -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://www.google.com" crossorigin>
+    <link rel="preconnect" href="https://artesa-documents-staging.s3.us-east-1.amazonaws.com" crossorigin>
+    <link rel="preconnect" href="https://ec2-44-216-131-63.compute-1.amazonaws.com" crossorigin>
+
+    <!-- **DNS PREFETCH PARA MEJOR RENDIMIENTO** -->
+    <link rel="dns-prefetch" href="//fonts.googleapis.com">
+    <link rel="dns-prefetch" href="//fonts.gstatic.com">
+    <link rel="dns-prefetch" href="//www.google.com">
+    <link rel="dns-prefetch" href="//artesa-documents-staging.s3.us-east-1.amazonaws.com">
+
+    <!-- **FUENTES OPTIMIZADAS** -->
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
     
-    <!-- Precarga de imágenes críticas -->
-    <link rel="preload" href="/src/LoginsAssets/principal_img.jpg" as="image">
-    <link rel="preload" href="/src/LoginsAssets/logo_artesa_alt.png" as="image">
+    <!-- **PRECARGA DE IMÁGENES CRÍTICAS** -->
+    <link rel="preload" href="/src/LoginsAssets/principal_img.jpg" as="image" type="image/jpeg">
+    <link rel="preload" href="/src/LoginsAssets/logo_artesa_alt.png" as="image" type="image/png">
+    <link rel="preload" href="/src/LoginsAssets/logo_artesa.png" as="image" type="image/png">
+
+    <!-- **SEGURIDAD ADICIONAL** -->
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    <meta http-equiv="X-Frame-Options" content="DENY">
+    <meta http-equiv="X-XSS-Protection" content="1; mode=block">
+    <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
+
+    <!-- **GOOGLE RECAPTCHA** -->
+    <script src="https://www.google.com/recaptcha/api.js?render=explicit" async defer></script>
+
+    <!-- **CONFIGURACIÓN INICIAL** -->
+    <script>
+      // Configuración global para debugging CSP
+      window.ARTESA_CONFIG = {
+        API_BASE: 'http://ec2-44-216-131-63.compute-1.amazonaws.com/api',
+        S3_BUCKET: 'https://artesa-documents-staging.s3.us-east-1.amazonaws.com',
+        CDN_URL: 'https://d1bqegutwmfn98.cloudfront.net',
+        DEBUG: true
+      };
+
+      // Debug CSP violations
+      document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('securitypolicyviolation', function(e) {
+          console.error('CSP Violation:', {
+            blockedURI: e.blockedURI,
+            violatedDirective: e.violatedDirective,
+            originalPolicy: e.originalPolicy,
+            documentURI: e.documentURI
+          });
+        });
+      });
+    </script>
   </head>
   <body>
+    <!-- **CONTENEDOR PRINCIPAL** -->
     <div id="root"></div>
+    
+    <!-- **SCRIPT PRINCIPAL** -->
     <script type="module" src="/src/main.jsx"></script>
+
+    <!-- **NOSCRIPT FALLBACK** -->
+    <noscript>
+      <div style="text-align: center; padding: 50px; font-family: Arial, sans-serif;">
+        <h1>JavaScript Requerido</h1>
+        <p>Esta aplicación requiere JavaScript para funcionar correctamente.</p>
+        <p>Por favor, habilita JavaScript en tu navegador.</p>
+      </div>
+    </noscript>
   </body>
 </html>

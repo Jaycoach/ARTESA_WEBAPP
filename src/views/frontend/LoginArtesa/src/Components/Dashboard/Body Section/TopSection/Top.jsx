@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { FaUserCircle, FaBell, FaBars } from "react-icons/fa";
-import logoArtesa from '../../../../LoginsAssets/logo_artesa.png';
+import logoArtesa from '../../../../LoginsAssets/logo_artesa_blanco.png';
 import { useAuth } from "../../../../hooks/useAuth";
 import ClientProfile from "../../ClientProfile/ClientProfile";
 
@@ -37,10 +37,10 @@ const Top = ({ user, onToggleSidebar }) => {
     };
   }, [menuOpen, showProfileModal]);
 
-  const handleLogout = () => {
-    logout();
-    navigate("/");
-  };
+  const handleLogout = async () => {
+  await logout();                // espera limpieza
+  navigate('/login', { replace:true });
+};
 
   const handleOpenProfile = () => {
     setMenuOpen(false);
@@ -65,7 +65,7 @@ const Top = ({ user, onToggleSidebar }) => {
         <img
           src={logoArtesa}
           alt="Logo de LA ARTESA"
-          className="h-8 object-contain ml-[2px]" // <-- Ajusta este valor si lo deseas más alineado
+          className="h-16 object-contain ml-[2px]" // <-- Ajusta este valor si lo deseas más alineado
         />
         </Link> 
       </div>

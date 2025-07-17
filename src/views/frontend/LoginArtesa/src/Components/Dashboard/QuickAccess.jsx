@@ -7,7 +7,7 @@ const QuickAccess = () => {
     { name: "Mis Pedidos", icon: <FaClipboardList />, link: "/dashboard/orders", color: "bg-green-100 text-green-600" },
     { name: "Productos", icon: <FaBoxOpen />, link: "/dashboard/products", color: "bg-yellow-100 text-yellow-600" },
     { name: "Mis Facturas", icon: <FaFileInvoice />, link: "/dashboard/invoices", color: "bg-red-100 text-red-600" },
-    { name: "Mi Perfil", icon: <FaUserEdit />, link: "/dashboard/profile", color: "bg-purple-100 text-purple-600" },
+    { name: "Mi Perfil", icon: <FaUserEdit />, link: "/dashboard/Users", color: "bg-purple-100 text-purple-600" },
   ];
 
   return (
