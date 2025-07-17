@@ -12,13 +12,55 @@ class ClientProfileService {
   // =========================================
 
   createApiClient() {
+    // Determinar la URL base según el entorno
+    const getBaseURL = () => {
+      // Priorizar variable de entorno específica
+      if (import.meta.env.VITE_API_URL) {
+        console.log('🔧 Usando VITE_API_URL:', import.meta.env.VITE_API_URL);
+        return import.meta.env.VITE_API_URL;
+      }
+      
+      // Para staging en CloudFront, usar la URL directa del backend
+      if (window.location.hostname.includes('cloudfront.net') || 
+          window.location.hostname.includes('d1bqegutwmfn98')) {
+        console.log('🔧 Detectado CloudFront staging, usando URL directa del backend');
+        return 'https://ec2-44-216-131-63.compute-1.amazonaws.com';
+      }
+      
+      // Para desarrollo local
+      if (import.meta.env.DEV || import.meta.env.MODE === 'development') {
+        return 'https://ec2-44-216-131-63.compute-1.amazonaws.com';
+      }
+      
+      // Fallback para proxy
+      return '';
+    };
+
+    const baseURL = getBaseURL();
+    const fullURL = baseURL ? `${baseURL}/api` : '/api';
+
+    console.log('🔧 Configurando API Client con URL:', fullURL);
+
+    // Debug de configuración
+    console.log('🔍 Debug configuración API:', {
+      mode: import.meta.env.MODE,
+      isDev: import.meta.env.DEV,
+      apiUrl: import.meta.env.VITE_API_URL,
+      hostname: typeof window !== 'undefined' ? window.location.hostname : 'N/A',
+      baseURL,
+      fullURL
+    });
+
     const client = axios.create({
-      baseURL: '/api', // Usar proxy local para evitar CORS
+      baseURL: fullURL,
       timeout: 30000,
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-      }
+        'ngrok-skip-browser-warning': '69420',
+        'Bypass-Tunnel-Reminder': 'true'
+      },
+      withCredentials: false // Cambiar a false para evitar problemas CORS
     });
 
     // Interceptor para agregar token
@@ -27,10 +69,72 @@ class ClientProfileService {
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
+      console.log(`📡 Request: ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
       return config;
     });
 
+    // NUEVO: Interceptor de respuesta para validar Content-Type
+    client.interceptors.response.use(
+      (response) => {
+        const contentType = response.headers['content-type'] || '';
+        
+        // Verificar que la respuesta sea JSON válido
+        if (!contentType.includes('application/json')) {
+          console.error('❌ Respuesta no es JSON:', {
+            url: response.config.url,
+            contentType,
+            status: response.status,
+            data: typeof response.data === 'string' ? response.data.substring(0, 200) + '...' : response.data
+          });
+          throw new Error('El servidor devolvió una respuesta inválida (no JSON)');
+        }
+        
+        console.log(`✅ Response: ${response.status} ${response.config.url}`);
+        return response;
+      },
+      (error) => {
+        console.error('❌ API Error:', {
+          url: error.config?.url,
+          status: error.response?.status,
+          message: error.message
+        });
+        return Promise.reject(error);
+      }
+    );
+
     return client;
+  }
+
+  /**
+   * Validar que la respuesta sea JSON válido
+   */
+  validateJsonResponse(response) {
+    const contentType = response.headers['content-type'] || '';
+    
+    // Verificar que sea JSON
+    if (!contentType.includes('application/json')) {
+      console.error('❌ Respuesta inválida - no es JSON:', {
+        contentType,
+        status: response.status,
+        url: response.config?.url,
+        responseData: typeof response.data === 'string' ? response.data.substring(0, 200) + '...' : 'No string'
+      });
+      
+      // Si recibimos HTML, probablemente hay un problema de routing
+      if (contentType.includes('text/html') || (typeof response.data === 'string' && response.data.includes('<!doctype html>'))) {
+        throw new Error('Error de configuración: El servidor está devolviendo HTML en lugar de JSON. Posible problema de routing o CORS.');
+      }
+      
+      throw new Error(`El servidor devolvió ${contentType} en lugar de JSON`);
+    }
+    
+    // Verificar que no sea HTML disfrazado
+    if (typeof response.data === 'string' && response.data.trim().startsWith('<!')) {
+      console.error('❌ Respuesta HTML detectada en lugar de JSON');
+      throw new Error('El servidor devolvió HTML en lugar de datos JSON. Revisa la configuración del proxy o la URL del API.');
+    }
+    
+    return response;
   }
 
   // =========================================
@@ -52,12 +156,23 @@ class ClientProfileService {
       let response;
       
       if (userId) {
-        console.log(`👤 Obteniendo perfil del usuario ${userId}`);
-        response = await this.apiClient.get(`/client-profiles/user/${userId}`);
-      } else {
-        console.log('📊 Obteniendo todos los perfiles (Admin)');
-        response = await this.apiClient.get('/client-profiles');
-      }
+      console.log(`👤 Obteniendo perfil del usuario ${userId}`);
+      response = await this.apiClient.get(`/client-profiles/user/${userId}`);
+      this.validateJsonResponse(response);
+    } else {
+      console.log('📊 Obteniendo todos los perfiles (Admin)');
+      response = await this.apiClient.get('/client-profiles');
+      this.validateJsonResponse(response);
+    }
+
+    // Verificar estructura de respuesta antes de procesar
+    console.log('📥 Respuesta recibida:', {
+      status: response.status,
+      contentType: response.headers['content-type'],
+      dataType: typeof response.data,
+      hasData: !!response.data?.data,
+      dataKeys: response.data ? Object.keys(response.data) : []
+    });
 
       const data = response.data.data || response.data;
       
@@ -121,10 +236,10 @@ class ClientProfileService {
 
     console.log("🔄 Mapeando datos del API:", profileData);
 
-    // Mapeo base con fallbacks múltiples
+    // Mapeo base con todos los campos de la nueva estructura
     const formData = {
-      // Datos básicos
-      nombre: profileData.nombre || profileData.name || userContext?.nombre || userContext?.name || '',
+      // Información básica principal
+      nombre: profileData.nombre || profileData.user_name || userContext?.nombre || userContext?.name || '',
       direccion: profileData.direccion || profileData.address || '',
       ciudad: profileData.ciudad || profileData.city || '',
       pais: profileData.pais || profileData.country || 'Colombia',
@@ -134,10 +249,11 @@ class ClientProfileService {
       // Información empresarial
       razonSocial: profileData.razonSocial || profileData.business_name || '',
       nit: profileData.nit_number || profileData.nit || '',
-      digitoVerificacion: profileData.verification_digit?.toString() || profileData.digitoVerificacion || '',
+      digitoVerificacion: profileData.verification_digit?.toString() || '',
       
-      // Valores por defecto para campos requeridos
+      // Valores por defecto
       tipoDocumento: 'CC',
+      numeroDocumento: '',
       tamanoEmpresa: 'Microempresa',
       tipoCuenta: 'Ahorros',
       
@@ -155,59 +271,91 @@ class ClientProfileService {
       emailContacto: ''
     };
 
-    // Procesar datos adicionales del campo 'notes' (JSON serializado)
-    if (profileData.notes) {
+    console.log("📋 Datos base mapeados:", formData);
+
+    // Procesar contactos si existen
+    if (profileData.contacts && Array.isArray(profileData.contacts)) {
+      console.log("👥 Procesando contactos:", profileData.contacts);
+      
+      // Contacto principal
+      const primaryContact = profileData.contacts.find(c => c.is_primary) || profileData.contacts[0];
+      if (primaryContact) {
+        formData.nombreContacto = primaryContact.name || '';
+        formData.cargoContacto = primaryContact.position || '';
+        formData.telefonoContacto = primaryContact.phone || '';
+        formData.emailContacto = primaryContact.email || '';
+        console.log("✅ Contacto principal mapeado:", primaryContact);
+      }
+    }
+
+    // Procesar información adicional de múltiples fuentes
+    const additionalSources = [
+      profileData.notes,
+      profileData.extraInfo,
+      profileData.additionalInfo
+    ];
+
+    additionalSources.forEach((source, index) => {
+      if (!source) return;
+      
+      let additionalData = {};
+      
       try {
-        const additionalData = JSON.parse(profileData.notes);
-        console.log("📝 Datos adicionales en notes:", additionalData);
+        // Si es string, intentar parsear como JSON
+        if (typeof source === 'string') {
+          additionalData = JSON.parse(source);
+          console.log(`📝 Datos adicionales fuente ${index + 1} (JSON):`, additionalData);
+        } else if (typeof source === 'object') {
+          additionalData = source;
+          console.log(`📝 Datos adicionales fuente ${index + 1} (Object):`, additionalData);
+        }
         
-        // Mapear campos críticos con prioridad (numeroDocumento, tipoDocumento, ciudad)
-        const criticalFields = ['numeroDocumento', 'tipoDocumento', 'ciudad'];
-        
-        criticalFields.forEach(field => {
-          if (additionalData[field] && additionalData[field] !== '') {
-            formData[field] = additionalData[field];
-            console.log(`✅ Campo crítico mapeado desde notes: ${field} = ${additionalData[field]}`);
-          }
-        });
-        
-        // Mapear otros campos disponibles en notes
-        const otherFields = [
+        // Mapear todos los campos posibles
+        const fieldsToMap = [
+          'numeroDocumento', 'tipoDocumento', 'ciudad', 'digitoVerificacion',
           'representanteLegal', 'actividadComercial', 'sectorEconomico', 
           'tamanoEmpresa', 'ingresosMensuales', 'patrimonio',
           'entidadBancaria', 'tipoCuenta', 'numeroCuenta',
           'nombreContacto', 'cargoContacto', 'telefonoContacto', 'emailContacto'
         ];
         
-        otherFields.forEach(field => {
-          if (additionalData[field] && additionalData[field] !== '') {
-            formData[field] = additionalData[field];
-            console.log(`✅ Campo adicional mapeado desde notes: ${field} = ${additionalData[field]}`);
+        fieldsToMap.forEach(field => {
+          if (additionalData[field] !== undefined && additionalData[field] !== null && additionalData[field] !== '') {
+            formData[field] = additionalData[field].toString();
+            console.log(`✅ Campo ${field} mapeado desde fuente ${index + 1}: ${additionalData[field]}`);
           }
         });
         
       } catch (e) {
-        console.error("❌ Error al parsear notes:", e);
-      }
-    }
-
-    // Procesar campos directos del API (tienen mayor prioridad que notes)
-    const directFields = [
-      'tipoDocumento', 'numeroDocumento', 'representanteLegal',
-      'actividadComercial', 'sectorEconomico', 'tamanoEmpresa',
-      'ingresosMensuales', 'patrimonio', 'entidadBancaria',
-      'tipoCuenta', 'numeroCuenta', 'nombreContacto',
-      'cargoContacto', 'telefonoContacto', 'emailContacto'
-    ];
-    
-    directFields.forEach(field => {
-      if (profileData[field] !== undefined && profileData[field] !== null && profileData[field] !== '') {
-        formData[field] = profileData[field];
-        console.log(`✅ Campo directo mapeado: ${field} = ${profileData[field]}`);
+        console.warn(`⚠️ Error al procesar fuente ${index + 1}:`, e);
       }
     });
 
-    console.log("✅ Mapeo completo:", formData);
+    // Procesar campos directos del API (máxima prioridad)
+    const directMappings = {
+      'nit_number': 'nit',
+      'verification_digit': 'digitoVerificacion',
+      'user_name': 'nombre'
+    };
+
+    Object.entries(directMappings).forEach(([apiField, formField]) => {
+      if (profileData[apiField] !== undefined && profileData[apiField] !== null && profileData[apiField] !== '') {
+        formData[formField] = profileData[apiField].toString();
+        console.log(`✅ Campo directo ${formField} mapeado: ${profileData[apiField]}`);
+      }
+    });
+
+    // Validar y limpiar NIT
+    if (formData.nit && formData.nit.includes('-')) {
+      const nitParts = formData.nit.split('-');
+      formData.nit = nitParts[0];
+      if (!formData.digitoVerificacion && nitParts[1]) {
+        formData.digitoVerificacion = nitParts[1];
+      }
+      console.log("🔧 NIT separado:", { nit: formData.nit, digito: formData.digitoVerificacion });
+    }
+
+    console.log("✅ Mapeo completo final:", formData);
     return formData;
   }
 

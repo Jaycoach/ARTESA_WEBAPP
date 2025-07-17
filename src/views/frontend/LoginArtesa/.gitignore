@@ -1,52 +1,204 @@
-# Logs
-logs
-*.log
+# ===================================================================
+# GITIGNORE UNIFICADO - PROYECTO ARTESA FRONTEND
+# ===================================================================
+
+# ===================================
+# Node.js y Dependencies
+# ===================================
+node_modules/
+package-lock.json
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
+# ===================================
+# Build Outputs y Distribución
+# ===================================
+dist/
+dist-ssr/
+build/
+out/
+
+# Backups generados por scripts de deploy
+dist-backup-*/
+build-backup-*/
+
+# ===================================
+# Cache y Archivos Temporales
+# ===================================
+node_modules/.cache/
+.vite/
+.turbo/
+.cache/
+*.tmp
+*.temp
+
+# ===================================
+# Environment Variables
+# ===================================
+.env
+.env.local
+.env.*.local
 *.local
 
-# Editor directories and files
+# ===================================
+# Logs y Debug
+# ===================================
+logs/
+*.log
+
+# ===================================
+# Archivos de Mapeo CSS/JS
+# ===================================
+*.css.map
+*.js.map
+*.map
+
+# ===================================
+# Editor y IDE
+# ===================================
+# Visual Studio Code
 .vscode/*
 !.vscode/extensions.json
-.idea
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+
+# JetBrains IDEs
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+
+# ===================================
+# Sistema Operativo
+# ===================================
+# macOS
 .DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Linux
+*~
+.directory
+
+# ===================================
+# Visual Studio y Windows Dev
+# ===================================
 *.suo
+*.user
+*.userosscache
+*.sln.docstates
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
 
-# Node.js dependencies
-node_modules/
-package-lock.json
+# ===================================
+# AWS y Cloud
+# ===================================
+.aws-sam/
+.amplify/
+amplify/
+aws-exports.js
 
-# Build output
-dist/
-build/
+# ===================================
+# Testing y Coverage
+# ===================================
+coverage/
+.nyc_output/
+*.lcov
+.jest/
 
-# Environment variables
-.env
+# ===================================
+# Storybook
+# ===================================
+storybook-static/
 
-# Compiled CSS maps
-*.css.map
+# ===================================
+# Documentación generada
+# ===================================
+docs/_build/
+typedoc/
 
-# Cache y logs
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Configuración de eslint
-eslint.config.js
-
-# Archivos de configuración de Vite
-vite.config.js
-
-# Archivos temporales o de prueba
+# ===================================
+# Archivos específicos del proyecto
+# ===================================
+# Archivos temporales de prueba
 TextFile
+test-file.*
+
+# Configuraciones locales que no deben compartirse
+config.local.*
+settings.local.*
+
+# Archivos de backup manuales
+*.backup
+*.bak
+
+# ===================================
+# Herramientas de desarrollo
+# ===================================
+# ESLint cache
+.eslintcache
+
+# Prettier cache
+.prettiercache
+
+# Webpack
+.webpack/
+
+# Rollup
+.rollup.cache/
+
+# ===================================
+# Deployment y CI/CD
+# ===================================
+# Archivos de certificados SSL locales
+*.pem
+*.key
+*.crt
+*.cert
+
+# Scripts de deploy personalizados (si contienen secretos)
+deploy-secrets.*
+
+# ===================================
+# Misc
+# ===================================
+# Zero-width space y caracteres problemáticos
+*‌*
+*‍*
+
+# Archivos de configuración temporal
+.temporary/
+.temp/
+
+# ===================================
+# END OF GITIGNORE
+# ===================================

@@ -222,6 +222,15 @@ class SapBaseService {
         hasData: !!response.data,
         dataSize: JSON.stringify(response.data).length
       });
+      // Log adicional para creaciones de BusinessPartner
+      if (method.toUpperCase() === 'POST' && config.url.includes('BusinessPartners') && response.data) {
+        this.logger.debug('Datos de BusinessPartner creado en SAP', {
+          responseData: response.data,
+          cardCode: response.data.CardCode || response.data.cardCode,
+          cardName: response.data.CardName || response.data.cardName,
+          fullResponseKeys: Object.keys(response.data)
+        });
+      }
       return response.data;
     } catch (error) {
       // Si el error es por sesión expirada (401), intentar reautenticar una vez
@@ -248,6 +257,29 @@ class SapBaseService {
       
       throw error;
     }
+  }
+
+  /**
+   * Asegurar que tenemos una sesión de autenticación válida
+   * @returns {Promise<void>}
+   */
+  async ensureAuthentication() {
+    if (!this.sessionId) {
+      await this.login();
+    }
+  }
+
+  /**
+   * Realizar petición HTTP a SAP (alias para request)
+   * @param {string} method - Método HTTP
+   * @param {string} url - URL completa (incluye baseUrl)
+   * @param {Object} data - Datos para la petición
+   * @returns {Promise<any>} Respuesta de SAP
+   */
+  async makeRequest(method, url, data = null) {
+    // Extraer endpoint de la URL completa
+    const endpoint = url.replace(`${this.baseUrl}/`, '');
+    return await this.request(method, endpoint, data);
   }
 
   /**

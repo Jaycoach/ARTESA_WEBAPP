@@ -769,6 +769,91 @@ class ClientSyncController {
     }
   }
   /**
+   * Sincroniza todos los clientes cuyo CardCode comience con "CI"
+   * @async
+   * @param {object} req - Objeto de solicitud Express
+   * @param {object} res - Objeto de respuesta Express
+   */
+  async syncCIClients(req, res) {
+    try {
+      logger.info('Iniciando sincronización de clientes con CardCode CI', { 
+        userId: req.user?.id
+      });
+
+      // Verificar que el servicio esté inicializado
+      if (!sapServiceManager.initialized) {
+        logger.debug('Inicializando servicio de SAP antes de sincronización');
+        await sapServiceManager.initialize();
+      }
+
+      // Ejecutar sincronización de clientes CI
+      const results = await sapServiceManager.clientService.syncCIClients();
+      
+      res.status(200).json({
+        success: true,
+        message: 'Sincronización de clientes CI completada exitosamente',
+        data: results
+      });
+    } catch (error) {
+      logger.error('Error al sincronizar clientes CI', {
+        error: error.message,
+        stack: error.stack,
+        userId: req.user?.id
+      });
+      
+      res.status(500).json({
+        success: false,
+        message: 'Error al sincronizar clientes CI',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
+
+  /**
+   * Lista clientes de SAP cuyo CardCode comience con "CI" sin sincronizar
+   * @async
+   * @param {object} req - Objeto de solicitud Express
+   * @param {object} res - Objeto de respuesta Express
+   */
+  async listCIClients(req, res) {
+    try {
+      logger.info('Obteniendo lista de clientes CI desde SAP', { 
+        userId: req.user?.id
+      });
+
+      // Verificar que el servicio esté inicializado
+      if (!sapServiceManager.initialized) {
+        logger.debug('Inicializando servicio de SAP antes de consulta');
+        await sapServiceManager.initialize();
+      }
+
+      // Obtener clientes de SAP
+      const clients = await sapServiceManager.clientService.getClientsByCardCodePrefix();
+      
+      res.status(200).json({
+        success: true,
+        message: 'Clientes CI obtenidos exitosamente',
+        data: {
+          totalClients: clients.length,
+          clients: clients
+        }
+      });
+      
+    } catch (error) {
+      logger.error('Error al obtener clientes CI', {
+        error: error.message,
+        stack: error.stack,
+        userId: req.user?.id
+      });
+      
+      res.status(500).json({
+        success: false,
+        message: 'Error al obtener clientes CI',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
+  /**
    * @swagger
    * /api/client-sync/branches/validate:
    *   get:
@@ -971,7 +1056,128 @@ class ClientSyncController {
       });
     }
   }
+  /**
+   * Valida las sucursales de un cliente específico contra SAP
+   * @async
+   * @param {object} req - Objeto de solicitud Express
+   * @param {object} res - Objeto de respuesta Express
+   */
+  async validateSpecificClientBranches(req, res) {
+    try {
+      const { cardCode } = req.params;
+      
+      logger.info('Validando sucursales para cliente específico', { 
+        cardCode,
+        userId: req.user?.id
+      });
 
+      // Verificar que el servicio esté inicializado
+      if (!sapServiceManager.initialized) {
+        logger.debug('Inicializando servicio de SAP antes de validación');
+        await sapServiceManager.initialize();
+      }
+
+      // Obtener cliente por CardCode
+      const clientQuery = `
+        SELECT client_id, cardcode_sap, company_name
+        FROM client_profiles 
+        WHERE cardcode_sap = $1
+      `;
+      
+      const { rows: clientRows } = await pool.query(clientQuery, [cardCode]);
+      
+      if (clientRows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: `Cliente con CardCode ${cardCode} no encontrado en la plataforma`
+        });
+      }
+
+      const client = clientRows[0];
+
+      // Obtener sucursales desde SAP usando todos los métodos
+      logger.info('Obteniendo sucursales desde SAP usando múltiples métodos', { cardCode });
+      const sapBranches = await sapServiceManager.clientService.getClientBranchesFromCRD1(cardCode);
+
+      // Obtener sucursales locales
+      const localBranchesQuery = `
+        SELECT ship_to_code, branch_name, address, city, state, created_at
+        FROM client_branches 
+        WHERE client_id = $1
+        ORDER BY is_default DESC, branch_name
+      `;
+      
+      const { rows: localBranches } = await pool.query(localBranchesQuery, [client.client_id]);
+
+      // Realizar comparación detallada
+      const comparison = {
+        cardCode,
+        clientId: client.client_id,
+        companyName: client.company_name,
+        sapBranches: {
+          total: sapBranches.length,
+          list: sapBranches.map(branch => ({
+            address: branch.Address,
+            street: branch.Street,
+            city: branch.City,
+            state: branch.State,
+            country: branch.Country
+          }))
+        },
+        localBranches: {
+          total: localBranches.length,
+          list: localBranches.map(branch => ({
+            shipToCode: branch.ship_to_code,
+            branchName: branch.branch_name,
+            address: branch.address,
+            city: branch.city,
+            state: branch.state,
+            createdAt: branch.created_at
+          }))
+        },
+        analysis: {
+          sapHasBranches: sapBranches.length > 0,
+          localHasBranches: localBranches.length > 0,
+          needsSync: sapBranches.length !== localBranches.length,
+          missingInLocal: sapBranches.length - localBranches.length,
+          recommendation: ''
+        }
+      };
+
+      // Generar recomendación
+      if (sapBranches.length === 0) {
+        comparison.analysis.recommendation = 'El cliente no tiene sucursales en SAP. Verificar configuración en SAP B1.';
+      } else if (localBranches.length === 0) {
+        comparison.analysis.recommendation = `Sincronización requerida: ${sapBranches.length} sucursales encontradas en SAP, 0 en local.`;
+      } else if (sapBranches.length > localBranches.length) {
+        comparison.analysis.recommendation = `Sincronización requerida: Faltan ${sapBranches.length - localBranches.length} sucursales en local.`;
+      } else if (sapBranches.length < localBranches.length) {
+        comparison.analysis.recommendation = `Revisar: Hay más sucursales en local (${localBranches.length}) que en SAP (${sapBranches.length}).`;
+      } else {
+        comparison.analysis.recommendation = 'Las cantidades coinciden. Verificar si los datos están actualizados.';
+      }
+
+      res.status(200).json({
+        success: true,
+        message: `Validación completada para cliente ${cardCode}`,
+        data: comparison
+      });
+
+    } catch (error) {
+      logger.error('Error al validar sucursales del cliente específico', {
+        error: error.message,
+        stack: error.stack,
+        cardCode: req.params?.cardCode,
+        userId: req.user?.id
+      });
+      
+      res.status(500).json({
+        success: false,
+        message: 'Error al validar sucursales del cliente',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
   /**
    * @swagger
    * /api/client-sync/branches/sync:
@@ -995,12 +1201,13 @@ class ClientSyncController {
     try {
       // Obtener parámetros del query string en lugar del body
       const { clientId, cardCode, forceUpdate = false } = req.query;
-      
+      const forceUpdateBool = forceUpdate === 'true' || forceUpdate === true;
+
       logger.info('Iniciando sincronización de sucursales de clientes', { 
         userId: req.user?.id,
         clientId,
         cardCode,
-        forceUpdate
+        forceUpdate: forceUpdateBool
       });
 
       // Verificar que el servicio esté inicializado
@@ -1067,7 +1274,8 @@ class ClientSyncController {
           await sapServiceManager.clientService.syncClientBranches(
             client.cardcode_sap, 
             client.client_id, 
-            branchStats
+            branchStats,
+            forceUpdateBool
           );
           
           // Actualizar estadísticas generales
@@ -1279,5 +1487,8 @@ module.exports = {
   validateClientBranches: clientSyncController.validateClientBranches,
   syncClientBranches: clientSyncController.syncClientBranches,
   simulateSapSync: clientSyncController.simulateSapSync,
-  testEmailSes: clientSyncController.testEmailSes
+  testEmailSes: clientSyncController.testEmailSes,
+  syncCIClients: clientSyncController.syncCIClients,
+  listCIClients: clientSyncController.listCIClients,
+  validateSpecificClientBranches: clientSyncController.validateSpecificClientBranches
 };

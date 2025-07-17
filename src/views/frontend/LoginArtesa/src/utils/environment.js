@@ -51,7 +51,22 @@ export const logEnvironmentInfo = () => {
     console.groupEnd();
   }
 };
-
+// Función para obtener información del entorno como objeto
+export const getEnvironmentInfo = () => {
+  return {
+    mode: import.meta.env.MODE,
+    apiUrl: getApiUrl(),
+    version: getAppVersion(),
+    isNgrok: isNgrok,
+    debugApi: DEBUG_API ? 'Activado' : 'Desactivado',
+    recaptchaSiteKey: RECAPTCHA_SITE_KEY ? 'Configurada' : 'No configurada',
+    orderTimeLimit: ORDER_TIME_LIMIT,
+    maxImageSizeMB: MAX_IMAGE_SIZE_MB,
+    isProduction,
+    isStaging,
+    isDevelopment
+  };
+};
 // Función para obtener la URL base del API considerando configuración ngrok
 export const determineBaseUrl = () => {
   if (import.meta.env.VITE_API_URL) {

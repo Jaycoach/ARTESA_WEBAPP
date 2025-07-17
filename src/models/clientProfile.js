@@ -41,6 +41,7 @@ class ClientProfile {
           cp.cardcode_sap,
           cp.clientprofilecode_sap,
           cp.price_list,
+          cp.price_list_code,
           cp.notes,
           cp.fotocopia_cedula AS "fotocopiaCedula",
           cp.fotocopia_rut AS "fotocopiaRut",
@@ -116,6 +117,7 @@ class ClientProfile {
           cp.cardcode_sap,
           cp.clientprofilecode_sap,
           cp.price_list,
+          cp.price_list_code,
           cp.notes,
           cp.fotocopia_cedula AS "fotocopiaCedula",
           cp.fotocopia_rut AS "fotocopiaRut",
@@ -190,6 +192,7 @@ class ClientProfile {
           cp.cardcode_sap,
           cp.clientprofilecode_sap,
           cp.price_list,
+          cp.price_list_code,
           cp.notes,
           cp.fotocopia_cedula AS "fotocopiaCedula",
           cp.fotocopia_rut AS "fotocopiaRut",
@@ -256,6 +259,8 @@ static async create(clientData) {
       direccion = null,
       ciudad = null,
       pais = null,
+      telefonoContacto = null,
+      emailContacto = null,
       razonSocial = null,
       nit = null,
       // Campos de archivos
@@ -269,16 +274,71 @@ static async create(clientData) {
       nombre,
       email
     });
+
+    // Validaciones de longitud de campos
+    const fieldLimits = {
+      company_name: 255,
+      contact_name: 255,
+      contact_phone: 255,
+      contact_email: 255,
+      address: 255,
+      city: 255,
+      country: 255,
+      tax_id: 255,
+      nit_number: 255,
+      fotocopia_cedula: 255,
+      fotocopia_rut: 255,
+      anexos_adicionales: 255
+    };
+
+    // Función para truncar campos si exceden el límite
+    const truncateField = (value, limit) => {
+      if (!value) return value;
+      const stringValue = String(value);
+      if (stringValue.length > limit) {
+        logger.warn(`Campo truncado de ${stringValue.length} a ${limit} caracteres`, {
+          originalLength: stringValue.length,
+          truncatedValue: stringValue.substring(0, limit)
+        });
+        return stringValue.substring(0, limit);
+      }
+      return stringValue;
+    };
+
+    // Truncar campos según los límites
+    let razonSocialTruncated = truncateField(razonSocial, fieldLimits.company_name);
+    let nombreTruncated = truncateField(nombre, fieldLimits.contact_name);
+    let direccionTruncated = truncateField(direccion, fieldLimits.address);
+    let ciudadTruncated = truncateField(ciudad, fieldLimits.city);
+    let paisTruncated = truncateField(pais, fieldLimits.country);
+    let nitTruncated = truncateField(nit, fieldLimits.tax_id);
+
+    // Truncar campos de contacto
+    const contactPhone = truncateField(telefonoContacto || telefono, fieldLimits.contact_phone);
+    const contactEmail = truncateField(emailContacto || email, fieldLimits.contact_email);
+
+    // Truncar campos de archivos
+    let fotocopiaCedulaTruncated = truncateField(fotocopiaCedula, fieldLimits.fotocopia_cedula);
+    let fotocopiaRutTruncated = truncateField(fotocopiaRut, fieldLimits.fotocopia_rut);
+    let anexosAdicionalesTruncated = truncateField(anexosAdicionales, fieldLimits.anexos_adicionales);
+
+    // Truncar campos específicos del NIT
+    if (clientData.nit_number) {
+      clientData.nit_number = truncateField(clientData.nit_number, fieldLimits.nit_number);
+    }
+
+    // Generar clientprofilecode_sap después del truncamiento
+    let clientProfileCode = null;
+    if (clientData.nit_number) {
+      clientProfileCode = `CI${clientData.nit_number}`;
+      if (clientProfileCode.length > 255) {
+        clientProfileCode = clientProfileCode.substring(0, 255);
+      }
+    }
     
     // Validar que exista userId
     if (!userId) {
       throw new Error('Se requiere el ID de usuario para crear el perfil');
-    }
-    
-    // Generar clientprofilecode_sap si tenemos nit_number
-    let clientProfileCode = null;
-    if (clientData.nit_number) {
-      clientProfileCode = `CI${clientData.nit_number}`;
     }
 
     // Extraer todos los demás campos para almacenarlos como JSON en notes
@@ -287,50 +347,52 @@ static async create(clientData) {
     // Eliminar campos que ya están mapeados a columnas de la base de datos
     ['userId', 'nombre', 'email', 'telefono', 'direccion', 'ciudad', 'pais', 
       'razonSocial', 'nit', 'fotocopiaCedula', 'fotocopiaRut', 'anexosAdicionales',
-      'nit_number', 'verification_digit', 'cardcode_sap', 'clientprofilecode_sap', 'listaPrecios'].forEach(key => {
+      'nit_number', 'verification_digit', 'cardcode_sap', 'clientprofilecode_sap', 'listaPrecios',
+      'telefonoContacto', 'emailContacto'].forEach(key => {
       delete additionalFields[key];
     });
     
     // Mapear los campos del formulario a los campos de la base de datos
     const query = `
-      INSERT INTO client_profiles
-      (user_id, company_name, contact_name, contact_phone, contact_email, 
-       address, city, country, tax_id, notes,
-       fotocopia_cedula, fotocopia_rut, anexos_adicionales, price_list, 
-       nit_number, verification_digit, cardcode_sap, clientprofilecode_sap)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18 )
-      RETURNING *;
+      INSERT INTO client_profiles (
+        user_id, company_name, contact_name, contact_phone, contact_email, 
+        address, city, country, tax_id, nit_number, verification_digit, 
+        fotocopia_cedula, fotocopia_rut, anexos_adicionales, notes, 
+        price_list, price_list_code, cardcode_sap, cardtype_sap, clientprofilecode_sap,
+        created_at, updated_at
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19,
+        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+      ) RETURNING *
     `;
-    
+
     // Crear JSON con campos adicionales
     const notesJSON = Object.keys(additionalFields).length > 0 ? 
       JSON.stringify(additionalFields) : null;
-  
+
     const values = [
-      userId,                  // user_id
-      razonSocial,             // company_name
-      nombre,                  // contact_name
-      telefono,                // contact_phone
-      email,                   // contact_email
-      direccion,               // address
-      ciudad,                  // city
-      pais || 'Colombia',      // country (valor por defecto)
-      nit,                     // tax_id
-      notesJSON,               // notes (campos adicionales en JSON)
-      fotocopiaCedula,         // fotocopia_cedula
-      fotocopiaRut,            // fotocopia_rut
-      anexosAdicionales,       // anexos_adicionales
-      clientData.listaPrecios || 1, // price_list (valor por defecto: 1)
-      clientData.nit_number,   // nit_number
-      clientData.verification_digit, // verification_digit
-      null, // cardcode_sap
-      clientProfileCode        // clientprofilecode_sap
+      userId,                           // $1 - user_id
+      razonSocialTruncated,            // $2 - company_name
+      nombreTruncated,                 // $3 - contact_name
+      contactPhone,                    // $4 - contact_phone
+      contactEmail,                    // $5 - contact_email
+      direccionTruncated,              // $6 - address
+      ciudadTruncated,                 // $7 - city
+      paisTruncated || 'Colombia',     // $8 - country
+      nitTruncated,                    // $9 - tax_id
+      clientData.nit_number,           // $10 - nit_number
+      clientData.verification_digit,   // $11 - verification_digit
+      fotocopiaCedulaTruncated,        // $12 - fotocopia_cedula
+      fotocopiaRutTruncated,           // $13 - fotocopia_rut
+      anexosAdicionalesTruncated,      // $14 - anexos_adicionales
+      notesJSON,                       // $15 - notes
+      clientData.listaPrecios || 1,    // $16 - price_list
+      clientData.listaPreciosCodigo || null,    // $17 - price_list_code
+      null,                            // $17 - cardcode_sap
+      'cLid',                          // $18 - cardtype_sap
+      clientProfileCode                // $19 - clientprofilecode_sap
     ];
 
-    // También actualizar is_active en la tabla de usuarios
-    await pool.query('UPDATE users SET is_active = false WHERE id = $1', [userId]);
-    logger.debug('Usuario marcado como inactivo hasta aprobación por SAP', { userId });
-    
     const { rows } = await pool.query(query, values);
     
     if (rows.length === 0) {
@@ -360,6 +422,8 @@ static async create(clientData) {
       pais: createdProfile.country,
       razonSocial: createdProfile.company_name,
       nit: createdProfile.tax_id,
+      nit_number: createdProfile.nit_number,              // ← AGREGAR ESTO
+      verification_digit: createdProfile.verification_digit, // ← Y ESTO
       fotocopiaCedula: createdProfile.fotocopia_cedula,
       fotocopiaRut: createdProfile.fotocopia_rut,
       anexosAdicionales: createdProfile.anexos_adicionales,
@@ -399,7 +463,6 @@ static async create(clientData) {
         fields: Object.keys(updateData)
       });
       
-      // Extraer campos del formulario
       const {
         nombre,
         email,
@@ -416,7 +479,8 @@ static async create(clientData) {
         tipoDocumento,
         numeroDocumento,
         nit_number,
-        verification_digit
+        verification_digit,
+        listaPreciosCodigo
       } = updateData;
       
       // Extraer campos adicionales para almacenar en notes
@@ -429,9 +493,10 @@ static async create(clientData) {
       }
       
       // Eliminar campos que ya están mapeados a columnas de la base de datos
-      ['nombre', 'email', 'telefono', 'direccion', 'ciudad', 'pais', 
-        'razonSocial', 'nit', 'nit_number', 'verification_digit', 'fotocopiaCedula', 'fotocopiaRut', 'anexosAdicionales',
-        'cardcode_sap', 'clientprofilecode_sap', 'sap_lead_synced'].forEach(key => {
+      ['userId', 'nombre', 'email', 'telefono', 'direccion', 'ciudad', 'pais', 
+        'razonSocial', 'nit', 'fotocopiaCedula', 'fotocopiaRut', 'anexosAdicionales',
+        'nit_number', 'verification_digit', 'cardcode_sap', 'clientprofilecode_sap', 'listaPrecios',
+        'telefonoContacto', 'emailContacto', 'listaPreciosCodigo'].forEach(key => {
         delete additionalFields[key];
       });
       
@@ -456,8 +521,9 @@ static async create(clientData) {
         fotocopia_cedula = COALESCE($14, fotocopia_cedula),
         fotocopia_rut = COALESCE($15, fotocopia_rut),
         anexos_adicionales = COALESCE($16, anexos_adicionales),
+        price_list_code = COALESCE($17, price_list_code),
         updated_at = CURRENT_TIMESTAMP
-      WHERE user_id = $17
+      WHERE user_id = $18
       RETURNING *;
       `;
 
@@ -481,30 +547,58 @@ static async create(clientData) {
       const notesJSON = Object.keys(mergedAdditionalData).length > 0 ? 
         JSON.stringify(mergedAdditionalData) : null;
 
+      // Función para truncar campos si exceden el límite
+      const truncateField = (value, limit) => {
+        if (!value) return value;
+        const stringValue = String(value);
+        if (stringValue.length > limit) {
+          logger.warn(`Campo truncado de ${stringValue.length} a ${limit} caracteres`, {
+            originalLength: stringValue.length,
+            truncatedValue: stringValue.substring(0, limit)
+          });
+          return stringValue.substring(0, limit);
+        }
+        return stringValue;
+      };
+
+      // Definir ANTES del array values, después de extraer additionalFields
+      const { telefonoContacto, emailContacto } = updateData;
+      // Aplicar las mismas validaciones de truncamiento en update
+      const razonSocialTrunc = truncateField(razonSocial, 255);
+      const nombreTrunc = truncateField(nombre, 255);
+      const direccionTrunc = truncateField(direccion, 255);
+      const ciudadTrunc = truncateField(ciudad, 255);
+      const paisTrunc = truncateField(pais, 255);
+      const nitTrunc = truncateField(nit, 255);
+      const fotocopiaCedulaTrunc = truncateField(fotocopiaCedula, 255);
+      const fotocopiaRutTrunc = truncateField(fotocopiaRut, 255);
+      const anexosAdicionalesTrunc = truncateField(anexosAdicionales, 255);
+      const nitNumberTrunc = truncateField(nit_number, 255);
+
+      const contactPhone = truncateField(telefonoContacto || telefono, 255);
+      const contactEmail = truncateField(emailContacto || email, 255);
+
       const values = [
-      razonSocial,          // company_name
-      nombre,               // contact_name
-      telefono,             // contact_phone
-      email,                // contact_email
-      direccion,            // address
-      ciudad,               // city
-      pais,                 // country
-      nit,                  // tax_id
-      nit_number,           // nit_number (nuevo)
-      verification_digit,   // verification_digit
-      updateData.cardcode_sap, // cardcode_sap
-      clientProfileCode,    // Para generar clientprofilecode_sap
-      notesJSON,            // notes
-      fotocopiaCedula,      // fotocopia_cedula
-      fotocopiaRut,         // fotocopia_rut
-      anexosAdicionales,    // anexos_adicionales
-      userId                // user_id para WHERE
+        razonSocialTrunc,          // $1 - company_name
+        nombreTrunc,               // $2 - contact_name
+        contactPhone,              // $3 - contact_phone
+        contactEmail,              // $4 - contact_email
+        direccionTrunc,            // $5 - address
+        ciudadTrunc,               // $6 - city
+        paisTrunc,                 // $7 - country
+        nitTrunc,                  // $8 - tax_id
+        nitNumberTrunc,            // $9 - nit_number
+        verification_digit,        // $10 - verification_digit
+        updateData.cardcode_sap,   // $11 - cardcode_sap
+        clientProfileCode,         // $12 - Para generar clientprofilecode_sap
+        notesJSON,                 // $13 - notes
+        fotocopiaCedulaTrunc,      // $14 - fotocopia_cedula
+        fotocopiaRutTrunc,         // $15 - fotocopia_rut
+        anexosAdicionalesTrunc,    // $16 - anexos_adicionales
+        updateData.listaPreciosCodigo || null, // $17 - price_list_code
+        userId                     // $18 - user_id para WHERE
       ];
 
-      // También actualizar is_active en la tabla de usuarios
-      await pool.query('UPDATE users SET is_active = false WHERE id = $1', [userId]);
-      logger.debug('Usuario marcado como inactivo hasta aprobación por SAP', { userId });
-            
       const { rows } = await pool.query(query, values);
       
       if (rows.length === 0) {
@@ -572,10 +666,7 @@ static async create(clientData) {
       
       // Iniciar transacción
       await client.query('BEGIN');
-      
-      // Primero, actualizar is_active a false en la tabla users
-      await client.query('UPDATE users SET is_active = false WHERE id = $1', [userId]);
-      
+
       // Luego, eliminar el perfil
       const query = 'DELETE FROM client_profiles WHERE user_id = $1 RETURNING *;';
       const { rows } = await client.query(query, [userId]);

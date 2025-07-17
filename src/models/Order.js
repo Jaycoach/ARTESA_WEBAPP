@@ -134,6 +134,27 @@ class Order {
     }
 
     const client = await pool.connect();
+    // Calcular totales con IVA
+    let calculatedSubtotal = 0;
+    let calculatedTax = 0;
+    let calculatedTotal = 0;
+
+    details.forEach(detail => {
+      const itemSubtotal = parseFloat(detail.unit_price) * parseInt(detail.quantity);
+      const itemTax = itemSubtotal * 0.19; // 19% IVA
+      
+      calculatedSubtotal += itemSubtotal;
+      calculatedTax += itemTax;
+    });
+
+    calculatedTotal = calculatedSubtotal + calculatedTax;
+
+    logger.debug('Totales calculados con IVA', {
+      subtotal: calculatedSubtotal,
+      tax: calculatedTax,
+      total: calculatedTotal,
+      providedTotal: total_amount
+    });
     try {
       logger.debug('Iniciando transacción para crear orden', { 
         user_id, 
@@ -146,17 +167,20 @@ class Order {
       
       await client.query('BEGIN');
 
-      // Insertar en Orders con fecha de entrega, estado y sucursal
+      // Crear la orden principal con valores calculados
       const orderQuery = `
-        INSERT INTO Orders (user_id, total_amount, delivery_date, status_id, branch_id)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO orders (user_id, total_amount, subtotal, tax_amount, delivery_date, status_id, branch_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING order_id;
       `;
+
       const orderResult = await client.query(orderQuery, [
         user_id, 
-        total_amount, 
+        calculatedTotal, 
+        calculatedSubtotal, 
+        calculatedTax, 
         delivery_date, 
-        status_id,
+        status_id, 
         branch_id
       ]);
       const order_id = orderResult.rows[0].order_id;
@@ -1127,6 +1151,66 @@ static async getMonthlyStats(userId, months = 6) {
       
       return processedOrder;
     });
+  }
+  /**
+   * Obtener precios de productos para un cliente específico con cálculo de IVA
+   * @param {number} userId - ID del usuario/cliente
+   * @param {Array<string>} productCodes - Códigos de productos a consultar
+   * @returns {Promise<Array>} - Array de productos con precios e IVA
+   */
+  static async getProductPricesWithTax(userId, productCodes) {
+    try {
+      // Obtener el price_list_code del cliente
+      const clientQuery = `
+        SELECT cp.price_list_code 
+        FROM client_profiles cp 
+        WHERE cp.user_id = $1
+      `;
+      
+      const clientResult = await pool.query(clientQuery, [userId]);
+      
+      if (clientResult.rows.length === 0) {
+        logger.warn('Cliente no encontrado o sin price_list_code', { userId });
+        return [];
+      }
+      
+      const priceListCode = clientResult.rows[0].price_list_code || 'BRONCE'; // Valor por defecto
+      
+      // Obtener precios de la lista correspondiente
+      const PriceList = require('./PriceList');
+      const pricesData = await PriceList.getMultipleProductPrices(priceListCode, productCodes);
+      
+      // Calcular IVA (19%) y precio total
+      const productsWithTax = pricesData.map(product => {
+        const basePrice = parseFloat(product.price) || 0;
+        const taxRate = 0.19; // 19% IVA
+        const taxAmount = basePrice * taxRate;
+        const totalPrice = basePrice + taxAmount;
+        
+        return {
+          ...product,
+          base_price: basePrice,
+          tax_rate: taxRate,
+          tax_amount: parseFloat(taxAmount.toFixed(2)),
+          total_price_with_tax: parseFloat(totalPrice.toFixed(2))
+        };
+      });
+      
+      logger.debug('Precios con IVA calculados', { 
+        userId, 
+        priceListCode, 
+        productCount: productsWithTax.length 
+      });
+      
+      return productsWithTax;
+    } catch (error) {
+      logger.error('Error obteniendo precios con IVA', { 
+        error: error.message, 
+        userId, 
+        productCodes 
+      });
+      throw error;
+    }
   }
 }
 

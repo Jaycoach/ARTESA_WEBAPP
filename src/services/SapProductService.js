@@ -133,90 +133,60 @@ class SapProductService extends SapBaseService {
   }
 
   /**
-   * Obtiene productos de SAP B1
+   * Obtiene productos de SAP B1 usando consulta SQL directa
    * @param {Object} options - Opciones de filtrado
    * @returns {Promise<Array>} Lista de productos
    */
   async getProductsFromSAP(options = {}) {
     try {
-      const { skip = 0 } = options;
+      const { skip = 0, groupCode = null } = options;
       
-      // Usar el endpoint correcto sin modificarlo con $skip en la URL
-      let endpoint = `view.svc/B1_ProductsB1SLQuery`;
-      
-      // Si hay skip, añadirlo como parámetro de consulta
-      if (skip > 0) {
-        endpoint = `view.svc/B1_ProductsB1SLQuery?$skip=${skip}`;
+      // Construir endpoint OData para Items optimizado
+      let endpoint = 'Items?';
+      const params = [];
+
+      // Filtrar por grupo si se especifica
+      if (groupCode) {
+        params.push(`$filter=ItemsGroupCode eq ${groupCode} and SalesItem eq 'tYES'`);
+      } else {
+        params.push(`$filter=SalesItem eq 'tYES'`);
       }
-      
-      this.logger.debug('Obteniendo productos de SAP B1', { 
+
+      // Seleccionar solo campos necesarios para optimizar transferencia
+      params.push('$select=ItemCode,ItemName,ForeignName,ItemsGroupCode,BarCode,QuantityOnStock,SalesItem,Frozen');
+
+      // Paginación
+      params.push(`$skip=${skip}`);
+      params.push('$top=20');
+
+      endpoint += params.join('&');
+
+      this.logger.debug('Endpoint OData construido', {
         endpoint,
+        groupCode,
         skip
       });
-      
-      // Ya tienes el header 'Prefer': 'odata.maxpagesize=0' en el método request
-      const data = await this.request('GET', endpoint);
-      
-      if (!data || !data.value) {
-        throw new Error('Formato de respuesta inválido');
-      }
-  
-      // Mapear los datos correctamente asegurando valores numéricos válidos
-      const mappedItems = data.value.map(item => {
-        // Función auxiliar para parseo seguro
-        const safeParseFloat = (val) => {
-          if (val === null || val === undefined) return 0;
-          if (typeof val === 'number') return val;
-          if (typeof val === 'string') {
-            const cleaned = val.replace(/[^\d.-]/g, '');
-            const result = parseFloat(cleaned);
-            return isNaN(result) ? 0 : result;
-          }
-          return 0;
-        };
+      const result = await this.request('GET', endpoint);
 
-        const safeParseInt = (val) => {
-          if (val === null || val === undefined) return 0;
-          if (typeof val === 'number') return Math.round(val);
-          if (typeof val === 'string') {
-            const cleaned = val.replace(/[^\d.-]/g, '');
-            const result = parseInt(cleaned, 10);
-            return isNaN(result) ? 0 : result;
-          }
-          return 0;
-        };
-      
-        return {
-          ItemName: item.ItemName,
-          price_list1: safeParseFloat(item.price_list1),
-          price_list2: safeParseFloat(item.price_list2),
-          price_list3: safeParseFloat(item.price_list3),
-          Stock: safeParseInt(item.Stock),
-          CodeBars: item.CodeBars,
-          Sap_Code: item.Sap_Code,
-          Sap_Group: safeParseInt(item.Sap_Group),
-          is_active: item.is_active === "true" || item.is_active === true || true
-        };
-      });
-      
-      // Determinar si hay más datos basado en la presencia de @odata.nextLink
-      const hasMoreData = !!data['@odata.nextLink'];
-      
-      this.logger.info('Productos obtenidos de SAP B1', {
+      if (!result || !result.value) {
+        throw new Error('Formato de respuesta inválido en consulta OData');
+      }
+
+      // Los datos ya vienen en formato correcto de SAP B1 Service Layer
+      const mappedItems = result.value;
+
+      this.logger.debug('Productos obtenidos de SAP B1 via SQL directa', { 
         count: mappedItems.length,
-        hasMore: hasMoreData,
-        nextLink: data['@odata.nextLink'] || 'ninguno'
+        skip,
+        groupCode
       });
-      
-      return {
-        items: mappedItems,
-        hasMore: hasMoreData,
-        nextLink: data['@odata.nextLink'] || null
-      };
+
+      return { value: mappedItems };
     } catch (error) {
-      this.logger.error('Error al obtener productos de SAP B1', {
+      this.logger.error('Error al obtener productos de SAP B1 via SQL directa', {
         error: error.message,
-        stack: error.stack
+        stack: error.stack,
+        options
       });
       throw error;
     }
@@ -229,28 +199,29 @@ class SapProductService extends SapBaseService {
    */
   mapSapProductToWebApp(sapProduct) {
     const parseNumberSafely = (value, defaultValue = 0) => {
-      if (value === null || value === undefined) return defaultValue;
-      if (typeof value === 'number') return value;
-      if (typeof value === 'string') {
-        const cleanValue = value.replace(/[^\d.-]/g, '');
-        const parsed = parseFloat(cleanValue);
-        return isNaN(parsed) ? defaultValue : parsed;
-      }
-      return defaultValue;
+      if (value === null || value === undefined || value === '') return defaultValue;
+      const parsed = typeof value === 'string' ? parseFloat(value) : Number(value);
+      return isNaN(parsed) ? defaultValue : parsed;
     };
-  
+
+    // Determinar si está activo (debe ser SalesItem y no estar congelado)
+    const isActive = sapProduct.SalesItem === 'tYES' && sapProduct.Frozen === 'tNO';
+
+    // Usar ForeignName si está disponible, sino ItemName
+    const description = sapProduct.ForeignName || sapProduct.ItemName || 'Sin descripción';
+
     return {
       name: sapProduct.ItemName || 'Sin nombre',
-      description: sapProduct.ItemName || 'Sin descripción',
-      priceList1: parseNumberSafely(sapProduct.price_list1),
-      priceList2: parseNumberSafely(sapProduct.price_list2),
-      priceList3: parseNumberSafely(sapProduct.price_list3),
-      stock: parseInt(parseNumberSafely(sapProduct.Stock), 10),
-      barcode: sapProduct.CodeBars || null,
+      description: description,
+      priceList1: 0, // Los precios se manejarán por separado
+      priceList2: 0,
+      priceList3: 0,
+      stock: parseInt(parseNumberSafely(sapProduct.QuantityOnStock), 10),
+      barcode: sapProduct.BarCode || null,
       imageUrl: null,
-      sapCode: sapProduct.Sap_Code,
-      sapGroup: parseInt(parseNumberSafely(sapProduct.Sap_Group), 10),
-      isActive: sapProduct.is_active === "true" || sapProduct.is_active === true || true,
+      sapCode: sapProduct.ItemCode,
+      sapGroup: parseInt(parseNumberSafely(sapProduct.ItemsGroupCode), 10),
+      isActive: isActive,
       sapLastSync: new Date().toISOString(),
       sapSyncPending: false
     };
@@ -297,7 +268,7 @@ class SapProductService extends SapBaseService {
       
       let hasMore = true;
       let skip = 0;
-      const MAX_ITERATIONS = 20; // Aumentar para manejar más productos
+      const MAX_ITERATIONS = 30; // Aumentar para manejar más productos
       let iterations = 0;
       let prevTotalItems = 0;
       
@@ -306,25 +277,20 @@ class SapProductService extends SapBaseService {
         
         try {
           // Obtener lote de productos de SAP
-          const { items, hasMore: moreItems, nextLink } = await this.getProductsFromSAP({
+          const productData = await this.getProductsFromSAP({
             skip
           });
           
-          // Actualizar la bandera hasMore y calcular el siguiente skip
-          hasMore = moreItems;
-          
-          // Extraer el valor de skip del nextLink o incrementar basado en el número de items
-          if (nextLink) {
-            // Extraer el valor de skip del nextLink si existe
-            const skipMatch = nextLink.match(/\$skip=(\d+)/);
-            if (skipMatch && skipMatch[1]) {
-              skip = parseInt(skipMatch[1]);
-            } else {
-              skip += items.length;
-            }
-          } else {
-            skip += items.length;
+          const items = productData.value || [];
+          hasMore = items.length >= 20; // Continuar mientras obtengamos 20 o más items
+
+          // Si obtuvimos menos de 20 items, probablemente llegamos al final
+          if (items.length < 20) {
+            hasMore = false;
           }
+
+          // Incrementar skip basado en el número de items procesados
+          skip += items.length;
           
           stats.total += items.length;
   
@@ -363,14 +329,14 @@ class SapProductService extends SapBaseService {
               const webAppProduct = this.mapSapProductToWebApp(sapProduct);
               
               // Buscar si el producto ya existe por su código SAP
-              const existingProduct = await Product.findBySapCode(sapProduct.Sap_Code, client);
+              const existingProduct = await Product.findBySapCode(sapProduct.ItemCode, client);
               
               if (existingProduct) {
                 // Si existe, actualizar
                 await Product.update(existingProduct.product_id, webAppProduct, client, false);
                 stats.updated++;
                 this.logger.debug('Producto actualizado', {
-                  sapCode: sapProduct.Sap_Code,
+                  sapCode: sapProduct.ItemCode,
                   name: sapProduct.ItemName,
                   price_list1: webAppProduct.price_list1
                 });
@@ -379,7 +345,7 @@ class SapProductService extends SapBaseService {
                 await Product.create(webAppProduct, client);
                 stats.created++;
                 this.logger.debug('Producto creado', {
-                  sapCode: sapProduct.Sap_Code,
+                  sapCode: sapProduct.ItemCode,
                   name: sapProduct.ItemName,
                   price_list1: webAppProduct.price_list1
                 });
@@ -390,7 +356,7 @@ class SapProductService extends SapBaseService {
               await client.query('ROLLBACK');
               stats.errors++;
               this.logger.error('Error al procesar producto individual', {
-                sapCode: sapProduct.Sap_Code,
+                sapCode: sapProduct.ItemCode,
                 name: sapProduct.ItemName,
                 price_list1: sapProduct.price_list1,
                 error: productError.message,
@@ -461,38 +427,45 @@ class SapProductService extends SapBaseService {
       
       let hasMore = true;
       let skip = 0;
-      const MAX_ITERATIONS = 20;
+      const MAX_ITERATIONS = 30;
       let iterations = 0;
       
       while (hasMore && iterations < MAX_ITERATIONS) {
         iterations++;
         
         try {
-          // Obtener lote de productos de SAP con el filtro adecuado
-          // Nota: Modificar la llamada para incluir el filtro por grupo
-          const { items, hasMore: moreItems, nextLink } = await this.getProductsFromSAP({
-            skip
+          // Obtener lote de productos de SAP filtrados por grupo
+          const productData = await this.getProductsFromSAP({ 
+            skip, 
+            groupCode 
           });
           
-          // Filtrar manualmente los productos por grupo
-          const filteredItems = items.filter(item => 
-            parseInt(item.Sap_Group) === parseInt(groupCode)
-          );
+          const items = productData.value || [];
+          // Los productos ya vienen filtrados por grupo desde SAP
+          const filteredItems = items;
           
           hasMore = moreItems;
           
-          // Actualizar skip basado en nextLink o incrementando por la cantidad de items
-          if (nextLink) {
-            const skipMatch = nextLink.match(/\$skip=(\d+)/);
-            if (skipMatch && skipMatch[1]) {
-              skip = parseInt(skipMatch[1]);
-            } else {
-              skip += items.length;
-            }
-          } else {
-            skip += items.length;
+          // Determinar si hay más productos
+          hasMore = items.length >= 20;
+          if (items.length < 20) {
+            hasMore = false;
           }
+
+          // Incrementar skip basado en el número de items procesados
+          skip += items.length;
           
+          // Verificar progreso para evitar bucles infinitos
+          if (items.length === 0) {
+            this.logger.warn('No se obtuvieron productos en esta iteración, finalizando sincronización', {
+              iteration: iterations,
+              skip: skip,
+              groupCode: groupCode || 'todos'
+            });
+            hasMore = false;
+            continue;
+          }
+
           stats.total += filteredItems.length;
           
           if (filteredItems.length === 0 && items.length === 0) {
@@ -514,14 +487,8 @@ class SapProductService extends SapBaseService {
               // Mapear producto de SAP al formato de la WebApp
               const webAppProduct = this.mapSapProductToWebApp(sapProduct);
               
-              // Asegurar valores numéricos válidos
-              webAppProduct.price_list1 = parseFloat(sapProduct.price_list1) || 0;
-              webAppProduct.price_list2 = parseFloat(sapProduct.price_list2) || 0;
-              webAppProduct.price_list3 = parseFloat(sapProduct.price_list3) || 0;
-              webAppProduct.stock = parseInt(sapProduct.Stock) || 0;
-              
               // Buscar si el producto ya existe por su código SAP
-              const existingProduct = await Product.findBySapCode(sapProduct.Sap_Code, client);
+              const existingProduct = await Product.findBySapCode(sapProduct.ItemCode, client);
               
               if (existingProduct) {
                 // Si existe, actualizar
@@ -538,7 +505,7 @@ class SapProductService extends SapBaseService {
               await client.query('ROLLBACK');
               stats.errors++;
               this.logger.error('Error al procesar producto individual del grupo', {
-                sapCode: sapProduct.Sap_Code,
+                sapCode: sapProduct.ItemCode,
                 groupCode,
                 error: productError.message
               });
@@ -589,7 +556,7 @@ class SapProductService extends SapBaseService {
    */
   async getProductByCode(itemCode) {
     try {
-      const endpoint = `Items('${itemCode}')?$select=ItemCode,ItemName,ItemsGroupCode,QuantityOnStock,U_Web_Published,U_Web_Description,PictureName`;
+      const endpoint = `Items('${itemCode}')?$select=ItemCode,ItemName,ForeignName,ItemsGroupCode,BarCode,QuantityOnStock,SalesItem,Frozen`;
       
       this.logger.debug('Obteniendo producto específico de SAP B1', { itemCode });
       

@@ -435,14 +435,18 @@ El sistema se integra con SAP Business One a través de Service Layer para sincr
 - **Manual**: A través de endpoints administrativos.
 - **Por Demanda**: Al actualizar ciertos campos de productos.
 
-#### Endpoints de Sincronización
+#### Endpoints de Sincronización de Clientes
 
 | Método | Ruta | Descripción | Roles |
 |--------|------|-------------|-------|
-| POST | `/api/sap/sync` | Inicia sincronización manual completa | ADMIN |
-| GET | `/api/sap/status` | Obtiene estado de sincronización | ADMIN |
-| GET | `/api/sap/test` | Prueba conexión con SAP B1 | ADMIN |
-| POST | `/api/sap/update-description` | Actualiza descripción y sincroniza | ADMIN |
+| POST | `/api/client-sync/sync` | Sincronización manual de clientes | ADMIN |
+| POST | `/api/client-sync/sync-institutional` | Clientes institucionales (grupo 103) | ADMIN |
+| POST | `/api/client-sync/sync-ci-clients` | **Sincronización masiva CI** - Inicial del proyecto | ADMIN |
+| GET | `/api/client-sync/list-ci-clients` | Lista previa clientes CI de SAP | ADMIN |
+| GET | `/api/client-sync/status` | Estado de sincronización de clientes | ADMIN |
+| POST | `/api/client-sync/sync-all` | Sincronización completa diaria | ADMIN |
+
+**Nota importante**: El endpoint `/api/client-sync/sync-ci-clients` está diseñado para ejecutarse **una sola vez al inicio del proyecto** para importar todos los clientes existentes cuyo CardCode comience con "CI".
 
 La sincronización incluye manejo automático de errores, reintentos y registro detallado de operaciones.
 

@@ -3,6 +3,7 @@ const Product = require('../models/Product');
 const { createContextLogger } = require('../config/logger');
 const sapServiceManager = require('../services/SapServiceManager');
 const S3Service = require('../services/S3Service');
+const path = require('path');
 
 // Crear una instancia del logger con contexto
 const logger = createContextLogger('ProductController');
@@ -186,9 +187,17 @@ class ProductController {
         });
       }
       
+      // Asegurar que la URL de respuesta esté limpia
+      if (product && product.image_url) {
+          product.image_url = product.image_url
+              .replace(/&amp;amp;#x2F;/g, '/')
+              .replace(/&amp;#x2F;/g, '/')
+              .replace(/&#x2F;/g, '/');
+      }
+
       res.status(200).json({
-        success: true,
-        data: product
+          success: true,
+          data: product
       });
     } catch (error) {
       logger.error('Error al obtener producto', {
@@ -245,7 +254,7 @@ class ProductController {
    *       500:
    *         description: Error interno del servidor
    */
-  async updateProductImage(req, res) {
+    async updateProductImage(req, res) {
     try {
       const { productId } = req.params;
       let imageUrl = null;
@@ -257,6 +266,12 @@ class ProductController {
         userId: req.user?.id
       });
 
+      // AGREGAR ESTE LOGGING ADICIONAL:
+      logger.debug('URL de imagen recibida', {
+        imageUrl: req.body.imageUrl,
+        originalImageUrl: req.body.imageUrl ? req.body.imageUrl.substring(0, 100) : 'No URL provided'
+      });
+
       if (!productId) {
         return res.status(400).json({
           success: false,
@@ -264,30 +279,49 @@ class ProductController {
         });
       }
 
-      if (!imageUrl) {
-        return res.status(400).json({
-          success: false,
-          message: 'URL de imagen requerida'
-        });
-      }
-
       // Primero intentamos obtener la imagen del formulario
       if (req.files && req.files.image) {
         const file = req.files.image;
-        const key = `products/${productId}/${Date.now()}-${file.name}`;
+        // Generar nombre único preservando la extensión
+        let fileExtension = path.extname(file.name);
+        if (!fileExtension) {
+          // Determinar extensión basada en MIME type si no tiene extensión
+          const mimeToExt = {
+            'image/jpeg': '.jpg',
+            'image/jpg': '.jpg',
+            'image/png': '.png',
+            'image/gif': '.gif',
+            'image/webp': '.webp',
+            'image/svg+xml': '.svg'
+          };
+          fileExtension = mimeToExt[file.mimetype] || '.jpg';
+        }
+
+        // Limpiar nombre de archivo y generar clave
+        const cleanFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '-'); // Limpiar caracteres especiales
+        const uniquePrefix = `${Date.now()}-${Math.round(Math.random() * 1E9)}`;
+        const key = `products/${productId}/${uniquePrefix}${fileExtension}`;
         
         // Subir a S3 (o local según configuración)
         imageUrl = await S3Service.uploadFormFile(file, key, { 
           public: true,  // Imágenes de productos públicas
           contentType: file.mimetype
         });
+
+        // Asegurar que la URL sea accesible mediante proxy
+        if (imageUrl && !imageUrl.startsWith('/api/images/proxy/')) {
+          imageUrl = `/api/images/proxy/${imageUrl}`;
+        }
         
         logger.info('Imagen subida exitosamente', { productId, key });
       } 
       // Si no hay archivo, usar la URL en el body
       else if (req.body.imageUrl) {
         imageUrl = req.body.imageUrl;
-      } else {
+      } 
+
+      // Validar que tengamos una URL de imagen
+      if (!imageUrl) {
         return res.status(400).json({
           success: false,
           message: 'Se requiere un archivo de imagen o una URL de imagen'
@@ -297,10 +331,25 @@ class ProductController {
       // Actualizar la imagen
       const updatedProduct = await Product.updateImage(productId, imageUrl);
       
+      if (!updatedProduct) {
+        return res.status(404).json({
+          success: false,
+          message: 'Producto no encontrado'
+        });
+      }
+      
+      // Asegurar que la URL de respuesta esté limpia
+      if (updatedProduct && updatedProduct.image_url) {
+          updatedProduct.image_url = updatedProduct.image_url
+              .replace(/&amp;amp;#x2F;/g, '/')
+              .replace(/&amp;#x2F;/g, '/')
+              .replace(/&#x2F;/g, '/');
+      }
+
       res.status(200).json({
-        success: true,
-        message: 'Imagen de producto actualizada exitosamente',
-        data: updatedProduct
+          success: true,
+          message: 'Imagen de producto actualizada exitosamente',
+          data: updatedProduct
       });
     } catch (error) {
       logger.error('Error al actualizar imagen de producto', {
