@@ -5,10 +5,10 @@ import btn_home_1 from '../../HomeAssets/btn_home_1.png';
 import btn_home_2 from '../../HomeAssets/btn_home_2.png';
 import btn_home_1_hover from '../../HomeAssets/btn_home_1_hover.png';
 import btn_home_2_hover from '../../HomeAssets/btn_home_2_hover.png';
-import Footerico from '../../HomeAssets/Icolo_footer.png';
+import Footerico from '../../HomeAssets/Icono_footer_new.png';
 import { FaInstagram, FaTiktok, FaFacebook, FaLinkedin } from "react-icons/fa";
 import imgFondoVenta from '../../HomeAssets/Venta_Online.gif';
-import imgLogo1 from "../../HomeAssets/logo_artesa_alt.png";
+import imgLogo1 from "../../HomeAssets/logo_artesa_new.png";
 import iconPago from '../../HomeAssets/icon_pago.png';
 import iconCasa from '../../HomeAssets/icon_casa.png';
 import iconSeguro from '../../HomeAssets/icon_seguro.png';
@@ -104,7 +104,7 @@ const Home = () => {
   <header className="w-full bg-white py-4">
     <div className="max-w-7xl mx-auto px-4 flex justify-center items-center">
       <div className="h-20 md:h-30 p-2">
-        <img src={imgLogo1} alt="Panadería Logo" className="h-full" />
+        <img src={imgLogo1} alt="Panadería Logo" className="h-24" />
      </div>
     </div>
   </header>
@@ -160,7 +160,7 @@ const Home = () => {
     </p>
     <button
       onClick={() => handleNavigation('/login')}
-      className="mt-6 w-full border border-primary text-primary font-semibold py-2 rounded-full hover:bg-primary hover:text-white transition"
+      className="mt-6 w-full border border-primary-200 text-primary font-bold py-2 rounded-full hover:bg-secondary-500 hover:text-primary-500 transition"
     >
       Empresas
     </button>
@@ -177,100 +177,100 @@ const Home = () => {
 
 {/* FOOTER */}
 <footer className="w-full bg-footer py-10 px-6">
-  <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-5 gap-10 items-start text-black text-sm leading-relaxed">
+  <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-5 gap-10 items-start text-secondary-400 text-sm leading-relaxed">
 
     <div className="flex justify-center md:justify-center">
       <img
         alt="Logo Artesa" 
         src={Footerico}
-        width="60"
+        width="300"
         className="mt-2"/>
     </div>
 
     {/* Redes sociales */}
     <div className="flex flex-col items-center md:items-start">
-      <p className="mb-4 text-center md:text-left">
+      <p className="mb-4 text-center md:text-left font-semibold text-secondary-600">
         Síguenos en redes sociales:
       </p>
       <div className="flex gap-3">
         <a
           href="https://www.instagram.com/artesapanaderia/"
           className="bg-white p-2 rounded-full shadow hover:bg-gray-200">
-          <FaInstagram size={20} className="text-orange-500 hover:text-primary" />
+          <FaInstagram size={20} className="text-secondary-800 hover:text-primary" />
         </a>
         <a
           href="https://www.tiktok.com/@artesapanaderia"
           className="bg-white p-2 rounded-full shadow hover:bg-gray-200" >
-          <FaTiktok size={20} className="text-orange-500 hover:text-primary" />
+          <FaTiktok size={20} className="text-secondary-800 hover:text-primary" />
         </a>
         <a
           href="https://web.facebook.com/artesapanaderia"
           className="bg-white p-2 rounded-full shadow hover:bg-gray-200" >
-          <FaFacebook size={20} className="text-orange-500 hover:text-primary" />
+          <FaFacebook size={20} className="text-secondary-800 hover:text-primary" />
         </a>
         <a
           href="https://www.linkedin.com/company/artesa-panaderia/"
           className="bg-white p-2 rounded-full shadow hover:bg-gray-200">
-          <FaLinkedin size={20} className="text-orange-500 hover:text-primary" />
+          <FaLinkedin size={20} className="text-secondary-800 hover:text-primary" />
         </a>
       </div>
     </div>
 
     {/* Contáctanos */}
   <div>
-    <h4 className="font-bold mb-2 text-black">Contáctanos:</h4>
-      <p className="rounded px-2 transition duration-200 hover:bg-orange-200 hover:bg-opacity-70 hover:text-orange-500">
+    <h4 className="font-bold mb-2 text-secondary-600">Contáctanos</h4>
+      <p className="rounded px-2 transition duration-200 hover:bg-secondary-800 hover:bg-opacity-70 hover:text-secondary-500">
        Llámanos al <br />
-        <span className="text-orange-500 font-bold ">📞 321 355 33 51</span> </p>
-      <p className="rounded px-2 transition duration-200 hover:bg-orange-200 hover:bg-opacity-70 hover:text-orange-500">
+        <span className="text-secondary-600 font-bold ">📞 321 355 33 51</span> </p>
+      <p className="rounded px-2 transition duration-200 hover:bg-secondary-800 hover:bg-opacity-70 hover:text-secondary-500">
        Planta de producción: <br />
-        <span className="text-orange-500 font-bold">Cra 35 #17ª - 61 Bogotá D.C</span>
+        <span className="text-secondary-600 font-bold">Cra 35 #17ª - 61 Bogotá D.C</span>
       </p>
 </div>
 
 {/* Horario */}
 <div>
-  <h4 className="font-bold mb-2 text-black">Horario de atención</h4>
-  <p className="rounded px-2 transition duration-200 hover:bg-orange-200 hover:bg-opacity-70 hover:text-orange-500">
+  <h4 className="font-bold mb-2 text-secondary-600">Horario de atención</h4>
+  <p className="rounded px-2 transition duration-200 hover:bg-secondary-800 hover:bg-opacity-70 hover:text-secondary-500">
     🕖 Lunes a viernes de <br />
-    <span className="text-orange-500 font-bold">7:00 a.m. a 6:00 p.m.</span>
+    <span className="text-secondary-600 font-bold">7:00 a.m. a 6:00 p.m.</span>
   </p>
-  <p className="rounded px-2 transition duration-200 hover:bg-orange-200 hover:bg-opacity-70 hover:text-orange-500">
+  <p className="rounded px-2 transition duration-200 hover:bg-secondary-800 hover:bg-opacity-70 hover:text-secondary-500">
     🕗 Sábado de <br />
-    <span className="text-orange-500 font-bold">8:00 a.m. a 1:00 p.m.</span>
+    <span className="text-secondary-600 font-bold">8:00 a.m. a 1:00 p.m.</span>
   </p>
 </div>
 
 
 {/* Preguntas frecuentes */}
 <div>
-  <h4 className="font-bold mb-2 text-black">Preguntas frecuentes</h4>
+  <h4 className="font-bold mb-2 text-secondary-600">Preguntas frecuentes</h4>
 
   <p className="group cursor-pointer">
-    <span className="relative inline-block text-black group-hover:text-orange-500 transition-colors duration-200">
+    <span className="relative inline-block text-secondary-600 group-hover:text-orange-200 transition-colors duration-200">
       Quiénes somos
-      <span className="absolute bottom-0 left-0 w-1/2 h-[1px] bg-orange-500 scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left"></span>
+      <span className="absolute bottom-0 left-0 w-1/2 h-[1px] bg-secondary-800 scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left"></span>
     </span>
   </p>
 
   <p className="group cursor-pointer">
-    <span className="relative inline-block text-black group-hover:text-orange-500 transition-colors duration-200">
+    <span className="relative inline-block text-secondary-600 group-hover:text-orange-200 transition-colors duration-200">
       Cómo lo hacemos
-      <span className="absolute bottom-0 left-0 w-1/2 h-[1px] bg-orange-500 scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left"></span>
+      <span className="absolute bottom-0 left-0 w-1/2 h-[1px] bg-secondary-800 scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left"></span>
     </span>
   </p>
 
      <p className="group cursor-pointer">
-       <span className="relative inline-block text-black group-hover:text-orange-500 transition-colors duration-200">
+       <span className="relative inline-block text-secondary-600 group-hover:text-orange-200 transition-colors duration-200">
           Solicitar Cotización
-          <span className="absolute bottom-0 left-0 w-1/2 h-[1px] bg-orange-500 scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left"></span>
+          <span className="absolute bottom-0 left-0 w-1/2 h-[1px] bg-secondary-800 scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left"></span>
         </span>
       </p>
 
      <p className="group cursor-pointer">
-        <span className="relative inline-block text-black group-hover:text-orange-500 transition-colors duration-200">
+        <span className="relative inline-block text-secondary-600 group-hover:text-orange-200 transition-colors duration-200">
       Nuestros productos
-        <span className="absolute bottom-0 left-0 w-1/2 h-[1px] bg-orange-500 scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left"></span>
+        <span className="absolute bottom-0 left-0 w-1/2 h-[1px] bg-secondary-800 scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left"></span>
        </span>
      </p>
     </div>

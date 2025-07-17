@@ -3,90 +3,69 @@ import { createRoot } from 'react-dom/client';
 import App from './App.jsx';
 import { AuthProvider } from "./context/AuthContext";
 import { ErrorProvider } from "./context/ErrorContext";
-import { GoogleReCaptchaProvider } from 'react-google-recaptcha-v3';
 import { logEnvironmentInfo } from './utils/environment';
+import './App.css';
+
+// **Logs de desarrollo**
 console.log("Modo de ejecución:", import.meta.env.MODE);
 console.log("API URL:", import.meta.env.VITE_API_URL);
 console.log("Usando ngrok:", import.meta.env.VITE_USE_NGROK);
 console.log("URL de ngrok:", import.meta.env.VITE_NGROK_URL);
-// Verificar conectividad API con HTTPS
-import { testApiConnection } from './utils/apiHelper';
 
-// Test de conectividad automático
-testApiConnection().then(success => {
-  if (success) {
-    console.log('🟢 API HTTPS connection verified');
-  } else {
-    console.warn('🔴 API HTTPS connection failed - check certificate acceptance');
+// **Función para test de API asíncrono**
+const initializeApiConnection = async () => {
+  try {
+    // Test de conectividad dinámico
+    const { testApiConnection } = await import('./utils/apiHelper');
+    const success = await testApiConnection();
+
+    if (success) {
+      console.log('🟢 API HTTPS connection verified');
+    } else {
+      console.warn('🔴 API HTTPS connection failed - check certificate acceptance');
+    }
+  } catch (error) {
+    console.error('🔴 Error al verificar conectividad API:', error);
   }
-});
-import { RECAPTCHA_SITE_KEY, RECAPTCHA_DEV_MODE } from './config/env';
-import './App.css';
+};
 
-// Comprobar conectividad API
-const apiTestURL = import.meta.env.VITE_USE_NGROK === 'true' 
-  ? 'https://localhost:3000/api' 
-  : '/api';
 
-console.log(`Probando conectividad API en: ${apiTestURL}`);
-fetch(apiTestURL)
-  .then(response => {
-    console.log('Estado de respuesta API principal:', response.status);
-    return response.text();
-  })
-  .then(data => {
-    console.log('Respuesta API:', data);
-  })
-  .catch(error => {
-    console.error('Error al verificar API:', error);
-  });
+// **Inicialización de la aplicación**
+const initializeApp = async () => {
+  // Registrar información del entorno en desarrollo
+  if (import.meta.env.DEV) {
+    logEnvironmentInfo();
 
-// Usar la configuración centralizada para reCAPTCHA
-const finalRecaptchaKey = import.meta.env.DEV && !RECAPTCHA_SITE_KEY
-  ? '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI' // Clave de prueba de Google
-  : RECAPTCHA_SITE_KEY;
+    // Ejecutar tests de API de forma asíncrona
+    await Promise.all([
+      initializeApiConnection(),
+    ]);
+  }
 
-// Informar que usamos clave de prueba
-if (import.meta.env.DEV && finalRecaptchaKey === '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI') {
-  console.warn('ATENCIÓN: Usando clave de prueba de Google reCAPTCHA. Esta clave permite cualquier validación en desarrollo.');
-}
-
-// Registrar información en desarrollo
-if (import.meta.env.DEV) {
-  logEnvironmentInfo();
-}
-
-createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    <GoogleReCaptchaProvider
-      reCaptchaKey={finalRecaptchaKey}
-      scriptProps={{
-        async: true,
-        defer: true,
-        appendTo: 'head',
-        nonce: '',  // Para compatibilidad con CSP
-      }}
-      useRecaptchaNet={true}
-      useEnterprise={false}
-      language="es"
-      container={{
-        parameters: {
-          badge: 'bottomright',
-          theme: 'light',
-        }
-      }}
-      onLoad={() => {
-        console.log('reCAPTCHA cargado correctamente');
-      }}
-      onError={(error) => {
-        console.error('Error al cargar reCAPTCHA:', error);
-      }}
-    >
-      <AuthProvider>
+  // Renderizar la aplicación
+  createRoot(document.getElementById('root')).render(
+    <React.StrictMode>
       <ErrorProvider>
-        <App />
-        </ErrorProvider>
-      </AuthProvider>
-    </GoogleReCaptchaProvider>
-  </React.StrictMode>,
-);
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      </ErrorProvider>
+    </React.StrictMode>
+  );
+};
+
+// **Inicializar aplicación**
+initializeApp().catch(error => {
+  console.error('Error al inicializar la aplicación:', error);
+
+  // Fallback: renderizar la aplicación sin tests
+  createRoot(document.getElementById('root')).render(
+    <React.StrictMode>
+      <ErrorProvider>
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      </ErrorProvider>
+    </React.StrictMode>
+  );
+});

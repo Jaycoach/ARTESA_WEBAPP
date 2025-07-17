@@ -9,7 +9,7 @@ import FormErrorMessage from "../ui/FormErrorMessage";
 
 // Import Assets
 import img from "../../LoginsAssets/principal_img.gif";
-import logo from '../../LoginsAssets/logo_artesa_alt.png';
+import logo from '../../LoginsAssets/logo_artesa_new.png';
 
 // Import Icons
 import { FaUserShield } from "react-icons/fa";

@@ -16,9 +16,9 @@
   --white: #ffffff;
   --black: #000000;
   --gray: #808080;
-  --bg-color: #2c3e50;
+  --bg-color: #687e8d;
   --input-color: #f6db8e;
-  --button-color: #f6754e;
+  --button-color: #478090;
   --hover-color: #f6db8e;
   --font-size-xs: 0.75rem;
   --font-size-sm: 0.813rem;
@@ -166,7 +166,7 @@ img, video {
   display: flex;
   flex-direction: column;
   border-radius: var(--border-radius-lg);
-  background: hsl(0, 0%, 91%);
+  background: #ffffff;
   overflow: auto;
 }
 @media (min-width: 768px) {
@@ -254,7 +254,7 @@ img, video {
   margin-bottom: var(--spacing-md);
 }
 .auth-page__form-header img, .LoginPage .container .formDiv .headerDiv img, .RegisterPage .container .formDiv .headerDiv img, .ResetPasswordPage .container .formDiv .headerDiv img {
-  width: 100px;
+  width: 250px;
   margin-bottom: var(--spacing-sm);
 }
 .auth-page__form-header h3, .LoginPage .container .formDiv .headerDiv h3, .RegisterPage .container .formDiv .headerDiv h3, .ResetPasswordPage .container .formDiv .headerDiv h3 {

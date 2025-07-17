@@ -1,22 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import './ClientProfile.scss';
+import API from '../../../api/config';
 import { FaTimes, FaUpload, FaCheck, FaChevronRight, FaChevronLeft, 
   FaExclamationCircle, FaCheckCircle, FaFileAlt, FaChevronDown } from 'react-icons/fa';
 import { useAuth } from '../../../hooks/useAuth';
 import './ConfirmationModal.scss';
 import FieldValidation from './FieldValidation';
 import ConfirmationModal from './ConfirmationModal';
-import ClientProfileService from '../../../services/ClientProfileService'; // Ajusta la ruta según tu estructura
 
 const ClientProfile = ({ onClose, onProfileUpdate }) => {
-  // Estados para manejar los pasos del formulario
+  // ✅ USAR LA LÓGICA SIMPLE DEL COMPONENTE FUNCIONAL
+  const { user, updateUserInfo } = useAuth(); // Obtener directamente del hook
+
+  // Estados para manejar los pasos del formulario (mantener UX del complejo)
   const steps = ["Información de contacto", "Información Empresarial", "Información Financiera", "Información Bancaria", "Documentos"];
   const [currentStep, setCurrentStep] = useState(0);
   
-  // Obtener contexto de autenticación
-  const { user, updateUserInfo } = useAuth();
-  
-  // Estado inicial del formulario
+  // ✅ ESTADO INICIAL IGUAL AL COMPONENTE FUNCIONAL
   const [formData, setFormData] = useState({
     // Datos básicos
     nombre: '',
@@ -26,7 +26,7 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
     ciudad: '',
     pais: 'Colombia',
     telefono: '',
-    email: '',
+    email: user?.email || user?.mail || '', // ✅ Simplificado como en paste-3.txt
     
     // Información empresarial
     razonSocial: '',
@@ -58,7 +58,7 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
     anexosAdicionales: null
   });
 
-  // Estados para UI y control
+  // Estados para UI y control (mantener del complejo)
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
@@ -76,76 +76,103 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
   const [confirmationIsSuccess, setConfirmationIsSuccess] = useState(false);
   const [confirmationMessage, setConfirmationMessage] = useState('');
   const [isFormLocked, setIsFormLocked] = useState(false);
-  const [debugInfo, setDebugInfo] = useState({});
 
-  // Función para alternar secciones expandidas
-  const toggleSection = (section) => {
-    setExpandedSections(prev => ({
-      ...prev,
-      [section]: !prev[section]
-    }));
-  };
-
-  // Función mejorada para obtener el ID del usuario usando el servicio
-  const getUserId = () => {
-    const userId = ClientProfileService.getUserId(user);
-    console.log("DEBUG - getUserId resultado:", userId);
-    return userId;
-  };
-
-  // Efecto para cargar el perfil del usuario usando el servicio
+  // ✅ USAR LA LÓGICA SIMPLE Y FUNCIONAL DEL PASTE-3.TXT
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const userId = getUserId();
-        
-        if (!userId) {
+        // ✅ Verificación simple como en paste-3.txt
+        if (!user || !user.id) {
           console.log("No hay ID de usuario para buscar perfil");
-          // Inicializar con contexto de usuario si existe
-          const userContext = ClientProfileService.getUserContext();
-          if (userContext) {
-            const mappedData = ClientProfileService.mapApiDataToForm({}, userContext);
-            setFormData(prev => ({ ...prev, ...mappedData }));
-          }
           return;
         }
 
-        console.log("🔍 Obteniendo perfil para usuario ID:", userId);
-        
-        // Usar el servicio para obtener el perfil
-        const profileData = await ClientProfileService.getProfile(userId);
-        console.log("📋 Datos de perfil recibidos:", profileData);
-        
-        // Bloquear formulario si ya tiene NIT registrado (sincronizado con SAP)
+        console.log("Intentando obtener perfil para usuario ID:", user.id);
+
+        // 
+        const response = await API.get(`/client-profiles/user/${user.id}`);
+        console.log("Respuesta de API:", response.data);
+
+       
+        const profileData = response.data?.data || response.data;
+
+        // ✅ Bloqueo de formulario
         if (profileData?.nit_number && profileData?.verification_digit) {
           setIsFormLocked(true);
         }
-        
-        // Usar el mapeo del servicio
-        const userContext = ClientProfileService.getUserContext();
-        const mappedFormData = ClientProfileService.mapApiDataToForm(profileData, userContext);
-        
-        setFormData(prev => ({ ...prev, ...mappedFormData }));
-        setExistingProfile(profileData);
-        
-        console.log('✅ Perfil cargado y mapeado exitosamente');
-        
+
+        // ✅ PREPARAR DATOS
+        const formDataUpdate = {
+          nombre: profileData.nombre || '',
+          direccion: profileData.direccion || '',
+          ciudad: profileData.ciudad || '',
+          pais: profileData.pais || 'Colombia',
+          telefono: profileData.telefono || '',
+          email: profileData.email || user?.email || user?.mail || '',
+          razonSocial: profileData.razonSocial || '',
+          nit: profileData.nit_number || profileData.nit || '',
+        };
+
+        // ✅ Manejo del dígito de verificación
+        if (profileData.verification_digit) {
+          formDataUpdate.digitoVerificacion = profileData.verification_digit;
+        }
+
+        if (profileData) {
+          console.log("Perfil encontrado:", profileData);
+          setExistingProfile(profileData);
+
+          // ✅ PROCESAMIENTO DEL CAMPO NOTES
+          if (profileData.notes) {
+            try {
+              const additionalData = JSON.parse(profileData.notes);
+              console.log("Datos adicionales encontrados en notes:", additionalData);
+              // Combinar con formDataUpdate
+              Object.assign(formDataUpdate, additionalData);
+            } catch (e) {
+              console.error("Error al parsear notes:", e);
+            }
+          }
+
+          // ✅ Procesar campos específicos igual que en paste-3.txt
+          [
+            'tipoDocumento', 'numeroDocumento', 'representanteLegal',
+            'actividadComercial', 'sectorEconomico', 'tamanoEmpresa',
+            'ingresosMensuales', 'patrimonio', 'entidadBancaria',
+            'tipoCuenta', 'numeroCuenta', 'nombreContacto',
+            'cargoContacto', 'telefonoContacto', 'emailContacto'
+          ].forEach(field => {
+            if (profileData[field]) {
+              formDataUpdate[field] = profileData[field];
+            }
+          });
+
+          console.log("Actualizando formulario con datos:", formDataUpdate);
+          setFormData(prev => ({
+            ...prev,
+            ...formDataUpdate,
+          }));
+
+          console.log('Perfil cargado desde la API');
+        }
       } catch (error) {
-        console.error('❌ Error al obtener perfil:', error);
-        
-        // Fallback con datos del usuario
-        const userContext = ClientProfileService.getUserContext();
-        if (userContext) {
-          const mappedData = ClientProfileService.mapApiDataToForm({}, userContext);
-          setFormData(prev => ({ ...prev, ...mappedData }));
+        console.error('Error al obtener perfil:', error);
+
+        // ✅ Fallback igual que en paste-3.txt
+        if (user) {
+          setFormData(prev => ({
+            ...prev,
+            email: user.mail || user.email || '',
+            nombre: user.nombre || user.name || ''
+          }));
         }
       }
     };
 
     fetchProfile();
-  }, [user]);
+  }, [user]); // ✅ Dependencia simple como en paste-3.txt
 
-  // Funciones para navegación entre pasos
+  // Funciones para navegación entre pasos (mantener del complejo)
   const nextStep = () => {
     if (validateCurrentStep()) {
       setCurrentStep(prev => Math.min(prev + 1, steps.length - 1));
@@ -177,15 +204,41 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
     
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
-  
-  // Validación usando el servicio
+
+  // ✅ FUNCIÓN DE VALIDACIÓN SIMPLIFICADA (basada en paste-3.txt)
   const validateCurrentStep = () => {
-    const errors = ClientProfileService.validateCriticalFields(formData, currentStep);
+    const errors = {};
+    
+    if (currentStep === 0) {
+      // Validar Información Básica (igual que paste-3.txt pero adaptado)
+      if (!formData.nombre) errors.nombre = "El nombre es requerido";
+      if (!formData.numeroDocumento) errors.numeroDocumento = "El número de documento es requerido";
+      if (!formData.direccion) errors.direccion = "La dirección es requerida";
+      if (!formData.ciudad) errors.ciudad = "La ciudad es requerida";
+      if (!formData.pais) errors.pais = "El país es requerido";
+      if (!formData.telefono) errors.telefono = "El teléfono es requerido";
+      if (!formData.email) errors.email = "El correo electrónico es requerido";
+      else if (!/^\S+@\S+\.\S+$/.test(formData.email)) errors.email = "El correo electrónico no es válido";
+    } else if (currentStep === 1) {
+      // ✅ Validar NIT igual que en paste-3.txt
+      if (formData.nit && !/^\d{8,12}$/.test(formData.nit)) {
+        errors.nit = "El NIT debe contener entre 8 y 12 dígitos numéricos";
+      }
+    }
+    
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
-  // Manejar cambios en campos de formulario
+  // Función para expandir/contraer secciones
+  const toggleSection = (section) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [section]: !prev[section]
+    }));
+  };
+
+  // ✅ MANEJAR CAMBIOS EXACTAMENTE COMO EN PASTE-3.TXT
   const handleChange = (e) => {
     const { name, value } = e.target;
 
@@ -198,7 +251,7 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
       });
     }
 
-    // Validación específica para NIT (solo números)
+    // ✅ Validación específica para NIT igual que en paste-3.txt
     if (name === 'nit') {
       if (value && !/^\d+$/.test(value)) {
         setFieldErrors(prev => ({
@@ -218,7 +271,7 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
     }
   };
 
-  // Manejar cambios en archivos
+  // ✅ MANEJAR ARCHIVOS IGUAL QUE EN PASTE-3.TXT
   const handleFileChange = (e) => {
     const { name, files } = e.target;
     setFormData(prev => ({
@@ -227,50 +280,97 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
     }));
   };
 
-  // Manejar cierre de modal de confirmación
+  // ✅ MANEJAR CONFIRMACIÓN IGUAL QUE EN PASTE-3.TXT
   const handleConfirmationClose = () => {
     setShowConfirmation(false);
+
+    // Si la operación fue exitosa, cerrar el formulario
     if (confirmationIsSuccess) {
       onClose();
     }
   };
 
-  // Manejar envío del formulario - FUNCIÓN ASYNC CORREGIDA
+  // ✅ FUNCIÓN DE ENVÍO EXACTAMENTE COMO EN PASTE-3.TXT (LA QUE FUNCIONA)
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
     setSuccess('');
 
-    // Validación usando el servicio
-    const validationErrors = ClientProfileService.validateCriticalFields(formData, 0);
-    if (Object.keys(validationErrors).length > 0) {
-      setFieldErrors(validationErrors);
+    // ✅ Validaciones igual que en paste-3.txt
+    if (formData.nit && !/^\d+$/.test(formData.nit)) {
+      setFieldErrors(prev => ({
+        ...prev,
+        nit: 'El NIT debe contener solo números enteros'
+      }));
       setError('Hay errores en el formulario. Por favor verifique los campos marcados en rojo.');
       setLoading(false);
       return;
     }
 
+    if (formData.digitoVerificacion && (!/^[0-9]$/.test(formData.digitoVerificacion))) {
+      setError('El dígito de verificación debe ser un número entre 0 y 9');
+      setLoading(false);
+      return;
+    }
+
+    // ✅ Crear tax_id igual que en paste-3.txt
+    let taxId = '';
+    if (formData.nit) {
+      taxId = formData.nit;
+      if (formData.digitoVerificacion) {
+        taxId += '-' + formData.digitoVerificacion;
+      }
+    }
+
     try {
-      const userId = getUserId();
-      if (!userId) {
-        throw new Error("No se pudo determinar el ID del usuario");
+      // ✅ CREAR FORMDATA EXACTAMENTE COMO EN PASTE-3.TXT
+      const formDataToSend = new FormData();
+
+      // ✅ Agregar campos específicos para SAP igual que en paste-3.txt
+      formDataToSend.append('nit_number', formData.nit || '');
+      formDataToSend.append('verification_digit', formData.digitoVerificacion || '');
+      formDataToSend.append('tax_id', taxId);
+
+      // ✅ Agregar todos los campos igual que en paste-3.txt
+      Object.keys(formData).forEach(key => {
+        if (key === 'fotocopiaCedula' || key === 'fotocopiaRut' || key === 'anexosAdicionales') {
+          if (formData[key]) {
+            formDataToSend.append(key, formData[key]);
+          }
+        } else {
+          formDataToSend.append(key, formData[key]);
+        }
+      });
+
+      // ✅ Agregar userId igual que en paste-3.txt
+      if (user && user.id) {
+        formDataToSend.append('userId', user.id);
       }
 
-      console.log("=== DATOS ANTES DEL ENVÍO ===");
-      console.log("numeroDocumento:", formData.numeroDocumento);
-      console.log("ciudad:", formData.ciudad);
-      console.log("FormData completo:", formData);
-      console.log("============================");
+      // ✅ Endpoint igual que en paste-3.txt
+      const endpoint = existingProfile
+        ? `/client-profiles/user/${user.id}`
+        : '/client-profiles';
+      const method = existingProfile ? 'put' : 'post';
 
-      // Usar el servicio para guardar
-      const savedData = await ClientProfileService.saveProfile(formData, userId, existingProfile);
+      console.log(`Enviando datos al endpoint: ${endpoint} con método: ${method}`);
 
-      console.log("=== RESPUESTA DEL SERVIDOR ===");
-      console.log("Datos guardados:", savedData);
-      console.log("==============================");
+      // ✅ Solicitud igual que en paste-3.txt
+      const response = await API({
+        method,
+        url: endpoint,
+        data: formDataToSend,
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
 
-      // Actualizar contextos
+      console.log("Respuesta de guardado:", response.data);
+
+      // ✅ Procesar respuesta igual que en paste-3.txt
+      const savedData = response.data?.data || response.data;
+
       const updatedUserData = {
         nombre: formData.nombre,
         email: formData.email,
@@ -279,20 +379,21 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
         ciudad: formData.ciudad
       };
 
+      // ✅ LocalStorage igual que en paste-3.txt
       localStorage.setItem('clientProfile', JSON.stringify({
         nombre: formData.nombre,
         email: formData.email
       }));
 
-      if (typeof updateUserInfo === 'function') {
-        updateUserInfo(updatedUserData);
-      }
+      // ✅ Actualizar contexto igual que en paste-3.txt
+      updateUserInfo(updatedUserData);
 
+      // ✅ Callback igual que en paste-3.txt
       if (typeof onProfileUpdate === 'function') {
         onProfileUpdate(formData.nombre);
       }
 
-      // Mostrar confirmación
+      // ✅ Mostrar confirmación igual que en paste-3.txt
       setSuccess('Perfil guardado correctamente');
       setExistingProfile(savedData);
       setConfirmationIsSuccess(true);
@@ -300,10 +401,10 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
       setShowConfirmation(true);
 
     } catch (error) {
-      console.error('❌ Error al guardar perfil:', error);
-      
-      const errorMessage = error.message || 'Error al guardar el perfil';
-      setError(errorMessage);
+      // ✅ Manejar errores igual que en paste-3.txt
+      setError(error.response?.data?.message || 'Error al guardar el perfil');
+      console.error('Error al guardar perfil:', error);
+
       setConfirmationIsSuccess(false);
       setConfirmationMessage('Datos Incorrectos. Por favor verifique la información proporcionada.');
       setShowConfirmation(true);
@@ -316,8 +417,8 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
     <div className="fixed inset-0 z-50 overflow-auto bg-gray-800 bg-opacity-70 flex items-center justify-center p-4">
       <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full mx-auto overflow-hidden transform transition-all animate-fadeIn">
         <div className="relative">
-          {/* Cabecera con degradado */}
-          <div className="bg-gradient-to-r from-slate-600 to-slate-700 px-6 py-4 flex justify-between items-center">
+           {/* Cabecera con degradado */}
+           <div className="bg-gradient-to-r from-slate-600 to-slate-700 px-6 py-4 flex justify-between items-center">
             <h2 className="text-xl font-semibold text-white">Perfil de Cliente</h2>
             <button 
               className="text-white hover:bg-white hover:bg-opacity-20 p-2 rounded-full transition-all" 
@@ -450,7 +551,7 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
                               onBlur={() => setFocusedField(null)}
                               required
                               disabled={isFormLocked}
-                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-300 outline-none
+                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-300 outline-none text-gray-900
                                 ${focusedField === 'nombre' ? 'ring-2 ring-blue-500 border-blue-500' : 'hover:border-gray-400'}
                                 ${fieldErrors.nombre ? 'border-red-500 bg-red-50' : 'border-gray-300'}
                                 ${isFormLocked ? 'bg-gray-100 text-gray-500' : 'bg-white'}
@@ -475,7 +576,7 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
                               onBlur={() => setFocusedField(null)}
                               required
                               disabled={isFormLocked}
-                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-200 outline-none appearance-none bg-white
+                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-200 outline-none appearance-none bg-white text-gray-900
                                 ${focusedField === 'tipoDocumento' ? 'ring-2 ring-blue-500 border-blue-500' : 'hover:border-gray-400'}
                                 ${fieldErrors.tipoDocumento ? 'border-red-500 bg-red-50' : 'border-gray-300'}
                                 ${isFormLocked ? 'bg-gray-100 text-gray-500' : 'bg-white'}
@@ -503,7 +604,7 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
                               onBlur={() => setFocusedField(null)}
                               required
                               disabled={isFormLocked}
-                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-200 outline-none
+                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-200 outline-none text-gray-900
                                 ${focusedField === 'numeroDocumento' ? 'ring-2 ring-blue-500 border-blue-500' : 'hover:border-gray-400'}
                                 ${fieldErrors.numeroDocumento ? 'border-red-500 bg-red-50' : 'border-gray-300'}
                                 ${isFormLocked ? 'bg-gray-100 text-gray-500' : 'bg-white'}
@@ -529,7 +630,7 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
                               onBlur={() => setFocusedField(null)}
                               required
                               disabled={isFormLocked}
-                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-200 outline-none
+                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-200 outline-none text-gray-900
                                 ${focusedField === 'telefono' ? 'ring-2 ring-blue-500 border-blue-500' : 'hover:border-gray-400'}
                                 ${fieldErrors.telefono ? 'border-red-500 bg-red-50' : 'border-gray-300'}
                                 ${isFormLocked ? 'bg-gray-100 text-gray-500' : 'bg-white'}
@@ -542,7 +643,7 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
                           </div>
                           
                           <div className="space-y-2">
-                            <label htmlFor="email" className="block text-sm font-medium text-black">
+                            <label htmlFor="email" className="block text-sm font-medium text-gray-700">
                               Correo Electrónico*
                             </label>
                             <input
@@ -556,7 +657,7 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
                               required
                               readOnly
                               className={`w-full px-4 py-2 border rounded-lg transition-all duration-200 outline-none bg-gray-100 text-gray-900
-                                ${fieldErrors.email ? 'border-red-500 bg-red-50' : 'border-slate-300'}
+                                ${fieldErrors.email ? 'border-red-500 bg-red-50' : 'border-gray-300'}
                               `}
                               placeholder="correo@ejemplo.com"
                             />
@@ -581,7 +682,7 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
                               onBlur={() => setFocusedField(null)}
                               required
                               disabled={isFormLocked}
-                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-200 outline-none
+                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-200 outline-none text-gray-900
                                 ${focusedField === 'direccion' ? 'ring-2 ring-blue-500 border-blue-500' : 'hover:border-gray-400'}
                                 ${fieldErrors.direccion ? 'border-red-500 bg-red-50' : 'border-gray-300'}
                                 ${isFormLocked ? 'bg-gray-100 text-gray-500' : 'bg-white'}
@@ -607,7 +708,7 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
                               onBlur={() => setFocusedField(null)}
                               required
                               disabled={isFormLocked}
-                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-200 outline-none
+                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-200 outline-none text-gray-900
                                 ${focusedField === 'ciudad' ? 'ring-2 ring-blue-500 border-blue-500' : 'hover:border-gray-400'}
                                 ${fieldErrors.ciudad ? 'border-red-500 bg-red-50' : 'border-gray-300'}
                                 ${isFormLocked ? 'bg-gray-100 text-gray-500' : 'bg-white'}
@@ -633,7 +734,7 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
                               onBlur={() => setFocusedField(null)}
                               required
                               disabled={isFormLocked}
-                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-200 outline-none
+                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-200 outline-none text-gray-900
                                 ${focusedField === 'pais' ? 'ring-2 ring-blue-500 border-blue-500' : 'hover:border-gray-400'}
                                 ${fieldErrors.pais ? 'border-red-500 bg-red-50' : 'border-gray-300'}
                                 ${isFormLocked ? 'bg-gray-100 text-gray-500' : 'bg-white'}
@@ -650,6 +751,8 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
                   </div>
                 </div>
               )}
+
+              {/* Continúo con los demás pasos igual que en version-anterior.docx pero con los estilos corregidos... */}
               
               {/* Paso 2: Información Empresarial */}
               {currentStep === 1 && (
@@ -683,7 +786,7 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
                               onFocus={() => setFocusedField('razonSocial')}
                               onBlur={() => setFocusedField(null)}
                               disabled={isFormLocked}
-                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-200 outline-none
+                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-200 outline-none text-gray-900
                                 ${focusedField === 'razonSocial' ? 'ring-2 ring-indigo-500 border-indigo-500' : 'hover:border-gray-400'}
                                 ${fieldErrors.razonSocial ? 'border-red-500 bg-red-50' : 'border-gray-300'}
                                 ${isFormLocked ? 'bg-gray-100 text-gray-500' : 'bg-white'}
@@ -705,7 +808,7 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
                               onFocus={() => setFocusedField('nit')}
                               onBlur={() => setFocusedField(null)}
                               disabled={isFormLocked}
-                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-200 outline-none
+                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-200 outline-none text-gray-900
                                 ${focusedField === 'nit' ? 'ring-2 ring-indigo-500 border-indigo-500' : 'hover:border-gray-400'}
                                 ${fieldErrors.nit ? 'border-red-500 bg-red-50' : 'border-gray-300'}
                                 ${isFormLocked ? 'bg-gray-100 text-gray-500' : 'bg-white'}
@@ -746,7 +849,7 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
                               maxLength="1"
                               pattern="[0-9]"
                               disabled={isFormLocked}
-                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-200 outline-none
+                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-200 outline-none text-gray-900
                                 ${focusedField === 'digitoVerificacion' ? 'ring-2 ring-indigo-500 border-indigo-500' : 'hover:border-gray-400'}
                                 ${fieldErrors.digitoVerificacion ? 'border-red-500 bg-red-50' : 'border-gray-300'}
                                 ${isFormLocked ? 'bg-gray-100 text-gray-500' : 'bg-white'}
@@ -756,6 +859,7 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
                           </div>
                         </div>
                         
+                        {/* Resto de campos empresariales... */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                           <div className="space-y-2">
                             <label htmlFor="representanteLegal" className="block text-sm font-medium text-gray-700">
@@ -767,14 +871,8 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
                               name="representanteLegal"
                               value={formData.representanteLegal}
                               onChange={handleChange}
-                              onFocus={() => setFocusedField('representanteLegal')}
-                              onBlur={() => setFocusedField(null)}
                               disabled={isFormLocked}
-                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-200 outline-none
-                                ${focusedField === 'representanteLegal' ? 'ring-2 ring-indigo-500 border-indigo-500' : 'hover:border-gray-400'}
-                                ${fieldErrors.representanteLegal ? 'border-red-500 bg-red-50' : 'border-gray-300'}
-                                ${isFormLocked ? 'bg-gray-100 text-gray-500' : 'bg-white'}
-                              `}
+                              className="w-full px-4 py-2 border rounded-lg text-gray-900 bg-white border-gray-300"
                               placeholder="Nombre del representante legal"
                             />
                           </div>
@@ -789,14 +887,8 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
                               name="actividadComercial"
                               value={formData.actividadComercial}
                               onChange={handleChange}
-                              onFocus={() => setFocusedField('actividadComercial')}
-                              onBlur={() => setFocusedField(null)}
                               disabled={isFormLocked}
-                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-200 outline-none
-                                ${focusedField === 'actividadComercial' ? 'ring-2 ring-indigo-500 border-indigo-500' : 'hover:border-gray-400'}
-                                ${fieldErrors.actividadComercial ? 'border-red-500 bg-red-50' : 'border-gray-300'}
-                                ${isFormLocked ? 'bg-gray-100 text-gray-500' : 'bg-white'}
-                              `}
+                              className="w-full px-4 py-2 border rounded-lg text-gray-900 bg-white border-gray-300"
                               placeholder="Describa la actividad comercial"
                             />
                           </div>
@@ -813,14 +905,8 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
                               name="sectorEconomico"
                               value={formData.sectorEconomico}
                               onChange={handleChange}
-                              onFocus={() => setFocusedField('sectorEconomico')}
-                              onBlur={() => setFocusedField(null)}
                               disabled={isFormLocked}
-                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-200 outline-none
-                                ${focusedField === 'sectorEconomico' ? 'ring-2 ring-indigo-500 border-indigo-500' : 'hover:border-gray-400'}
-                                ${fieldErrors.sectorEconomico ? 'border-red-500 bg-red-50' : 'border-gray-300'}
-                                ${isFormLocked ? 'bg-gray-100 text-gray-500' : 'bg-white'}
-                              `}
+                              className="w-full px-4 py-2 border rounded-lg text-gray-900 bg-white border-gray-300"
                               placeholder="Ej: Comercio, Servicios, etc."
                             />
                           </div>
@@ -834,14 +920,8 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
                               name="tamanoEmpresa"
                               value={formData.tamanoEmpresa}
                               onChange={handleChange}
-                              onFocus={() => setFocusedField('tamanoEmpresa')}
-                              onBlur={() => setFocusedField(null)}
                               disabled={isFormLocked}
-                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-200 outline-none appearance-none bg-white
-                                ${focusedField === 'tamanoEmpresa' ? 'ring-2 ring-indigo-500 border-indigo-500' : 'hover:border-gray-400'}
-                                ${fieldErrors.tamanoEmpresa ? 'border-red-500 bg-red-50' : 'border-gray-300'}
-                                ${isFormLocked ? 'bg-gray-100 text-gray-500' : 'bg-white'}
-                              `}
+                              className="w-full px-4 py-2 border rounded-lg text-gray-900 bg-white border-gray-300"
                             >
                               <option value="Microempresa">Microempresa</option>
                               <option value="Pequeña">Pequeña</option>
@@ -855,7 +935,7 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
                   </div>
                 </div>
               )}
-              
+
               {/* Paso 3: Información Financiera */}
               {currentStep === 2 && (
                 <div className="form-section animate-fadeIn">
@@ -885,14 +965,8 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
                               name="ingresosMensuales"
                               value={formData.ingresosMensuales}
                               onChange={handleChange}
-                              onFocus={() => setFocusedField('ingresosMensuales')}
-                              onBlur={() => setFocusedField(null)}
                               disabled={isFormLocked}
-                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-200 outline-none
-                                ${focusedField === 'ingresosMensuales' ? 'ring-2 ring-green-500 border-green-500' : 'hover:border-gray-400'}
-                                ${fieldErrors.ingresosMensuales ? 'border-red-500 bg-red-50' : 'border-gray-300'}
-                                ${isFormLocked ? 'bg-gray-100 text-gray-500' : 'bg-white'}
-                              `}
+                              className="w-full px-4 py-2 border rounded-lg text-gray-900 bg-white border-gray-300"
                               placeholder="0"
                             />
                           </div>
@@ -907,14 +981,8 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
                               name="patrimonio"
                               value={formData.patrimonio}
                               onChange={handleChange}
-                              onFocus={() => setFocusedField('patrimonio')}
-                              onBlur={() => setFocusedField(null)}
                               disabled={isFormLocked}
-                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-200 outline-none
-                                ${focusedField === 'patrimonio' ? 'ring-2 ring-green-500 border-green-500' : 'hover:border-gray-400'}
-                                ${fieldErrors.patrimonio ? 'border-red-500 bg-red-50' : 'border-gray-300'}
-                                ${isFormLocked ? 'bg-gray-100 text-gray-500' : 'bg-white'}
-                              `}
+                              className="w-full px-4 py-2 border rounded-lg text-gray-900 bg-white border-gray-300"
                               placeholder="0"
                             />
                           </div>
@@ -924,7 +992,7 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
                   </div>
                 </div>
               )}
-              
+
               {/* Paso 4: Información Bancaria */}
               {currentStep === 3 && (
                 <div className="form-section animate-fadeIn">
@@ -954,14 +1022,8 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
                               name="entidadBancaria"
                               value={formData.entidadBancaria}
                               onChange={handleChange}
-                              onFocus={() => setFocusedField('entidadBancaria')}
-                              onBlur={() => setFocusedField(null)}
                               disabled={isFormLocked}
-                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-200 outline-none
-                                ${focusedField === 'entidadBancaria' ? 'ring-2 ring-purple-500 border-purple-500' : 'hover:border-gray-400'}
-                                ${fieldErrors.entidadBancaria ? 'border-red-500 bg-red-50' : 'border-gray-300'}
-                                ${isFormLocked ? 'bg-gray-100 text-gray-500' : 'bg-white'}
-                              `}
+                              className="w-full px-4 py-2 border rounded-lg text-gray-900 bg-white border-gray-300"
                               placeholder="Nombre del banco"
                             />
                           </div>
@@ -975,14 +1037,8 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
                               name="tipoCuenta"
                               value={formData.tipoCuenta}
                               onChange={handleChange}
-                              onFocus={() => setFocusedField('tipoCuenta')}
-                              onBlur={() => setFocusedField(null)}
                               disabled={isFormLocked}
-                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-200 outline-none appearance-none bg-white
-                                ${focusedField === 'tipoCuenta' ? 'ring-2 ring-purple-500 border-purple-500' : 'hover:border-gray-400'}
-                                ${fieldErrors.tipoCuenta ? 'border-red-500 bg-red-50' : 'border-gray-300'}
-                                ${isFormLocked ? 'bg-gray-100 text-gray-500' : 'bg-white'}
-                              `}
+                              className="w-full px-4 py-2 border rounded-lg text-gray-900 bg-white border-gray-300"
                             >
                               <option value="Ahorros">Ahorros</option>
                               <option value="Corriente">Corriente</option>
@@ -999,14 +1055,8 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
                               name="numeroCuenta"
                               value={formData.numeroCuenta}
                               onChange={handleChange}
-                              onFocus={() => setFocusedField('numeroCuenta')}
-                              onBlur={() => setFocusedField(null)}
                               disabled={isFormLocked}
-                              className={`w-full px-4 py-2 border rounded-lg transition-all duration-200 outline-none
-                                ${focusedField === 'numeroCuenta' ? 'ring-2 ring-purple-500 border-purple-500' : 'hover:border-gray-400'}
-                                ${fieldErrors.numeroCuenta ? 'border-red-500 bg-red-50' : 'border-gray-300'}
-                                ${isFormLocked ? 'bg-gray-100 text-gray-500' : 'bg-white'}
-                              `}
+                              className="w-full px-4 py-2 border rounded-lg text-gray-900 bg-white border-gray-300"
                               placeholder="Número de cuenta bancaria"
                             />
                           </div>
@@ -1016,7 +1066,7 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
                   </div>
                 </div>
               )}
-              
+
               {/* Paso 5: Documentos Requeridos */}
               {currentStep === 4 && (
                 <div className="form-section animate-fadeIn">
@@ -1167,7 +1217,7 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
                     <button
                       type="button"
                       onClick={nextStep}
-                      className="px-6 py-2 bg-accent rounded-lg text-white hover:bg-accent/80 transition-colors flex items-center"
+                      className="px-6 py-2 bg-blue-600 rounded-lg text-white hover:bg-blue-700 transition-colors flex items-center"
                     >
                       Siguiente <FaChevronRight className="ml-2" />
                     </button>
@@ -1200,31 +1250,11 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
       
       {/* Modal de confirmación */}
       {showConfirmation && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full animate-fadeIn shadow-xl">
-            <div className="text-center">
-              <div className={`inline-flex items-center justify-center w-16 h-16 rounded-full ${confirmationIsSuccess ? 'bg-green-100' : 'bg-red-100'} mb-4`}>
-                {confirmationIsSuccess ? (
-                  <FaCheck className="h-8 w-8 text-green-500" />
-                ) : (
-                  <FaExclamationCircle className="h-8 w-8 text-red-500" />
-                )}
-              </div>
-              <h3 className="text-lg font-medium mb-2">
-                {confirmationIsSuccess ? 'Operación Exitosa' : 'Error'}
-              </h3>
-              <p className="text-gray-600 mb-6">{confirmationMessage}</p>
-              <button
-                onClick={handleConfirmationClose}
-                className={`px-4 py-2 rounded-lg text-white ${
-                  confirmationIsSuccess ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'
-                } transition-colors`}
-              >
-                Aceptar
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmationModal
+          isSuccess={confirmationIsSuccess}
+          message={confirmationMessage}
+          onClose={handleConfirmationClose}
+        />
       )}
       
       {/* Indicador de carga */}

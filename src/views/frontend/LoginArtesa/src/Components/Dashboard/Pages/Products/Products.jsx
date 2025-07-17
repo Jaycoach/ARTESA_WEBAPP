@@ -4,6 +4,8 @@ import {
   FiCheck, FiEdit, FiTrash2, FiUpload, FiImage, FiSettings,
   FiToggleLeft, FiToggleRight, FiInfo, FiSave, FiX
 } from 'react-icons/fi';
+import Select from 'react-select';
+import { useBranches } from '../../../../hooks/useBranches';
 import API, { UploadAPI, ProductsAPI } from '../../../../api/config';
 import { useAuth } from '../../../../hooks/useAuth';
 import DeliveryDatePicker from '../Orders/DeliveryDatePicker';
@@ -14,10 +16,152 @@ import Card from '../../../../Components/ui/Card';
 import Button from '../../../../Components/ui/Button';
 import ProductImage from './components/ProductImage';
 
+// **CONSTANTES DE ZONAS DE ENTREGA Y CÁLCULOS**
+const DELIVERY_ZONES = {
+  'MIERCOLES_SABADO': {
+    name: 'Miércoles y Sábado',
+    days: [3, 6],
+    municipalities: ['25175', '25126', '25758', '25899', '25214', '25322', '25295', '25799'],
+    cities: ['Chía', 'Cajicá', 'Sopó', 'Zipaquirá', 'Cota', 'Guasca', 'Gachancipá', 'Tenjo']
+  },
+  'LUNES_JUEVES': {
+    name: 'Lunes y Jueves',
+    days: [1, 4],
+    municipalities: ['25754'],
+    cities: ['Soacha']
+  },
+  'MARTES_VIERNES': {
+    name: 'Martes y Viernes',
+    days: [2, 5],
+    municipalities: ['25473', '25430', '25286', '25214'],
+    cities: ['Mosquera', 'Madrid', 'Funza', 'Siberia']
+  },
+  'LUNES_SABADO': {
+    name: 'Lunes a Sábado',
+    days: [1, 2, 3, 4, 5, 6],
+    municipalities: ['11001'],
+    cities: ['Bogotá', 'Bogotá D.C']
+  }
+};
+
+const IVA_RATE = 0.19;
+const MIN_ORDER_AMOUNT = 50000;
+const SHIPPING_CHARGE = 10000;
+const SHIPPING_LIMIT = 50000;
+const SHIPPING_FREE_LIMIT = 80000;
+
+// **HOOK PERSONALIZADO PARA GESTIÓN DE PRECIOS**
+const usePriceList = () => {
+  const { user } = useAuth();
+  const [userPriceListCode, setUserPriceListCode] = useState(null);
+  const [priceCache, setPriceCache] = useState({});
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const determinePriceList = () => {
+      if (!user) return;
+
+      let priceListCode = 'GENERAL';
+
+      if (user.role === 1) {
+        priceListCode = 'ORO';
+      } else if (user.clientProfile?.tamanoEmpresa === 'Grande') {
+        priceListCode = 'ORO';
+      } else if (user.clientProfile?.tamanoEmpresa === 'Mediana') {
+        priceListCode = 'PLATA';
+      } else if (user.clientProfile?.tamanoEmpresa === 'Pequena') {
+        priceListCode = 'BRONCE';
+      }
+
+      setUserPriceListCode(priceListCode);
+    };
+
+    determinePriceList();
+  }, [user]);
+
+  const fetchMultiplePrices = useCallback(async (productCodes) => {
+    if (!userPriceListCode || !productCodes.length) return {};
+
+    setLoading(true);
+    try {
+      const response = await API.post(
+        `/api/price-lists/${userPriceListCode}/products/prices`,
+        { productCodes }
+      );
+
+      if (response.data.success) {
+        const newPrices = response.data.data;
+        setPriceCache(prev => ({ ...prev, ...newPrices }));
+        return newPrices;
+      }
+      return {};
+    } catch (error) {
+      console.error('Error fetching prices:', error);
+      return {};
+    } finally {
+      setLoading(false);
+    }
+  }, [userPriceListCode]);
+
+  const getProductPrice = useCallback(async (productCode) => {
+    if (!userPriceListCode) return null;
+
+    if (priceCache[productCode]) {
+      return priceCache[productCode];
+    }
+
+    try {
+      const response = await API.get(
+        `/api/price-lists/${userPriceListCode}/products/${productCode}/price`
+      );
+
+      if (response.data.success) {
+        const priceData = {
+          price: response.data.data.price,
+          currency: response.data.data.currency,
+          productName: response.data.data.product_name,
+          lastUpdate: response.data.data.updated_at
+        };
+
+        setPriceCache(prev => ({ ...prev, [productCode]: priceData }));
+        return priceData;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error fetching product price:', error);
+      return null;
+    }
+  }, [userPriceListCode, priceCache]);
+
+  return {
+    userPriceListCode,
+    priceCache,
+    loading,
+    fetchMultiplePrices,
+    getProductPrice
+  };
+};
+
 const Products = () => {
   // **AUTENTICACIÓN**
   const { user, isAuthenticated, isAdmin } = useAuth();
   const userIsAdmin = isAdmin();
+
+  // **HOOKS PERSONALIZADOS**
+  const {
+    branches,
+    loading: loadingBranches,
+    error: branchError,
+    fetchBranches
+  } = useBranches();
+
+  const {
+    userPriceListCode,
+    priceCache,
+    loading: pricesLoading,
+    fetchMultiplePrices,
+    getProductPrice
+  } = usePriceList();
 
   // **ESTADOS PRINCIPALES**
   const [products, setProducts] = useState([]);
@@ -37,11 +181,23 @@ const Products = () => {
   const [showImageUpload, setShowImageUpload] = useState(false);
   const [selectedProductForImage, setSelectedProductForImage] = useState(null);
 
+  // **ESTADOS PARA SUCURSALES Y ZONAS DE ENTREGA**
+  const [selectedBranch, setSelectedBranch] = useState(null);
+  const [branchOptions, setBranchOptions] = useState([]);
+  const [branchAddress, setBranchAddress] = useState('');
+  const [deliveryZone, setDeliveryZone] = useState(null);
+  const [availableDeliveryDays, setAvailableDeliveryDays] = useState([]);
+  const [municipalityCode, setMunicipalityCode] = useState(null);
+
   // **ESTADOS PARA PEDIDOS**
   const [orderItems, setOrderItems] = useState([]);
   const [orderTotal, setOrderTotal] = useState(0);
   const [submittingOrder, setSubmittingOrder] = useState(false);
   const [deliveryDate, setDeliveryDate] = useState('');
+
+  // **ESTADOS PARA PRECIOS PERSONALIZADOS**
+  const [customPricesApplied, setCustomPricesApplied] = useState(false);
+  const [calculatingDates, setCalculatingDates] = useState(false);
 
   // **ESTADOS PARA PAGINACIÓN**
   const [currentPage, setCurrentPage] = useState(1);
@@ -64,6 +220,77 @@ const Products = () => {
 
   const formatCurrency = useCallback((value) => {
     return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(value);
+  }, []);
+
+  // **FUNCIONES DE ZONA DE ENTREGA**
+  const getDeliveryZoneByDANECode = useCallback((daneCode, cityName = '') => {
+    if (!daneCode && !cityName) return null;
+
+    if (daneCode) {
+      const normalizedDANE = daneCode.toString().trim();
+      for (const [zoneKey, zoneData] of Object.entries(DELIVERY_ZONES)) {
+        if (zoneData.municipalities.includes(normalizedDANE)) {
+          return { key: zoneKey, ...zoneData };
+        }
+      }
+    }
+
+    if (cityName) {
+      const normalizedCity = cityName.toLowerCase().trim();
+      for (const [zoneKey, zoneData] of Object.entries(DELIVERY_ZONES)) {
+        if (zoneData.cities.some(city => normalizedCity.includes(city.toLowerCase()))) {
+          return { key: zoneKey, ...zoneData };
+        }
+      }
+    }
+
+    return null;
+  }, []);
+
+  const calculateAvailableDeliveryDates = useCallback((zone, orderTimeLimit = '18:00') => {
+    if (!zone) return [];
+
+    const today = new Date();
+    const currentHour = today.getHours();
+    const currentMinute = today.getMinutes();
+    const [limitHour, limitMinute] = orderTimeLimit.split(':').map(Number);
+
+    const isAfterLimit = currentHour > limitHour ||
+      (currentHour === limitHour && currentMinute > limitMinute);
+
+    let additionalDays = 2;
+    if (isAfterLimit) additionalDays += 1;
+
+    const availableDates = [];
+    for (let i = additionalDays; i <= 30; i++) {
+      const checkDate = new Date(today);
+      checkDate.setDate(today.getDate() + i);
+      const dayOfWeek = checkDate.getDay();
+
+      if (zone.days.includes(dayOfWeek)) {
+        availableDates.push(new Date(checkDate));
+      }
+    }
+
+    return availableDates;
+  }, []);
+
+  // **FUNCIONES DE CÁLCULO FINANCIERO**
+  const calculateSubtotal = useCallback(() => {
+    return orderItems.reduce((total, item) => {
+      const itemTotal = item.quantity * item.unit_price;
+      return total + (isNaN(itemTotal) ? 0 : itemTotal);
+    }, 0);
+  }, [orderItems]);
+
+  const calculateIVA = useCallback((subtotal) => {
+    return subtotal * IVA_RATE;
+  }, []);
+
+  const calculateShipping = useCallback((subtotal) => {
+    if (subtotal >= SHIPPING_FREE_LIMIT) return 0;
+    if (subtotal >= SHIPPING_LIMIT) return SHIPPING_CHARGE;
+    return null;
   }, []);
 
   // **FUNCIÓN DE PAGINACIÓN**
@@ -103,7 +330,7 @@ const Products = () => {
 
   const paginate = useCallback((pageNumber) => setCurrentPage(pageNumber), []);
 
-  // **FUNCIÓN PRINCIPAL: fetchProducts**
+  // **FUNCIÓN PRINCIPAL: fetchProducts CON PRECIOS PERSONALIZADOS**
   const fetchProducts = useCallback(async () => {
     setLoading(true);
     try {
@@ -114,7 +341,47 @@ const Products = () => {
 
       if (response.data.success) {
         const productsData = response.data.data || [];
-        setProducts(productsData);
+
+        // Si hay lista de precios personalizada, obtener precios
+        if (userPriceListCode && userPriceListCode !== 'GENERAL' && productsData.length > 0) {
+          try {
+            const productCodes = productsData.map(p =>
+              p.sap_code || p.code || p.product_id.toString()
+            );
+
+            console.log('🔄 Fetching custom prices for list:', userPriceListCode);
+            const customPrices = await fetchMultiplePrices(productCodes);
+
+            const productsWithCustomPrices = productsData.map(product => {
+              const productCode = product.sap_code || product.code || product.product_id.toString();
+              const customPrice = customPrices[productCode];
+
+              return {
+                ...product,
+                original_price_list1: product.price_list1,
+                original_price_list2: product.price_list2,
+                original_price_list3: product.price_list3,
+                price_list1: customPrice?.price || product.price_list1,
+                price_list2: product.price_list2,
+                price_list3: product.price_list3,
+                has_custom_price: !!customPrice,
+                custom_price_info: customPrice || null,
+                price_list_code: userPriceListCode
+              };
+            });
+
+            setProducts(productsWithCustomPrices);
+            setCustomPricesApplied(true);
+            console.log('✅ Products loaded with custom prices:', productsWithCustomPrices.length);
+          } catch (priceError) {
+            console.warn('⚠️ Error loading custom prices, using default prices:', priceError);
+            setProducts(productsData);
+            setCustomPricesApplied(false);
+          }
+        } else {
+          setProducts(productsData);
+          setCustomPricesApplied(false);
+        }
 
         setProductQuantities(
           productsData.reduce((acc, product) => ({
@@ -133,7 +400,7 @@ const Products = () => {
     } finally {
       setLoading(false);
     }
-  }, [search, showNotification]);
+  }, [search, userPriceListCode, fetchMultiplePrices, showNotification]);
 
   // **FUNCIONES CRUD DE PRODUCTOS**
   const handleCreateProduct = useCallback(async (productData) => {
@@ -368,6 +635,69 @@ const Products = () => {
     }
   }, [quantity, selectedProduct, updateQuantity]);
 
+  // **FUNCIONES DE GESTIÓN DE SUCURSALES**
+  const formatBranchOptions = useCallback((branchesData) => {
+    return branchesData.map(branch => ({
+      value: branch.id || branch.branch_id,
+      label: branch.name || branch.branch_name,
+      data: branch
+    }));
+  }, []);
+
+  const formatBranchOptionLabel = useCallback((option) => {
+    if (!option.data) return option.label;
+
+    return (
+      <div className="flex flex-col">
+        <span className="font-medium text-gray-900">{option.label}</span>
+        <span className="text-sm text-gray-500">
+          {option.data.address || option.data.direccion || 'Sin dirección'}
+        </span>
+      </div>
+    );
+  }, []);
+
+  const handleBranchChange = useCallback((selectedOption) => {
+    setSelectedBranch(selectedOption);
+
+    if (selectedOption && selectedOption.data) {
+      const address = selectedOption.data.address ||
+        selectedOption.data.direccion ||
+        selectedOption.data.full_address ||
+        'Dirección no disponible';
+      setBranchAddress(address);
+
+      // **NUEVA FUNCIONALIDAD: Determinar zona de entrega**
+      const municipalityCode = selectedOption.data.municipality_code ||
+        selectedOption.data.dane_code;
+      const cityName = selectedOption.data.city || selectedOption.data.ciudad;
+
+      if (municipalityCode) {
+        setMunicipalityCode(municipalityCode);
+        const zone = getDeliveryZoneByDANECode(municipalityCode, cityName);
+
+        if (zone) {
+          setDeliveryZone(zone);
+          showNotification(`Zona de entrega: ${zone.name}`, 'info');
+
+          // Calcular fechas disponibles
+          const dates = calculateAvailableDeliveryDates(zone, siteSettings?.orderTimeLimit);
+          setAvailableDeliveryDays(dates);
+        } else {
+          setDeliveryZone(null);
+          setAvailableDeliveryDays([]);
+          showNotification('No se pudo determinar la zona de entrega para esta sucursal', 'warning');
+        }
+      }
+    } else {
+      setBranchAddress('');
+      setDeliveryZone(null);
+      setAvailableDeliveryDays([]);
+      setMunicipalityCode(null);
+      setDeliveryDate('');
+    }
+  }, [getDeliveryZoneByDANECode, calculateAvailableDeliveryDates, siteSettings, showNotification]);
+
   // **FUNCIONES DE PEDIDOS**
   const addToOrder = useCallback((product, qty = 1) => {
     if (!isAuthenticated) {
@@ -379,17 +709,27 @@ const Products = () => {
       const quantityToAdd = Number(qty || productQuantities[product.product_id] || 1);
       const existingItemIndex = orderItems.findIndex(item => item.product_id === product.product_id);
 
+      // **NUEVA LÓGICA: Usar precio personalizado si existe**
+      const finalPrice = product.has_custom_price && product.custom_price_info
+        ? product.custom_price_info.price
+        : product.price_list1;
+
+      const orderItem = {
+        product_id: product.product_id,
+        name: product.name,
+        quantity: quantityToAdd,
+        unit_price: finalPrice,
+        price_source: product.price_list_code || 'default',
+        has_custom_price: product.has_custom_price || false,
+        original_price: product.original_price_list1 || product.price_list1
+      };
+
       if (existingItemIndex >= 0) {
         const updatedItems = [...orderItems];
         updatedItems[existingItemIndex].quantity += quantityToAdd;
         setOrderItems(updatedItems);
       } else {
-        setOrderItems([...orderItems, {
-          product_id: product.product_id,
-          name: product.name,
-          quantity: quantityToAdd,
-          unit_price: product.price_list1
-        }]);
+        setOrderItems([...orderItems, orderItem]);
       }
 
       showNotification(`${product.name} agregado al pedido`);
@@ -423,6 +763,46 @@ const Products = () => {
       return;
     }
 
+    if (!selectedBranch) {
+      showNotification('Debes seleccionar una sucursal para continuar', 'error');
+      return;
+    }
+
+    // **NUEVA VALIDACIÓN: Zona de entrega**
+    if (!deliveryZone) {
+      showNotification('No se pudo determinar la zona de entrega para la sucursal seleccionada', 'error');
+      return;
+    }
+
+    if (!deliveryDate) {
+      showNotification('Selecciona una fecha de entrega válida', 'error');
+      return;
+    }
+
+    // **NUEVA VALIDACIÓN: Fecha disponible para la zona**
+    if (availableDeliveryDays.length > 0) {
+      const selectedDate = new Date(deliveryDate);
+      const isDateAvailable = availableDeliveryDays.some(date =>
+        date.toDateString() === selectedDate.toDateString()
+      );
+
+      if (!isDateAvailable) {
+        showNotification(`La fecha seleccionada no está disponible para entregas en ${deliveryZone.name}`, 'error');
+        return;
+      }
+    }
+
+    // Cálculos financieros
+    const subtotal = calculateSubtotal();
+    const iva = calculateIVA(subtotal);
+    const shipping = calculateShipping(subtotal);
+
+    // **NUEVA VALIDACIÓN: Monto mínimo con IVA**
+    if (subtotal < MIN_ORDER_AMOUNT) {
+      showNotification(`El monto mínimo para crear un pedido es ${formatCurrency(MIN_ORDER_AMOUNT)} (sin IVA)`, 'error');
+      return;
+    }
+
     const isValid = orderItems.every(item =>
       item.product_id &&
       item.quantity > 0 &&
@@ -431,11 +811,6 @@ const Products = () => {
 
     if (!isValid) {
       showNotification('Por favor revisa los productos del pedido. Todos deben tener cantidades y precios válidos.', 'error');
-      return;
-    }
-
-    if (!deliveryDate) {
-      showNotification('Selecciona una fecha de entrega válida', 'error');
       return;
     }
 
@@ -450,12 +825,25 @@ const Products = () => {
     try {
       const orderData = {
         user_id: userId,
-        total_amount: orderTotal,
+        total_amount: shipping !== null ? subtotal + iva + shipping : subtotal + iva,
+        subtotal_amount: subtotal,
+        iva_amount: iva,
+        shipping_amount: shipping || 0,
         delivery_date: deliveryDate,
+        branch_id: selectedBranch.value,
+        branch_name: selectedBranch.label,
+        branch_address: branchAddress,
+        delivery_zone: deliveryZone.key,
+        delivery_zone_name: deliveryZone.name,
+        municipality_code: municipalityCode,
+        price_list_code: userPriceListCode || 'GENERAL',
+        has_custom_pricing: customPricesApplied,
         details: orderItems.map(item => ({
           product_id: parseInt(item.product_id),
           quantity: parseInt(item.quantity),
-          unit_price: parseFloat(item.unit_price)
+          unit_price: parseFloat(item.unit_price),
+          price_source: item.price_source || 'default',
+          original_unit_price: parseFloat(item.original_price || item.unit_price)
         }))
       };
 
@@ -466,30 +854,23 @@ const Products = () => {
         setOrderItems([]);
         setOrderTotal(0);
         setDeliveryDate('');
+        setSelectedBranch(null);
+        setBranchAddress('');
+        setDeliveryZone(null);
+        setAvailableDeliveryDays([]);
       } else {
         throw new Error(response.data.message || 'Error al crear el pedido');
       }
     } catch (error) {
-      console.error('Error submitting order:', error);
-
-      if (error.response) {
-        const status = error.response.status;
-        if (status === 400) {
-          showNotification('Datos inválidos en el pedido. Revisa la información.', 'error');
-        } else if (status === 403) {
-          showNotification('Tu usuario no tiene permisos para crear pedidos.', 'error');
-        } else if (status === 500) {
-          showNotification('Error en el servidor. Contacta al administrador.', 'error');
-        } else {
-          showNotification(`Error: ${error.response.data?.message || 'Desconocido'}`, 'error');
-        }
-      } else {
-        showNotification('Error de conexión. Verifica tu internet.', 'error');
-      }
+      console.error('❌ Error submitting order:', error);
+      showNotification(
+        error.response?.data?.message || 'Error al crear el pedido',
+        'error'
+      );
     } finally {
       setSubmittingOrder(false);
     }
-  }, [orderItems, orderTotal, deliveryDate, showNotification, getCurrentUserId, isAuthenticated]);
+  }, [orderItems, deliveryDate, selectedBranch, branchAddress, deliveryZone, availableDeliveryDays, municipalityCode, userPriceListCode, customPricesApplied, calculateSubtotal, calculateIVA, calculateShipping, formatCurrency, getCurrentUserId, isAuthenticated, showNotification]);
 
   // **DATOS COMPUTADOS**
   const paginatedProducts = useMemo(() => {
@@ -498,6 +879,17 @@ const Products = () => {
   }, [products, currentPage, itemsPerPage]);
 
   const totalPages = Math.ceil(products.length / itemsPerPage);
+
+  // **CÁLCULOS FINANCIEROS COMPUTADOS**
+  const subtotal = calculateSubtotal();
+  const iva = calculateIVA(subtotal);
+  const shipping = calculateShipping(subtotal);
+  const total = shipping !== null ? subtotal + iva + shipping : subtotal + iva;
+
+  // **VERIFICAR SI HAY PRECIOS PERSONALIZADOS**
+  const hasCustomPrices = useMemo(() => {
+    return products.some(product => product.has_custom_price);
+  }, [products]);
 
   // **EFFECTS**
   useEffect(() => {
@@ -534,6 +926,26 @@ const Products = () => {
     }
   }, [products]);
 
+  useEffect(() => {
+    const loadBranches = async () => {
+      if (isAuthenticated && user) {
+        console.log('🔄 Cargando sucursales para usuario:', user);
+        const branchesData = await fetchBranches();
+
+        if (branchesData && branchesData.length > 0) {
+          const options = formatBranchOptions(branchesData);
+          setBranchOptions(options);
+          console.log('✅ Opciones de sucursales configuradas:', options);
+        } else {
+          console.warn('⚠️ No se encontraron sucursales para el usuario');
+          setBranchOptions([]);
+        }
+      }
+    };
+
+    loadBranches();
+  }, [isAuthenticated, user, fetchBranches, formatBranchOptions]);
+
   // **PROTECCIÓN DE AUTENTICACIÓN**
   if (!isAuthenticated) {
     return (
@@ -558,6 +970,96 @@ const Products = () => {
       </div>
     );
   }
+
+  // **COMPONENTE INDICADOR DE LISTA DE PRECIOS**
+  const PriceListIndicator = () => {
+    if (!userPriceListCode || userPriceListCode === 'GENERAL') return null;
+
+    return (
+      <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+        <div className="flex items-center">
+          <FiInfo className="text-blue-500 mr-2" />
+          <span className="text-blue-700 text-sm">
+            {customPricesApplied ? (
+              <>
+                <strong>Lista de precios activa: {userPriceListCode}</strong>
+                <span className="ml-2 text-green-600">• Precios personalizados aplicados</span>
+              </>
+            ) : (
+              <>
+                <strong>Lista asignada: {userPriceListCode}</strong>
+                <span className="ml-2 text-amber-600">• Usando precios por defecto</span>
+              </>
+            )}
+          </span>
+        </div>
+        {pricesLoading && (
+          <div className="mt-2 flex items-center text-sm text-blue-600">
+            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600 mr-2"></div>
+            Cargando precios personalizados...
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // **COMPONENTE PARA MOSTRAR PRECIOS**
+  const PriceDisplay = ({ product, showOriginalPrice = false, adminMode = false }) => {
+    const renderCustomPriceBadge = () => {
+      if (!product.has_custom_price) return null;
+
+      return (
+        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 ml-2">
+          Precio Personalizado
+        </span>
+      );
+    };
+
+    const renderPriceUnavailable = () => (
+      <div className="text-red-600 font-medium">
+        <span>Precio no disponible</span>
+        <div className="text-xs text-gray-500">
+          Contacta al administrador
+        </div>
+      </div>
+    );
+
+    if (!product.price_list1 || product.price_list1 <= 0) {
+      return renderPriceUnavailable();
+    }
+
+    return (
+      <div className="price-display">
+        <div className="font-bold text-lg text-indigo-600">
+          {formatCurrency(product.price_list1)}
+          {renderCustomPriceBadge()}
+        </div>
+
+        {/* Mostrar precio original si es diferente */}
+        {showOriginalPrice && product.has_custom_price && product.original_price_list1 !== product.price_list1 && (
+          <div className="text-sm text-gray-500 line-through">
+            Original: {formatCurrency(product.original_price_list1)}
+          </div>
+        )}
+
+        {/* Modo admin: mostrar precios adicionales */}
+        {adminMode && (
+          <div className="mt-1 space-y-1">
+            {product.price_list2 > 0 && (
+              <div className="text-sm text-gray-600">
+                Lista 2: {formatCurrency(product.price_list2)}
+              </div>
+            )}
+            {product.price_list_code && (
+              <div className="text-xs text-blue-600">
+                Lista: {product.price_list_code}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   // **RENDER PRINCIPAL**
   return (
@@ -620,6 +1122,9 @@ const Products = () => {
           )}
         </div>
 
+        {/* **NUEVA SECCIÓN: Información de precios** */}
+        <PriceListIndicator />
+
         {/* **INFORMACIÓN DE DEBUG** */}
         {import.meta.env.DEV && (
           <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
@@ -629,7 +1134,16 @@ const Products = () => {
               Role: {user?.role} | Rol: {user?.rol} |
               Es Admin: {userIsAdmin ? 'SÍ' : 'NO'} |
               Modo Admin: {adminMode ? 'ACTIVADO' : 'DESACTIVADO'} |
-              Autenticado: {isAuthenticated ? 'SÍ' : 'NO'}
+              Autenticado: {isAuthenticated ? 'SÍ' : 'NO'} |
+              Lista Precios: {userPriceListCode || 'GENERAL'} |
+              Precios Aplicados: {customPricesApplied ? 'SÍ' : 'NO'}
+            </p>
+            <p className="text-sm text-purple-800 mt-1">
+              <strong>Debug Delivery:</strong>
+              Sucursal: {selectedBranch?.label || 'Ninguna'} |
+              Zona: {deliveryZone?.name || 'No definida'} |
+              Fechas disponibles: {availableDeliveryDays.length} |
+              Fecha seleccionada: {deliveryDate || 'Ninguna'}
             </p>
           </div>
         )}
@@ -641,7 +1155,7 @@ const Products = () => {
           </div>
         )}
 
-        {/* **RESUMEN DE PEDIDO** */}
+        {/* **RESUMEN DE PEDIDO MEJORADO** */}
         {!adminMode && orderItems.length > 0 && (
           <div className="mb-8 transform transition-all duration-300 hover:scale-[1.01]">
             <Card className="overflow-hidden bg-white border-gray-200">
@@ -657,17 +1171,34 @@ const Products = () => {
                       <p className="text-gray-700">
                         {orderItems.length} productos | {orderItems.reduce((sum, item) => sum + item.quantity, 0)} unidades
                       </p>
+                      {selectedBranch && (
+                        <p className="text-sm text-indigo-600">
+                          📍 {selectedBranch.label}
+                        </p>
+                      )}
+                      {deliveryZone && (
+                        <p className="text-sm text-green-600">
+                          🚚 {deliveryZone.name}
+                        </p>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-4 ml-auto">
-                    <span className="text-xl font-bold text-primary-300">
-                      {formatCurrency(orderTotal)}
-                    </span>
+                    <div className="text-right">
+                      <div className="text-sm text-gray-600">Subtotal: {formatCurrency(subtotal)}</div>
+                      <div className="text-sm text-gray-600">IVA (19%): {formatCurrency(iva)}</div>
+                      <div className="text-sm text-gray-600">
+                        Flete: {shipping === 0 ? 'Gratis' : shipping ? formatCurrency(shipping) : 'No aplica'}
+                      </div>
+                      <div className="text-xl font-bold text-primary-300 border-t pt-1">
+                        Total: {formatCurrency(total)}
+                      </div>
+                    </div>
                     <Button
                       className={`transition-all duration-200 transform active:scale-95 ${submittingOrder ? 'opacity-75' : ''} 
                       bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg font-medium`}
                       onClick={submitOrder}
-                      disabled={orderItems.length === 0 || submittingOrder}
+                      disabled={orderItems.length === 0 || submittingOrder || !selectedBranch || !deliveryDate}
                     >
                       <span className="flex items-center gap-2">
                         {submittingOrder ? (
@@ -702,10 +1233,18 @@ const Products = () => {
                         <div className="flex-1">
                           <p className="font-medium text-gray-900">
                             {item.name}
+                            {item.has_custom_price && (
+                              <span className="ml-2 text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                                Precio Personalizado
+                              </span>
+                            )}
                           </p>
                           <div className="flex gap-4 mt-1">
                             <span className="text-sm text-gray-600">
                               Cantidad: {item.quantity}
+                            </span>
+                            <span className="text-sm text-gray-600">
+                              Precio Unit.: {formatCurrency(item.unit_price)}
                             </span>
                             <span className="text-sm text-gray-600">
                               Subtotal: {formatCurrency(item.unit_price * item.quantity)}
@@ -728,18 +1267,122 @@ const Products = () => {
           </div>
         )}
 
-        {/* **FECHA DE ENTREGA** */}
+        {/* **SELECTOR DE SUCURSALES MEJORADO** */}
+        {!adminMode && (
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Selecciona tu sucursal
+            </label>
+
+            {loadingBranches ? (
+              <div className="flex items-center justify-center p-4 border border-gray-300 rounded-md bg-gray-50">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-600 mr-2"></div>
+                <span className="text-sm text-gray-600">Cargando sucursales...</span>
+              </div>
+            ) : branchError ? (
+              <div className="p-3 border border-red-300 rounded-md bg-red-50">
+                <p className="text-sm text-red-600">Error al cargar sucursales: {branchError}</p>
+                <button
+                  onClick={fetchBranches}
+                  className="mt-2 text-sm text-indigo-600 hover:text-indigo-800 underline"
+                >
+                  Reintentar
+                </button>
+              </div>
+            ) : (
+              <Select
+                value={selectedBranch}
+                onChange={handleBranchChange}
+                options={branchOptions}
+                formatOptionLabel={formatBranchOptionLabel}
+                placeholder="Selecciona una sucursal"
+                isClearable
+                className="w-full"
+                styles={{
+                  control: (base) => ({
+                    ...base,
+                    borderColor: '#D1D5DB',
+                    boxShadow: 'none',
+                    '&:hover': { borderColor: '#4F46E5' }
+                  }),
+                  option: (base) => ({
+                    ...base,
+                    padding: '12px 16px'
+                  })
+                }}
+              />
+            )}
+
+            {!selectedBranch && (
+              <p className="text-red-500 text-xs mt-1">Selecciona una sucursal para continuar</p>
+            )}
+          </div>
+        )}
+
+        {/* **MOSTRAR DIRECCIÓN DE SUCURSAL SELECCIONADA** */}
+        {!adminMode && selectedBranch && (
+          <div className="mb-4">
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">
+                  Dirección de la sucursal
+                </label>
+                <input
+                  type="text"
+                  value={branchAddress}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-100"
+                  readOnly
+                />
+              </div>
+              {deliveryZone && (
+                <div className="p-3 bg-green-50 border border-green-200 rounded-md">
+                  <div className="flex items-center">
+                    <FiCheck className="text-green-500 mr-2" />
+                    <span className="text-sm text-green-700">
+                      <strong>Zona de entrega determinada:</strong> {deliveryZone.name}
+                    </span>
+                  </div>
+                  <p className="text-xs text-green-600 mt-1">
+                    Entregas disponibles: {deliveryZone.days.map(day => {
+                      const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+                      return dayNames[day];
+                    }).join(', ')}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* **FECHA DE ENTREGA MEJORADA** */}
         {!adminMode && (
           <div className="mb-4">
             <label className="block text-sm font-medium mb-1 text-gray-700">
               Fecha de entrega
             </label>
+
+            {calculatingDates && (
+              <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                <div className="flex items-center">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+                  <span className="text-sm text-blue-700">
+                    Calculando fechas disponibles para {selectedBranch?.label}...
+                  </span>
+                </div>
+              </div>
+            )}
+
             <DeliveryDatePicker
               value={deliveryDate}
               onChange={setDeliveryDate}
               orderTimeLimit={siteSettings?.orderTimeLimit || '18:00'}
+              availableDates={availableDeliveryDays}
+              deliveryZone={deliveryZone}
             />
-            {!deliveryDate && <p className="text-red-500 text-xs mt-1">Selecciona una fecha de entrega</p>}
+
+            {!deliveryDate && !calculatingDates && (
+              <p className="text-red-500 text-xs mt-1">Selecciona una fecha de entrega</p>
+            )}
           </div>
         )}
 
@@ -794,7 +1437,7 @@ const Products = () => {
           </div>
         </div>
 
-        {/* **VISTA DE TABLA** */}
+        {/* **VISTA DE TABLA MEJORADA** */}
         {viewMode === 'table' && (
           <div className="overflow-x-auto rounded-lg shadow bg-white">
             {loading ? (
@@ -857,12 +1500,11 @@ const Products = () => {
                       </td>
 
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="font-medium text-gray-900">{formatCurrency(product.price_list1)}</div>
-                        {adminMode && product.price_list2 > 0 && (
-                          <div className="text-sm text-gray-500">
-                            Lista 2: {formatCurrency(product.price_list2)}
-                          </div>
-                        )}
+                        <PriceDisplay
+                          product={product}
+                          showOriginalPrice={true}
+                          adminMode={adminMode}
+                        />
                       </td>
 
                       {!adminMode && (
@@ -979,7 +1621,7 @@ const Products = () => {
           </div>
         )}
 
-        {/* **VISTA DE TARJETAS** */}
+        {/* **VISTA DE TARJETAS MEJORADA** */}
         {viewMode === 'cards' && (
           <div className={`${loading ? 'flex justify-center items-center min-h-[300px]' : ''}`}>
             {loading ? (
@@ -1032,6 +1674,11 @@ const Products = () => {
                             SAP: {product.sap_code}
                           </span>
                         )}
+                        {product.has_custom_price && (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            Precio Personalizado
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -1072,9 +1719,11 @@ const Products = () => {
                       )}
 
                       <div className="flex justify-between items-center mb-3 pb-3 border-b border-gray-200">
-                        <span className="font-bold text-lg text-indigo-600">
-                          {formatCurrency(product.price_list1)}
-                        </span>
+                        <PriceDisplay
+                          product={product}
+                          showOriginalPrice={false}
+                          adminMode={adminMode}
+                        />
 
                         {!adminMode && (
                           <div className="flex items-center">
@@ -1198,7 +1847,6 @@ const Products = () => {
       </div>
 
       {/* **MODALES** */}
-
       {/* Modal de detalles del producto */}
       <Modal
         isOpen={modalVisible}
@@ -1221,6 +1869,11 @@ const Products = () => {
                 <span className="inline-block px-2 py-1 rounded-md text-xs font-semibold bg-gray-100 text-gray-600">
                   Código: {selectedProduct.sap_code || selectedProduct.code || selectedProduct.product_id}
                 </span>
+                {selectedProduct.has_custom_price && (
+                  <span className="inline-block px-2 py-1 rounded-md text-xs font-semibold bg-green-100 text-green-800 ml-2">
+                    Precio Personalizado ({selectedProduct.price_list_code})
+                  </span>
+                )}
               </div>
               <p className="mb-6 text-gray-700">
                 {selectedProduct.description || 'Sin descripción disponible para este producto.'}
@@ -1228,9 +1881,16 @@ const Products = () => {
               <div className="mb-6 p-4 rounded-lg bg-gray-50">
                 <div className="flex justify-between items-center mb-4">
                   <span className="text-gray-600">Precio:</span>
-                  <span className="text-xl font-bold text-indigo-600">
-                    {formatCurrency(selectedProduct.price_list1)}
-                  </span>
+                  <div className="text-right">
+                    <div className="text-xl font-bold text-indigo-600">
+                      {formatCurrency(selectedProduct.price_list1)}
+                    </div>
+                    {selectedProduct.has_custom_price && selectedProduct.original_price_list1 !== selectedProduct.price_list1 && (
+                      <div className="text-sm text-gray-500 line-through">
+                        Original: {formatCurrency(selectedProduct.original_price_list1)}
+                      </div>
+                    )}
+                  </div>
                 </div>
                 {!adminMode && isAuthenticated && (
                   <>
@@ -1403,7 +2063,7 @@ const ProductFormSimple = ({ product, onSubmit, onCancel }) => {
     }
   };
 
-  return (
+return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="md:col-span-2">
@@ -1436,6 +2096,30 @@ const ProductFormSimple = ({ product, onSubmit, onCancel }) => {
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
+            Código SAP
+          </label>
+          <Input
+            value={formData.sap_code}
+            onChange={handleChange('sap_code')}
+            placeholder="Código SAP del producto"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Código de Barras
+          </label>
+          <Input
+            value={formData.barcode}
+            onChange={handleChange('barcode')}
+            placeholder="Código de barras del producto"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
             Precio Lista 1 (Principal) *
           </label>
           <Input
@@ -1463,8 +2147,11 @@ const ProductFormSimple = ({ product, onSubmit, onCancel }) => {
             value={formData.priceList2}
             onChange={handleChange('priceList2')}
             placeholder="0.00"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 ${errors.priceList2 ? 'border-red-300' : 'border-gray-300'}`}
           />
+          {errors.priceList2 && (
+            <p className="mt-1 text-sm text-red-600">{errors.priceList2}</p>
+          )}
         </div>
 
         <div>
@@ -1478,8 +2165,11 @@ const ProductFormSimple = ({ product, onSubmit, onCancel }) => {
             value={formData.priceList3}
             onChange={handleChange('priceList3')}
             placeholder="0.00"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 ${errors.priceList3 ? 'border-red-300' : 'border-gray-300'}`}
           />
+          {errors.priceList3 && (
+            <p className="mt-1 text-sm text-red-600">{errors.priceList3}</p>
+          )}
         </div>
 
         <div>
@@ -1497,18 +2187,6 @@ const ProductFormSimple = ({ product, onSubmit, onCancel }) => {
           {errors.stock && (
             <p className="mt-1 text-sm text-red-600">{errors.stock}</p>
           )}
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Código de Barras
-          </label>
-          <Input
-            value={formData.barcode}
-            onChange={handleChange('barcode')}
-            placeholder="Código de barras del producto"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          />
         </div>
       </div>
 
@@ -1544,11 +2222,13 @@ const ImageUploadSimple = ({ product, onUpload, onCancel }) => {
     const file = e.target.files[0];
     if (!file) return;
 
+    // Validar tipo de archivo
     if (!file.type.startsWith('image/')) {
-      alert('Por favor selecciona un archivo de imagen válido');
+      alert('Por favor selecciona un archivo de imagen válido (JPG, PNG, GIF)');
       return;
     }
 
+    // Validar tamaño (5MB máximo)
     if (file.size > 5 * 1024 * 1024) {
       alert('El archivo es demasiado grande. Tamaño máximo: 5MB');
       return;
@@ -1556,6 +2236,7 @@ const ImageUploadSimple = ({ product, onUpload, onCancel }) => {
 
     setSelectedFile(file);
 
+    // Crear preview
     const reader = new FileReader();
     reader.onload = (e) => {
       setPreview(e.target.result);
@@ -1569,8 +2250,10 @@ const ImageUploadSimple = ({ product, onUpload, onCancel }) => {
     setUploading(true);
     try {
       await onUpload(selectedFile);
+      // El modal se cerrará desde el componente padre si la subida es exitosa
     } catch (error) {
       console.error('Error uploading image:', error);
+      alert('Error al subir la imagen. Por favor intenta nuevamente.');
     } finally {
       setUploading(false);
     }
@@ -1578,10 +2261,13 @@ const ImageUploadSimple = ({ product, onUpload, onCancel }) => {
 
   const handleDragOver = (e) => {
     e.preventDefault();
+    e.stopPropagation();
   };
 
   const handleDrop = (e) => {
     e.preventDefault();
+    e.stopPropagation();
+    
     const file = e.dataTransfer.files[0];
     if (file) {
       const fakeEvent = { target: { files: [file] } };
@@ -1589,12 +2275,18 @@ const ImageUploadSimple = ({ product, onUpload, onCancel }) => {
     }
   };
 
+  const handleRemoveFile = () => {
+    setSelectedFile(null);
+    setPreview(null);
+  };
+
   return (
     <div className="space-y-6">
+      {/* Información del producto */}
       <div className="bg-gray-50 p-4 rounded-lg">
         <h3 className="font-medium text-gray-900">{product?.name}</h3>
         <p className="text-sm text-gray-600">
-          Código: {product?.sap_code || product?.product_id}
+          Código: {product?.sap_code || product?.code || product?.product_id}
         </p>
         {product?.image_url && (
           <div className="mt-2">
@@ -1603,34 +2295,33 @@ const ImageUploadSimple = ({ product, onUpload, onCancel }) => {
               src={product.image_url}
               alt={product.name}
               productId={product.product_id}
-              className="h-16 w-16"
+              className="h-16 w-16 rounded-md"
             />
           </div>
         )}
       </div>
 
+      {/* Área de drag & drop */}
       <div
         onDragOver={handleDragOver}
         onDrop={handleDrop}
-        className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-indigo-400 transition-colors"
+        className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-indigo-400 transition-colors cursor-pointer"
       >
         {preview ? (
           <div className="space-y-4">
             <img
               src={preview}
               alt="Preview"
-              className="max-h-64 mx-auto rounded-lg shadow-md"
+              className="max-h-64 max-w-full mx-auto rounded-lg shadow-md"
             />
             <div className="flex justify-center space-x-2">
               <Button
-                onClick={() => {
-                  setSelectedFile(null);
-                  setPreview(null);
-                }}
-                className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50"
+                type="button"
+                onClick={handleRemoveFile}
+                className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
               >
                 <FiX className="mr-1 w-3 h-3" />
-                Cambiar
+                Cambiar imagen
               </Button>
             </div>
           </div>
@@ -1645,12 +2336,13 @@ const ImageUploadSimple = ({ product, onUpload, onCancel }) => {
                 Arrastra y suelta aquí, o haz clic para seleccionar
               </p>
               <p className="text-xs text-gray-500 mt-2">
-                PNG, JPG, GIF hasta 5MB
+                Formatos soportados: PNG, JPG, GIF (máximo 5MB)
               </p>
             </div>
             <Button
+              type="button"
               onClick={() => document.querySelector('input[type="file"]').click()}
-              className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+              className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
             >
               <FiUpload className="mr-2 w-4 h-4" />
               Seleccionar Archivo
@@ -1659,6 +2351,7 @@ const ImageUploadSimple = ({ product, onUpload, onCancel }) => {
         )}
       </div>
 
+      {/* Input file oculto */}
       <input
         type="file"
         accept="image/*"
@@ -1666,39 +2359,44 @@ const ImageUploadSimple = ({ product, onUpload, onCancel }) => {
         className="hidden"
       />
 
+      {/* Información del archivo seleccionado */}
       {selectedFile && (
-        <div className="bg-blue-50 p-3 rounded-lg">
+        <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-blue-900">
                 {selectedFile.name}
               </p>
               <p className="text-xs text-blue-700">
-                {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                {(selectedFile.size / 1024 / 1024).toFixed(2)} MB • {selectedFile.type}
               </p>
             </div>
-            <FiCheck className="text-blue-600" />
+            <FiCheck className="text-blue-600 w-5 h-5" />
           </div>
         </div>
       )}
 
+      {/* Botones de acción */}
       <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
         <Button
+          type="button"
           onClick={onCancel}
           disabled={uploading}
-          className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+          className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
         >
+          <FiX className="mr-2 w-4 h-4" />
           Cancelar
         </Button>
         <Button
+          type="button"
           onClick={handleUpload}
           disabled={!selectedFile || uploading}
-          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md disabled:opacity-50"
+          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {uploading ? (
             <>
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-              Subiendo...
+              Subiendo imagen...
             </>
           ) : (
             <>

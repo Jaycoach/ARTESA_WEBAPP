@@ -20,6 +20,7 @@
     "test:staging": "npm run build:staging && npm run preview:staging"
   },
   "dependencies": {
+    "@hookform/resolvers": "^5.1.1",
     "@tailwindcss/forms": "^0.5.10",
     "@tailwindcss/vite": "^4.0.12",
     "@types/react-datepicker": "^6.2.0",
@@ -29,14 +30,17 @@
     "framer-motion": "^12.6.3",
     "jwt-decode": "^4.0.0",
     "react": "^19.0.0",
-    "react-datepicker": "^8.2.1",
+    "react-datepicker": "^8.4.0",
     "react-dom": "^19.0.0",
-    "react-google-recaptcha-v3": "^1.10.1",
-    "react-icons": "^5.4.0",
+    "react-google-recaptcha": "^3.1.0",
+    "react-hook-form": "^7.59.0",
+    "react-icons": "^5.5.0",
     "react-router-dom": "^7.1.5",
     "react-select": "^5.10.1",
     "recharts": "^2.15.1",
-    "tailwind-scrollbar": "^4.0.1"
+    "tailwind-scrollbar": "^4.0.1",
+    "yup": "^1.6.1",
+    "zustand": "^5.0.6"
   },
   "devDependencies": {
     "@tailwindcss/line-clamp": "^0.4.4",
