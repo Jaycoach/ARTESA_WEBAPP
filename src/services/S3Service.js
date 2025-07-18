@@ -220,6 +220,9 @@ class S3Service {
     // Calcular tiempo ajustado: tiempo original + compensación de zona horaria + margen de seguridad
     const timezoneCompensation = Math.abs(timezoneOffset * 3600); // Convertir horas a segundos
     const adjustedExpires = expires + timezoneCompensation + safetyMargin;
+    // Limitar tiempo de expiración para evitar URLs muy largas
+    const maxExpires = 3600; // Máximo 1 hora
+    const finalExpiresTime = Math.min(adjustedExpires, maxExpires);
   
     // Configurar opciones para URLs más cortas compatible con AWS SDK V3
     // Configuración adicional para URLs más cortas
@@ -229,7 +232,7 @@ class S3Service {
     // Configurar opciones para URLs más cortas compatible con AWS SDK V3
     // IMPORTANTE: Usar adjustedExpires que ya incluye el ajuste de zona horaria colombiana
     const urlOptions = {
-      expiresIn: Math.min(adjustedExpires, 86400), // Máximo 24 horas pero respetando zona horaria
+      expiresIn: finalExpiresTime, // Usar tiempo limitado para URLs más cortas
       signatureVersion: 'v4',
       // Configuraciones para URLs más cortas
       useAccelerateEndpoint: false,
