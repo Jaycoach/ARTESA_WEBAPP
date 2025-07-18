@@ -275,10 +275,10 @@ class ClientProfile {
         email
       });
 
-      // Validaciones de longitud de campos
+      // Validaciones de longitud de campos - TODOS los character varying son 255 máximo
       const fieldLimits = {
         company_name: 255,
-        contact_name: 255,
+        contact_name: 255, 
         contact_phone: 255,
         contact_email: 255,
         address: 255,
@@ -288,7 +288,10 @@ class ClientProfile {
         nit_number: 255,
         fotocopia_cedula: 255,
         fotocopia_rut: 255,
-        anexos_adicionales: 255
+        anexos_adicionales: 255,
+        cardcode_sap: 255,
+        clientprofilecode_sap: 255,
+        price_list_code: 255
       };
 
       // Función para truncar campos si exceden el límite
@@ -331,8 +334,24 @@ class ClientProfile {
       let clientProfileCode = null;
       if (clientData.nit_number) {
         clientProfileCode = `CI${clientData.nit_number}`;
-        if (clientProfileCode.length > 255) {
+        // Validar que el clientProfileCode no exceda 255 caracteres
+        if (clientProfileCode && clientProfileCode.length > 255) {
+          logger.warn('clientProfileCode excede 255 caracteres, truncando', {
+            originalLength: clientProfileCode.length,
+            original: clientProfileCode,
+            truncated: clientProfileCode.substring(0, 255)
+          });
           clientProfileCode = clientProfileCode.substring(0, 255);
+        }
+
+        // Validar que listaPreciosCodigo no exceda 255 caracteres
+        if (listaPreciosCodigo && listaPreciosCodigo.length > 255) {
+          logger.warn('listaPreciosCodigo excede 255 caracteres, truncando', {
+            originalLength: listaPreciosCodigo.length,
+            original: listaPreciosCodigo,
+            truncated: listaPreciosCodigo.substring(0, 255)
+          });
+          listaPreciosCodigo = listaPreciosCodigo.substring(0, 255);
         }
       }
       
@@ -507,20 +526,19 @@ class ClientProfile {
       const notesJSON = Object.keys(additionalFields).length > 0 
         ? JSON.stringify(additionalFields) 
         : null;
-      
-      // Truncar valores largos
+      // Truncar todos los campos character varying a 255 caracteres máximo
       const companyNameTrunc = razonSocial ? razonSocial.substring(0, 255) : null;
       const contactNameTrunc = nombre ? nombre.substring(0, 255) : null;
-      const contactPhoneTrunc = telefono ? telefono.substring(0, 20) : null;
+      const contactPhoneTrunc = telefono ? telefono.substring(0, 255) : null;
       const contactEmailTrunc = email ? email.substring(0, 255) : null;
-      const addressTrunc = direccion ? direccion.substring(0, 500) : null;
-      const cityTrunc = ciudad ? ciudad.substring(0, 100) : null;
-      const countryTrunc = pais ? pais.substring(0, 100) : null;
-      const taxIdTrunc = nit ? nit.substring(0, 50) : null;
-      const nitNumberTrunc = nit_number ? nit_number.substring(0, 20) : null;
-      const fotocopiaCedulaTrunc = fotocopiaCedula ? fotocopiaCedula.substring(0, 500) : null;
-      const fotocopiaRutTrunc = fotocopiaRut ? fotocopiaRut.substring(0, 500) : null;
-      const anexosAdicionalesTrunc = anexosAdicionales ? anexosAdicionales.substring(0, 500) : null;
+      const addressTrunc = direccion ? direccion.substring(0, 255) : null;
+      const cityTrunc = ciudad ? ciudad.substring(0, 255) : null;
+      const countryTrunc = pais ? pais.substring(0, 255) : null;
+      const taxIdTrunc = nit ? nit.substring(0, 255) : null;
+      const nitNumberTrunc = nit_number ? nit_number.substring(0, 255) : null;
+      const fotocopiaCedulaTrunc = fotocopiaCedula ? fotocopiaCedula.substring(0, 255) : null;
+      const fotocopiaRutTrunc = fotocopiaRut ? fotocopiaRut.substring(0, 255) : null;
+      const anexosAdicionalesTrunc = anexosAdicionales ? anexosAdicionales.substring(0, 255) : null;
       
       logger.debug('Creando perfil de cliente con datos procesados', {
         userId,
