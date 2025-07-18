@@ -787,8 +787,8 @@ async createProfile(req, res) {
         nombre: clientData.nombre
       });
       
-      // Crear el perfil usando el modelo (que maneja su propia lógica de BD)
-      const profile = await ClientProfile.create(clientData);
+      // Crear el perfil usando el modelo DENTRO de la transacción
+      const profile = await ClientProfile.createWithTransaction(client, clientData);
 
       logger.info('Perfil de cliente creado exitosamente por el modelo', {
         clientId: profile.client_id,
@@ -886,7 +886,7 @@ async createProfile(req, res) {
             clientId: profile.client_id
           });
           
-          sapSyncResult = await sapServiceManager.createOrUpdateLead(sapProfileData);
+          sapSyncResult = await sapServiceManager.clientService.createOrUpdateBusinessPartnerLead(sapProfileData);
 
           if (!sapSyncResult) {
             logger.error('sapSyncResult es null o undefined', {
@@ -1344,7 +1344,7 @@ async updateProfileByUserId(req, res) {
     // Verificar NIT en SAP DESPUÉS de definir updateData
     if (updateData.nit_number && updateData.verification_digit) {
       try {
-        const profile = existingProfile; // Asegurar que tenemos referencia al perfil
+        const profile = await ClientProfile.getByUserId(userId); // Obtener perfil actual
         logger.info('Verificando estado de SAP antes de sincronización', {
           sapServiceManagerExists: !!sapServiceManager,
           isInitialized: sapServiceManager?.initialized,
