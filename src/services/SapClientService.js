@@ -786,10 +786,9 @@ class SapClientService extends SapBaseService {
         const directResult = await this.request('GET', `BusinessPartners('${artesaCode}')`);
         
         if (directResult) {
-          // Verificar si el U_AR_ArtesaCode coincide o si no existe usar CardCode
-          const hasArtesaCode = directResult.U_AR_ArtesaCode === artesaCode || 
-                                directResult.U_AR_ArtesaCode === null || 
-                                directResult.U_AR_ArtesaCode === undefined;
+          // Verificar si el registro tiene el ArtesaCode correcto o si está null y el CardCode coincide
+          const hasArtesaCode = (directResult.U_AR_ArtesaCode === artesaCode) || 
+          (directResult.U_AR_ArtesaCode === null && directResult.CardCode === artesaCode);
           
           if (hasArtesaCode) {
             this.logger.info('Business Partner encontrado directamente por código', {
@@ -835,7 +834,7 @@ class SapClientService extends SapBaseService {
               const fullBP = await this.request('GET', `BusinessPartners('${bp.CardCode}')`);
               
               if (fullBP && (fullBP.U_AR_ArtesaCode === artesaCode || 
-                            (fullBP.CardCode === artesaCode && !fullBP.U_AR_ArtesaCode))) {
+              (fullBP.U_AR_ArtesaCode === null && fullBP.CardCode === artesaCode))) {
                 
                 this.logger.info('Business Partner encontrado en búsqueda extendida', {
                   artesaCode,
