@@ -777,50 +777,103 @@ class SapClientService extends SapBaseService {
       
       this.logger.debug('Consultando Business Partner por código Artesa', { artesaCode });
       
-      // SOLUCIÓN: Usar SQLQueries para buscar directamente en la tabla OCRD
-      const sqlQueryCode = `TEMP_BP_ARTESA_${Date.now()}`;
-      
-      // Crear consulta SQL temporal para buscar por U_AR_ArtesaCode
-      const sqlQuery = {
-        SqlCode: sqlQueryCode,
-        SqlName: "Business Partner by Artesa Code",
-        SqlText: `SELECT TOP 1 T0.CardCode, T0.CardName, T0.CardType, T0.FederalTaxID, T0.Phone1, T0.EmailAddress, T0.Address, T0.City, T0.Country, T0.CntctPrsn as ContactPerson, T0.ListNum as PriceListNum, T0.U_AR_ArtesaCode FROM OCRD T0 WHERE T0.U_AR_ArtesaCode = '${artesaCode}'`
-      };
+      // ESTRATEGIA: Dado que U_AR_ArtesaCode no está en la tabla física pero aparece en OData,
+      // intentaremos buscar directamente por CardCode asumiendo que ArtesaCode = CardCode
+      // y luego verificaremos el campo U_AR_ArtesaCode en la respuesta completa
       
       try {
-        // Crear la consulta temporal
-        await this.request('POST', 'SQLQueries', sqlQuery);
+        // Intento 1: Buscar directamente por CardCode (asumiendo ArtesaCode = CardCode)
+        const directResult = await this.request('GET', `BusinessPartners('${artesaCode}')`);
         
-        // Ejecutar la consulta
-        const result = await this.request('GET', `SQLQueries('${sqlQueryCode}')/List`);
-        
-        if (result && result.value && result.value.length > 0) {
-          const businessPartner = result.value[0];
+        if (directResult) {
+          // Verificar si el U_AR_ArtesaCode coincide o si no existe usar CardCode
+          const hasArtesaCode = directResult.U_AR_ArtesaCode === artesaCode || 
+                                directResult.U_AR_ArtesaCode === null || 
+                                directResult.U_AR_ArtesaCode === undefined;
           
-          this.logger.info('Business Partner encontrado por código Artesa via SQL', {
-            artesaCode,
-            cardCode: businessPartner.CardCode,
-            cardType: businessPartner.CardType,
-            cardName: businessPartner.CardName
-          });
-          
-          return businessPartner;
+          if (hasArtesaCode) {
+            this.logger.info('Business Partner encontrado directamente por código', {
+              artesaCode,
+              cardCode: directResult.CardCode,
+              cardType: directResult.CardType,
+              cardName: directResult.CardName,
+              hasU_AR_ArtesaCode: !!directResult.U_AR_ArtesaCode
+            });
+            
+            return {
+              CardCode: directResult.CardCode,
+              CardName: directResult.CardName,
+              CardType: directResult.CardType,
+              FederalTaxID: directResult.FederalTaxID,
+              Phone1: directResult.Phone1,
+              EmailAddress: directResult.EmailAddress,
+              Address: directResult.Address,
+              City: directResult.City,
+              Country: directResult.Country,
+              ContactPerson: directResult.ContactPerson,
+              U_AR_ArtesaCode: directResult.U_AR_ArtesaCode || artesaCode,
+              PriceListNum: directResult.PriceListNum
+            };
+          }
         }
-        
-        this.logger.debug('No se encontró Business Partner con el código Artesa proporcionado', { artesaCode });
-        return null;
-        
-      } finally {
-        // Limpiar la consulta temporal
-        try {
-          await this.request('DELETE', `SQLQueries('${sqlQueryCode}')`);
-        } catch (deleteError) {
-          this.logger.warn('No se pudo eliminar SQLQuery temporal', { 
-            sqlQueryCode, 
-            error: deleteError.message 
-          });
-        }
+      } catch (directError) {
+        this.logger.debug('Búsqueda directa por CardCode falló', { 
+          artesaCode, 
+          error: directError.message 
+        });
       }
+      
+      // Intento 2: Buscar en un rango limitado de BusinessPartners que comiencen con "CI"
+      try {
+        const searchEndpoint = `BusinessPartners?$filter=startswith(CardCode,'CI')&$top=100&$select=CardCode,CardName,CardType,FederalTaxID,Phone1,EmailAddress,Address,City,Country,ContactPerson,PriceListNum`;
+        const searchResult = await this.request('GET', searchEndpoint);
+        
+        if (searchResult && searchResult.value) {
+          // Buscar cada uno para verificar el campo U_AR_ArtesaCode
+          for (const bp of searchResult.value) {
+            try {
+              const fullBP = await this.request('GET', `BusinessPartners('${bp.CardCode}')`);
+              
+              if (fullBP && (fullBP.U_AR_ArtesaCode === artesaCode || 
+                            (fullBP.CardCode === artesaCode && !fullBP.U_AR_ArtesaCode))) {
+                
+                this.logger.info('Business Partner encontrado en búsqueda extendida', {
+                  artesaCode,
+                  cardCode: fullBP.CardCode,
+                  cardType: fullBP.CardType,
+                  cardName: fullBP.CardName
+                });
+                
+                return {
+                  CardCode: fullBP.CardCode,
+                  CardName: fullBP.CardName,
+                  CardType: fullBP.CardType,
+                  FederalTaxID: fullBP.FederalTaxID,
+                  Phone1: fullBP.Phone1,
+                  EmailAddress: fullBP.EmailAddress,
+                  Address: fullBP.Address,
+                  City: fullBP.City,
+                  Country: fullBP.Country,
+                  ContactPerson: fullBP.ContactPerson,
+                  U_AR_ArtesaCode: fullBP.U_AR_ArtesaCode || artesaCode,
+                  PriceListNum: fullBP.PriceListNum
+                };
+              }
+            } catch (bpError) {
+              // Continuar con el siguiente
+              continue;
+            }
+          }
+        }
+      } catch (searchError) {
+        this.logger.debug('Búsqueda extendida falló', { 
+          artesaCode, 
+          error: searchError.message 
+        });
+      }
+      
+      this.logger.debug('No se encontró Business Partner con el código Artesa proporcionado', { artesaCode });
+      return null;
       
     } catch (error) {
       this.logger.error('Error al consultar Business Partner por código Artesa', {
