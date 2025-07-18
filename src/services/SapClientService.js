@@ -152,6 +152,10 @@ class SapClientService extends SapBaseService {
    * @returns {Promise<Object>} - Resultado de la operación en SAP
    */
   async createOrUpdateBusinessPartnerLead(clientProfile) {
+    let isUpdate = false;
+    let existingPartner = null;
+    let cardCode = `CI${clientProfile.nit_number}`;
+    let businessPartnerData = {};
     try {
       // DEBUGGING TEMPORAL - REMOVER DESPUÉS  
       console.log('\n=== DEBUG SAP SERVICE START ===');
@@ -174,9 +178,6 @@ class SapClientService extends SapBaseService {
           nombre: clientProfile.nombre || clientProfile.contact_name
         })
       });
-      
-      // Crear CardCode único con formato requerido
-      let cardCode = `CI${clientProfile.nit_number}`;
 
       // Validar que el NIT no esté ya en uso por otro cliente
       const existingByNIT = await this.checkExistingBusinessPartnerByNIT(
@@ -204,10 +205,6 @@ class SapClientService extends SapBaseService {
         nit: clientProfile.nit_number,
         verification_digit: clientProfile.verification_digit
       });
-
-      // Verificar si ya existe en SAP antes de decidir crear o actualizar
-      let isUpdate = false;
-      let existingPartner = null;
 
       // Asegurar que tenemos sesión activa antes de hacer consultas
       if (!this.sessionId) {
@@ -304,12 +301,12 @@ class SapClientService extends SapBaseService {
       });
 
       // Preparar datos para SAP
-      const businessPartnerData = {
+      businessPartnerData = {
         CardCode: cardCode,
         CardName: businessPartnerName,
         CardType: 'cLid',  // Lead - cambiar a 'cLid' que es el correcto para Leads
         PriceListNum: 1, // Siempre 1
-        GroupCode: parseInt(process.env.SAP_INSTITUTIONAL_GROUP_CODE) || 103, // Grupo institucional por defecto
+        GroupCode: parseInt(process.env.SAP_INSTITUTIONAL_GROUP_CODE) || 120, // Grupo institucional por defecto
         FederalTaxID: `${clientProfile.nit_number}-${clientProfile.verification_digit}`,
         Phone1: phone,
         EmailAddress: clientProfile.email || clientProfile.contact_email || '',
@@ -780,29 +777,51 @@ class SapClientService extends SapBaseService {
       
       this.logger.debug('Consultando Business Partner por código Artesa', { artesaCode });
       
-      // Construir la consulta con filtro para el campo personalizado U_AR_ArtesaCode
-      const endpoint = `BusinessPartners?$filter=U_AR_ArtesaCode eq '${artesaCode}'&$select=CardCode,CardName,CardType,FederalTaxID,Phone1,EmailAddress,Address,City,Country,ContactPerson,U_AR_ArtesaCode,PriceListNum`;
+      // SOLUCIÓN: Usar SQLQueries para buscar directamente en la tabla OCRD
+      const sqlQueryCode = `TEMP_BP_ARTESA_${Date.now()}`;
       
-      // Realizar la consulta a SAP
-      const result = await this.request('GET', endpoint);
+      // Crear consulta SQL temporal para buscar por U_AR_ArtesaCode
+      const sqlQuery = {
+        SqlCode: sqlQueryCode,
+        SqlName: "Business Partner by Artesa Code",
+        SqlText: `SELECT TOP 1 T0.CardCode, T0.CardName, T0.CardType, T0.FederalTaxID, T0.Phone1, T0.EmailAddress, T0.Address, T0.City, T0.Country, T0.CntctPrsn as ContactPerson, T0.ListNum as PriceListNum, T0.U_AR_ArtesaCode FROM OCRD T0 WHERE T0.U_AR_ArtesaCode = '${artesaCode}'`
+      };
       
-      // Verificar si se encontraron resultados
-      if (!result || !result.value || result.value.length === 0) {
+      try {
+        // Crear la consulta temporal
+        await this.request('POST', 'SQLQueries', sqlQuery);
+        
+        // Ejecutar la consulta
+        const result = await this.request('GET', `SQLQueries('${sqlQueryCode}')/List`);
+        
+        if (result && result.value && result.value.length > 0) {
+          const businessPartner = result.value[0];
+          
+          this.logger.info('Business Partner encontrado por código Artesa via SQL', {
+            artesaCode,
+            cardCode: businessPartner.CardCode,
+            cardType: businessPartner.CardType,
+            cardName: businessPartner.CardName
+          });
+          
+          return businessPartner;
+        }
+        
         this.logger.debug('No se encontró Business Partner con el código Artesa proporcionado', { artesaCode });
         return null;
+        
+      } finally {
+        // Limpiar la consulta temporal
+        try {
+          await this.request('DELETE', `SQLQueries('${sqlQueryCode}')`);
+        } catch (deleteError) {
+          this.logger.warn('No se pudo eliminar SQLQuery temporal', { 
+            sqlQueryCode, 
+            error: deleteError.message 
+          });
+        }
       }
       
-      // Devolver el primer resultado (debería ser único)
-      const businessPartner = result.value[0];
-      
-      this.logger.info('Business Partner encontrado por código Artesa', {
-        artesaCode,
-        cardCode: businessPartner.CardCode,
-        cardType: businessPartner.CardType,
-        cardName: businessPartner.CardName
-      });
-      
-      return businessPartner;
     } catch (error) {
       this.logger.error('Error al consultar Business Partner por código Artesa', {
         artesaCode,
