@@ -72,6 +72,34 @@ const { sanitizeBody } = require('../middleware/security');
 
 /**
  * @swagger
+ * /api/branch-auth/check-registration:
+ *   post:
+ *     summary: Verificar si la sucursal necesita registrarse
+ *     tags: [BranchAuth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *     responses:
+ *       200:
+ *         description: Verificación exitosa
+ *       404:
+ *         description: Email no encontrado
+ */
+router.post('/check-registration', 
+  sanitizeBody,
+  branchAuthController.checkRegistration);
+
+/**
+ * @swagger
  * /api/branch-auth/login:
  *   post:
  *     summary: Login de sucursal

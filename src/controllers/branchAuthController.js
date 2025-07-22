@@ -27,7 +27,7 @@ class BranchAuthController {
     static async generateToken(branch) {
         const payload = {
             branch_id: branch.branch_id,
-            email: branch.email,
+            email_branch: branch.email_branch,
             manager_name: branch.manager_name,
             branch_name: branch.branch_name,
             client_id: branch.client_id,
@@ -130,7 +130,7 @@ class BranchAuthController {
 
             logger.info('Login de sucursal exitoso', {
                 branchId: branch.branch_id,
-                email: email,
+                email_branch: branch.email_branch,
                 branchName: branch.branch_name,
                 clientName: branch.client_name
             });
@@ -230,11 +230,70 @@ class BranchAuthController {
             });
         }
     }
+
+    static async checkRegistration(req, res) {
+        const { email } = req.body;
+
+        try {
+            if (!email) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'El email es requerido'
+                });
+            }
+
+            // Buscar sucursal por email
+            const { rows } = await pool.query(
+                `SELECT 
+                    branch_id, 
+                    branch_name, 
+                    email_branch, 
+                    password,
+                    is_login_enabled
+                 FROM client_branches 
+                 WHERE email_branch = $1`,
+                [email]
+            );
+
+            if (rows.length === 0) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'No se encontró una sucursal con este email'
+                });
+            }
+
+            const branch = rows[0];
+
+            res.status(200).json({
+                success: true,
+                data: {
+                    branch_id: branch.branch_id,
+                    branch_name: branch.branch_name,
+                    email_branch: branch.email_branch,
+                    hasPassword: !!branch.password,
+                    needsRegistration: !branch.password,
+                    is_login_enabled: branch.is_login_enabled
+                }
+            });
+
+        } catch (error) {
+            logger.error('Error verificando registro de sucursal', {
+                error: error.message,
+                email
+            });
+
+            res.status(500).json({
+                success: false,
+                message: 'Error interno del servidor'
+            });
+        }
+    }
 }
 
 module.exports = {
     login: BranchAuthController.login.bind(BranchAuthController),
     logout: BranchAuthController.logout.bind(BranchAuthController),
     getProfile: BranchAuthController.getProfile.bind(BranchAuthController),
+    checkRegistration: BranchAuthController.checkRegistration.bind(BranchAuthController),
     branchLoginLimiter
 };
