@@ -452,6 +452,9 @@ app.get('/', (req, res) => {
   });
 });
 
+const branchRegistrationRoutes = require('./src/routes/branchRegistrationRoutes');
+app.use('/api/branch-registration', branchRegistrationRoutes);
+
 // =========================================================================
 // MANEJO DE RUTAS NO ENCONTRADAS - Siempre después de todas las rutas
 // =========================================================================

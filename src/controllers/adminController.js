@@ -348,7 +348,7 @@ class AdminController {
 
       // Verificar que el email no esté en uso
       const { rows: emailRows } = await pool.query(
-        'SELECT branch_id FROM client_branches WHERE email = $1 AND branch_id != $2',
+        'SELECT branch_id FROM client_branches WHERE email_branch = $1 AND branch_id != $2',
         [email, branchId]
       );
 
@@ -367,13 +367,13 @@ class AdminController {
       const updateQuery = `
         UPDATE client_branches 
         SET 
-          email = $1,
+          email_branch = $1,
           password = $2,
           manager_name = $3,
           is_login_enabled = true,
           updated_at_auth = CURRENT_TIMESTAMP
         WHERE branch_id = $4
-        RETURNING branch_id, branch_name, email, manager_name, is_login_enabled
+        RETURNING branch_id, branch_name, email_branch, manager_name, is_login_enabled
       `;
 
       const { rows: updatedRows } = await pool.query(updateQuery, [

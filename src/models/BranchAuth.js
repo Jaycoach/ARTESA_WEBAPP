@@ -11,7 +11,7 @@ class BranchAuth {
                 `SELECT b.*, cp.client_name, cp.document_number, cp.document_type 
                  FROM client_branches b 
                  LEFT JOIN client_profiles cp ON b.client_id = cp.client_id 
-                 WHERE b.email = $1 AND b.is_login_enabled = true`,
+                 WHERE b.email_branch = $1 AND b.is_login_enabled = true`,
                 [email]
             );
             return rows[0] || null;
