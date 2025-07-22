@@ -444,8 +444,6 @@ class SapProductService extends SapBaseService {
           // Los productos ya vienen filtrados por grupo desde SAP
           const filteredItems = items;
           
-          hasMore = moreItems;
-          
           // Determinar si hay más productos
           hasMore = items.length >= 20;
           if (items.length < 20) {
