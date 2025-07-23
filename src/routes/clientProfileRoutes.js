@@ -787,4 +787,86 @@ router.post('/debug/test-sap-sync', verifyToken, async (req, res) => {
   }
 });
 
+// Diagnóstico básico de SAP
+router.post('/debug/sap-connection', verifyToken, async (req, res) => {
+  try {
+    const sapServiceManager = require('../services/SapServiceManager');
+    
+    const diagnostics = {
+      step1_serviceManagerExists: !!sapServiceManager,
+      step2_initialized: sapServiceManager.initialized,
+      step3_clientServiceExists: !!sapServiceManager.clientService,
+      step4_environmentVars: {
+        SAP_SERVICE_LAYER_URL: !!process.env.SAP_SERVICE_LAYER_URL,
+        SAP_DATABASE: !!process.env.SAP_DATABASE,
+        SAP_USERNAME: !!process.env.SAP_USERNAME,
+        SAP_PASSWORD: !!process.env.SAP_PASSWORD
+      }
+    };
+    
+    if (!sapServiceManager.initialized) {
+      await sapServiceManager.initialize();
+      diagnostics.step5_afterInitialization = sapServiceManager.initialized;
+      diagnostics.step6_clientServiceAfterInit = !!sapServiceManager.clientService;
+      diagnostics.step7_sessionExists = !!sapServiceManager.clientService?.sessionId;
+    }
+    
+    res.json({
+      success: true,
+      diagnostics
+    });
+    
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      stack: error.stack
+    });
+  }
+});
+
+// Test de creación de Lead en SAP únicamente
+router.post('/debug/sap-lead-only', verifyToken, async (req, res) => {
+  try {
+    const testProfile = {
+      client_id: 99999,
+      user_id: req.user.id,
+      razonSocial: 'TEST EMPRESA DEPURACION',
+      nombre: 'TEST CONTACTO',
+      telefono: '3001234567',
+      email: 'test@depuracion.com',
+      direccion: 'CALLE TEST 123',
+      nit_number: '900123456',
+      verification_digit: '1'
+    };
+    
+    const sapServiceManager = require('../services/SapServiceManager');
+    
+    if (!sapServiceManager.initialized) {
+      await sapServiceManager.initialize();
+    }
+    
+    const sapResult = await sapServiceManager.clientService.createOrUpdateBusinessPartnerLead(testProfile);
+    
+    res.json({
+      success: true,
+      testProfile,
+      sapResult,
+      analysis: {
+        sapResultExists: !!sapResult,
+        hasSuccess: sapResult?.success,
+        hasCardCode: !!sapResult?.cardCode,
+        hasError: !!sapResult?.error
+      }
+    });
+    
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      sapError: true
+    });
+  }
+});
+
 module.exports = router;
