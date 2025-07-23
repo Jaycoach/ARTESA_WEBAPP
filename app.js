@@ -401,7 +401,7 @@ const clientBranchRoutes = require('./src/routes/clientBranchRoutes');
 // =========================================================================
 // Health check routes (sin autenticación para ALB)
 app.use('/api', healthRoutes);
-app.use('/api/sap', require('./routes/sapHealthRoutes'));
+app.use('/api/sap-health', require('./src/routes/healthRoutes'));
 
 // Endpoint específico para debugging CORS
 app.get('/api/cors-debug', (req, res) => {
