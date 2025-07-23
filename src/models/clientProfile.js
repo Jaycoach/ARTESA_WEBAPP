@@ -1010,7 +1010,7 @@ class ClientProfile {
       CardName: companyName,
       CardType: "L", // Lead por defecto (siempre L)
       PriceListNum: 1, // Siempre 1
-      GroupCode: 102, // Siempre 102
+      GroupCode: parseInt(process.env.SAP_INSTITUTIONAL_GROUP_CODE) || 120, // Para clientes institucionales
       FederalTaxID: `${nit_number}-${verification_digit}`,
       Phone1: phone,
       EmailAddress: email,
