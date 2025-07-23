@@ -869,4 +869,36 @@ router.post('/debug/sap-lead-only', verifyToken, async (req, res) => {
   }
 });
 
+// Verificar qué GroupCode está usando actualmente
+router.get('/debug/sap-groupcode', verifyToken, async (req, res) => {
+  try {
+    const testProfile = {
+      nit_number: '900123456',
+      verification_digit: '1'
+    };
+    
+    const groupCode = parseInt(process.env.SAP_INSTITUTIONAL_GROUP_CODE) || 120;
+    
+    res.json({
+      success: true,
+      environment: {
+        SAP_INSTITUTIONAL_GROUP_CODE: process.env.SAP_INSTITUTIONAL_GROUP_CODE,
+        parsed_group_code: groupCode,
+        default_fallback: 120
+      },
+      mock_business_partner: {
+        GroupCode: groupCode,
+        CardCode: `CI${testProfile.nit_number}`,
+        CardType: 'cLid'
+      }
+    });
+    
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;
