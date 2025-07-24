@@ -65,14 +65,15 @@ class ClientSyncController {
         JOIN users u ON cp.user_id = u.id
       `);
 
-      // Obtener clientes pendientes de activación
+      // Obtener clientes pendientes de activación (Lead en SAP pero usuario activo en API)
       const pendingQuery = `
         SELECT COUNT(*) AS pending_clients
         FROM client_profiles cp
         JOIN users u ON cp.user_id = u.id
         WHERE cp.cardcode_sap IS NOT NULL 
         AND cp.sap_lead_synced = true
-        AND u.is_active = false
+        AND cp.cardtype_sap = 'cLId'
+        AND u.is_active = true
       `;
       
       const pendingResult = await pool.query(pendingQuery);
