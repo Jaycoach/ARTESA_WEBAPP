@@ -339,7 +339,10 @@ const Orders = () => {
         <div className="p-6">
           {/* Vista de lista de pedidos */}
           {currentView === 'list' && (
-            <OrderList />
+            <OrderList 
+              canCreateValidation={canCreateValidation}
+              onCreateOrderClick={handleCreateOrderClick}
+            />
           )}
           
           {/* Vista de crear pedido (solo si está validado y explícitamente autorizado) */}

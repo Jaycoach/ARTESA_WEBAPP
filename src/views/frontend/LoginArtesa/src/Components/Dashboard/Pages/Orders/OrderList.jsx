@@ -7,7 +7,7 @@ import OrderStatusBadge from './OrderStatusBadge';
 import { FaEdit, FaEye, FaExclamationTriangle, FaTrashAlt, FaFilter, FaUserCheck, FaUserClock, FaUserTimes } from 'react-icons/fa';
 import API from '../../../../api/config';
 
-const OrderList = () => {
+const OrderList = ({ canCreateValidation, onCreateOrderClick }) => {
   const { user } = useAuth();
   const { userStatus, error: userError, refresh: refreshUserStatus } = useUserActivation(); // NUEVO
   const [orders, setOrders] = useState([]);
@@ -29,19 +29,38 @@ const OrderList = () => {
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const isAdmin = user?.role === 1;
   // NUEVO: Botón condicional para crear pedido
+  // Botón condicional para crear pedido usando validación del componente padre
   const CreateOrderButton = ({ className = "", showIcon = true }) => {
-    if (!userStatus.canCreateOrders) {
-      return null; // No mostrar botón si no puede crear pedidos
+    if (canCreateValidation.loading) {
+      return (
+        <div className={`inline-flex items-center justify-center px-4 py-2 text-sm font-medium rounded-md bg-gray-100 text-gray-500 ${className}`}>
+          <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-gray-500 mr-2"></div>
+          Verificando...
+        </div>
+      );
+    }
+
+    if (!canCreateValidation.canCreate) {
+      return (
+        <button
+          disabled
+          className={`inline-flex items-center justify-center px-4 py-2 text-sm font-medium rounded-md bg-gray-100 text-gray-400 cursor-not-allowed opacity-50 ${className}`}
+          title={canCreateValidation.statusMessage}
+        >
+          {showIcon && <span className="mr-2">+</span>}
+          Nuevo Pedido
+        </button>
+      );
     }
 
     return (
-      <Link
-        to="/dashboard/orders/new"
+      <button
+        onClick={onCreateOrderClick}
         className={`inline-flex items-center justify-center px-4 py-2 text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 transition-colors ${className}`}
       >
         {showIcon && <span className="mr-2">+</span>}
         Nuevo Pedido
-      </Link>
+      </button>
     );
   };
 
@@ -340,10 +359,10 @@ const OrderList = () => {
           <p className="text-gray-500 text-center p-6">No tienes pedidos registrados.</p>
           <div className="flex justify-center">
             <CreateOrderButton />
-            {!userStatus.canCreateOrders && (
+            {!canCreateValidation.canCreate && !canCreateValidation.loading && (
               <div className="text-center">
                 <p className="text-gray-500 text-sm mt-2">
-                  Completa la configuración de tu cuenta para crear pedidos
+                  {canCreateValidation.statusMessage}
                 </p>
               </div>
             )}
