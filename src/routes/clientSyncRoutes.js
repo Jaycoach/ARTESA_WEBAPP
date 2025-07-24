@@ -686,4 +686,6 @@ router.post('/test-email-ses',
   clientSyncController.testEmailSes
 );
 
+router.get('/debug/client/:userId', clientSyncController.debugClientStatus);
+
 module.exports = router;
