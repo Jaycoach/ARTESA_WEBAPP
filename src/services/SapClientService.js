@@ -790,11 +790,22 @@ class SapClientService extends SapBaseService {
         FROM client_profiles cp
         JOIN users u ON cp.user_id = u.id
         WHERE cp.cardcode_sap IS NOT NULL 
-        AND (cp.cardtype_sap = 'cLId' OR cp.cardtype_sap IS NULL)
         ORDER BY cp.client_id
       `;
       
       const { rows: profiles } = await pool.query(query);
+
+      this.logger.info('Clientes encontrados para verificar en SAP', {
+        total: profiles.length,
+        clientes: profiles.map(p => ({
+          clientId: p.client_id,
+          userId: p.user_id,
+          cardCode: p.cardcode_sap,
+          cardTypeSap: p.cardtype_sap,
+          isActive: p.is_active,
+          companyName: p.company_name
+        }))
+      });
       
       if (!profiles || profiles.length === 0) {
         this.logger.info('No se encontraron clientes Lead para sincronizar');
@@ -812,6 +823,14 @@ class SapClientService extends SapBaseService {
           
           // Buscar el cliente en SAP por CardCode
           const sapClient = await this.getBusinessPartnerByCardCode(profile.cardcode_sap);
+
+          this.logger.info('Cliente encontrado en SAP', {
+            clientId: profile.client_id,
+            cardCode: profile.cardcode_sap,
+            sapCardType: sapClient?.CardType,
+            apiCardType: profile.cardtype_sap,
+            userIsActive: profile.is_active
+          });
           
           if (!sapClient) {
             this.logger.warn('Cliente no encontrado en SAP', {
@@ -842,18 +861,25 @@ class SapClientService extends SapBaseService {
             stats.cardTypeChanges++;
 
             // Si cambió de Lead a Cliente, incrementar contador específico
-            if (profile.cardtype_sap === 'cLId' && (sapClient.CardType === 'cCli' || sapClient.CardType === 'C')) {
+            if (profile.cardtype_sap === 'cLId' && (sapClient.CardType === 'cCli' || sapClient.CardType === 'C' || sapClient.CardType === 'Customer')) {
               stats.leadsToClients++;
               this.logger.info('Cliente promovido de Lead a Cliente en SAP', {
                 userId: profile.user_id,
                 clientId: profile.client_id,
-                cardCode: sapClient.CardCode
+                cardCode: sapClient.CardCode,
+                oldCardType: profile.cardtype_sap,
+                newCardType: sapClient.CardType
               });
             }
           }
 
-          // Si el cliente ya no es Lead en SAP (CardType !== 'cLId'), activar el usuario si no está activo
-          if (sapClient.CardType !== 'cLId' && !profile.is_active) {
+          // Si el cliente ya no es Lead en SAP, activar el usuario si no está activo
+          // Verificar múltiples valores posibles para "no es Lead"
+          const isNotLead = sapClient.CardType !== 'cLId' && 
+                            sapClient.CardType !== 'cLid' && 
+                            sapClient.CardType !== 'Lead';
+
+          if (isNotLead && !profile.is_active) {
             await dbClient.query('UPDATE users SET is_active = true WHERE id = $1', [profile.user_id]);
             
             this.logger.info('Usuario activado porque ya no es Lead en SAP', {

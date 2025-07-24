@@ -1470,6 +1470,102 @@ class ClientSyncController {
       });
     }
   }
+
+  /**
+   * Debug: Verificar estado de cliente específico en SAP vs API
+   */
+  async debugClientStatus(req, res) {
+    try {
+      const { userId } = req.params;
+      
+      logger.info('Debug: Verificando estado de cliente', { 
+        userId,
+        adminId: req.user?.id
+      });
+
+      // Obtener datos del cliente de la API
+      const query = `
+        SELECT cp.*, u.is_active, u.name, u.mail
+        FROM client_profiles cp
+        JOIN users u ON cp.user_id = u.id
+        WHERE cp.user_id = $1
+      `;
+      
+      const { rows } = await pool.query(query, [userId]);
+      
+      if (rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'Cliente no encontrado'
+        });
+      }
+      
+      const clientProfile = rows[0];
+      
+      // Verificar que el servicio esté inicializado
+      if (!sapServiceManager.initialized) {
+        await sapServiceManager.initialize();
+      }
+      
+      let sapClient = null;
+      if (clientProfile.cardcode_sap) {
+        try {
+          sapClient = await sapServiceManager.clientService.getBusinessPartnerByCardCode(clientProfile.cardcode_sap);
+        } catch (sapError) {
+          logger.error('Error al consultar SAP', {
+            error: sapError.message,
+            cardCode: clientProfile.cardcode_sap
+          });
+        }
+      }
+      
+      const canCreateOrders = clientProfile.is_active && 
+                            clientProfile.cardcode_sap && 
+                            clientProfile.cardtype_sap !== 'cLId' &&
+                            clientProfile.cardtype_sap !== 'cLid';
+      
+      res.status(200).json({
+        success: true,
+        data: {
+          api: {
+            userId: clientProfile.user_id,
+            clientId: clientProfile.client_id,
+            isActive: clientProfile.is_active,
+            cardCodeSap: clientProfile.cardcode_sap,
+            cardTypeSap: clientProfile.cardtype_sap,
+            companyName: clientProfile.company_name,
+            sapLeadSynced: clientProfile.sap_lead_synced
+          },
+          sap: {
+            found: !!sapClient,
+            cardCode: sapClient?.CardCode,
+            cardName: sapClient?.CardName,
+            cardType: sapClient?.CardType,
+            groupCode: sapClient?.GroupCode
+          },
+          analysis: {
+            cardTypeMatches: sapClient?.CardType === clientProfile.cardtype_sap,
+            needsUpdate: sapClient && sapClient.CardType !== clientProfile.cardtype_sap,
+            canCreateOrders: canCreateOrders,
+            isLead: clientProfile.cardtype_sap === 'cLId' || clientProfile.cardtype_sap === 'cLid'
+          }
+        }
+      });
+      
+    } catch (error) {
+      logger.error('Error en debug de cliente', {
+        error: error.message,
+        stack: error.stack,
+        userId: req.params.userId
+      });
+      
+      res.status(500).json({
+        success: false,
+        message: 'Error en debug de cliente',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
 }
 
 // Crear instancia del controlador
@@ -1490,5 +1586,6 @@ module.exports = {
   testEmailSes: clientSyncController.testEmailSes,
   syncCIClients: clientSyncController.syncCIClients,
   listCIClients: clientSyncController.listCIClients,
-  validateSpecificClientBranches: clientSyncController.validateSpecificClientBranches
+  validateSpecificClientBranches: clientSyncController.validateSpecificClientBranches,
+  debugClientStatus: clientSyncController.debugClientStatus,
 };
