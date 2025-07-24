@@ -1337,26 +1337,30 @@ class SapClientService extends SapBaseService {
             contact_person,
             is_default,
             municipality_code,
-            mail
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+            mail,
+            email_branch,
+            manager_name
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
         `;
         
         const client = await pool.connect();
         try {
           await client.query(defaultBranchQuery, [
-            clientId,
-            'PRINCIPAL',
-            'Sucursal Principal',
-            'Dirección por definir',
-            'Ciudad por definir',
-            '',
-            'CO',
-            '',
-            '',
-            '',
-            true,
-            null,
-            null
+            clientId,                    // $1
+            'PRINCIPAL',                 // $2
+            'Sucursal Principal',        // $3
+            'Dirección por definir',     // $4
+            'Ciudad por definir',        // $5
+            '',                          // $6
+            'CO',                        // $7
+            '',                          // $8
+            '',                          // $9
+            '',                          // $10
+            true,                        // $11
+            null,                        // $12 municipality_code
+            null,                        // $13 mail
+            null,                        // $14 email_branch
+            null                         // $15 manager_name
           ]);
           
           this.logger.info('Sucursal por defecto creada para cliente CI', { cardCode, clientId });
@@ -1390,7 +1394,7 @@ class SapClientService extends SapBaseService {
           U_AR_Phone: branch.U_AR_Phone || '',
           U_AR_contact_person: branch.U_AR_contact_person || '',
           U_HBT_MunMed: branch.U_HBT_MunMed || null,
-          U_AR_Email: branch.U_AR_Email || null
+          U_HBT_CORREO: branch.U_HBT_CORREO || null
         };
         const branchInsertQuery = `
           INSERT INTO client_branches (
@@ -1406,8 +1410,10 @@ class SapClientService extends SapBaseService {
             contact_person,
             is_default,
             municipality_code,
-            mail
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+            mail,
+            email_branch,
+            manager_name
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
         `;
         
         const client = await pool.connect();
@@ -1421,11 +1427,13 @@ class SapClientService extends SapBaseService {
             normalizedBranch.State || '',
             normalizedBranch.Country || 'CO',
             normalizedBranch.ZipCode || '',
-            normalizedBranch.U_AR_Phone || '',
-            normalizedBranch.U_AR_contact_person || '',
+            '', // phone vacío (antes era U_AR_Phone)
+            '', // contact_person vacío (antes era U_AR_contact_person)
             normalizedBranch.Address === 'PRINCIPAL' || branches.length === 1,
             normalizedBranch.U_HBT_MunMed || null,
-            normalizedBranch.U_AR_Email || null
+            null,
+            normalizedBranch.U_HBT_CORREO || null,      // email_branch
+            normalizedBranch.U_HBT_ENCARGADO || null    // manager_name
           ]);
           
           this.logger.debug('Sucursal creada para cliente CI', {
@@ -1503,7 +1511,7 @@ class SapClientService extends SapBaseService {
               U_AR_Phone: address.U_AR_Phone || '',
               U_AR_contact_person: address.U_AR_contact_person || '',
               U_HBT_MunMed: address.U_HBT_MunMed || null,
-              U_AR_Email: address.U_AR_Email || ''
+              U_HBT_CORREO: address.U_HBT_CORREO || ''
             }));
             this.logger.info(`Método 1 retorna ${mappedBranches.length} sucursales mapeadas`, { cardCode });
             return mappedBranches;
@@ -1541,7 +1549,8 @@ class SapClientService extends SapBaseService {
         }
         // Filtrar solo las direcciones de tipo "Ship To" (bo_ShipTo)
         const shipToAddresses = addressesResult.BPAddresses.filter(address => 
-          address.AddressType === 'bo_ShipTo'
+          address.AddressType === 'bo_ShipTo' && 
+          (address.U_HBT_CORREO || address.U_HBT_ENCARGADO || address.AddressName)
         );
         this.logger.info(`Se encontraron ${shipToAddresses.length} direcciones Ship To en método 2`, { cardCode });
 
@@ -1565,7 +1574,7 @@ class SapClientService extends SapBaseService {
             U_AR_Phone: address.U_AR_Phone || '',
             U_AR_contact_person: address.U_AR_contact_person || '',
             U_HBT_MunMed: address.U_HBT_MunMed || null,
-            U_AR_Email: address.U_AR_Email || ''
+            U_HBT_CORREO: address.U_HBT_CORREO || ''
           }));
           
           this.logger.info(`Método 2 retorna ${mappedBranches.length} sucursales mapeadas`, { cardCode });
@@ -1595,7 +1604,7 @@ class SapClientService extends SapBaseService {
             ISNULL(T0.U_AR_Phone, '') as U_AR_Phone,
             ISNULL(T0.U_AR_contact_person, '') as U_AR_contact_person,
             T0.U_HBT_MunMed,
-            ISNULL(T0.U_AR_Email, '') as U_AR_Email
+            ISNULL(T0.U_HBT_CORREO, '') as U_HBT_CORREO
           FROM CRD1 T0 
           WHERE T0.CardCode = '${cardCode}'
           ORDER BY T0.AdresType, T0.Address
@@ -1652,7 +1661,7 @@ class SapClientService extends SapBaseService {
               U_AR_Phone: record.U_AR_Phone || '',
               U_AR_contact_person: record.U_AR_contact_person || '',
               U_HBT_MunMed: record.U_HBT_MunMed || null,
-              U_AR_Email: record.U_AR_Email || ''
+              U_HBT_CORREO: record.U_HBT_CORREO || ''
             }));
             this.logger.info(`Método 3 retorna ${mappedBranches.length} sucursales mapeadas`, { cardCode });
             return mappedBranches;
@@ -1787,7 +1796,7 @@ class SapClientService extends SapBaseService {
         U_AR_Phone: address.U_AR_Phone || '',
         U_AR_contact_person: address.U_AR_contact_person || '',
         U_HBT_MunMed: address.U_HBT_MunMed,
-        U_AR_Email: address.U_AR_Email || ''
+        U_HBT_CORREO: address.U_HBT_CORREO || ''
       }));
 
       return mappedAddresses;
@@ -1955,7 +1964,7 @@ class SapClientService extends SapBaseService {
           }
           
           // Sincronizar sucursales
-          await this.syncClientBranches(sapClient.CardCode, clientId, stats.branches);
+          await this.syncClientBranches(sapClient.CardCode, clientId, stats.branches, false);
           
         } catch (clientError) {
           stats.errors++;
@@ -1986,7 +1995,7 @@ class SapClientService extends SapBaseService {
   async syncClientBranches(cardCode, clientId, stats, forceUpdate = false) {
     try {
       // Obtener sucursales del cliente desde SAP
-      const branches = await this.getClientBranches(cardCode);
+      const branches = await this.getClientBranchesFromCRD1(cardCode);
       stats.total += branches.length;
       
       for (const branch of branches) {
@@ -2012,7 +2021,8 @@ class SapClientService extends SapBaseService {
           U_AR_Phone: branch.U_AR_Phone || '',
           U_AR_contact_person: branch.U_AR_contact_person || '',
           U_HBT_MunMed: branch.U_HBT_MunMed || null,
-          U_AR_Email: branch.U_AR_Email || null
+          U_HBT_CORREO: branch.U_HBT_CORREO || null,      // NUEVO CAMPO
+          U_HBT_ENCARGADO: branch.U_HBT_ENCARGADO || null // NUEVO CAMPO
         };
 
         this.logger.debug('Procesando sucursal normalizada', {
@@ -2037,8 +2047,8 @@ class SapClientService extends SapBaseService {
               // Crear nueva sucursal
               await pool.query(
                 `INSERT INTO client_branches 
-                (client_id, ship_to_code, branch_name, address, city, state, country, zip_code, phone, contact_person, is_default, municipality_code, mail)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+                (client_id, ship_to_code, branch_name, address, city, state, country, zip_code, phone, contact_person, is_default, municipality_code, mail, email_branch, manager_name)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
                 [
                   clientId,
                   normalizedBranch.AddressName,
@@ -2048,11 +2058,13 @@ class SapClientService extends SapBaseService {
                   normalizedBranch.State,
                   normalizedBranch.Country,
                   normalizedBranch.ZipCode,
-                  normalizedBranch.U_AR_Phone,
-                  normalizedBranch.U_AR_contact_person,
+                  '', // phone (U_AR_Phone ya no existe)
+                  '', // contact_person (U_AR_contact_person ya no existe)
                   normalizedBranch.AddressName === 'PRINCIPAL' || branches.length === 1,
-                  normalizedBranch.U_HBT_MunMed,
-                  normalizedBranch.U_AR_Email
+                  normalizedBranch.U_HBT_MunMed,              // municipality_code ($12)
+                  null,                                       // mail ($13) - dejar NULL por ahora
+                  normalizedBranch.U_HBT_CORREO,              // email_branch ($14)
+                  normalizedBranch.U_HBT_ENCARGADO            // manager_name ($15)
                 ]
               );
               
@@ -2068,18 +2080,20 @@ class SapClientService extends SapBaseService {
               // Actualizar sucursal existente cuando forceUpdate está activo
               await pool.query(
                 `UPDATE client_branches 
-                SET branch_name = $1, 
-                    address = $2, 
-                    city = $3, 
-                    state = $4, 
-                    country = $5, 
-                    zip_code = $6,
-                    phone = $7,
-                    contact_person = $8,
-                    municipality_code = $9,
-                    mail = $10,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE branch_id = $11`,
+                  SET branch_name = $1, 
+                      address = $2, 
+                      city = $3, 
+                      state = $4, 
+                      country = $5, 
+                      zip_code = $6,
+                      phone = $7,
+                      contact_person = $8,
+                      municipality_code = $9,
+                      mail = $10,
+                      email_branch = $11,
+                      manager_name = $12,
+                      updated_at = CURRENT_TIMESTAMP
+                  WHERE branch_id = $13`,
                 [
                   normalizedBranch.AddressName,
                   normalizedBranch.Street,
@@ -2087,10 +2101,12 @@ class SapClientService extends SapBaseService {
                   normalizedBranch.State,
                   normalizedBranch.Country,
                   normalizedBranch.ZipCode,
-                  normalizedBranch.U_AR_Phone,
-                  normalizedBranch.U_AR_contact_person,
-                  normalizedBranch.U_HBT_MunMed,
-                  normalizedBranch.U_AR_Email,
+                  '', // phone (U_AR_Phone ya no existe)
+                  '', // contact_person (U_AR_contact_person ya no existe)
+                  normalizedBranch.U_HBT_MunMed,              // municipality_code ($9)
+                  null,                                       // mail ($10) - dejar NULL por ahora
+                  normalizedBranch.U_HBT_CORREO,              // email_branch ($11)
+                  normalizedBranch.U_HBT_ENCARGADO,           // manager_name ($12)
                   rows[0].branch_id
                 ]
               );
