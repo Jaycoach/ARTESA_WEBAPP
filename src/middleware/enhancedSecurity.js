@@ -74,6 +74,10 @@ const suspiciousActivityTracker = async (req, res, next) => {
         if (req.path === '/api/health' || req.path === '/api/health/simple' || req.path === '/health') {
             return next();
         }
+        // No registrar solicitudes a la raíz como actividad sospechosa si son métodos comunes
+        if ((req.path === '/' || req.path === '') && ['GET', 'POST', 'HEAD'].includes(req.method)) {
+            return next();
+        }
         // No registrar uploads como actividad sospechosa
         if (req.path.startsWith('/api/upload') || req.path.startsWith('/api/client-profiles')) {
             return next();
