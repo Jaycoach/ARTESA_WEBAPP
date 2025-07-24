@@ -36,17 +36,6 @@ const Orders = () => {
     }, 5000);
   };
 
-  // Validación defensiva: Si estamos en vista create pero no podemos crear, redirigir
-  useEffect(() => {
-    if (currentView === 'create' && 
-        !canCreateValidation.loading && 
-        !canCreateValidation.canCreate) {
-      setCurrentView('list');
-      navigate('/dashboard/orders', { replace: true });
-      showNotification('No tienes permisos para crear pedidos en este momento', 'warning');
-    }
-  }, [currentView, canCreateValidation.canCreate, canCreateValidation.loading, navigate]);
-
   // **NUEVA FUNCIÓN**: Validar si el usuario puede crear pedidos usando el endpoint específico
   const validateCanCreateOrder = async () => {
     try {
@@ -59,28 +48,40 @@ const Orders = () => {
 
       console.log('📋 Respuesta de validación:', data);
 
-      // Parsear la respuesta - validación más estricta
-      const canCreate = data.canCreate === true; // Solo aceptar boolean true
+      // Debug adicional para asegurar consistencia
+      console.log('🔍 Orders.jsx - Validación detallada:', {
+        canCreate,
+        isActive: data.isActive,
+        hasProfile: data.hasProfile,
+        hasCardCode: data.hasCardCode,
+        userId: user.id
+      });
 
-      // **MENSAJES MEJORADOS**: Más específicos y accionables
+      // Parsear la respuesta - validación más estricta
+      // Reemplazar la lógica de validación:
+      const canCreate = data.canCreate === true;
+
+      // Reemplazar los mensajes por una lógica más simple:
       let statusMessage = '';
       let actionMessage = '';
 
-      if (!data.isActive) {
-        statusMessage = 'Tu cuenta está inactiva y no puede realizar pedidos en este momento.';
-        actionMessage = 'Contacta al equipo de soporte para activar tu cuenta o consulta el estado de tu registro.';
-      } else if (!data.hasProfile) {
-        statusMessage = 'Tu perfil de cliente está incompleto.';
-        actionMessage = 'Completa tu información personal y de empresa para poder realizar pedidos.';
-      } else if (!data.hasCardCode) {
-        statusMessage = 'Tu perfil está siendo revisado por nuestro equipo.';
-        actionMessage = 'Estamos procesando tu información para asignarte un código de cliente. Este proceso puede tomar 1-2 días hábiles.';
-      } else if (!canCreate) {
-        statusMessage = 'Tu cuenta no tiene permisos para crear pedidos.';
-        actionMessage = 'Verifica tu tipo de cuenta o contacta al administrador para obtener los permisos necesarios.';
-      } else {
+      if (canCreate) {
         statusMessage = 'Tu cuenta está habilitada para crear pedidos.';
         actionMessage = '';
+      } else {
+        if (!data.isActive) {
+          statusMessage = 'Tu cuenta está inactiva.';
+          actionMessage = 'Contacta al equipo de soporte para activar tu cuenta.';
+        } else if (!data.hasProfile) {
+          statusMessage = 'Completa tu perfil de cliente.';
+          actionMessage = 'Ve a tu perfil para completar la información necesaria.';
+        } else if (!data.hasCardCode) {
+          statusMessage = 'Tu perfil está siendo procesado.';
+          actionMessage = 'Este proceso puede tomar 1-2 días hábiles.';
+        } else {
+          statusMessage = 'Verifica tu configuración de cuenta.';
+          actionMessage = 'Contacta al administrador si el problema persiste.';
+        }
       }
 
       setCanCreateValidation({
@@ -90,7 +91,7 @@ const Orders = () => {
         hasProfile: data.hasProfile,
         hasCardCode: data.hasCardCode,
         statusMessage: statusMessage,
-        actionMessage: actionMessage // **NUEVO CAMPO**
+        actionMessage: actionMessage
       });
 
     } catch (error) {

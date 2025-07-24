@@ -21,6 +21,15 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     getProductPrice
   } = usePriceList(); // AÑADIR ESTAS LÍNEAS
   const { isValidating, canAccessForm, validationResult, retryValidation } = useOrderFormValidation();
+  // Debug para entender qué está pasando
+  useEffect(() => {
+    console.log('🔍 CreateOrderForm - Estado de validación:', {
+      isValidating,
+      canAccessForm,
+      validationResult,
+      userId: user?.id
+    });
+  }, [isValidating, canAccessForm, validationResult, user?.id]);
   const [products, setProducts] = useState([]);
   const [orderDetails, setOrderDetails] = useState([{ product_id: '', quantity: 1, unit_price: 0 }]);
   const [deliveryDate, setDeliveryDate] = useState('');
