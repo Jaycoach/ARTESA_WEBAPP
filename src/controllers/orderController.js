@@ -862,51 +862,42 @@ const checkUserCanCreateOrders = async (req, res) => {
     let canCreate = false;
     let reason = '';
 
+    // NUEVA LÓGICA SIMPLIFICADA - igual que createOrder
     // Verificar primero si tiene perfil y cardtype_sap válido
     if (profileResult.rows.length > 0 && 
         profileResult.rows[0].cardcode_sap && 
         profileResult.rows[0].cardtype_sap === 'cCli') {
       canCreate = true;
-      reason = userResult.rows[0].is_active ? 'Usuario activo con cliente confirmado en SAP' : 'Cliente confirmado en SAP (no es Lead)';
-    } 
-    // Si es usuario activo PERO es Lead (cLid) o no tiene perfil completo
-    else if (userResult.rows[0].is_active) {
-      if (profileResult.rows.length === 0) {
-        canCreate = false;
-        reason = 'Usuario activo pero sin perfil de cliente';
-      } else if (!profileResult.rows[0].cardcode_sap) {
-        canCreate = false;
-        reason = 'Usuario activo pero sin código SAP asignado';
-      } else if (profileResult.rows[0].cardtype_sap === 'cLid') {
-        canCreate = false;
-        reason = 'Usuario activo pero cliente aún es Lead en SAP';
-      } else {
-        canCreate = true;
-        reason = 'Usuario activo';
-      }
+      reason = userResult.rows[0].is_active ? 
+        'Usuario activo con perfil SAP válido' : 
+        'Usuario con perfil SAP válido pero inactivo';
+    } else if (profileResult.rows.length > 0) {
+      canCreate = false;
+      reason = 'Perfil existe pero sin cardcode_sap o cardtype_sap no es cCli';
     } else {
       canCreate = false;
-      if (profileResult.rows.length === 0) {
-        reason = 'Sin perfil de cliente';
-      } else if (!profileResult.rows[0].cardcode_sap) {
-        reason = 'Sin código SAP asignado';
-      } else if (profileResult.rows[0].cardtype_sap === 'cLid') {
-        reason = 'Cliente aún es Lead en SAP';
-      } else {
-        reason = 'Usuario inactivo';
-      }
+      reason = 'Usuario sin perfil de cliente';
     }
-    
+
+    const responseData = {
+      canCreate: canCreate && userResult.rows[0].is_active, // Solo puede crear si está activo Y tiene perfil válido
+      isActive: userResult.rows[0].is_active,
+      hasProfile: profileResult.rows.length > 0,
+      hasCardCode: profileResult.rows.length > 0 && 
+                  profileResult.rows[0].cardcode_sap && 
+                  profileResult.rows[0].cardtype_sap === 'cCli'
+    };
+
+    logger.debug('Resultado de validación can-create', {
+      userId,
+      canCreate: responseData.canCreate,
+      reason,
+      profileData: profileResult.rows[0] || null
+    });
+
     res.status(200).json({
       success: true,
-      data: {
-        canCreate,
-        isActive: userResult.rows[0].is_active,
-        hasProfile: profileResult.rows.length > 0,
-        hasCardCode: profileResult.rows.length > 0 && !!profileResult.rows[0].cardcode_sap && profileResult.rows[0].cardtype_sap !== 'cLid',
-        cardTypeSap: profileResult.rows.length > 0 ? profileResult.rows[0].cardtype_sap : null,
-        reason
-      }
+      data: responseData
     });
   } catch (error) {
     logger.error('Error al verificar capacidad para crear órdenes', {
