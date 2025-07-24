@@ -763,6 +763,178 @@ class SapClientService extends SapBaseService {
   }
 
   /**
+   * Sincroniza clientes que son Leads en SAP (CardType = 'cLId') para activarlos cuando cambian a Customer
+   * @returns {Promise<Object>} Estadísticas de la sincronización
+   */
+  async syncClientsWithSAP() {
+    const stats = {
+      total: 0,
+      updated: 0,
+      activated: 0,
+      errors: 0,
+      skipped: 0,
+      cardTypeChanges: 0,
+      leadsToClients: 0
+    };
+
+    try {
+      this.logger.info('Iniciando sincronización de clientes Leads con SAP B1');
+      
+      // Registrar inicio de sincronización
+      const syncStartTime = new Date();
+      
+      // Obtener perfiles que tienen código SAP y están marcados como Lead o sin cardtype_sap
+      const query = `
+        SELECT cp.client_id, cp.user_id, cp.cardcode_sap, cp.cardtype_sap, cp.company_name,
+              u.is_active, u.name, u.mail
+        FROM client_profiles cp
+        JOIN users u ON cp.user_id = u.id
+        WHERE cp.cardcode_sap IS NOT NULL 
+        AND (cp.cardtype_sap = 'cLId' OR cp.cardtype_sap IS NULL)
+        ORDER BY cp.client_id
+      `;
+      
+      const { rows: profiles } = await pool.query(query);
+      
+      if (!profiles || profiles.length === 0) {
+        this.logger.info('No se encontraron clientes Lead para sincronizar');
+        return stats;
+      }
+
+      stats.total = profiles.length;
+      this.logger.info(`Procesando ${stats.total} clientes Lead para sincronización`);
+
+      for (const profile of profiles) {
+        const dbClient = await pool.connect();
+        
+        try {
+          await dbClient.query('BEGIN');
+          
+          // Buscar el cliente en SAP por CardCode
+          const sapClient = await this.getBusinessPartnerByCardCode(profile.cardcode_sap);
+          
+          if (!sapClient) {
+            this.logger.warn('Cliente no encontrado en SAP', {
+              clientId: profile.client_id,
+              cardCode: profile.cardcode_sap
+            });
+            stats.skipped++;
+            await dbClient.query('ROLLBACK');
+            continue;
+          }
+
+          // Verificar si cambió el CardType
+          let hasCardTypeChanged = false;
+          if (sapClient.CardType !== profile.cardtype_sap) {
+            await dbClient.query(
+              'UPDATE client_profiles SET cardtype_sap = $1, updated_at = CURRENT_TIMESTAMP WHERE client_id = $2',
+              [sapClient.CardType, profile.client_id]
+            );
+
+            this.logger.info('CardType actualizado en perfil', {
+              clientId: profile.client_id,
+              userId: profile.user_id,
+              oldCardType: profile.cardtype_sap,
+              newCardType: sapClient.CardType
+            });
+            
+            hasCardTypeChanged = true;
+            stats.cardTypeChanges++;
+
+            // Si cambió de Lead a Cliente, incrementar contador específico
+            if (profile.cardtype_sap === 'cLId' && (sapClient.CardType === 'cCli' || sapClient.CardType === 'C')) {
+              stats.leadsToClients++;
+              this.logger.info('Cliente promovido de Lead a Cliente en SAP', {
+                userId: profile.user_id,
+                clientId: profile.client_id,
+                cardCode: sapClient.CardCode
+              });
+            }
+          }
+
+          // Si el cliente ya no es Lead en SAP (CardType !== 'cLId'), activar el usuario si no está activo
+          if (sapClient.CardType !== 'cLId' && !profile.is_active) {
+            await dbClient.query('UPDATE users SET is_active = true WHERE id = $1', [profile.user_id]);
+            
+            this.logger.info('Usuario activado porque ya no es Lead en SAP', {
+              userId: profile.user_id,
+              clientId: profile.client_id,
+              cardCode: sapClient.CardCode,
+              cardType: sapClient.CardType
+            });
+            
+            stats.activated++;
+          }
+          
+          await dbClient.query('COMMIT');
+          stats.updated++;
+          
+        } catch (updateError) {
+          await dbClient.query('ROLLBACK');
+          stats.errors++;
+          
+          this.logger.error('Error al actualizar datos de perfil desde SAP', {
+            error: updateError.message,
+            stack: updateError.stack,
+            clientId: profile.client_id,
+            userId: profile.user_id
+          });
+        } finally {
+          dbClient.release();
+        }
+      }
+      
+      // Actualizar timestamp de última sincronización
+      this.lastSyncTime = syncStartTime;
+      
+      this.logger.info('Sincronización de clientes Lead completada', { 
+        stats,
+        duration: `${Date.now() - syncStartTime.getTime()}ms`
+      });
+      
+      return stats;
+      
+    } catch (error) {
+      this.logger.error('Error en sincronización de clientes Lead con SAP', {
+        error: error.message,
+        stack: error.stack
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Obtiene un Business Partner desde SAP por su CardCode
+   * @param {string} cardCode - Código del cliente en SAP
+   * @returns {Promise<Object|null>} Datos del cliente o null si no existe
+   */
+  async getBusinessPartnerByCardCode(cardCode) {
+    try {
+      const endpoint = `BusinessPartners('${cardCode}')?$select=CardCode,CardName,CardType,GroupCode,FederalTaxID,Phone1,EmailAddress,Address,City,Country`;
+      
+      const result = await this.request('GET', endpoint);
+      
+      if (!result) {
+        return null;
+      }
+      
+      return result;
+    } catch (error) {
+      if (error.response && error.response.status === 404) {
+        // Cliente no encontrado en SAP
+        return null;
+      }
+      
+      this.logger.error('Error al obtener Business Partner por CardCode', {
+        cardCode,
+        error: error.message,
+        stack: error.stack
+      });
+      throw error;
+    }
+  }
+
+  /**
    * Consulta un Business Partner por su código de artesa (U_AR_ArtesaCode)
    * @param {string} artesaCode - Código Artesa del cliente
    * @returns {Promise<Object|null>} - Datos del Business Partner o null si no existe
