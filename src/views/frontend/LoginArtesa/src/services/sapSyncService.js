@@ -49,7 +49,16 @@ class SAPSyncService {
         client.userId === userId
       );
     } catch (error) {
-      console.error('Error checking if user is pending sync:', error);
+      console.error('Error getting pending clients:', error);
+      
+      // Si es error 403, significa que el usuario no tiene permisos para ver clientes pendientes
+      // Esto es normal para usuarios regulares, no es un error crítico
+      if (error.response?.status === 403) {
+        console.log('Usuario sin permisos de administrador - asumiendo no pendiente');
+        return false;
+      }
+      
+      // Para otros errores, asumir que no está pendiente para no bloquear
       return false;
     }
   }
