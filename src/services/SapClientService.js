@@ -1159,6 +1159,35 @@ class SapClientService extends SapBaseService {
             WHERE cp.cardcode_sap = $1
           `;
           const { rows: existingClients } = await client.query(existingClientQuery, [sapClient.CardCode]);
+
+          // Verificar también por NIT para evitar duplicados
+          const nitCheckQuery = `
+            SELECT cp.client_id, cp.cardcode_sap, u.name 
+            FROM client_profiles cp 
+            LEFT JOIN users u ON cp.user_id = u.id 
+            WHERE cp.nit_number = $1 AND cp.verification_digit = $2
+          `;
+
+          let nitNumber = null;
+          let verificationDigit = null;
+          if (sapClient.FederalTaxID) {
+            const nitParts = sapClient.FederalTaxID.split('-');
+            if (nitParts.length === 2) {
+              nitNumber = nitParts[0];
+              verificationDigit = parseInt(nitParts[1]);
+              
+              const { rows: nitConflicts } = await client.query(nitCheckQuery, [nitNumber, verificationDigit]);
+              if (nitConflicts.length > 0) {
+                this.logger.warn('Cliente con mismo NIT ya existe, saltando creación', { 
+                  cardCode: sapClient.CardCode,
+                  existingClientId: nitConflicts[0].client_id,
+                  existingCardCode: nitConflicts[0].cardcode_sap
+                });
+                stats.skipped++;
+                continue;
+              }
+            }
+          }
           
           if (existingClients.length > 0) {
             // Cliente ya existe, actualizar datos si es necesario
@@ -1511,7 +1540,8 @@ class SapClientService extends SapBaseService {
               U_AR_Phone: address.U_AR_Phone || '',
               U_AR_contact_person: address.U_AR_contact_person || '',
               U_HBT_MunMed: address.U_HBT_MunMed || null,
-              U_HBT_CORREO: address.U_HBT_CORREO || ''
+              U_HBT_CORREO: address.U_HBT_CORREO || '',
+              U_HBT_ENCARGADO: address.U_HBT_ENCARGADO || ''
             }));
             this.logger.info(`Método 1 retorna ${mappedBranches.length} sucursales mapeadas`, { cardCode });
             return mappedBranches;
@@ -1574,7 +1604,8 @@ class SapClientService extends SapBaseService {
             U_AR_Phone: address.U_AR_Phone || '',
             U_AR_contact_person: address.U_AR_contact_person || '',
             U_HBT_MunMed: address.U_HBT_MunMed || null,
-            U_HBT_CORREO: address.U_HBT_CORREO || ''
+            U_HBT_CORREO: address.U_HBT_CORREO || '',
+            U_HBT_ENCARGADO: address.U_HBT_ENCARGADO || ''
           }));
           
           this.logger.info(`Método 2 retorna ${mappedBranches.length} sucursales mapeadas`, { cardCode });
@@ -1604,7 +1635,8 @@ class SapClientService extends SapBaseService {
             ISNULL(T0.U_AR_Phone, '') as U_AR_Phone,
             ISNULL(T0.U_AR_contact_person, '') as U_AR_contact_person,
             T0.U_HBT_MunMed,
-            ISNULL(T0.U_HBT_CORREO, '') as U_HBT_CORREO
+            ISNULL(T0.U_HBT_CORREO, '') as U_HBT_CORREO,
+            ISNULL(T0.U_HBT_ENCARGADO, '') as U_HBT_ENCARGADO
           FROM CRD1 T0 
           WHERE T0.CardCode = '${cardCode}'
           ORDER BY T0.AdresType, T0.Address
@@ -1661,7 +1693,8 @@ class SapClientService extends SapBaseService {
               U_AR_Phone: record.U_AR_Phone || '',
               U_AR_contact_person: record.U_AR_contact_person || '',
               U_HBT_MunMed: record.U_HBT_MunMed || null,
-              U_HBT_CORREO: record.U_HBT_CORREO || ''
+              U_HBT_CORREO: record.U_HBT_CORREO || '',
+              U_HBT_ENCARGADO: record.U_HBT_ENCARGADO || ''
             }));
             this.logger.info(`Método 3 retorna ${mappedBranches.length} sucursales mapeadas`, { cardCode });
             return mappedBranches;
@@ -1796,7 +1829,8 @@ class SapClientService extends SapBaseService {
         U_AR_Phone: address.U_AR_Phone || '',
         U_AR_contact_person: address.U_AR_contact_person || '',
         U_HBT_MunMed: address.U_HBT_MunMed,
-        U_HBT_CORREO: address.U_HBT_CORREO || ''
+        U_HBT_CORREO: address.U_HBT_CORREO || '',
+        U_HBT_ENCARGADO: address.U_HBT_ENCARGADO || ''
       }));
 
       return mappedAddresses;
