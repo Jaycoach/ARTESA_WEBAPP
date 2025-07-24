@@ -66,14 +66,14 @@ export const useUserActivation = () => {
 
       // 4. Determinar estado general
       const newStatus = {
-        isActive: Boolean(isUserActive), // CORREGIDO: Asegurar que sea boolean
+        isActive: Boolean(isUserActive),
         hasClientProfile: hasProfile,
         isPendingSync: isPending,
         syncInProgress: isPending,
-        canCreateOrders: Boolean(isUserActive) && hasProfile, // CORREGIDO: No considerar isPending como bloqueante
+        canCreateOrders: Boolean(isUserActive) && hasProfile, // Solo requiere usuario activo y perfil
         loading: false,
         lastChecked: new Date().toISOString(),
-        statusMessage: getStatusMessage(Boolean(isUserActive), hasProfile, isPending) // CORREGIDO
+        statusMessage: getStatusMessage(Boolean(isUserActive), hasProfile, isPending)
       };
 
       setUserStatus(newStatus);
@@ -104,16 +104,16 @@ export const useUserActivation = () => {
     if (!hasProfile) {
       return 'Debes completar tu perfil de cliente para poder crear pedidos';
     }
-    if (hasProfile && isPending) {
-      return 'Tu perfil está siendo sincronizado con SAP, pero puedes crear pedidos normalmente.';
+    if (!isActive) {
+      return 'Tu cuenta no está activa. Contacta con el administrador para activar tu cuenta.';
     }
-    if (hasProfile && !isPending && !isActive) {
-      return 'Tu perfil está completo pero tu cuenta aún no ha sido activada. Contacta con el administrador.';
-    }
-    if (isActive && hasProfile && !isPending) {
+    if (hasProfile && isActive && !isPending) {
       return 'Tu cuenta está activa y puedes crear pedidos';
     }
-    return 'Verificando estado de tu cuenta...';
+    if (hasProfile && isActive && isPending) {
+      return 'Tu cuenta está activa y puedes crear pedidos. Tu perfil está siendo sincronizado en segundo plano.';
+    }
+    return 'Tu cuenta está configurada correctamente';
   };
 
   // Función para activar usuario manualmente (para administradores)
