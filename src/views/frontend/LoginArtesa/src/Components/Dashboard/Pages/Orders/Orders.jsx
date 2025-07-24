@@ -48,8 +48,8 @@ const Orders = () => {
 
       console.log('📋 Respuesta de validación:', data);
 
-      // Parsear la respuesta
-      const canCreate = data.canCreate === 'true' || data.canCreate === true;
+      // Parsear la respuesta - validación más estricta
+      const canCreate = data.canCreate === true; // Solo aceptar boolean true
 
       // **MENSAJES MEJORADOS**: Más específicos y accionables
       let statusMessage = '';
@@ -323,7 +323,7 @@ const Orders = () => {
           )}
           
           {/* Vista de crear pedido (solo si está validado) */}
-          {currentView === 'create' && canCreateValidation.canCreate && (
+          {currentView === 'create' && canCreateValidation.canCreate && !canCreateValidation.loading && (
             <CreateOrderForm 
               onOrderCreated={handleOrderCreated}
               onCancel={() => setShowCancelConfirmation(true)}
@@ -340,14 +340,14 @@ const Orders = () => {
           )}
           
           {/* Mensaje si se intenta acceder al formulario sin validación */}
-          {currentView === 'create' && !canCreateValidation.canCreate && !canCreateValidation.loading && (
+          {currentView === 'create' && (!canCreateValidation.canCreate || canCreateValidation.loading) && (
             <div className="text-center py-8">
               <FaExclamationTriangle className="mx-auto h-12 w-12 text-red-400 mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">
                 No puedes crear pedidos
               </h3>
               <p className="text-sm text-gray-600 mb-4">
-                {canCreateValidation.statusMessage}
+                {canCreateValidation.loading ? 'Verificando permisos...' : canCreateValidation.statusMessage}
               </p>
               <button
                 onClick={() => {
