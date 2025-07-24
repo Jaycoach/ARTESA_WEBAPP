@@ -36,6 +36,17 @@ const Orders = () => {
     }, 5000);
   };
 
+  // Validación defensiva: Si estamos en vista create pero no podemos crear, redirigir
+  useEffect(() => {
+    if (currentView === 'create' && 
+        !canCreateValidation.loading && 
+        !canCreateValidation.canCreate) {
+      setCurrentView('list');
+      navigate('/dashboard/orders', { replace: true });
+      showNotification('No tienes permisos para crear pedidos en este momento', 'warning');
+    }
+  }, [currentView, canCreateValidation.canCreate, canCreateValidation.loading, navigate]);
+
   // **NUEVA FUNCIÓN**: Validar si el usuario puede crear pedidos usando el endpoint específico
   const validateCanCreateOrder = async () => {
     try {
@@ -125,18 +136,27 @@ const Orders = () => {
     }
   }, [isAuthenticated]);
 
-  // Manejar navegación basada en la URL
+  // Manejar navegación basada en la URL con validación
   useEffect(() => {
     const path = location.pathname;
     
     if (path.includes('/new')) {
-      setCurrentView('create');
+      // Solo cambiar a vista de creación si la validación está completa y el usuario puede crear
+      if (!canCreateValidation.loading && canCreateValidation.canCreate) {
+        setCurrentView('create');
+      } else if (!canCreateValidation.loading && !canCreateValidation.canCreate) {
+        // Si no puede crear, redirigir a la lista y mostrar notificación
+        setCurrentView('list');
+        navigate('/dashboard/orders', { replace: true });
+        showNotification(canCreateValidation.statusMessage, 'warning');
+      }
+      // Si está cargando, no hacer nada (mantener vista actual)
     } else if (path.includes('/edit') || orderId) {
       setCurrentView('edit');
     } else {
       setCurrentView('list');
     }
-  }, [location.pathname, orderId]);
+  }, [location.pathname, orderId, canCreateValidation.loading, canCreateValidation.canCreate, navigate, canCreateValidation.statusMessage]);
 
   // **FUNCIÓN MEJORADA**: Manejar clic en crear pedido con validación
   const handleCreateOrderClick = async () => {
@@ -322,8 +342,8 @@ const Orders = () => {
             <OrderList />
           )}
           
-          {/* Vista de crear pedido (solo si está validado) */}
-          {currentView === 'create' && canCreateValidation.canCreate && !canCreateValidation.loading && (
+          {/* Vista de crear pedido (solo si está validado y explícitamente autorizado) */}
+          {currentView === 'create' && canCreateValidation.canCreate === true && !canCreateValidation.loading && (
             <CreateOrderForm 
               onOrderCreated={handleOrderCreated}
               onCancel={() => setShowCancelConfirmation(true)}
