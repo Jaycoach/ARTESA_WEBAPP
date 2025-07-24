@@ -70,7 +70,7 @@ export const useUserActivation = () => {
         hasClientProfile: hasProfile,
         isPendingSync: isPending,
         syncInProgress: isPending,
-        canCreateOrders: Boolean(isUserActive) && hasProfile && !isPending, // CORREGIDO
+        canCreateOrders: Boolean(isUserActive) && hasProfile, // CORREGIDO: No considerar isPending como bloqueante
         loading: false,
         lastChecked: new Date().toISOString(),
         statusMessage: getStatusMessage(Boolean(isUserActive), hasProfile, isPending) // CORREGIDO
@@ -105,7 +105,7 @@ export const useUserActivation = () => {
       return 'Debes completar tu perfil de cliente para poder crear pedidos';
     }
     if (hasProfile && isPending) {
-      return 'Tu perfil está siendo sincronizado con SAP. Este proceso puede tomar algunos minutos.';
+      return 'Tu perfil está siendo sincronizado con SAP, pero puedes crear pedidos normalmente.';
     }
     if (hasProfile && !isPending && !isActive) {
       return 'Tu perfil está completo pero tu cuenta aún no ha sido activada. Contacta con el administrador.';
