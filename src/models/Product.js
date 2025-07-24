@@ -387,6 +387,9 @@ class Product {
         let query = 'SELECT * FROM products';
         const queryParams = [];
         const conditions = [];
+
+        // Filtrar productos con precio mayor que cero por defecto
+        conditions.push('(price_list1 > 0 OR price_list2 > 0 OR price_list3 > 0)');
         
         if (typeof options.active === 'boolean') {
             conditions.push(`is_active = $${queryParams.length + 1}`);

@@ -41,7 +41,9 @@ class ClientProfile {
           cp.cardcode_sap,
           cp.clientprofilecode_sap,
           cp.price_list,
+          cp.price_list,
           cp.price_list_code,
+          COALESCE(cp.price_list_code, 'ESTÁNDAR') as effective_price_list_code,
           cp.notes,
           cp.fotocopia_cedula AS "fotocopiaCedula",
           cp.fotocopia_rut AS "fotocopiaRut",
@@ -390,26 +392,26 @@ class ClientProfile {
         JSON.stringify(additionalFields) : null;
 
       const values = [
-        userId,                           // $1 - user_id
-        razonSocialTruncated,            // $2 - company_name
-        nombreTruncated,                 // $3 - contact_name
-        contactPhone,                    // $4 - contact_phone
-        contactEmail,                    // $5 - contact_email
-        direccionTruncated,              // $6 - address
-        ciudadTruncated,                 // $7 - city
-        paisTruncated || 'Colombia',     // $8 - country
-        nitTruncated,                    // $9 - tax_id
-        clientData.nit_number,           // $10 - nit_number
-        clientData.verification_digit,   // $11 - verification_digit
-        fotocopiaCedulaTruncated,        // $12 - fotocopia_cedula
-        fotocopiaRutTruncated,           // $13 - fotocopia_rut
-        anexosAdicionalesTruncated,      // $14 - anexos_adicionales
-        notesJSON,                       // $15 - notes
-        clientData.listaPrecios || 1,    // $16 - price_list
-        clientData.listaPreciosCodigo || null, // $17 - price_list_code
-        null,                            // $18 - cardcode_sap
-        'cLid',                          // $19 - cardtype_sap
-        clientProfileCode                // $20 - clientprofilecode_sap
+        userId,                           // $1
+        companyNameTrunc,                 // $2
+        contactNameTrunc,                 // $3
+        contactPhoneTrunc,                // $4
+        contactEmailTrunc,                // $5
+        addressTrunc,                     // $6
+        cityTrunc,                        // $7
+        countryTrunc,                     // $8
+        taxIdTrunc,                       // $9
+        nitNumberTrunc,                   // $10
+        verification_digit,               // $11
+        fotocopiaCedulaTrunc,            // $12
+        fotocopiaRutTrunc,               // $13
+        anexosAdicionalesTrunc,          // $14
+        notesJSON,                       // $15
+        clientData.listaPrecios || 1,    // $16 - price_list (default a 1 si no se especifica)
+        listaPreciosCodigo || 'ESTÁNDAR', // $17 - price_list_code (default)
+        cardcode_sap,                    // $18
+        'cLid',                          // $19 - cardtype_sap (por defecto Lead)
+        clientProfileCode                // $20
       ];
 
       const { rows } = await pool.query(query, values);

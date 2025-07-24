@@ -61,6 +61,22 @@ class PriceListController {
         orderDirection = 'ASC'
       } = req.query;
 
+      // Validar que el usuario tenga acceso a esta lista de precios
+      if (req.user && req.user.clientProfile) {
+        const userPriceListCode = req.user.clientProfile.price_list_code;
+        if (userPriceListCode !== priceListCode) {
+          logger.warn('User attempted to access unauthorized price list', {
+            userId: req.user.id,
+            requestedPriceList: priceListCode,
+            userPriceList: userPriceListCode
+          });
+          return res.status(403).json({
+            success: false,
+            message: 'No tienes acceso a esta lista de precios'
+          });
+        }
+      }
+
       const offset = (parseInt(page) - 1) * parseInt(limit);
       
       logger.debug('Getting price list products', {
@@ -70,13 +86,22 @@ class PriceListController {
         search
       });
 
-      const result = await PriceList.getByPriceListCode(priceListCode, {
+     const result = await PriceList.getByPriceListCode(priceListCode, {
         limit: parseInt(limit),
         offset,
         search,
         orderBy,
         orderDirection: orderDirection.toUpperCase()
       });
+
+      // Filtrar solo productos con precio mayor que cero
+      const productsWithPrice = result.data.filter(product => 
+        product.price && parseFloat(product.price) > 0
+      );
+
+      // Actualizar el resultado con los productos filtrados
+      result.data = productsWithPrice;
+      result.count = productsWithPrice.length;
 
       res.status(200).json({
         success: true,
