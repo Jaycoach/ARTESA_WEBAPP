@@ -35,6 +35,7 @@ echo "4) 🔍 Auto-detectar cambios"
 echo ""
 read -p "Selecciona una opción [1-4]: " deploy_choice
 
+
 case $deploy_choice in
     1)
         DEPLOY_MODE="fast"
