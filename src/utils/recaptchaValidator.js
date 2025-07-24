@@ -25,9 +25,10 @@ async function validateRecaptcha(token, req) {
   }
 
   // Si no es desarrollo, verificar configuración explícita de bypass
-  if (process.env.RECAPTCHA_BYPASS === 'true') {
+  if (process.env.RECAPTCHA_BYPASS === 'true' || process.env.NODE_ENV === 'staging') {
     logger.info('Bypass de reCAPTCHA habilitado por configuración', {
-      ip: req.ip
+      ip: req.ip,
+      environment: process.env.NODE_ENV
     });
     return true;
   }
