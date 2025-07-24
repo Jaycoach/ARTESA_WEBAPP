@@ -1211,6 +1211,24 @@ class ClientSyncController {
         forceUpdate: forceUpdateBool
       });
 
+      // Encontrar el client_id correcto basado en el cardcode_sap
+      let actualClientId = clientId;
+      if (cardCode && !clientId) {
+        const clientQuery = `
+          SELECT client_id 
+          FROM client_profiles 
+          WHERE cardcode_sap = $1
+        `;
+        const { rows: clientRows } = await pool.query(clientQuery, [cardCode]);
+        if (clientRows.length > 0) {
+          actualClientId = clientRows[0].client_id;
+          logger.info('Client ID encontrado por CardCode', { 
+            cardCode, 
+            clientId: actualClientId 
+          });
+        }
+      }
+
       // Verificar que el servicio esté inicializado
       if (!sapServiceManager.initialized) {
         logger.debug('Inicializando servicio de SAP antes de sincronización');
