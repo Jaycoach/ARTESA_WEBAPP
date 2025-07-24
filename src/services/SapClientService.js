@@ -783,13 +783,19 @@ class SapClientService extends SapBaseService {
       // Registrar inicio de sincronización
       const syncStartTime = new Date();
       
-      // Obtener perfiles que tienen código SAP y están marcados como Lead o sin cardtype_sap
+      // Obtener perfiles que tienen código SAP y potencialmente necesitan actualización
       const query = `
         SELECT cp.client_id, cp.user_id, cp.cardcode_sap, cp.cardtype_sap, cp.company_name,
               u.is_active, u.name, u.mail
         FROM client_profiles cp
         JOIN users u ON cp.user_id = u.id
         WHERE cp.cardcode_sap IS NOT NULL 
+        AND (
+          cp.cardtype_sap = 'cLId' OR 
+          cp.cardtype_sap = 'cLid' OR 
+          cp.cardtype_sap IS NULL OR 
+          (cp.cardtype_sap = 'cLId' AND u.is_active = false)
+        )
         ORDER BY cp.client_id
       `;
       
@@ -797,7 +803,10 @@ class SapClientService extends SapBaseService {
 
       this.logger.info('Clientes encontrados para verificar en SAP', {
         total: profiles.length,
-        clientes: profiles.map(p => ({
+        leads: profiles.filter(p => p.cardtype_sap === 'cLId').length,
+        activos: profiles.filter(p => p.is_active).length,
+        inactivos: profiles.filter(p => !p.is_active).length,
+        clientes: profiles.slice(0, 3).map(p => ({
           clientId: p.client_id,
           userId: p.user_id,
           cardCode: p.cardcode_sap,
