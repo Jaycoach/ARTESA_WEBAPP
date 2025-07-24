@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../../../hooks/useAuth';
+import { useUserActivation } from '../../../../hooks/useUserActivation';
 import CreateOrderForm from './CreateOrderForm';
 import OrderList from './OrderList';
 import EditOrderForm from './EditOrderForm';
@@ -36,106 +37,54 @@ const Orders = () => {
     }, 5000);
   };
 
-  // **NUEVA FUNCIÓN**: Validar si el usuario puede crear pedidos usando el endpoint específico
-  const validateCanCreateOrder = async () => {
-    try {
-      setCanCreateValidation(prev => ({ ...prev, loading: true }));
+  // **FUNCIÓN CORREGIDA**: Usar el hook useUserActivation en lugar de validación duplicada
+  const { userStatus, error: activationError, refresh: refreshActivation } = useUserActivation();
 
-      console.log('🔍 Validando si el usuario puede crear pedidos...');
+  // **FUNCIÓN SIMPLIFICADA**: Convertir el estado del hook a formato compatible
+  const getCanCreateValidation = () => {
+    if (userStatus.loading) {
+      return {
+        loading: true,
+        canCreate: false,
+        isActive: false,
+        hasProfile: false,
+        hasCardCode: false,
+        statusMessage: 'Verificando estado de tu cuenta...',
+        actionMessage: ''
+      };
+    }
 
-      const response = await API.get(`/orders/can-create/${user.id}`);
-      const { data } = response.data;
-
-      console.log('📋 Respuesta de validación:', data);
-
-      // Debug adicional para asegurar consistencia
-      console.log('🔍 Orders.jsx - Validación detallada:', {
-        canCreate,
-        isActive: data.isActive,
-        hasProfile: data.hasProfile,
-        hasCardCode: data.hasCardCode,
-        userId: user.id
-      });
-
-      // Parsear la respuesta - validación más estricta
-      // Reemplazar la lógica de validación:
-      const canCreate = data.canCreate === true;
-
-      // Reemplazar los mensajes por una lógica más simple:
-      let statusMessage = '';
-      let actionMessage = '';
-
-      if (canCreate) {
-        statusMessage = 'Tu cuenta está habilitada para crear pedidos.';
-        actionMessage = '';
-      } else {
-        if (!data.isActive) {
-          statusMessage = 'Tu cuenta está inactiva.';
-          actionMessage = 'Contacta al equipo de soporte para activar tu cuenta.';
-        } else if (!data.hasProfile) {
-          statusMessage = 'Completa tu perfil de cliente.';
-          actionMessage = 'Ve a tu perfil para completar la información necesaria.';
-        } else if (!data.hasCardCode) {
-          statusMessage = 'Tu perfil está siendo procesado.';
-          actionMessage = 'Este proceso puede tomar 1-2 días hábiles.';
-        } else {
-          statusMessage = 'Verifica tu configuración de cuenta.';
-          actionMessage = 'Contacta al administrador si el problema persiste.';
-        }
-      }
-
-      setCanCreateValidation({
-        loading: false,
-        canCreate: canCreate,
-        isActive: data.isActive,
-        hasProfile: data.hasProfile,
-        hasCardCode: data.hasCardCode,
-        statusMessage: statusMessage,
-        actionMessage: actionMessage
-      });
-
-    } catch (error) {
-      console.error('❌ Error al validar creación de pedidos:', error);
-
-      // **MANEJO DE ERRORES MEJORADO**: Más específico según el tipo de error
-      let errorMessage = '';
-      let errorAction = '';
-
-      if (error.response?.status === 401) {
-        errorMessage = 'Tu sesión ha expirado.';
-        errorAction = 'Por favor, inicia sesión nuevamente para continuar.';
-      } else if (error.response?.status === 403) {
-        errorMessage = 'No tienes permisos para acceder a esta función.';
-        errorAction = 'Contacta al administrador si crees que esto es un error.';
-      } else if (error.response?.status >= 500) {
-        errorMessage = 'Nuestros servidores están experimentando problemas técnicos.';
-        errorAction = 'Intenta nuevamente en unos minutos. Si el problema persiste, contacta al soporte técnico.';
-      } else if (error.code === 'NETWORK_ERROR' || !navigator.onLine) {
-        errorMessage = 'Problemas de conexión a internet detectados.';
-        errorAction = 'Verifica tu conexión e intenta nuevamente.';
-      } else {
-        errorMessage = 'No pudimos verificar el estado de tu cuenta en este momento.';
-        errorAction = 'Intenta refrescar la página o contacta al soporte si el problema continúa.';
-      }
-
-      setCanCreateValidation({
+    if (activationError) {
+      return {
         loading: false,
         canCreate: false,
         isActive: false,
         hasProfile: false,
         hasCardCode: false,
-        statusMessage: errorMessage,
-        actionMessage: errorAction
-      });
+        statusMessage: 'No pudimos verificar el estado de tu cuenta en este momento.',
+        actionMessage: 'Intenta refrescar la página o contacta al soporte si el problema continúa.'
+      };
     }
+
+    return {
+      loading: false,
+      canCreate: userStatus.canCreateOrders,
+      isActive: userStatus.isActive,
+      hasProfile: userStatus.hasClientProfile,
+      hasCardCode: !userStatus.isPendingSync, // Si no está pendiente, asumimos que tiene cardCode
+      statusMessage: userStatus.statusMessage || (userStatus.canCreateOrders ? 'Tu cuenta está habilitada para crear pedidos.' : 'Tu cuenta no está habilitada para crear pedidos.'),
+      actionMessage: userStatus.canCreateOrders ? '' : 'Para completar tu perfil de cliente, haz clic en tu cuenta (parte superior derecha) y selecciona "Mi Perfil".'
+    };
   };
 
-  // Cargar validación al montar el componente
+  // **EFECTO CORREGIDO**: Usar el estado del hook directamente
   useEffect(() => {
-    if (isAuthenticated) {
-      validateCanCreateOrder();
-    }
-  }, [isAuthenticated]);
+    // El hook useUserActivation se encarga de toda la validación automáticamente
+    // Solo necesitamos actualizar nuestro estado local cuando cambie
+    const newValidation = getCanCreateValidation();
+    setCanCreateValidation(newValidation);
+  }, [userStatus.loading, userStatus.canCreateOrders, userStatus.isActive, userStatus.hasClientProfile, 
+    userStatus.isPendingSync, userStatus.statusMessage, activationError]);
 
   // Manejar navegación basada en la URL con validación
   useEffect(() => {
@@ -163,6 +112,8 @@ const Orders = () => {
   const handleCreateOrderClick = async () => {
     if (canCreateValidation.loading) {
       showNotification('Verificando estado de la cuenta...', 'info');
+      // Intentar refrescar el estado
+      refreshActivation();
       return;
     }
     
@@ -231,8 +182,17 @@ const Orders = () => {
               {canCreateValidation.statusMessage}
             </p>
             {!canCreateValidation.hasProfile && (
-              <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm text-blue-700">
-                Para completar tu perfil de cliente, haz clic en tu <strong>cuenta</strong> (parte superior derecha) y selecciona <strong>"Mi Perfil"</strong>.
+              <div className="mt-2">
+                <p className="text-sm font-medium text-blue-700 mb-1">
+                  {canCreateValidation.actionMessage}
+                </p>
+                <button
+                  onClick={() => navigate('/dashboard/profile/client-info')}
+                  className="inline-flex items-center px-3 py-1 border border-blue-300 text-sm font-medium rounded-md text-blue-700 bg-white hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  <FaUserCheck className="mr-2" />
+                  Completar Perfil
+                </button>
               </div>
             )}
           </div>
