@@ -185,6 +185,27 @@ app.use((err, req, res, next) => {
   next(err);
 });
 
+// Middleware para bloquear solicitudes automatizadas comunes
+app.use((req, res, next) => {
+  const botPatterns = [
+    /bot|crawler|spider|scraper/i,
+    /curl|wget|python-requests/i
+  ];
+  
+  const userAgent = req.headers['user-agent'] || '';
+  const isBot = botPatterns.some(pattern => pattern.test(userAgent));
+  
+  // Bloquear bots en rutas no API
+  if (isBot && !req.path.startsWith('/api/')) {
+    return res.status(403).json({
+      status: 'error',
+      message: 'Acceso denegado'
+    });
+  }
+  
+  next();
+});
+
 // =========================================================================
 // MIDDLEWARES DE SEGURIDAD
 // =========================================================================
@@ -451,6 +472,28 @@ app.get('/', (req, res) => {
     environment: process.env.NODE_ENV || 'development',
     port: PORT
   });
+});
+
+// Manejar solicitudes POST no deseadas a la raíz
+app.post('/', (req, res) => {
+  res.status(405).json({ 
+    status: 'error',
+    message: 'Método no permitido',
+    allowedMethods: ['GET'],
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Manejar cualquier otro método HTTP no permitido en la raíz
+app.all('/', (req, res) => {
+  if (req.method !== 'GET' && req.method !== 'POST') {
+    res.status(405).json({ 
+      status: 'error',
+      message: 'Método no permitido',
+      allowedMethods: ['GET'],
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
 const branchRegistrationRoutes = require('./src/routes/branchRegistrationRoutes');
