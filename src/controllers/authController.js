@@ -269,11 +269,12 @@ static incrementLoginAttempts(mail) {
                 // Detectar si la solicitud viene de herramientas API directas o está en staging
                 const userAgent = req.get('User-Agent') || '';
                 const isApiRequest = userAgent.includes('curl') || 
-                                    userAgent.includes('PostmanRuntime') || 
-                                    userAgent.includes('insomnia') || 
-                                    userAgent.includes('Thunder Client') ||
-                                    req.get('X-Requested-With') === 'swagger' ||
-                                    process.env.NODE_ENV === 'staging';
+                        userAgent.includes('PostmanRuntime') || 
+                        userAgent.includes('insomnia') || 
+                        userAgent.includes('Thunder Client') ||
+                        req.get('X-Requested-With') === 'swagger' ||
+                        process.env.NODE_ENV === 'staging' ||
+                        process.env.RECAPTCHA_BYPASS === 'true';
                 
                 if (!isApiRequest) {
                     const recaptchaResponse = req.body.recaptchaToken || req.body['g-recaptcha-response'] || req.body.captchaToken;
