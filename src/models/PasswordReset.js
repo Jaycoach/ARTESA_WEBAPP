@@ -43,12 +43,16 @@ class PasswordReset {
       logger.debug('Tokens previos desactivados', { userId });
   
       // Luego, inserta el nuevo token
+      // Calcular created_at y expires_at con base en el mismo momento
+      const now = new Date();
+      const expiresAt = new Date(now.getTime() + (24 * 60 * 60 * 1000)); // 24 horas después
+
       const query = `
-        INSERT INTO password_resets (user_id, token, expires_at)
-        VALUES ($1, $2, $3)
+        INSERT INTO password_resets (user_id, token, expires_at, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $4)
         RETURNING *
       `;
-      const values = [userId, token, expiresAt];
+      const values = [userId, token, expiresAt, now];
       
       const result = await pool.query(query, values);
       
