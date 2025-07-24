@@ -18,16 +18,16 @@ WORKDIR /app
 
 # Copiar archivos de dependencias primero (para cache de Docker)
 COPY package*.json ./
+
 # Instalar dependencias (incluyendo AWS SDK V3)
-RUN npm ci --only=production --no-optional
+RUN npm ci --only=production --no-optional --prefer-offline --no-audit
 
 # Crear directorios antes de cambiar de usuario
 RUN mkdir -p uploads tmp logs && \
     chown -R 1001:1001 uploads tmp logs
 
-# Instalar dependencias como root, luego cambiar permisos
-RUN npm ci --only=production && \
-    npm cache clean --force && \
+# Limpiar caché npm y cambiar permisos
+RUN npm cache clean --force && \
     chown -R artesa:artesa /app
 
 # Cambiar a usuario no-root
