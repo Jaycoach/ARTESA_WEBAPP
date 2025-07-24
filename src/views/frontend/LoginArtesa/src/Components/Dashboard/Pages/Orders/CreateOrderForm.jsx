@@ -9,9 +9,17 @@ import DeliveryDatePicker from './DeliveryDatePicker';
 import OrderFileUpload from './OrderFileUpload';
 import Notification from '../../../../Components/ui/Notification';
 import { useNavigate } from 'react-router-dom';
+import usePriceList from '../../../../hooks/usePriceList';
 
 const CreateOrderForm = ({ onOrderCreated }) => {
   const { user } = useAuth();
+  const {
+    userPriceListCode,
+    priceCache,
+    loading: pricesLoading,
+    fetchMultiplePrices,
+    getProductPrice
+  } = usePriceList(); // AÑADIR ESTAS LÍNEAS
   const { isValidating, canAccessForm, validationResult, retryValidation } = useOrderFormValidation();
   const [products, setProducts] = useState([]);
   const [orderDetails, setOrderDetails] = useState([{ product_id: '', quantity: 1, unit_price: 0 }]);
@@ -174,31 +182,6 @@ const CreateOrderForm = ({ onOrderCreated }) => {
 
   useEffect(() => {
     if (!canAccessForm) return;
-    
-    const fetchSettings = async () => {
-      try {
-        console.log("Obteniendo configuración del sitio...");
-        const response = await API.get('/admin/settings');
-        console.log("Respuesta de configuración:", response.data);
-
-        if (response.data && response.data.success) {
-          console.log("Configuración obtenida:", response.data.data);
-          setSiteSettings(response.data.data);
-        } else {
-          console.warn("No se pudo obtener la configuración correctamente:", response.data);
-        }
-      } catch (error) {
-        console.error('Error fetching site settings:', error);
-      } finally {
-        setLoadingSettings(false);
-      }
-    };
-
-    fetchSettings();
-  }, [canAccessForm]);
-
-  useEffect(() => {
-    if (!canAccessForm) return;
 
     const fetchProducts = async () => {
       setLoadingProducts(true);
@@ -209,7 +192,56 @@ const CreateOrderForm = ({ onOrderCreated }) => {
             ...p,
             image_url: p.image_url || null
           }));
-          setProducts(fetchedProducts);
+
+          // **NUEVA LÓGICA: Si hay lista de precios personalizada, obtener precios**
+          if (userPriceListCode && userPriceListCode !== 'GENERAL' && fetchedProducts.length > 0) {
+            try {
+              console.log('🔄 Fetching custom prices for list:', userPriceListCode);
+              const productCodes = fetchedProducts.map(p =>
+                p.sap_code || p.code || p.product_id.toString()
+              );
+
+              const customPrices = await fetchMultiplePrices(productCodes);
+
+              const productsWithCustomPrices = fetchedProducts.map(product => {
+                const productCode = product.sap_code || product.code || product.product_id.toString();
+                const customPrice = customPrices[productCode];
+
+                return {
+                  ...product,
+                  original_price_list1: product.price_list1,
+                  original_price_list2: product.price_list2,
+                  original_price_list3: product.price_list3,
+                  price_list1: customPrice?.price || product.price_list1,
+                  price_list2: product.price_list2,
+                  price_list3: product.price_list3,
+                  has_custom_price: !!customPrice,
+                  custom_price_info: customPrice || null,
+                  price_list_code: userPriceListCode
+                };
+              });
+
+              // Filtrar productos con precios válidos
+              const productsWithValidPrices = productsWithCustomPrices.filter(product => {
+                const price = product.has_custom_price && product.custom_price_info
+                  ? product.custom_price_info.price
+                  : product.price_list1;
+                return price > 0;
+              });
+
+              setProducts(productsWithValidPrices);
+              console.log('✅ Products loaded with custom prices:', productsWithValidPrices.length);
+            } catch (priceError) {
+              console.warn('⚠️ Error loading custom prices, using default prices:', priceError);
+              // Filtrar productos con precios válidos (precio por defecto)
+              const productsWithValidPrices = fetchedProducts.filter(product => product.price_list1 > 0);
+              setProducts(productsWithValidPrices);
+            }
+          } else {
+            // Filtrar productos con precios válidos (precio por defecto)
+            const productsWithValidPrices = fetchedProducts.filter(product => product.price_list1 > 0);
+            setProducts(productsWithValidPrices);
+          }
         } else {
           showNotification('No se pudieron cargar los productos', 'error');
           setProducts([]);
@@ -223,7 +255,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       }
     };
     fetchProducts();
-  }, [canAccessForm]);
+  }, [canAccessForm, userPriceListCode, fetchMultiplePrices]);
 
   useEffect(() => {
     if (!canAccessForm || !user || !user.id) return;
@@ -324,11 +356,6 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     setDeliveryAddress(e.target.value);
   };
 
-  const getProductPrice = (product) => {
-    if (!product) return 0;
-    return product.price || product.priceList1 || product.price_list1 || 0;
-  };
-
   const calculateSubtotal = () => {
     return orderDetails.reduce((total, item) => {
       const itemTotal = item.quantity * item.unit_price;
@@ -352,7 +379,9 @@ const CreateOrderForm = ({ onOrderCreated }) => {
   const total = shipping !== null ? subtotal + iva + shipping : subtotal + iva;
 
   const formatProductName = (product) => {
-    const price = getProductPrice(product);
+    const price = product.has_custom_price && product.custom_price_info 
+      ? product.custom_price_info.price 
+      : product.price_list1;
     return `${product.name} - ${formatCurrencyCOP(price)}`;
   };
 
@@ -377,7 +406,15 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     if (field === 'product_id') {
       const selectedProduct = products.find(p => p.product_id === parseInt(value));
       if (selectedProduct) {
-        newDetails[index].unit_price = selectedProduct.price_list1;
+        if (selectedProduct.has_custom_price && selectedProduct.custom_price_info) {
+          newDetails[index].unit_price = selectedProduct.custom_price_info.price;
+          newDetails[index].price_source = 'custom';
+          newDetails[index].original_price = selectedProduct.price_list1;
+        } else {
+          newDetails[index].unit_price = selectedProduct.price_list1;
+          newDetails[index].price_source = 'default';
+          newDetails[index].original_price = selectedProduct.price_list1;
+        }
       }
     }
 
@@ -466,6 +503,11 @@ const CreateOrderForm = ({ onOrderCreated }) => {
         delivery_zone: deliveryZone ? deliveryZone.key : null,
         delivery_zone_name: deliveryZone ? deliveryZone.name : null,
         municipality_dane_code: selectedBranch ? selectedBranch.municipality_code : null,
+        price_list_code: userPriceListCode || 'GENERAL',
+        has_custom_pricing: userPriceListCode && userPriceListCode !== 'GENERAL',
+        subtotal_amount: subtotal,
+        iva_amount: iva,
+        shipping_amount: shipping || 0,
         details: orderDetails.map(detail => ({
           product_id: parseInt(detail.product_id || 0),
           quantity: parseInt(detail.quantity || 0),
@@ -475,7 +517,9 @@ const CreateOrderForm = ({ onOrderCreated }) => {
           delivery_address: branchAddress,
           shipping_fee: shipping,
           unit_price: parseFloat(detail.unit_price || 0),
-          municipality_dane_code: selectedBranch ? selectedBranch.municipality_code : null
+          municipality_dane_code: selectedBranch ? selectedBranch.municipality_code : null,
+          price_source: detail.price_source || 'default',
+          original_unit_price: parseFloat(detail.original_price || detail.unit_price || 0)
         }))
       };
 
@@ -562,7 +606,15 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       newDetails[index].product_id = option.value;
       const selectedProduct = products.find(p => p.product_id === parseInt(option.value));
       if (selectedProduct) {
-        newDetails[index].unit_price = selectedProduct.price_list1;
+        if (selectedProduct.has_custom_price && selectedProduct.custom_price_info) {
+          newDetails[index].unit_price = selectedProduct.custom_price_info.price;
+          newDetails[index].price_source = 'custom';
+          newDetails[index].original_price = selectedProduct.price_list1;
+        } else {
+          newDetails[index].unit_price = selectedProduct.price_list1;
+          newDetails[index].price_source = 'default';
+          newDetails[index].original_price = selectedProduct.price_list1;
+        }
       }
     } else {
       newDetails[index].product_id = '';
