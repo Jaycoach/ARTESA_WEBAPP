@@ -222,6 +222,27 @@ const CreateOrderForm = ({ onOrderCreated }) => {
             image_url: p.image_url || null
           }));
 
+          // **DEBUGGING TEMPORAL - AGREGAR ESTAS LÍNEAS**
+          console.log('🔍 DEBUGGING: userPriceListCode:', userPriceListCode);
+          console.log('🔍 DEBUGGING: fetchedProducts.length:', fetchedProducts.length);
+
+          if (userPriceListCode && userPriceListCode !== 'GENERAL' && fetchedProducts.length > 0) {
+            console.log('🔍 DEBUGGING: Intentando obtener precios personalizados para:', userPriceListCode);
+            
+            try {
+              const productCodes = fetchedProducts.map(p =>
+                p.sap_code || p.code || p.product_id.toString()
+              );
+              console.log('🔍 DEBUGGING: productCodes:', productCodes.slice(0, 5)); // Primeros 5
+              
+              const customPrices = await fetchMultiplePrices(productCodes);
+              console.log('🔍 DEBUGGING: customPrices result:', customPrices);
+            } catch (error) {
+              console.error('🔍 DEBUGGING: Error en fetchMultiplePrices:', error);
+            }
+          }
+          // **FIN DEL DEBUGGING TEMPORAL**
+
           // **NUEVA LÓGICA: Si hay lista de precios personalizada, obtener precios**
           if (userPriceListCode && userPriceListCode !== 'GENERAL' && fetchedProducts.length > 0) {
             console.log('🔍 Trying custom prices:', { userPriceListCode, productCount: fetchedProducts.length });
