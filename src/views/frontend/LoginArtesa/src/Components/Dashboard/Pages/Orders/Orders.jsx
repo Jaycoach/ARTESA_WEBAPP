@@ -114,10 +114,14 @@ const Orders = () => {
 
   // **FUNCIÓN MEJORADA**: Manejar clic en crear pedido con validación
   const handleCreateOrderClick = async () => {
+    console.log('🎯 handleCreateOrderClick - Estado actual:', {
+      loading: canCreateValidation.loading,
+      canCreate: canCreateValidation.canCreate,
+      statusMessage: canCreateValidation.statusMessage
+    });
+
     if (canCreateValidation.loading) {
       showNotification('Verificando estado de la cuenta...', 'info');
-      // Intentar refrescar el estado
-      refreshActivation();
       return;
     }
     
@@ -126,9 +130,10 @@ const Orders = () => {
       return;
     }
     
-    // Navegar al formulario de creación
-    navigate('/dashboard/orders/new');
+    // Navegar al formulario de creación INMEDIATAMENTE
+    console.log('✅ Navegando a crear pedido - validación exitosa');
     setCurrentView('create');
+    navigate('/dashboard/orders/new');
   };
 
   // Manejar eventos del formulario
@@ -310,12 +315,40 @@ const Orders = () => {
             />
           )}
           
-          {/* Vista de crear pedido (solo si está validado y explícitamente autorizado) */}
-          {currentView === 'create' && canCreateValidation.canCreate === true && !canCreateValidation.loading && (
-            <CreateOrderForm 
-              onOrderCreated={handleOrderCreated}
-              onCancel={() => setShowCancelConfirmation(true)}
-            />
+          {/* Vista de crear pedido */}
+          {currentView === 'create' && (
+            !canCreateValidation.loading ? (
+              canCreateValidation.canCreate ? (
+                <CreateOrderForm 
+                  onOrderCreated={handleOrderCreated}
+                  onCancel={() => setShowCancelConfirmation(true)}
+                />
+              ) : (
+                <div className="text-center py-8">
+                  <FaExclamationTriangle className="mx-auto h-12 w-12 text-red-400 mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                    No puedes crear pedidos
+                  </h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    {canCreateValidation.statusMessage}
+                  </p>
+                  <button
+                    onClick={() => {
+                      setCurrentView('list');
+                      navigate('/dashboard/orders');
+                    }}
+                    className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
+                  >
+                    Volver a Mis Pedidos
+                  </button>
+                </div>
+              )
+            ) : (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                <p className="text-gray-600">Validando permisos...</p>
+              </div>
+            )
           )}
           
           {/* Vista de editar pedido */}
@@ -325,28 +358,6 @@ const Orders = () => {
               onOrderUpdated={handleOrderUpdated}
               onCancel={() => setShowCancelConfirmation(true)}
             />
-          )}
-          
-          {/* Mensaje si se intenta acceder al formulario sin validación */}
-          {currentView === 'create' && (!canCreateValidation.canCreate || canCreateValidation.loading) && (
-            <div className="text-center py-8">
-              <FaExclamationTriangle className="mx-auto h-12 w-12 text-red-400 mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                No puedes crear pedidos
-              </h3>
-              <p className="text-sm text-gray-600 mb-4">
-                {canCreateValidation.loading ? 'Verificando permisos...' : canCreateValidation.statusMessage}
-              </p>
-              <button
-                onClick={() => {
-                  setCurrentView('list');
-                  navigate('/dashboard/orders');
-                }}
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-              >
-                Volver a Mis Pedidos
-              </button>
-            </div>
           )}
         </div>
       </div>
