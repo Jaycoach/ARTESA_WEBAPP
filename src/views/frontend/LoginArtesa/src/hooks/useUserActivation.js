@@ -58,10 +58,11 @@ export const useUserActivation = () => {
       let isPending = false;
       try {
         isPending = await sapSyncService.isUserPendingSync(user.id);
-        console.log('Estado de sincronización SAP:', { isPending }); // Para debugging
+        console.log('Estado de sincronización SAP:', { isPending });
       } catch (syncError) {
-        console.warn('Error verificando estado de sincronización SAP:', syncError);
-        isPending = false;
+        // Error 403 es normal para usuarios regulares - no afecta la capacidad de crear pedidos
+        console.log('Usuario sin permisos administrativos SAP - asumiendo no pendiente');
+        isPending = false; // Asumir que no está pendiente si no se puede verificar
       }
 
       // 4. Determinar estado general
