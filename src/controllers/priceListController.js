@@ -95,13 +95,13 @@ class PriceListController {
       });
 
       // Filtrar solo productos con precio mayor que cero
-      const productsWithPrice = result.data.filter(product => 
-        product.price && parseFloat(product.price) > 0
-      );
+      //const productsWithPrice = result.data.filter(product => 
+      //  product.price && parseFloat(product.price) > 0
+      //);
 
       // Actualizar el resultado con los productos filtrados
-      result.data = productsWithPrice;
-      result.count = productsWithPrice.length;
+      //result.data = productsWithPrice;
+      //result.count = productsWithPrice.length;
 
       res.status(200).json({
         success: true,

@@ -46,14 +46,6 @@ const CreateOrderForm = ({ onOrderCreated }) => {
 
   // Debug simplificado
   useEffect(() => {
-    console.log('🔍 CreateOrderForm - Estado simplificado:', {
-      isValidating,
-      canAccessForm,
-      userCanCreate: userStatus.canCreateOrders,
-      userActive: userStatus.isActive,
-      hasProfile: userStatus.hasClientProfile,
-      userId: user?.id
-    });
   }, [isValidating, canAccessForm, userStatus, user?.id]);
 
   const [products, setProducts] = useState([]);
@@ -232,6 +224,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
 
           // **NUEVA LÓGICA: Si hay lista de precios personalizada, obtener precios**
           if (userPriceListCode && userPriceListCode !== 'GENERAL' && fetchedProducts.length > 0) {
+            console.log('🔍 Trying custom prices:', { userPriceListCode, productCount: fetchedProducts.length });
             try {
               console.log('🔄 Fetching custom prices for list:', userPriceListCode);
               const productCodes = fetchedProducts.map(p =>
@@ -239,6 +232,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
               );
 
               const customPrices = await fetchMultiplePrices(productCodes);
+              console.log('🔍 Custom prices result:', { customPrices, productCodesCount: productCodes.length });
 
               const productsWithCustomPrices = fetchedProducts.map(product => {
                 const productCode = product.sap_code || product.code || product.product_id.toString();
@@ -293,10 +287,6 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     };
     fetchProducts();
   }, [canAccessForm, userPriceListCode, fetchMultiplePrices]);
-
-  console.log('🔍 DEBUGGING: userPriceListCode:', userPriceListCode);
-  console.log('🔍 DEBUGGING: priceCache:', priceCache);
-  console.log('🔍 DEBUGGING: pricesLoading:', pricesLoading);
 
   useEffect(() => {
     if (!canAccessForm || !user || !user.id) return;

@@ -220,10 +220,6 @@ router.get('/:priceListCode/products',
   ],
   sanitizeParams,
   (req, res) => {
-    console.log('=== DEBUGGING getPriceListProducts ===');
-    console.log('Function type:', typeof priceListController.getPriceListProducts);
-    console.log('Function:', priceListController.getPriceListProducts);
-    console.log('Is function?', typeof priceListController.getPriceListProducts === 'function');
     
     if (typeof priceListController.getPriceListProducts === 'function') {
       return priceListController.getPriceListProducts(req, res);
