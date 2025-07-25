@@ -514,6 +514,43 @@ class PriceList {
       throw error;
     }
   }
+  /**
+   * Obtener el mapeo de price_list_name a price_list_code
+   * @param {string} priceListName - Nombre de la lista de precios (ej: "ORO", "PLATA")
+   * @returns {Promise<Object|null>} - Objeto con el mapeo o null si no existe
+   */
+  static async getPriceListCodeMapping(priceListName) {
+      try {
+          const query = `
+              SELECT DISTINCT 
+                  price_list_code,
+                  price_list_name
+              FROM price_lists
+              WHERE price_list_name = $1 
+                  AND is_active = true
+              LIMIT 1;
+          `;
+          
+          const { rows } = await pool.query(query, [priceListName]);
+          
+          if (rows.length === 0) {
+              logger.debug('Price list mapping not found', { priceListName });
+              return null;
+          }
+
+          logger.debug('Price list mapping found', { 
+              priceListName, 
+              mappedCode: rows[0].price_list_code 
+          });
+          return rows[0];
+      } catch (error) {
+          logger.error('Error getting price list mapping', { 
+              error: error.message, 
+              priceListName 
+          });
+          throw error;
+      }
+  }
 }
 
 module.exports = PriceList;
