@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Select from 'react-select';
 import { useAuth } from '../../../../hooks/useAuth';
+import { useUserActivation } from '../../../../hooks/useUserActivation';
 import { orderService } from '../../../../services/orderService';
 import UserActivationStatus from '../../../UserActivationStatus';
 import API from '../../../../api/config';
