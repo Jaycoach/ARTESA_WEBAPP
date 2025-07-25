@@ -71,7 +71,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
   const [notification, setNotification] = useState({ show: false, message: '', type: '' });
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [siteSettings, setSiteSettings] = useState({ orderTimeLimit: '18:00' });
-  const [loadingSettings, setLoadingSettings] = useState(true);
+  const [loadingSettings, setLoadingSettings] = useState(false); // Cambiar a false por defecto
   const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
   const [branches, setBranches] = useState([]);
@@ -799,6 +799,16 @@ const CreateOrderForm = ({ onOrderCreated }) => {
   }
 
   console.log('✅ CreateOrderForm - Usuario autorizado, renderizando formulario completo');
+
+  // Agregar este useEffect para monitorear el estado de loadingSettings
+  useEffect(() => {
+    console.log('🔧 CreateOrderForm - Estados de carga:', {
+      loadingProducts,
+      loadingSettings,
+      canAccessForm,
+      productsLength: products.length
+    });
+  }, [loadingProducts, loadingSettings, canAccessForm, products.length]);
 
   if (loadingProducts || loadingSettings) {
     console.log('🔄 CreateOrderForm - Cargando productos y configuraciones...');
