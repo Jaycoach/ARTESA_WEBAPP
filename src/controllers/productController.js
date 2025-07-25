@@ -115,7 +115,12 @@ class ProductController {
    */
   async getProducts(req, res) {
     try {
-      const products = await Product.getAll();
+      // Obtener el userPriceListCode del usuario autenticado
+      const userPriceListCode = req.user?.clientProfile?.price_list_code;
+
+      const products = await Product.getAll({
+          userPriceListCode: userPriceListCode !== 'GENERAL' ? userPriceListCode : null
+      });
       
       res.status(200).json({
         success: true,
