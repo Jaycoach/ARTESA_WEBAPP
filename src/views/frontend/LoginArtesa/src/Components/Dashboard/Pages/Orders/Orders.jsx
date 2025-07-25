@@ -112,6 +112,19 @@ const Orders = () => {
     }
   }, [location.pathname, orderId, canCreateValidation.loading, canCreateValidation.canCreate, navigate, canCreateValidation.statusMessage]);
 
+  // Debug adicional para verificar el renderizado
+  useEffect(() => {
+    console.log('🎯 Orders - Vista actual y estados:', {
+      currentView,
+      canCreateValidation: {
+        loading: canCreateValidation.loading,
+        canCreate: canCreateValidation.canCreate,
+        statusMessage: canCreateValidation.statusMessage
+      },
+      path: location.pathname
+    });
+  }, [currentView, canCreateValidation, location.pathname]);
+
   // **FUNCIÓN MEJORADA**: Manejar clic en crear pedido con validación
   const handleCreateOrderClick = async () => {
     console.log('🎯 handleCreateOrderClick - Estado actual:', {
@@ -317,8 +330,13 @@ const Orders = () => {
           
           {/* Vista de crear pedido */}
           {currentView === 'create' && (
-            !canCreateValidation.loading ? (
-              canCreateValidation.canCreate ? (
+            <div>
+              {canCreateValidation.loading ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                  <p className="text-gray-600">Validando permisos...</p>
+                </div>
+              ) : canCreateValidation.canCreate ? (
                 <CreateOrderForm 
                   onOrderCreated={handleOrderCreated}
                   onCancel={() => setShowCancelConfirmation(true)}
@@ -342,13 +360,8 @@ const Orders = () => {
                     Volver a Mis Pedidos
                   </button>
                 </div>
-              )
-            ) : (
-              <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
-                <p className="text-gray-600">Validando permisos...</p>
-              </div>
-            )
+              )}
+            </div>
           )}
           
           {/* Vista de editar pedido */}
