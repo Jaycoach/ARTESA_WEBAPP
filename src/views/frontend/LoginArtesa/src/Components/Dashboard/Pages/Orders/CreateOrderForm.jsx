@@ -222,9 +222,10 @@ const CreateOrderForm = ({ onOrderCreated }) => {
             image_url: p.image_url || null
           }));
 
-          // **DEBUGGING TEMPORAL - AGREGAR ESTAS LÍNEAS**
+          // **DEBUGGING TEMPORAL - AGREGAR AQUÍ**
           console.log('🔍 DEBUGGING: userPriceListCode:', userPriceListCode);
           console.log('🔍 DEBUGGING: fetchedProducts.length:', fetchedProducts.length);
+          console.log('🔍 DEBUGGING: user.clientProfile:', user?.clientProfile);
 
           if (userPriceListCode && userPriceListCode !== 'GENERAL' && fetchedProducts.length > 0) {
             console.log('🔍 DEBUGGING: Intentando obtener precios personalizados para:', userPriceListCode);
@@ -241,6 +242,15 @@ const CreateOrderForm = ({ onOrderCreated }) => {
               console.error('🔍 DEBUGGING: Error en fetchMultiplePrices:', error);
             }
           }
+
+          // También agregar debugging para productos finales
+          console.log('🔍 DEBUGGING: fetchedProducts antes de filtrar:', fetchedProducts.map(p => ({
+            id: p.product_id,
+            name: p.name,
+            price_list1: p.price_list1,
+            sap_code: p.sap_code,
+            code: p.code
+          })).slice(0, 3)); // Primeros 3
           // **FIN DEL DEBUGGING TEMPORAL**
 
           // **NUEVA LÓGICA: Si hay lista de precios personalizada, obtener precios**
