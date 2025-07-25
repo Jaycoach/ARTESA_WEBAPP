@@ -36,8 +36,6 @@ export const useUserActivation = () => {
       const userResponse = await API.get(`/users/${user.id}`);
       const userData = userResponse.data.data || userResponse.data;
       
-      console.log('Datos del usuario obtenidos:', userData); // Para debugging
-      
       // CORREGIDO: Obtener isActive directamente del usuario
       const isUserActive = userData.isActive !== undefined ? userData.isActive : userData.is_active;
       
@@ -48,7 +46,6 @@ export const useUserActivation = () => {
         const profileResponse = await API.get(`/client-profiles/user/${user.id}`);
         profileData = profileResponse.data.data || profileResponse.data;
         hasProfile = !!(profileData && (profileData.nit_number || profileData.nit));
-        console.log('Perfil de cliente:', { hasProfile, profileData }); // Para debugging
       } catch (profileError) {
         console.log('Usuario sin perfil de cliente:', profileError.response?.status);
         hasProfile = false;
@@ -58,10 +55,7 @@ export const useUserActivation = () => {
       let isPending = false;
       try {
         isPending = await sapSyncService.isUserPendingSync(user.id);
-        console.log('Estado de sincronización SAP:', { isPending });
       } catch (syncError) {
-        // Error 403 es normal para usuarios regulares - no afecta la capacidad de crear pedidos
-        console.log('Usuario sin permisos administrativos SAP - asumiendo no pendiente');
         isPending = false; // Asumir que no está pendiente si no se puede verificar
       }
 
@@ -79,15 +73,6 @@ export const useUserActivation = () => {
 
       setUserStatus(newStatus);
       setError(null);
-
-      console.log('Estado de activación actualizado:', {
-        userId: user.id,
-        isActive: isUserActive,
-        hasProfile: hasProfile,
-        isPending: isPending,
-        canCreateOrders: newStatus.canCreateOrders,
-        originalUserData: userData // Para debugging
-      });
 
     } catch (error) {
       console.error('Error checking user activation status:', error);
