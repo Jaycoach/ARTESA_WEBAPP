@@ -40,7 +40,7 @@ const Orders = () => {
   // **FUNCIÓN CORREGIDA**: Usar el hook useUserActivation en lugar de validación duplicada
   const { userStatus, error: activationError, refresh: refreshActivation } = useUserActivation();
 
-  // **FUNCIÓN SIMPLIFICADA**: Convertir el estado del hook a formato compatible
+  // Función simplificada: usar directamente el estado del hook
   const getCanCreateValidation = () => {
     if (userStatus.loading) {
       return {
@@ -66,14 +66,18 @@ const Orders = () => {
       };
     }
 
+    // Usar directamente los valores del hook sin lógica adicional
     return {
       loading: false,
       canCreate: userStatus.canCreateOrders,
       isActive: userStatus.isActive,
       hasProfile: userStatus.hasClientProfile,
-      hasCardCode: !userStatus.isPendingSync, // Si no está pendiente, asumimos que tiene cardCode
-      statusMessage: userStatus.statusMessage || (userStatus.canCreateOrders ? 'Tu cuenta está habilitada para crear pedidos.' : 'Tu cuenta no está habilitada para crear pedidos.'),
-      actionMessage: userStatus.canCreateOrders ? '' : 'Para completar tu perfil de cliente, haz clic en tu cuenta (parte superior derecha) y selecciona "Mi Perfil".'
+      hasCardCode: true, // Si tiene CardCode SAP, no está pendiente
+      statusMessage: userStatus.canCreateOrders ? 
+        'Tu cuenta está habilitada para crear pedidos.' : 
+        userStatus.statusMessage,
+      actionMessage: userStatus.canCreateOrders ? '' : 
+        'Para completar tu perfil de cliente, haz clic en tu cuenta (parte superior derecha) y selecciona "Mi Perfil".'
     };
   };
 

@@ -55,6 +55,8 @@ class SAPSyncService {
       // Esto es normal para usuarios regulares, no es un error crítico
       if (error.response?.status === 403) {
         console.log('Usuario sin permisos de administrador - asumiendo no pendiente');
+        // NOTA: Este comportamiento es correcto - usuarios regulares no necesitan
+        // acceso a endpoints administrativos para crear pedidos
         return false;
       }
       
