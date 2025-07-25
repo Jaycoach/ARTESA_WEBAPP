@@ -118,8 +118,27 @@ class ProductController {
       // Obtener el userPriceListCode del usuario autenticado
       const userPriceListCode = req.user?.clientProfile?.price_list_code;
 
+      let numericPriceListCode = null;
+
+      // Si el usuario tiene un price_list_code específico, buscar su equivalente numérico
+      if (userPriceListCode && userPriceListCode !== 'GENERAL') {
+          try {
+              const PriceList = require('../models/PriceList');
+              const priceListMapping = await PriceList.getPriceListCodeMapping(userPriceListCode);
+              numericPriceListCode = priceListMapping?.price_list_code || null;
+              
+              console.log('🔍 DEBUG: userPriceListCode:', userPriceListCode);
+              console.log('🔍 DEBUG: numericPriceListCode:', numericPriceListCode);
+          } catch (error) {
+              logger.warn('Error getting price list mapping', { 
+                  userPriceListCode, 
+                  error: error.message 
+              });
+          }
+      }
+
       const products = await Product.getAll({
-          userPriceListCode: userPriceListCode !== 'GENERAL' ? userPriceListCode : null
+          userPriceListCode: numericPriceListCode
       });
       
       res.status(200).json({
