@@ -384,12 +384,46 @@ class Product {
    */
   static async getAll(options = {}) {
     try {
-        let query = 'SELECT * FROM products';
+        let query;
+        if (options.userPriceListCode) {
+            query = `
+                SELECT DISTINCT 
+                    p.product_id,
+                    p.name,
+                    p.description,
+                    COALESCE(pl.price, p.price_list1) as price_list1,
+                    p.price_list2,
+                    p.price_list3,
+                    p.stock,
+                    p.barcode,
+                    p.image_url,
+                    p.sap_code,
+                    p.sap_group,
+                    p.created_at,
+                    p.updated_at,
+                    p.sap_last_sync,
+                    p.sap_sync_pending,
+                    p.is_active,
+                    pl.price as custom_price,
+                    pl.price_list_code
+                FROM products p
+                LEFT JOIN price_lists pl ON p.sap_code = pl.product_code 
+                    AND pl.price_list_code = '${options.userPriceListCode}' 
+                    AND pl.is_active = true
+                WHERE p.is_active = true 
+                    AND (pl.price > 0 OR p.price_list1 > 0)
+            `;
+        } else {
+            query = 'SELECT * FROM products';
+        }
         const queryParams = [];
         const conditions = [];
 
         // Filtrar productos con precio mayor que cero por defecto
-        conditions.push('(price_list1 > 0 OR price_list2 > 0 OR price_list3 > 0)');
+        // Si no se especifica un userPriceListCode, usar filtro tradicional
+        if (!options.userPriceListCode) {
+            conditions.push('(price_list1 > 0 OR price_list2 > 0 OR price_list3 > 0)');
+        }
         
         if (typeof options.active === 'boolean') {
             conditions.push(`is_active = $${queryParams.length + 1}`);
