@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Select from 'react-select';
 import { useAuth } from '../../../../hooks/useAuth';
 import { orderService } from '../../../../services/orderService';
-import { useOrderFormValidation } from '../../../../hooks/useOrderFormValidation';
 import UserActivationStatus from '../../../UserActivationStatus';
 import API from '../../../../api/config';
 import DeliveryDatePicker from './DeliveryDatePicker';
@@ -20,16 +19,33 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     fetchMultiplePrices,
     getProductPrice
   } = usePriceList(); // AÑADIR ESTAS LÍNEAS
-  const { isValidating, canAccessForm, validationResult, retryValidation } = useOrderFormValidation();
-  // Debug para entender qué está pasando
+  // Remover useOrderFormValidation duplicado - usar solo useUserActivation
+  const { userStatus } = useUserActivation();
+  // Estados de validación simplificados basados en useUserActivation
+  const isValidating = userStatus.loading;
+  const canAccessForm = userStatus.canCreateOrders && !userStatus.loading;
+  const validationResult = {
+    errors: !userStatus.canCreateOrders && !userStatus.loading ? [{
+      type: 'ACCESS_DENIED',
+      message: userStatus.statusMessage || 'No puedes crear pedidos en este momento',
+      action: !userStatus.hasClientProfile ? 'COMPLETE_PROFILE' : 'CONTACT_SUPPORT',
+      redirectTo: '/dashboard/profile/client-info'
+    }] : [],
+    warnings: []
+  };
+
+  // Debug simplificado
   useEffect(() => {
-    console.log('🔍 CreateOrderForm - Estado de validación:', {
+    console.log('🔍 CreateOrderForm - Estado simplificado:', {
       isValidating,
       canAccessForm,
-      validationResult,
+      userCanCreate: userStatus.canCreateOrders,
+      userActive: userStatus.isActive,
+      hasProfile: userStatus.hasClientProfile,
       userId: user?.id
     });
-  }, [isValidating, canAccessForm, validationResult, user?.id]);
+  }, [isValidating, canAccessForm, userStatus, user?.id]);
+
   const [products, setProducts] = useState([]);
   const [orderDetails, setOrderDetails] = useState([{ product_id: '', quantity: 1, unit_price: 0 }]);
   const [deliveryDate, setDeliveryDate] = useState('');
@@ -747,7 +763,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
             Volver a órdenes
           </button>
           <button
-            onClick={retryValidation}
+            onClick={() => window.location.reload()}
             className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
           >
             Verificar nuevamente
