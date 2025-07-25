@@ -160,7 +160,6 @@ class PriceList {
           p.description as local_product_description
         FROM price_lists pl
         LEFT JOIN products p ON pl.product_code = p.sap_code
-        INNER JOIN client_profiles cp ON cp.price_list_code = pl.price_list_code
         ${whereClause}
         AND pl.price > 0
         ORDER BY ${orderBy} ${orderDirection}
