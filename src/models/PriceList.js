@@ -256,7 +256,7 @@ class PriceList {
    * @param {Array<string>} productCodes - Array de códigos de productos
    * @returns {Promise<Array>} - Array de precios de productos
    */
-  static async getMultipleProductPrices(priceListCode, productCodes) {
+  static async getMultipleProductPrices(priceListIdentifier, productCodes) {
     try {
       if (!productCodes || productCodes.length === 0) {
         return [];
@@ -264,6 +264,7 @@ class PriceList {
 
       const placeholders = productCodes.map((_, index) => `$${index + 2}`).join(',');
       
+      // **BÚSQUEDA FLEXIBLE**: Por código O por nombre
       const query = `
         SELECT 
           pl.*,
@@ -271,24 +272,24 @@ class PriceList {
           p.description as local_product_description
         FROM price_lists pl
         LEFT JOIN products p ON pl.product_code = p.sap_code
-        WHERE pl.price_list_code = $1 
+        WHERE (pl.price_list_code = $1 OR pl.price_list_name = $1)
           AND pl.product_code IN (${placeholders})
           AND pl.is_active = true
         ORDER BY pl.product_code;
       `;
       
-      const { rows } = await pool.query(query, [priceListCode, ...productCodes]);
+      const { rows } = await pool.query(query, [priceListIdentifier, ...productCodes]);
       
-      logger.debug('Multiple product prices retrieved', { 
-        priceListCode, 
+      logger.debug('Multiple product prices retrieved by code or name', { 
+        priceListIdentifier, 
         requestedCount: productCodes.length,
         foundCount: rows.length 
       });
       return rows;
     } catch (error) {
-      logger.error('Error getting multiple product prices', { 
+      logger.error('Error getting multiple product prices by code or name', { 
         error: error.message, 
-        priceListCode, 
+        priceListIdentifier, 
         productCount: productCodes?.length 
       });
       throw error;
@@ -364,6 +365,151 @@ class PriceList {
       logger.error('Error getting price list statistics', { 
         error: error.message, 
         priceListCode 
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Validar si un usuario tiene acceso a una lista de precios específica
+   * @param {string} userPriceListCode - Código de lista del usuario
+   * @param {string} requestedPriceListCode - Código solicitado
+   * @returns {Promise<boolean>} - true si tiene acceso
+   */
+  static async validateUserAccessToPriceList(userPriceListCode, requestedPriceListCode) {
+    try {
+      // Si son exactamente iguales, acceso directo
+      if (userPriceListCode === requestedPriceListCode) {
+        return true;
+      }
+
+      // Buscar si el código del usuario coincide con alguna lista 
+      // (por código o por nombre)
+      const query = `
+        SELECT DISTINCT price_list_code, price_list_name
+        FROM price_lists
+        WHERE is_active = true
+          AND (
+            (price_list_code = $1 AND (price_list_code = $2 OR price_list_name = $2))
+            OR
+            (price_list_name = $1 AND (price_list_code = $2 OR price_list_name = $2))
+          )
+        LIMIT 1;
+      `;
+      
+      const { rows } = await pool.query(query, [userPriceListCode, requestedPriceListCode]);
+      
+      logger.debug('Price list access validation', {
+        userPriceListCode,
+        requestedPriceListCode,
+        hasAccess: rows.length > 0
+      });
+      
+      return rows.length > 0;
+    } catch (error) {
+      logger.error('Error validating price list access', { 
+        error: error.message,
+        userPriceListCode,
+        requestedPriceListCode
+      });
+      return false;
+    }
+  }
+
+  /**
+   * Obtener productos de una lista de precios por código O nombre
+   * @param {string} priceListIdentifier - Código o nombre de la lista
+   * @param {Object} options - Opciones de filtrado y paginación
+   * @returns {Promise<Object>} - Productos con precios y metadatos de paginación
+   */
+  static async getByPriceListCodeOrName(priceListIdentifier, options = {}) {
+    try {
+      const { 
+        limit = 50, 
+        offset = 0, 
+        search = null,
+        orderBy = 'product_code',
+        orderDirection = 'ASC'
+      } = options;
+
+      // **BÚSQUEDA FLEXIBLE**: Por código O por nombre
+      let whereClause = `WHERE (pl.price_list_code = $1 OR pl.price_list_name = $1) 
+                        AND pl.is_active = true`;
+      let queryParams = [priceListIdentifier];
+      let paramIndex = 2;
+
+      if (search) {
+        whereClause += ` AND (pl.product_code ILIKE $${paramIndex} OR pl.product_name ILIKE $${paramIndex})`;
+        queryParams.push(`%${search}%`);
+        paramIndex++;
+      }
+
+      const countQuery = `
+        SELECT COUNT(*) 
+        FROM price_lists pl 
+        ${whereClause};
+      `;
+
+      const dataQuery = `
+        SELECT DISTINCT
+          pl.price_list_id,
+          pl.price_list_code,
+          pl.price_list_name,
+          pl.product_code,
+          pl.product_name,
+          pl.price,
+          pl.currency,
+          pl.additional_price1,
+          pl.additional_price2,
+          pl.factor,
+          pl.base_price_list,
+          pl.sap_price_list_no,
+          pl.sap_last_sync,
+          pl.created_at,
+          pl.updated_at,
+          p.name as local_product_name,
+          p.description as local_product_description
+        FROM price_lists pl
+        LEFT JOIN products p ON pl.product_code = p.sap_code
+        ${whereClause}
+        AND pl.price > 0
+        ORDER BY ${orderBy} ${orderDirection}
+        LIMIT $${paramIndex} OFFSET $${paramIndex + 1};
+      `;
+
+      queryParams.push(limit, offset);
+
+      const [countResult, dataResult] = await Promise.all([
+        pool.query(countQuery, queryParams.slice(0, -2)),
+        pool.query(dataQuery, queryParams)
+      ]);
+
+      const totalCount = parseInt(countResult.rows[0].count);
+      const totalPages = Math.ceil(totalCount / limit);
+      const currentPage = Math.floor(offset / limit) + 1;
+
+      logger.debug('Price list products retrieved by code or name', { 
+        priceListIdentifier, 
+        count: dataResult.rows.length,
+        totalCount 
+      });
+
+      return {
+        data: dataResult.rows,
+        pagination: {
+          currentPage,
+          totalPages,
+          totalCount,
+          limit,
+          offset,
+          hasNextPage: currentPage < totalPages,
+          hasPreviousPage: currentPage > 1
+        }
+      };
+    } catch (error) {
+      logger.error('Error getting price list by code or name', { 
+        error: error.message, 
+        priceListIdentifier 
       });
       throw error;
     }
