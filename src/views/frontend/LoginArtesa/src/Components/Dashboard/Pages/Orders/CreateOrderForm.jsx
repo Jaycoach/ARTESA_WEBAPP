@@ -22,6 +22,21 @@ const CreateOrderForm = ({ onOrderCreated }) => {
   } = usePriceList(); // AÑADIR ESTAS LÍNEAS
   // Remover useOrderFormValidation duplicado - usar solo useUserActivation
   const { userStatus } = useUserActivation();
+  // Debug para diagnosticar el problema
+  useEffect(() => {
+    console.log('🔍 CreateOrderForm montado - Estado inicial:', {
+      userStatus: {
+        loading: userStatus.loading,
+        canCreateOrders: userStatus.canCreateOrders,
+        isActive: userStatus.isActive,
+        hasClientProfile: userStatus.hasClientProfile,
+        statusMessage: userStatus.statusMessage
+      },
+      isValidating,
+      canAccessForm
+    });
+  }, []); // Solo en mount
+
   // Estados de validación simplificados basados en useUserActivation
   const isValidating = userStatus.loading;
   const canAccessForm = userStatus.canCreateOrders && !userStatus.loading;
@@ -685,6 +700,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
   };
 
   if (isValidating) {
+    console.log('🔄 CreateOrderForm - Validando permisos...');
     return (
       <div className="w-full p-6 bg-white rounded-lg border border-gray-200 shadow-sm">
         <div className="flex justify-center items-center h-40">
@@ -698,6 +714,14 @@ const CreateOrderForm = ({ onOrderCreated }) => {
   }
 
   if (!canAccessForm) {
+    console.log('❌ CreateOrderForm - Acceso denegado:', {
+      canAccessForm,
+      userStatus: userStatus.statusMessage,
+      userCanCreate: userStatus.canCreateOrders,
+      isActive: userStatus.isActive,
+      hasProfile: userStatus.hasClientProfile
+    });
+    
     return (
       <div className="w-full p-6 bg-white rounded-lg border border-gray-200 shadow-sm">
         <div className="text-center mb-6">
@@ -774,15 +798,21 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     );
   }
 
+  console.log('✅ CreateOrderForm - Usuario autorizado, renderizando formulario completo');
+
   if (loadingProducts || loadingSettings) {
+    console.log('🔄 CreateOrderForm - Cargando productos y configuraciones...');
     return (
       <div className="w-full p-6 bg-white rounded-lg border border-gray-200 shadow-sm">
         <div className="flex justify-center items-center h-40">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+          <p className="ml-4 text-gray-600">Cargando productos...</p>
         </div>
       </div>
     );
   }
+
+  console.log('🎯 CreateOrderForm - Formulario completamente cargado y listo');
 
   return (
     <div className="w-full p-6 bg-white rounded-lg border border-gray-200 shadow-sm">
