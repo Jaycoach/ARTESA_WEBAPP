@@ -42,17 +42,6 @@ const CreateOrderForm = ({ onOrderCreated }) => {
 
   // Debug para diagnosticar el problema
   useEffect(() => {
-    console.log('🔍 CreateOrderForm montado - Estado inicial:', {
-      userStatus: {
-        loading: userStatus.loading,
-        canCreateOrders: userStatus.canCreateOrders,
-        isActive: userStatus.isActive,
-        hasClientProfile: userStatus.hasClientProfile,
-        statusMessage: userStatus.statusMessage
-      },
-      isValidating,
-      canAccessForm
-    });
   }, [userStatus.loading, userStatus.canCreateOrders, userStatus.isActive, userStatus.hasClientProfile, isValidating, canAccessForm]);
 
   // Debug simplificado
@@ -304,6 +293,10 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     };
     fetchProducts();
   }, [canAccessForm, userPriceListCode, fetchMultiplePrices]);
+
+  console.log('🔍 DEBUGGING: userPriceListCode:', userPriceListCode);
+  console.log('🔍 DEBUGGING: priceCache:', priceCache);
+  console.log('🔍 DEBUGGING: pricesLoading:', pricesLoading);
 
   useEffect(() => {
     if (!canAccessForm || !user || !user.id) return;
@@ -703,7 +696,6 @@ const CreateOrderForm = ({ onOrderCreated }) => {
 
   // Verificación de estado de carga
   if (isValidating) {
-    console.log('🔄 CreateOrderForm - Validando permisos...');
     return (
       <div className="w-full p-6 bg-white rounded-lg border border-gray-200 shadow-sm">
         <div className="flex justify-center items-center h-40">
@@ -782,11 +774,8 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     );
   }
 
-  console.log('✅ CreateOrderForm - Usuario autorizado, renderizando formulario completo');
-
   // Verificación final de estados de carga
   if (loadingProducts || loadingSettings) {
-    console.log('🔄 CreateOrderForm - Cargando productos y configuraciones...');
     return (
       <div className="w-full p-6 bg-white rounded-lg border border-gray-200 shadow-sm">
         <div className="flex justify-center items-center h-40">
@@ -796,8 +785,6 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       </div>
     );
   }
-
-  console.log('🎯 CreateOrderForm - Formulario completamente cargado y listo');
 
   return (
     <div className="w-full p-6 bg-white rounded-lg border border-gray-200 shadow-sm">
