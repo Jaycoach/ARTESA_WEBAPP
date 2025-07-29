@@ -58,26 +58,27 @@ const usePriceList = () => {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const determinePriceList = () => {
-      if (!user) return;
+  const determinePriceList = () => {
+    if (!user) return;
 
-      let priceListCode = 'GENERAL';
+    let priceListCode = 'GENERAL';
 
-      if (user.role === 1) {
-        priceListCode = 'ORO';
-      } else if (user.clientProfile?.tamanoEmpresa === 'Grande') {
-        priceListCode = 'ORO';
-      } else if (user.clientProfile?.tamanoEmpresa === 'Mediana') {
-        priceListCode = 'PLATA';
-      } else if (user.clientProfile?.tamanoEmpresa === 'Pequena') {
-        priceListCode = 'BRONCE';
-      }
+    // ✅ Administradores (roles 1 y 3) obtienen lista ORO
+    if ([1, 3].includes(user.role)) {
+      priceListCode = 'ORO';
+    } else if (user.clientProfile?.tamanoEmpresa === 'Grande') {
+      priceListCode = 'ORO';
+    } else if (user.clientProfile?.tamanoEmpresa === 'Mediana') {
+      priceListCode = 'PLATA';
+    } else if (user.clientProfile?.tamanoEmpresa === 'Pequena') {
+      priceListCode = 'BRONCE';
+    }
 
-      setUserPriceListCode(priceListCode);
-    };
+    setUserPriceListCode(priceListCode);
+  };
 
-    determinePriceList();
-  }, [user]);
+  determinePriceList();
+}, [user]);
 
   const fetchMultiplePrices = useCallback(async (productCodes) => {
     if (!userPriceListCode || !productCodes.length) return {};
