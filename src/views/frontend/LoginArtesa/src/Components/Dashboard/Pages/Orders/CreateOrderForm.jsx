@@ -229,6 +229,12 @@ const CreateOrderForm = ({ onOrderCreated }) => {
           console.log('🔍 DEBUGGING: userPriceListCode:', userPriceListCode);
           console.log('🔍 DEBUGGING: fetchedProducts.length:', fetchedProducts.length);
           console.log('🔍 DEBUGGING: user.clientProfile:', user?.clientProfile);
+          console.log('🔍 DEBUGGING: Estructura del primer producto:', fetchedProducts[0]);
+          console.log('🔍 DEBUGGING: Campos de precio disponibles:', {
+            price_list1: fetchedProducts[0]?.price_list1,
+            price_list: fetchedProducts[0]?.price_list,
+            price: fetchedProducts[0]?.price
+          });
 
           if (userPriceListCode && userPriceListCode !== 'GENERAL' && fetchedProducts.length > 0) {
             console.log('🔍 DEBUGGING: Intentando obtener precios personalizados para:', userPriceListCode);
@@ -299,14 +305,22 @@ const CreateOrderForm = ({ onOrderCreated }) => {
 
               const filteredProducts = productsWithValidPrices;
               console.log('🔍 DEBUGGING: Productos después del filtrado:', filteredProducts);
-              console.log('🔍 DEBUGGING: Estableciendo productos en el estado:', filteredProducts);
+              console.log('🔍 DEBUGGING: Productos que se van a setear:', filteredProducts.map(p => ({
+                id: p.product_id,
+                name: p.name,
+                price: p.price_list1 || p.price_list || p.price,
+                hasValidPrice: (p.price_list1 || p.price_list || p.price) > 0
+              })).slice(0, 3));
 
               setProducts(productsWithValidPrices);
               console.log('✅ Products loaded with custom prices:', productsWithValidPrices.length);
             } catch (priceError) {
               console.warn('⚠️ Error loading custom prices, using default prices:', priceError);
               // Filtrar productos con precios válidos (precio por defecto)
-              const filteredProducts = fetchedProducts.filter(product => product.price_list1 > 0);
+              const filteredProducts = fetchedProducts.filter(product => {
+                const price = product.price_list1 || product.price_list || product.price || 0;
+                return price > 0;
+              });
               console.log('🔍 DEBUGGING: Productos después del filtrado:', filteredProducts);
               console.log('🔍 DEBUGGING: Estableciendo productos en el estado:', filteredProducts);
               setProducts(filteredProducts);
@@ -490,11 +504,12 @@ const CreateOrderForm = ({ onOrderCreated }) => {
         if (selectedProduct.has_custom_price && selectedProduct.custom_price_info) {
           newDetails[index].unit_price = selectedProduct.custom_price_info.price;
           newDetails[index].price_source = 'custom';
-          newDetails[index].original_price = selectedProduct.price_list1;
+          newDetails[index].original_price = selectedProduct.price_list1 || selectedProduct.price_list || selectedProduct.price || 0;
         } else {
-          newDetails[index].unit_price = selectedProduct.price_list1;
+          const defaultPrice = selectedProduct.price_list1 || selectedProduct.price_list || selectedProduct.price || 0;
+          newDetails[index].unit_price = defaultPrice;
           newDetails[index].price_source = 'default';
-          newDetails[index].original_price = selectedProduct.price_list1;
+          newDetails[index].original_price = defaultPrice;
         }
       }
     }
@@ -668,6 +683,8 @@ const CreateOrderForm = ({ onOrderCreated }) => {
 
   const productOptionsForSelect = useMemo(() => {
     console.log('🔍 DEBUGGING: Generando opciones para Select, products:', products);
+    console.log('🔍 DEBUGGING: products.length:', products?.length || 0);
+    console.log('🔍 DEBUGGING: Primeros 3 productos completos:', products?.slice(0, 3));
     
     if (!products || products.length === 0) {
       console.warn('⚠️ No hay productos disponibles para el selector');
@@ -675,21 +692,31 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     }
 
     const options = products.map(product => {
+      // Buscar el precio en diferentes campos posibles
+      const price = product.price_list1 || product.price_list || product.price || 0;
+      
       console.log('🔍 Producto mapeado:', {
         id: product.product_id,
         name: product.name,
-        price: product.price_list1
+        price: price,
+        hasCustomPrice: product.has_custom_price,
+        originalFields: {
+          price_list1: product.price_list1,
+          price_list: product.price_list,
+          price: product.price
+        }
       });
       
       return {
         value: product.product_id,
         label: product.name,
         image: product.image_url,
-        price: product.price_list1
+        price: price
       };
     });
     
-    console.log('✅ Opciones generadas para Select:', options);
+    console.log('✅ Opciones generadas para Select:', options.slice(0, 3));
+    console.log('🔍 Total opciones generadas:', options.length);
     return options;
   }, [products]);
 
@@ -703,11 +730,12 @@ const CreateOrderForm = ({ onOrderCreated }) => {
         if (selectedProduct.has_custom_price && selectedProduct.custom_price_info) {
           newDetails[index].unit_price = selectedProduct.custom_price_info.price;
           newDetails[index].price_source = 'custom';
-          newDetails[index].original_price = selectedProduct.price_list1;
+          newDetails[index].original_price = selectedProduct.price_list1 || selectedProduct.price_list || selectedProduct.price || 0;
         } else {
-          newDetails[index].unit_price = selectedProduct.price_list1;
+          const defaultPrice = selectedProduct.price_list1 || selectedProduct.price_list || selectedProduct.price || 0;
+          newDetails[index].unit_price = defaultPrice;
           newDetails[index].price_source = 'default';
-          newDetails[index].original_price = selectedProduct.price_list1;
+          newDetails[index].original_price = defaultPrice;
         }
       }
     } else {
