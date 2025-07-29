@@ -1183,16 +1183,20 @@ static async getMonthlyStats(userId, months = 6) {
       // Calcular IVA (19%) y precio total
       const productsWithTax = pricesData.map(product => {
         const basePrice = parseFloat(product.price) || 0;
-        const taxRate = 0.19; // 19% IVA
+        // Determinar tipo de impuesto según configuración del producto
+        const hasImpuestoSaludable = product.has_impuesto_saludable || false;
+        const taxRate = hasImpuestoSaludable ? 0.10 : 0.19; // 10% saludable o 19% IVA
         const taxAmount = basePrice * taxRate;
         const totalPrice = basePrice + taxAmount;
-        
+
         return {
           ...product,
           base_price: basePrice,
           tax_rate: taxRate,
+          tax_type: hasImpuestoSaludable ? 'IMPUESTO_SALUDABLE' : 'IVA',
           tax_amount: parseFloat(taxAmount.toFixed(2)),
-          total_price_with_tax: parseFloat(totalPrice.toFixed(2))
+          total_price_with_tax: parseFloat(totalPrice.toFixed(2)),
+          has_impuesto_saludable: hasImpuestoSaludable
         };
       });
       

@@ -45,6 +45,7 @@ const DELIVERY_ZONES = {
 };
 
 const IVA_RATE = 0.19;
+const IMPUESTO_SALUDABLE_RATE = 0.10;
 const MIN_ORDER_AMOUNT = 50000;
 const SHIPPING_CHARGE = 10000;
 const SHIPPING_LIMIT = 50000;
@@ -284,15 +285,49 @@ const Products = () => {
     }, 0);
   }, [orderItems]);
 
+  const calculateImpuestoSaludable = (subtotal) => {
+    return subtotal * IMPUESTO_SALUDABLE_RATE;
+  };
+
+  const calculateTaxByProduct = (orderDetails) => {
+    let ivaTotal = 0;
+    let impuestoSaludableTotal = 0;
+    
+    orderDetails.forEach(detail => {
+      const itemSubtotal = detail.quantity * detail.unit_price;
+      const product = products.find(p => p.product_id === parseInt(detail.product_id));
+      
+      if (product && product.has_impuesto_saludable) {
+        impuestoSaludableTotal += itemSubtotal * IMPUESTO_SALUDABLE_RATE;
+      } else {
+        ivaTotal += itemSubtotal * IVA_RATE;
+      }
+    });
+    
+    return { ivaTotal, impuestoSaludableTotal };
+  };
+
   const calculateIVA = useCallback((subtotal) => {
     return subtotal * IVA_RATE;
   }, []);
 
-  const calculateShipping = useCallback((subtotal) => {
-    if (subtotal >= SHIPPING_FREE_LIMIT) return 0;
-    if (subtotal >= SHIPPING_LIMIT) return SHIPPING_CHARGE;
+  const calculateShipping = (subtotal, totalTaxes) => {
+    const subtotalWithTaxes = subtotal + totalTaxes;
+    
+    if (subtotalWithTaxes < MIN_ORDER_AMOUNT) {
+      return null; // No se aplica flete si está por debajo del mínimo
+    }
+    
+    if (subtotalWithTaxes >= SHIPPING_FREE_LIMIT) {
+      return 0; // Envío gratis
+    }
+    
+    if (subtotalWithTaxes >= SHIPPING_LIMIT) {
+      return SHIPPING_CHARGE; // Costo de envío con impuestos incluidos
+    }
+    
     return null;
-  }, []);
+  };
 
   // **FUNCIÓN DE PAGINACIÓN**
   const getPaginationRange = useCallback((currentPage, totalPages, siblingCount = 1) => {
