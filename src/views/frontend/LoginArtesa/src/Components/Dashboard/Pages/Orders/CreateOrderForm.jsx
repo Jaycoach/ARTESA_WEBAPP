@@ -262,8 +262,6 @@ const CreateOrderForm = ({ onOrderCreated }) => {
             code: p.code
           })).slice(0, 3)); // Primeros 3
           // **FIN DEL DEBUGGING TEMPORAL**
-          console.log('🔍 DEBUGGING: Productos después del filtrado:', filteredProducts);
-          console.log('🔍 DEBUGGING: Productos finales asignados:', filteredProducts);
 
           // **NUEVA LÓGICA: Si hay lista de precios personalizada, obtener precios**
           if (userPriceListCode && userPriceListCode !== 'GENERAL' && fetchedProducts.length > 0) {
@@ -295,42 +293,45 @@ const CreateOrderForm = ({ onOrderCreated }) => {
                 };
               });
 
-              // Filtrar productos con precios válidos
-              const filteredProducts = productsWithCustomPrices.filter(product => {
+              // Filtrar productos con precios válidos (custom prices)
+              const validCustomProducts = productsWithCustomPrices.filter(product => {
                 const price = product.has_custom_price && product.custom_price_info
                   ? product.custom_price_info.price
-                  : parseFloat(product.effective_price || product.price_list1 || product.price_list || product.price || 0);
-                console.log('🔍 Verificando precio del producto:', { name: product.name, price, source: 'custom' });
+                  : parseFloat(product.effective_price || product.price_list1 || 0);
+                console.log('🔍 Verificando precio del producto (custom):', { name: product.name, price });
                 return price > 0;
               });
 
-              console.log('🔍 DEBUGGING: Productos después del filtrado (custom):', filteredProducts.length);
-              console.log('🔍 DEBUGGING: Estableciendo productos en el estado (custom):', filteredProducts.slice(0, 2));
+              console.log('🔍 DEBUGGING: Productos después del filtrado (custom):', validCustomProducts.length);
+              console.log('🔍 DEBUGGING: Estableciendo productos en el estado (custom):', validCustomProducts.slice(0, 2));
 
-              setProducts(filteredProducts);
-              console.log('✅ Products loaded with custom prices:', filteredProducts.length);
+              setProducts(validCustomProducts);
+              console.log('✅ Products loaded with custom prices:', validCustomProducts.length);
             } catch (priceError) {
               console.warn('⚠️ Error loading custom prices, using default prices:', priceError);
-              // Filtrar productos con precios válidos (precio por defecto)
-              const filteredProducts = fetchedProducts.filter(product => {
-                const price = parseFloat(product.effective_price || product.price_list1 || product.price_list || product.price || 0);
-                console.log('🔍 Verificando precio del producto:', { name: product.name, price, source: 'default_fallback' });
+              
+              // Filtrar productos con precios válidos (precio por defecto - fallback)
+              const validDefaultProducts = fetchedProducts.filter(product => {
+                const price = parseFloat(product.effective_price || product.price_list1 || 0);
+                console.log('🔍 Verificando precio del producto (default fallback):', { name: product.name, price });
                 return price > 0;
               });
-              console.log('🔍 DEBUGGING: Productos después del filtrado (default fallback):', filteredProducts.length);
-              console.log('🔍 DEBUGGING: Estableciendo productos en el estado (default fallback):', filteredProducts.slice(0, 2));
-              setProducts(filteredProducts);
+              
+              console.log('🔍 DEBUGGING: Productos después del filtrado (default fallback):', validDefaultProducts.length);
+              console.log('🔍 DEBUGGING: Estableciendo productos en el estado (default fallback):', validDefaultProducts.slice(0, 2));
+              setProducts(validDefaultProducts);
             }
           } else {
             // Filtrar productos con precios válidos (precio por defecto)
-            const filteredProducts = fetchedProducts.filter(product => {
-              const price = parseFloat(product.effective_price || product.price_list1 || product.price_list || product.price || 0);
-              console.log('🔍 Verificando precio del producto:', { name: product.name, price, source: 'default' });
+            const validProducts = fetchedProducts.filter(product => {
+              const price = parseFloat(product.effective_price || product.price_list1 || 0);
+              console.log('🔍 Verificando precio del producto (default):', { name: product.name, price });
               return price > 0;
             });
-            console.log('🔍 DEBUGGING: Productos después del filtrado (default):', filteredProducts.length);
-            console.log('🔍 DEBUGGING: Estableciendo productos en el estado (default):', filteredProducts.slice(0, 2));
-            setProducts(filteredProducts);
+            
+            console.log('🔍 DEBUGGING: Productos después del filtrado (default):', validProducts.length);
+            console.log('🔍 DEBUGGING: Estableciendo productos en el estado (default):', validProducts.slice(0, 2));
+            setProducts(validProducts);
           }
         } else {
           showNotification('No se pudieron cargar los productos', 'error');
