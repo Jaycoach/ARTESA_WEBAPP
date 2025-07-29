@@ -93,7 +93,7 @@ class DocumentDownloadService {
 }
 
 const ClientList = () => {
-  const { user } = useAuth();
+  const { user , isAdmin, isAuthenticated } = useAuth();
   const envInfo = getEnvironmentInfo();
 
   // **INSTANCIA DEL SERVICIO**
@@ -111,8 +111,6 @@ const ClientList = () => {
   const [sortConfig, setSortConfig] = useState({ key: 'nombre', direction: 'ascending' });
   const [downloadingDocs, setDownloadingDocs] = useState({});
 
-  // **CORRECCIÓN CRÍTICA**: Validación de rol corregida
-  const isAdmin = user && (user.role === 1);
 
   // **FUNCIÓN PRINCIPAL**: Descarga usando el nuevo endpoint
   const downloadDocument = useCallback(async (clientData, documentType, documentName) => {
@@ -161,68 +159,50 @@ const ClientList = () => {
 
   // **FUNCIÓN CORREGIDA**: Obtener datos
   const fetchData = useCallback(async (forceRefresh = false) => {
-    try {
-      setLoading(true);
-      setError(null);
+  if (!isAuthenticated || !user?.id) {
+    setLoading(false);
+    return;
+  }
 
-      console.log('👤 Usuario actual:', user);
-      console.log('🔑 Es admin?:', isAdmin);
+  try {
+    setLoading(true);
+    setError(null);
 
-      if (isAdmin) {
-        console.log('📊 Obteniendo lista completa de clientes (Admin)');
-        const response = await API.get('/client-profiles');
-        console.log('📋 Respuesta admin completa:', response.data);
-
-        const clientProfiles = response.data.data || response.data || [];
-        const profilesArray = Array.isArray(clientProfiles) ? clientProfiles : [clientProfiles];
-
-        console.log('👥 Clientes procesados:', profilesArray.length);
-        setClients(profilesArray);
-
-      } else if (user?.id) {
-        console.log(`👤 Obteniendo perfil del usuario ${user.id}`);
-
-        try {
-          const response = await API.get(`/client-profiles/user/${user.id}`);
-          console.log('📄 Respuesta perfil usuario completa:', response.data);
-
-          const clientProfile = response.data.data || response.data;
-          setSingleClient(clientProfile);
-
-        } catch (profileError) {
-          console.log('⚠️ No se encontró perfil específico, creando perfil básico');
-
-          setSingleClient({
-            client_id: null,
-            user_id: user.id,
-            nombre: user.name,
-            email: user.mail || user.email,
-            telefono: null,
-            direccion: null,
-            ciudad: null,
-            pais: null,
-            nit_number: null,
-            verification_digit: null,
-            razonSocial: null,
-            fotocopiaCedula: null,
-            fotocopiaCedulaUrl: null,
-            fotocopiaRut: null,
-            fotocopiaRutUrl: null,
-            anexosAdicionales: null
-          });
-        }
+    // ✅ Usar la función isAdmin() del contexto
+    if (isAdmin()) {
+      // Tu lógica existente para admin
+      const response = await API.get('/client-profiles');
+      if (response.data?.success) {
+        setClients(response.data.data || []);
+        setSingleClient(null);
       }
-    } catch (err) {
-      console.error('❌ Error al obtener datos:', err);
-      setError(`Error al cargar información: ${err.message}`);
-    } finally {
-      setLoading(false);
+    } else {
+      // Tu lógica existente para usuario individual
+      const response = await API.get(`/client-profiles/user/${user.id}`);
+      if (response.data?.success) {
+        setSingleClient(response.data.data);
+        setClients([]);
+      }
     }
-  }, [isAdmin, user?.id]);
+  } catch (err) {
+    setError(err.response?.data?.message || err.message);
+  } finally {
+    setLoading(false);
+  }
+}, [isAuthenticated, user?.id, isAdmin]);
 
-  useEffect(() => {
+useEffect(() => {
+  if (isAuthenticated && user?.id) {
     fetchData();
-  }, [fetchData]);
+  }
+}, [fetchData]);
+
+// useEffect con dependencias correctas
+useEffect(() => {
+  if (isAuthenticated && user?.id) {
+    fetchData();
+  }
+}, [fetchData]);
 
   // **COMPONENTE CORREGIDO**: Botón de descarga
   const DownloadButton = ({ clientData, documentType, documentName, icon: Icon, color, label }) => {
@@ -327,12 +307,12 @@ const ClientList = () => {
   }, [sortConfig]);
 
   // Estados de carga y error
-  if (loading) {
+  if (!isAuthenticated || loading) {
     return (
-      <div className="flex justify-center items-center h-64">
+      <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <FaSpinner className="animate-spin text-4xl text-blue-500 mx-auto mb-4" />
-          <p className="text-gray-600">Cargando información de clientes...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Cargando información del cliente...</p>
         </div>
       </div>
     );
@@ -340,26 +320,17 @@ const ClientList = () => {
 
   if (error) {
     return (
-      <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center">
-            <FaExclamationTriangle className="mr-2" />
-            <span>{error}</span>
-          </div>
-          <button
-            onClick={() => fetchData(true)}
-            className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 flex items-center gap-2"
-          >
-            <FaSync />
-            Reintentar
-          </button>
-        </div>
+      <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+        <p><strong>Error:</strong> {error}</p>
+        <button onClick={() => fetchData(true)} className="mt-2 bg-red-600 text-white px-4 py-2 rounded">
+          Reintentar
+        </button>
       </div>
     );
   }
 
   // **RENDERIZADO PARA USUARIO NO ADMIN - CON ALINEACIÓN PERFECTA**
-  if (!isAdmin && singleClient) {
+  if (!isAdmin() && singleClient) {
     return (
       <div className="max-w-7xl mx-auto p-6 bg-white rounded-lg shadow">
         <h2 className="text-xl font-bold mb-4" style={{ color: 'var(--primary-color)' }}>
@@ -562,7 +533,7 @@ const ClientList = () => {
     <div className="client-list-container p-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-semibold text-slate-800">
-          Lista de Clientes {isAdmin && '(Vista Administrador)'}
+          Lista de Clientes {isAdmin() && '(Vista Administrador)'}
         </h1>
         <div className="flex items-center gap-3">
           {envInfo.isDevelopment && (
