@@ -96,7 +96,7 @@ router.use(sanitizeBody, sanitizeParams);
  */
 router.get('/products', 
   verifyToken, 
-  checkRole([1, 2]), // Permitir acceso a todos los usuarios autenticados
+  checkRole([1, 2, 3]), // Permitir acceso a todos los usuarios autenticados
   productController.getProducts
 );
 
@@ -113,7 +113,7 @@ router.get('/products',
  */
 router.get('/products/:productId', 
   verifyToken, 
-  checkRole([1, 2]), // Permitir acceso a todos los usuarios autenticados
+  checkRole([1, 2, 3]), // Permitir acceso a todos los usuarios autenticados
   productController.getProduct
 );
 

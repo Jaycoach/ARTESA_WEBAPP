@@ -292,7 +292,7 @@ const checkRole = (allowedRoles) => {
         } 
         
         // Caso alternativo: convertir directamente según convención conocida
-        return roleName === 'ADMIN' ? 1 : (roleName === 'USER' ? 2 : role);
+        return roleName === 'ADMIN' ? 1 : (roleName === 'USER' ? 2 : (roleName === 'FUNCTIONAL_ADMIN' ? 3 : role));
       }
       return role;
     });
