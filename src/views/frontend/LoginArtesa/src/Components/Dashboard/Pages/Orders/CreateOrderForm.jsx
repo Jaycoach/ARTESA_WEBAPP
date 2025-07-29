@@ -495,15 +495,16 @@ const CreateOrderForm = ({ onOrderCreated }) => {
   };
 
   const calculateTotal = () => {
-  const subtotal = orderDetails.reduce((total, item) => {
-    const itemTotal = item.quantity * item.unit_price;
+    const subtotal = orderDetails.reduce((total, item) => {
+      const itemTotal = item.quantity * item.unit_price;
       return total + (isNaN(itemTotal) ? 0 : itemTotal);
     }, 0);
-  
-  const iva = calculateIVA(subtotal);
-  const shipping = calculateShipping(subtotal);
-  
-    return shipping !== null ? subtotal + iva + shipping : subtotal + iva;
+
+    const { ivaTotal, impuestoSaludableTotal } = calculateTaxByProduct(orderDetails);
+    const totalTaxes = ivaTotal + impuestoSaludableTotal;
+    const shipping = calculateShipping(subtotal, totalTaxes);
+
+    return shipping !== null ? subtotal + totalTaxes + shipping : subtotal + totalTaxes;
   };
 
   const handleSubmit = async (e) => {
@@ -1282,10 +1283,18 @@ const CreateOrderForm = ({ onOrderCreated }) => {
                   <span>Subtotal:</span>
                   <span>{formatCurrencyCOP(subtotal)}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span>IVA (19%):</span>
-                  <span>{formatCurrencyCOP(iva)}</span>
-                </div>
+                {ivaTotal > 0 && (
+                  <div className="flex justify-between">
+                    <span>IVA (19%):</span>
+                    <span>{formatCurrencyCOP(ivaTotal)}</span>
+                  </div>
+                )}
+                {impuestoSaludableTotal > 0 && (
+                  <div className="flex justify-between">
+                    <span>Impuesto Saludable (10%):</span>
+                    <span>{formatCurrencyCOP(impuestoSaludableTotal)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span>Flete:</span>
                   <span>{shipping === 0 ? 'Gratis' : formatCurrencyCOP(shipping || 0)}</span>
