@@ -216,6 +216,9 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       setLoadingProducts(true);
       try {
         const response = await API.get('/products');
+        console.log('🔍 DEBUGGING: Respuesta completa de API productos:', response);
+        console.log('🔍 DEBUGGING: response.data:', response.data);
+        console.log('🔍 DEBUGGING: Array.isArray(response.data):', Array.isArray(response.data));
         if (response.data.success && Array.isArray(response.data.data)) {
           const fetchedProducts = response.data.data.map(p => ({
             ...p,
@@ -244,7 +247,8 @@ const CreateOrderForm = ({ onOrderCreated }) => {
           }
 
           // También agregar debugging para productos finales
-          console.log('🔍 DEBUGGING: fetchedProducts antes de filtrar:', fetchedProducts.map(p => ({
+          console.log('🔍 DEBUGGING: fetchedProducts antes de filtrar:'
+            , fetchedProducts.map(p => ({
             id: p.product_id,
             name: p.name,
             price_list1: p.price_list1,
@@ -252,6 +256,8 @@ const CreateOrderForm = ({ onOrderCreated }) => {
             code: p.code
           })).slice(0, 3)); // Primeros 3
           // **FIN DEL DEBUGGING TEMPORAL**
+          console.log('🔍 DEBUGGING: Productos después del filtrado:', filteredProducts);
+          console.log('🔍 DEBUGGING: Productos finales asignados:', filteredProducts);
 
           // **NUEVA LÓGICA: Si hay lista de precios personalizada, obtener precios**
           if (userPriceListCode && userPriceListCode !== 'GENERAL' && fetchedProducts.length > 0) {
@@ -291,18 +297,26 @@ const CreateOrderForm = ({ onOrderCreated }) => {
                 return price > 0;
               });
 
+              const filteredProducts = productsWithValidPrices;
+              console.log('🔍 DEBUGGING: Productos después del filtrado:', filteredProducts);
+              console.log('🔍 DEBUGGING: Estableciendo productos en el estado:', filteredProducts);
+
               setProducts(productsWithValidPrices);
               console.log('✅ Products loaded with custom prices:', productsWithValidPrices.length);
             } catch (priceError) {
               console.warn('⚠️ Error loading custom prices, using default prices:', priceError);
               // Filtrar productos con precios válidos (precio por defecto)
-              const productsWithValidPrices = fetchedProducts.filter(product => product.price_list1 > 0);
-              setProducts(productsWithValidPrices);
+              const filteredProducts = fetchedProducts.filter(product => product.price_list1 > 0);
+              console.log('🔍 DEBUGGING: Productos después del filtrado:', filteredProducts);
+              console.log('🔍 DEBUGGING: Estableciendo productos en el estado:', filteredProducts);
+              setProducts(filteredProducts);
             }
           } else {
             // Filtrar productos con precios válidos (precio por defecto)
-            const productsWithValidPrices = fetchedProducts.filter(product => product.price_list1 > 0);
-            setProducts(productsWithValidPrices);
+            const filteredProducts = fetchedProducts.filter(product => product.price_list1 > 0);
+            console.log('🔍 DEBUGGING: Productos después del filtrado:', filteredProducts);
+            console.log('🔍 DEBUGGING: Estableciendo productos en el estado:', filteredProducts);
+            setProducts(filteredProducts);
           }
         } else {
           showNotification('No se pudieron cargar los productos', 'error');
@@ -318,6 +332,11 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     };
     fetchProducts();
   }, [canAccessForm, userPriceListCode, fetchMultiplePrices]);
+
+    useEffect(() => {
+    console.log('🔍 DEBUGGING: Estado products cambió:', products);
+    console.log('🔍 DEBUGGING: products.length:', products?.length || 0);
+  }, [products]);
 
   useEffect(() => {
     if (!canAccessForm || !user || !user.id) return;
@@ -648,12 +667,30 @@ const CreateOrderForm = ({ onOrderCreated }) => {
   };
 
   const productOptionsForSelect = useMemo(() => {
-    return products.map(product => ({
-      value: product.product_id,
-      label: product.name,
-      image: product.image_url,
-      price: product.price_list1
-    }));
+    console.log('🔍 DEBUGGING: Generando opciones para Select, products:', products);
+    
+    if (!products || products.length === 0) {
+      console.warn('⚠️ No hay productos disponibles para el selector');
+      return [];
+    }
+
+    const options = products.map(product => {
+      console.log('🔍 Producto mapeado:', {
+        id: product.product_id,
+        name: product.name,
+        price: product.price_list1
+      });
+      
+      return {
+        value: product.product_id,
+        label: product.name,
+        image: product.image_url,
+        price: product.price_list1
+      };
+    });
+    
+    console.log('✅ Opciones generadas para Select:', options);
+    return options;
   }, [products]);
 
   const handleSelectChange = (index, option) => {
@@ -1026,6 +1063,10 @@ const CreateOrderForm = ({ onOrderCreated }) => {
                         value={productOptionsForSelect.find(option => option.value === parseInt(detail.product_id))}
                         onChange={(option) => handleSelectChange(index, option)}
                         options={productOptionsForSelect}
+                        // Log temporal para debug - remover después
+                        ref={(selectRef) => {
+                          console.log('🔍 RENDERING Select con opciones:', productOptionsForSelect);
+                        }}
                         formatOptionLabel={formatOptionLabel}
                         placeholder="Seleccionar producto"
                         className="w-full"
@@ -1035,6 +1076,9 @@ const CreateOrderForm = ({ onOrderCreated }) => {
                         menuPortalTarget={document.body}
                         menuPosition="fixed"
                         menuPlacement="auto"
+                        noOptionsMessage={() => 'No se encontraron productos'}
+                        loadingMessage={() => 'Cargando productos...'}
+                        isLoading={products.length === 0}
                         styles={{
                           control: (base) => ({
                             ...base,
