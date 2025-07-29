@@ -70,11 +70,12 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     setNotification({ show: true, message, type });
     setTimeout(() => setNotification({ show: false, message: '', type: '' }), 5000);
   };
+  const IVA_RATE = 0.19;
+  const IMPUESTO_SALUDABLE_RATE = 0.10; // 10% impuesto saludable
   const MIN_ORDER_AMOUNT = 50000;
   const SHIPPING_CHARGE = 10000;
   const SHIPPING_LIMIT = 50000;
   const SHIPPING_FREE_LIMIT = 80000;
-  const IVA_RATE = 0.19;
 
   const DELIVERY_ZONES = {
     'MIERCOLES_SABADO': {
@@ -399,9 +400,21 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     }, 0);
   };
 
-  const calculateShipping = (subtotal) => {
-    if (subtotal >= SHIPPING_FREE_LIMIT) return 0;
-    if (subtotal >= SHIPPING_LIMIT) return SHIPPING_CHARGE;
+  const calculateShipping = (subtotal, totalTaxes) => {
+    const subtotalWithTaxes = subtotal + totalTaxes;
+    
+    if (subtotalWithTaxes < MIN_ORDER_AMOUNT) {
+      return null; // No se aplica flete si está por debajo del mínimo
+    }
+    
+    if (subtotalWithTaxes >= SHIPPING_FREE_LIMIT) {
+      return 0; // Envío gratis
+    }
+    
+    if (subtotalWithTaxes >= SHIPPING_LIMIT) {
+      return SHIPPING_CHARGE; // Costo de envío con impuestos incluidos
+    }
+    
     return null;
   };
 
@@ -409,10 +422,33 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     return subtotal * IVA_RATE;
   };
 
+  const calculateImpuestoSaludable = (subtotal) => {
+    return subtotal * IMPUESTO_SALUDABLE_RATE;
+  };
+
+  const calculateTaxByProduct = (orderDetails) => {
+    let ivaTotal = 0;
+    let impuestoSaludableTotal = 0;
+    
+    orderDetails.forEach(detail => {
+      const itemSubtotal = detail.quantity * detail.unit_price;
+      const product = products.find(p => p.product_id === parseInt(detail.product_id));
+      
+      if (product && product.has_impuesto_saludable) {
+        impuestoSaludableTotal += itemSubtotal * IMPUESTO_SALUDABLE_RATE;
+      } else {
+        ivaTotal += itemSubtotal * IVA_RATE;
+      }
+    });
+    
+    return { ivaTotal, impuestoSaludableTotal };
+  };
+
   const subtotal = calculateSubtotal();
-  const iva = calculateIVA(subtotal);
-  const shipping = calculateShipping(subtotal);
-  const total = shipping !== null ? subtotal + iva + shipping : subtotal + iva;
+  const { ivaTotal, impuestoSaludableTotal } = calculateTaxByProduct(orderDetails);
+  const totalTaxes = ivaTotal + impuestoSaludableTotal;
+  const shipping = calculateShipping(subtotal, totalTaxes);
+  const total = shipping !== null ? subtotal + totalTaxes + shipping : subtotal + totalTaxes;
 
   const formatProductName = (product) => {
     const price = product.has_custom_price && product.custom_price_info 
@@ -1116,10 +1152,20 @@ const CreateOrderForm = ({ onOrderCreated }) => {
             </div>
 
             {/* IVA */}
-            <div className="flex justify-between items-center">
-              <span className="font-medium text-gray-700">IVA (19%):</span>
-              <span className="font-semibold text-gray-800">{formatCurrencyCOP(iva)}</span>
-            </div>
+            {ivaTotal > 0 && (
+              <div className="flex justify-between items-center">
+                <span className="font-medium text-gray-700">IVA (19%):</span>
+                <span className="font-semibold text-gray-800">{formatCurrencyCOP(ivaTotal)}</span>
+              </div>
+            )}
+
+            {/* Impuesto Saludable */}
+            {impuestoSaludableTotal > 0 && (
+              <div className="flex justify-between items-center">
+                <span className="font-medium text-gray-700">Impuesto Saludable (10%):</span>
+                <span className="font-semibold text-gray-800">{formatCurrencyCOP(impuestoSaludableTotal)}</span>
+              </div>
+            )}
 
             {/* Flete */}
             <div className="flex justify-between items-center">

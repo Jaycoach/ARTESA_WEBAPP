@@ -7,6 +7,7 @@ import { useAuth } from '../../../hooks/useAuth';
 import './ConfirmationModal.scss';
 import FieldValidation from './FieldValidation';
 import ConfirmationModal from './ConfirmationModal';
+import ProfileCreationWarning from './ProfileCreationWarning';
 
 const ClientProfile = ({ onClose, onProfileUpdate }) => {
   // ✅ USAR LA LÓGICA SIMPLE DEL COMPONENTE FUNCIONAL
@@ -65,6 +66,7 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
   const [success, setSuccess] = useState('');
   const [existingProfile, setExistingProfile] = useState(null);
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [showProfileWarning, setShowProfileWarning] = useState(false);
   const [focusedField, setFocusedField] = useState(null);
   const [expandedSections, setExpandedSections] = useState({
     basic: true,
@@ -293,6 +295,20 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
   // ✅ FUNCIÓN DE ENVÍO EXACTAMENTE COMO EN PASTE-3.TXT (LA QUE FUNCIONA)
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (loading) return;
+
+    // Si es un perfil nuevo, mostrar advertencia primero
+    if (!existingProfile) {
+      setShowProfileWarning(true);
+      return;
+    }
+
+    // Si ya existe el perfil, proceder normalmente
+    await processProfileSubmission();
+  };
+
+  const processProfileSubmission = async () => {
     setLoading(true);
     setError('');
     setSuccess('');
@@ -1265,6 +1281,19 @@ const ClientProfile = ({ onClose, onProfileUpdate }) => {
             <p className="text-slate-700">Guardando información...</p>
           </div>
         </div>
+      )}
+      {/* Modal de advertencia para creación de perfil */}
+      {showProfileWarning && (
+        <ProfileCreationWarning
+          isOpen={showProfileWarning}
+          onConfirm={() => {
+            setShowProfileWarning(false);
+            processProfileSubmission();
+          }}
+          onCancel={() => {
+            setShowProfileWarning(false);
+          }}
+        />
       )}
     </div>
   );
