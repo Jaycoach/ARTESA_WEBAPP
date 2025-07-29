@@ -115,49 +115,133 @@ class ProductController {
    */
   async getProducts(req, res) {
     try {
-      // Obtener el userPriceListCode del usuario autenticado
-      const userPriceListCode = req.user?.clientProfile?.price_list_code;
+        // Obtener el price_list_code del usuario autenticado
+        const userPriceListCode = req.user?.clientProfile?.price_list_code;
 
-      let numericPriceListCode = null;
+        console.log('🔍 DEBUG: Información del usuario:', {
+            userId: req.user?.id,
+            userPriceListCode,
+            userPriceListCodeType: typeof userPriceListCode,
+            clientProfile: req.user?.clientProfile
+        });
 
-      // Si el usuario tiene un price_list_code específico, buscar su equivalente numérico
-      if (userPriceListCode && userPriceListCode !== 'GENERAL') {
-          try {
-              const PriceList = require('../models/PriceList');
-              const priceListMapping = await PriceList.getPriceListCodeMapping(userPriceListCode);
-              numericPriceListCode = priceListMapping?.price_list_code || null;
-              
-              console.log('🔍 DEBUG: userPriceListCode:', userPriceListCode);
-              console.log('🔍 DEBUG: numericPriceListCode:', numericPriceListCode);
-          } catch (error) {
-              logger.warn('Error getting price list mapping', { 
-                  userPriceListCode, 
-                  error: error.message 
-              });
-          }
-      }
+        // Todo usuario DEBE tener una lista de precios válida
+        if (!userPriceListCode) {
+            console.log('❌ DEBUG: Usuario sin price_list_code asignado');
+            return res.status(400).json({
+                success: false,
+                message: 'Usuario no tiene lista de precios configurada',
+                data: [],
+                debug: {
+                    userId: req.user?.id,
+                    clientProfile: req.user?.clientProfile
+                }
+            });
+        }
 
-      const products = await Product.getAll({
-          userPriceListCode: numericPriceListCode
-      });
-      
-      res.status(200).json({
-        success: true,
-        data: products
-      });
+        // Buscar el mapeo numérico para la lista del usuario
+        let numericPriceListCode = null;
+        
+        try {
+            const PriceList = require('../models/PriceList');
+            const priceListMapping = await PriceList.getPriceListCodeMapping(userPriceListCode);
+            numericPriceListCode = priceListMapping?.price_list_code || null;
+            
+            console.log('🔍 DEBUG: Resultado del mapeo:', {
+                userPriceListCode,
+                mappingFound: !!priceListMapping,
+                numericPriceListCode,
+                numericType: typeof numericPriceListCode,
+                fullMapping: priceListMapping
+            });
+        } catch (error) {
+            logger.error('Error getting price list mapping', { 
+                userPriceListCode, 
+                error: error.message 
+            });
+            
+            return res.status(500).json({
+                success: false,
+                message: 'Error al consultar configuración de precios',
+                data: [],
+                debug: {
+                    userPriceListCode,
+                    error: error.message
+                }
+            });
+        }
+
+        // Si no se encontró mapeo, es un error de configuración
+        if (!numericPriceListCode) {
+            console.log('❌ DEBUG: No se encontró mapeo para la lista de precios');
+            
+            // Mostrar listas disponibles para debugging
+            try {
+                const PriceList = require('../models/PriceList');
+                const allLists = await PriceList.getAllPriceLists();
+                console.log('🔍 DEBUG: Listas disponibles:', allLists.map(l => ({
+                    code: l.price_list_code,
+                    name: l.price_list_name,
+                    products: l.product_count
+                })));
+            } catch (err) {
+                console.log('❌ DEBUG: Error al obtener listas disponibles:', err.message);
+            }
+            
+            return res.status(400).json({
+                success: false,
+                message: `Lista de precios "${userPriceListCode}" no configurada en el sistema`,
+                data: [],
+                debug: {
+                    userPriceListCode,
+                    suggestion: 'Contactar administrador para configurar lista de precios'
+                }
+            });
+        }
+
+        console.log('✅ DEBUG: Código válido encontrado:', {
+            originalName: userPriceListCode,
+            mappedCode: numericPriceListCode,
+            finalCodeAsString: String(numericPriceListCode)
+        });
+
+        // Obtener productos con la lista de precios específica
+        const products = await Product.getAll({
+            userPriceListCode: String(numericPriceListCode) // Asegurar que sea string
+        });
+
+        console.log('🔍 DEBUG: Resultado final de productos:', {
+            count: products.length,
+            userPriceListCode,
+            numericPriceListCode,
+            sentAsString: String(numericPriceListCode),
+            firstProduct: products[0] ? {
+                id: products[0].product_id,
+                name: products[0].name,
+                price_list1: products[0].price_list1,
+                custom_price: products[0].custom_price,
+                effective_price: products[0].effective_price,
+                price_list_code: products[0].price_list_code
+            } : 'No products found'
+        });
+        
+        res.status(200).json({
+            success: true,
+            data: products
+        });
     } catch (error) {
-      logger.error('Error al obtener productos', {
-        error: error.message,
-        stack: error.stack
-      });
-      
-      res.status(500).json({
-        success: false,
-        message: 'Error al obtener los productos',
-        error: process.env.NODE_ENV === 'development' ? error.message : undefined
-      });
+        logger.error('Error al obtener productos', {
+            error: error.message,
+            stack: error.stack
+        });
+        
+        res.status(500).json({
+            success: false,
+            message: 'Error al obtener los productos',
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
     }
-  }
+}
 
   /**
    * @swagger
