@@ -216,64 +216,20 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       setLoadingProducts(true);
       try {
         const response = await API.get('/products');
-        console.log('🔍 DEBUGGING: Respuesta completa de API productos:', response);
-        console.log('🔍 DEBUGGING: response.data:', response.data);
-        console.log('🔍 DEBUGGING: Array.isArray(response.data):', Array.isArray(response.data));
         if (response.data.success && Array.isArray(response.data.data)) {
           const fetchedProducts = response.data.data.map(p => ({
             ...p,
             image_url: p.image_url || null
           }));
 
-          // **DEBUGGING TEMPORAL - AGREGAR AQUÍ**
-          console.log('🔍 DEBUGGING: userPriceListCode:', userPriceListCode);
-          console.log('🔍 DEBUGGING: fetchedProducts.length:', fetchedProducts.length);
-          console.log('🔍 DEBUGGING: user.clientProfile:', user?.clientProfile);
-          console.log('🔍 DEBUGGING: Estructura del primer producto:', fetchedProducts[0]);
-          console.log('🔍 DEBUGGING: Campos de precio disponibles:', {
-            price_list1: fetchedProducts[0]?.price_list1,
-            price_list: fetchedProducts[0]?.price_list,
-            price: fetchedProducts[0]?.price
-          });
-
-          if (userPriceListCode && userPriceListCode !== 'GENERAL' && fetchedProducts.length > 0) {
-            console.log('🔍 DEBUGGING: Intentando obtener precios personalizados para:', userPriceListCode);
-            
-            try {
-              const productCodes = fetchedProducts.map(p =>
-                p.sap_code || p.code || p.product_id.toString()
-              );
-              console.log('🔍 DEBUGGING: productCodes:', productCodes.slice(0, 5)); // Primeros 5
-              
-              const customPrices = await fetchMultiplePrices(productCodes);
-              console.log('🔍 DEBUGGING: customPrices result:', customPrices);
-            } catch (error) {
-              console.error('🔍 DEBUGGING: Error en fetchMultiplePrices:', error);
-            }
-          }
-
-          // También agregar debugging para productos finales
-          console.log('🔍 DEBUGGING: fetchedProducts antes de filtrar:'
-            , fetchedProducts.map(p => ({
-            id: p.product_id,
-            name: p.name,
-            price_list1: p.price_list1,
-            sap_code: p.sap_code,
-            code: p.code
-          })).slice(0, 3)); // Primeros 3
-          // **FIN DEL DEBUGGING TEMPORAL**
-
           // **NUEVA LÓGICA: Si hay lista de precios personalizada, obtener precios**
           if (userPriceListCode && userPriceListCode !== 'GENERAL' && fetchedProducts.length > 0) {
-            console.log('🔍 Trying custom prices:', { userPriceListCode, productCount: fetchedProducts.length });
             try {
-              console.log('🔄 Fetching custom prices for list:', userPriceListCode);
               const productCodes = fetchedProducts.map(p =>
                 p.sap_code || p.code || p.product_id.toString()
               );
 
               const customPrices = await fetchMultiplePrices(productCodes);
-              console.log('🔍 Custom prices result:', { customPrices, productCodesCount: productCodes.length });
 
               const productsWithCustomPrices = fetchedProducts.map(product => {
                 const productCode = product.sap_code || product.code || product.product_id.toString();
@@ -298,39 +254,25 @@ const CreateOrderForm = ({ onOrderCreated }) => {
                 const price = product.has_custom_price && product.custom_price_info
                   ? product.custom_price_info.price
                   : parseFloat(product.effective_price || product.price_list1 || 0);
-                console.log('🔍 Verificando precio del producto (custom):', { name: product.name, price });
                 return price > 0;
               });
-
-              console.log('🔍 DEBUGGING: Productos después del filtrado (custom):', validCustomProducts.length);
-              console.log('🔍 DEBUGGING: Estableciendo productos en el estado (custom):', validCustomProducts.slice(0, 2));
-
               setProducts(validCustomProducts);
-              console.log('✅ Products loaded with custom prices:', validCustomProducts.length);
             } catch (priceError) {
-              console.warn('⚠️ Error loading custom prices, using default prices:', priceError);
               
               // Filtrar productos con precios válidos (precio por defecto - fallback)
               const validDefaultProducts = fetchedProducts.filter(product => {
                 const price = parseFloat(product.effective_price || product.price_list1 || 0);
-                console.log('🔍 Verificando precio del producto (default fallback):', { name: product.name, price });
                 return price > 0;
               });
               
-              console.log('🔍 DEBUGGING: Productos después del filtrado (default fallback):', validDefaultProducts.length);
-              console.log('🔍 DEBUGGING: Estableciendo productos en el estado (default fallback):', validDefaultProducts.slice(0, 2));
               setProducts(validDefaultProducts);
             }
           } else {
             // Filtrar productos con precios válidos (precio por defecto)
             const validProducts = fetchedProducts.filter(product => {
               const price = parseFloat(product.effective_price || product.price_list1 || 0);
-              console.log('🔍 Verificando precio del producto (default):', { name: product.name, price });
               return price > 0;
             });
-            
-            console.log('🔍 DEBUGGING: Productos después del filtrado (default):', validProducts.length);
-            console.log('🔍 DEBUGGING: Estableciendo productos en el estado (default):', validProducts.slice(0, 2));
             setProducts(validProducts);
           }
         } else {
@@ -349,8 +291,6 @@ const CreateOrderForm = ({ onOrderCreated }) => {
   }, [canAccessForm, userPriceListCode, fetchMultiplePrices]);
 
     useEffect(() => {
-    console.log('🔍 DEBUGGING: Estado products cambió:', products);
-    console.log('🔍 DEBUGGING: products.length:', products?.length || 0);
   }, [products]);
 
   useEffect(() => {
@@ -683,32 +623,14 @@ const CreateOrderForm = ({ onOrderCreated }) => {
   };
 
   const productOptionsForSelect = useMemo(() => {
-    console.log('🔍 DEBUGGING: Generando opciones para Select, products:', products);
-    console.log('🔍 DEBUGGING: products.length:', products?.length || 0);
-    console.log('🔍 DEBUGGING: Primeros 3 productos completos:', products?.slice(0, 3));
     
     if (!products || products.length === 0) {
-      console.warn('⚠️ No hay productos disponibles para el selector');
       return [];
     }
 
     const options = products.map(product => {
       // Buscar el precio en diferentes campos posibles, priorizando effective_price
       const price = parseFloat(product.effective_price || product.price_list1 || product.price_list || product.price || 0);
-      
-      console.log('🔍 Producto mapeado:', {
-        id: product.product_id,
-        name: product.name,
-        price: price,
-        effective_price: product.effective_price,
-        hasCustomPrice: product.has_custom_price,
-        originalFields: {
-          effective_price: product.effective_price,
-          price_list1: product.price_list1,
-          price_list: product.price_list,
-          price: product.price
-        }
-      });
       
       return {
         value: product.product_id,
@@ -717,9 +639,6 @@ const CreateOrderForm = ({ onOrderCreated }) => {
         price: price
       };
     });
-    
-    console.log('✅ Opciones generadas para Select:', options.slice(0, 3));
-    console.log('🔍 Total opciones generadas:', options.length);
     return options;
   }, [products]);
 
@@ -1094,10 +1013,6 @@ const CreateOrderForm = ({ onOrderCreated }) => {
                         value={productOptionsForSelect.find(option => option.value === parseInt(detail.product_id))}
                         onChange={(option) => handleSelectChange(index, option)}
                         options={productOptionsForSelect}
-                        // Log temporal para debug - remover después
-                        ref={(selectRef) => {
-                          console.log('🔍 RENDERING Select con opciones:', productOptionsForSelect);
-                        }}
                         formatOptionLabel={formatOptionLabel}
                         placeholder="Seleccionar producto"
                         className="w-full"
