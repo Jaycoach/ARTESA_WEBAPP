@@ -182,7 +182,7 @@ router.use(sanitizeParams);
  */
 router.get('/', 
   verifyToken, 
-  checkRole([1]), // Solo administradores
+  checkRole([1, 3]), // Solo administradores
   clientProfileController.getAllProfiles
 );
 
