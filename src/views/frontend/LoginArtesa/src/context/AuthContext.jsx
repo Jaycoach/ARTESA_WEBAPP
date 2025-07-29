@@ -10,11 +10,6 @@ import { branchAuthService } from '../services/branchAuthService';
 import { AUTH_TYPES, ERROR_MESSAGES } from '../constants/AuthTypes';
 import { isDevelopment } from '../utils/environment';
 
-if (!user && isAuthenticated) {
-    console.error('Estado inconsistente: isAuthenticated=true pero user=null');
-    return <div>Error en la autenticación. Por favor, inicie sesión nuevamente.</div>;
-}
-
 // ============================================================================
 // SERVICIO DE REGISTRO DE SUCURSALES INTEGRADO
 // ============================================================================
@@ -158,6 +153,13 @@ export const AuthContext = createContext(null);
 // ============================================================================
 export function AuthProvider({ children }) {
     const [state, dispatch] = useReducer(reducer, initialState);
+
+    // Verificación de estado inconsistente
+    if (!state.user && state.isAuthenticated) {
+        console.error('Estado inconsistente: isAuthenticated=true pero user=null');
+        clearStorage();
+        dispatch({ type: TYPES.LOGOUT_SUCCESS });
+    }
 
     // ========================================================================
     // FUNCIONES UTILITARIAS
