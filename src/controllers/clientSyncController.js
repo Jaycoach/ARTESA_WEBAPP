@@ -292,6 +292,14 @@ class ClientSyncController {
         error: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
+    // Verificar permisos de administrador
+    if (req.user.rol_id !== 1) {
+        return res.status(403).json({
+            success: false,
+            message: 'No tiene permisos para realizar esta acción',
+            data: []
+        });
+    }
   }
 
   /**

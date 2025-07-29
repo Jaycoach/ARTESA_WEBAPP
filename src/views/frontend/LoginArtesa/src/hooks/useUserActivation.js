@@ -51,12 +51,16 @@ export const useUserActivation = () => {
         hasProfile = false;
       }
 
-      // 3. Verificar si está pendiente de sincronización SAP
+      // 3. Verificar si está pendiente de sincronización SAP (solo para admins)
       let isPending = false;
       try {
-        isPending = await sapSyncService.isUserPendingSync(user.id);
+          // Solo verificar si es administrador
+          if (userData.rol_id === 1) {
+              isPending = await sapSyncService.isUserPendingSync(user.id);
+          }
       } catch (syncError) {
-        isPending = false; // Asumir que no está pendiente si no se puede verificar
+          console.log('Error verificando estado de sync, continuando...', syncError.message);
+          isPending = false; // Asumir que no está pendiente si no se puede verificar
       }
 
       // 4. Determinar estado general

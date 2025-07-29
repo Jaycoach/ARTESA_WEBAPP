@@ -437,10 +437,38 @@ class Product {
                 queryParamsTypes: queryParams.map(p => typeof p)
             });
         } else {
-            // Si no hay userPriceListCode válido - esto es un error
-            logger.error('Product.getAll llamado sin userPriceListCode válido');
-            throw new Error('Se requiere código de lista de precios válido');
-        }
+        // Si no hay userPriceListCode, usar consulta básica con price_list1
+        console.log('⚠️ WARNING: Product.getAll sin userPriceListCode, usando price_list1');
+        
+        query = `
+            SELECT 
+                p.product_id,
+                p.name,
+                p.description,
+                p.price_list1,
+                p.price_list2,
+                p.price_list3,
+                p.stock,
+                p.barcode,
+                p.image_url,
+                p.sap_code,
+                p.sap_group,
+                p.created_at,
+                p.updated_at,
+                p.sap_last_sync,
+                p.sap_sync_pending,
+                p.is_active,
+                p.price_list1 as effective_price,
+                NULL as custom_price,
+                NULL as price_list_code,
+                NULL as price_list_name
+            FROM products p
+            WHERE p.is_active = true 
+                AND p.price_list1 > 0
+            ORDER BY p.name;
+        `;
+        queryParams = [];
+    }
         
         const { rows } = await pool.query(query, queryParams);
         

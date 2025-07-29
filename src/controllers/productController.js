@@ -125,17 +125,25 @@ class ProductController {
             clientProfile: req.user?.clientProfile
         });
 
-        // Todo usuario DEBE tener una lista de precios válida
+        // Verificar si el usuario tiene price_list_code válido
         if (!userPriceListCode) {
             console.log('❌ DEBUG: Usuario sin price_list_code asignado');
-            return res.status(400).json({
-                success: false,
-                message: 'Usuario no tiene lista de precios configurada',
-                data: [],
-                debug: {
-                    userId: req.user?.id,
-                    clientProfile: req.user?.clientProfile
-                }
+            
+            // En lugar de retornar error, usar lista de precios por defecto
+            console.log('🔄 DEBUG: Usando lista de precios por defecto (1)');
+            
+            const productsWithDefault = await Product.getAll({
+                userPriceListCode: '1' // Lista por defecto
+            });
+
+            console.log('✅ DEBUG: Productos obtenidos con lista por defecto:', {
+                count: productsWithDefault.length
+            });
+
+            return res.status(200).json({
+                success: true,
+                data: productsWithDefault,
+                warning: 'Usuario sin lista de precios específica, usando precios por defecto'
             });
         }
 
@@ -171,31 +179,23 @@ class ProductController {
             });
         }
 
-        // Si no se encontró mapeo, es un error de configuración
+        // Si no se encontró mapeo, usar lista por defecto
         if (!numericPriceListCode) {
-            console.log('❌ DEBUG: No se encontró mapeo para la lista de precios');
+            console.log('❌ DEBUG: No se encontró mapeo para la lista de precios, usando lista por defecto');
             
-            // Mostrar listas disponibles para debugging
-            try {
-                const PriceList = require('../models/PriceList');
-                const allLists = await PriceList.getAllPriceLists();
-                console.log('🔍 DEBUG: Listas disponibles:', allLists.map(l => ({
-                    code: l.price_list_code,
-                    name: l.price_list_name,
-                    products: l.product_count
-                })));
-            } catch (err) {
-                console.log('❌ DEBUG: Error al obtener listas disponibles:', err.message);
-            }
-            
-            return res.status(400).json({
-                success: false,
-                message: `Lista de precios "${userPriceListCode}" no configurada en el sistema`,
-                data: [],
-                debug: {
-                    userPriceListCode,
-                    suggestion: 'Contactar administrador para configurar lista de precios'
-                }
+            const productsWithDefault = await Product.getAll({
+                userPriceListCode: '1' // Lista por defecto
+            });
+
+            console.log('✅ DEBUG: Productos obtenidos con lista por defecto:', {
+                count: productsWithDefault.length,
+                originalPriceListCode: userPriceListCode
+            });
+
+            return res.status(200).json({
+                success: true,
+                data: productsWithDefault,
+                warning: `Lista de precios "${userPriceListCode}" no configurada, usando precios por defecto`
             });
         }
 
@@ -293,6 +293,14 @@ class ProductController {
           success: false,
           message: 'Producto no encontrado'
         });
+      }
+
+      // Limpiar URL de imagen si existe
+      if (product && product.image_url) {
+          product.image_url = product.image_url
+              .replace(/&amp;amp;#x2F;/g, '/')
+              .replace(/&amp;#x2F;/g, '/')
+              .replace(/&#x2F;/g, '/');
       }
       
       // Asegurar que la URL de respuesta esté limpia
