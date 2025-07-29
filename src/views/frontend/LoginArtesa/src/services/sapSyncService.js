@@ -48,14 +48,15 @@ class SAPSyncService {
         client.id === userId ||
         client.userId === userId
       );
-    } catch (error) {
-      // Si es error 403, silenciar - es normal para usuarios sin permisos admin
-      if (error.response?.status === 403) {
-        return false; // Usuario no tiene permisos admin, asumir no está pendiente
-      }
-      
-      console.error('Error getting pending clients:', error);
-      throw error;
+      } catch (error) {
+        // Si es error 403, silenciar - es normal para usuarios sin permisos admin
+        if (error.response?.status === 403) {
+            console.log('Usuario sin permisos para verificar sync pendiente, continuando...');
+            return false; // Usuario no tiene permisos admin, asumir no está pendiente
+        }
+        
+        console.error('Error getting pending clients:', error);
+        return false; // En caso de otros errores, asumir que no está pendiente
     }
   }
 
