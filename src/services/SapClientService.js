@@ -397,6 +397,53 @@ class SapClientService extends SapBaseService {
       throw new Error('No se recibió respuesta de SAP');
     }
 
+    // Crear direcciones PayToCode y ShipToCode si es creación nueva
+    if (!isUpdate && clientProfile.direccion) {
+      try {
+        this.logger.info('Creando direcciones PayToCode y ShipToCode', {
+          cardCode: response.CardCode || businessPartnerData.CardCode,
+          address: clientProfile.direccion
+        });
+
+        const addressData = {
+          AddressName: 'PRINCIPAL',
+          Street: clientProfile.direccion || clientProfile.address || '',
+          City: clientProfile.ciudad || clientProfile.city || '',
+          State: clientProfile.departamento || clientProfile.state || '',
+          Country: 'CO',
+          ZipCode: clientProfile.codigo_postal || clientProfile.zip_code || '',
+          AddressType: 'bo_BillTo'  // PayToCode (dirección de facturación)
+        };
+
+        // Crear dirección de facturación (PayToCode)
+        await this.request('POST', `BusinessPartners('${response.CardCode || businessPartnerData.CardCode}')/BPAddresses`, addressData);
+
+        // Crear dirección de entrega (ShipToCode) - misma información
+        const shipAddressData = {
+          ...addressData,
+          AddressName: 'ENTREGA',
+          AddressType: 'bo_ShipTo',  // ShipToCode (dirección de entrega)
+          U_HBT_CORREO: clientProfile.email || clientProfile.contact_email || '',
+          U_HBT_ENCARGADO: clientProfile.nombre || clientProfile.contact_name || ''
+        };
+
+        await this.request('POST', `BusinessPartners('${response.CardCode || businessPartnerData.CardCode}')/BPAddresses`, shipAddressData);
+
+        this.logger.info('Direcciones PayToCode y ShipToCode creadas exitosamente', {
+          cardCode: response.CardCode || businessPartnerData.CardCode,
+          payToCode: 'PRINCIPAL',
+          shipToCode: 'ENTREGA'
+        });
+
+      } catch (addressError) {
+        this.logger.warn('Error al crear direcciones, pero BusinessPartner fue creado exitosamente', {
+          cardCode: response.CardCode || businessPartnerData.CardCode,
+          error: addressError.message
+        });
+        // No lanzar error aquí, ya que el BusinessPartner fue creado exitosamente
+      }
+    }
+
     this.logger.info('BusinessPartner procesado exitosamente en SAP', {
       cardCode: businessPartnerData.CardCode,
       method,
@@ -1388,8 +1435,8 @@ class SapClientService extends SapBaseService {
             true,                        // $11
             null,                        // $12 municipality_code
             null,                        // $13 mail
-            null,                        // $14 email_branch
-            null                         // $15 manager_name
+            null,                        // $14 email_branch - no hay datos de SAP
+            null                         // $15 manager_name - no hay datos de SAP
           ]);
           
           this.logger.info('Sucursal por defecto creada para cliente CI', { cardCode, clientId });
@@ -1423,7 +1470,8 @@ class SapClientService extends SapBaseService {
           U_AR_Phone: branch.U_AR_Phone || '',
           U_AR_contact_person: branch.U_AR_contact_person || '',
           U_HBT_MunMed: branch.U_HBT_MunMed || null,
-          U_HBT_CORREO: branch.U_HBT_CORREO || null
+          U_HBT_CORREO: branch.U_HBT_CORREO || null,
+          U_HBT_ENCARGADO: branch.U_HBT_ENCARGADO || null
         };
         const branchInsertQuery = `
           INSERT INTO client_branches (
@@ -1580,12 +1628,23 @@ class SapClientService extends SapBaseService {
         // Filtrar solo las direcciones de tipo "Ship To" (bo_ShipTo)
         const shipToAddresses = addressesResult.BPAddresses.filter(address => 
           address.AddressType === 'bo_ShipTo' && 
-          (address.U_HBT_CORREO || address.U_HBT_ENCARGADO || address.AddressName)
+          address.U_HBT_CORREO && 
+          address.U_HBT_CORREO.trim() !== ''
         );
         this.logger.info(`Se encontraron ${shipToAddresses.length} direcciones Ship To en método 2`, { cardCode });
 
         // Si no hay Ship To, buscar Bill To como alternativa
-        let filteredAddresses = shipToAddresses;
+        // Filtrar solo direcciones con U_HBT_CORREO
+        let filteredAddresses = shipToAddresses.filter(address => 
+          address.U_HBT_CORREO && 
+          address.U_HBT_CORREO.trim() !== ''
+        );
+
+        if (filteredAddresses.length === 0) {
+          this.logger.info('No hay Ship To con correo, usando Ship To sin filtro como alternativa', { cardCode });
+          filteredAddresses = shipToAddresses;
+        }
+
         if (filteredAddresses.length === 0) {
           this.logger.info('No hay Ship To, usando Bill To como alternativa en método 2', { cardCode });
           filteredAddresses = addressesResult.BPAddresses.filter(address => 
@@ -1817,7 +1876,6 @@ class SapClientService extends SapBaseService {
       );
       
       this.logger.info(`Se encontraron ${shipToAddresses.length} sucursales para el cliente ${cardCode}`);
-      // Mapear las direcciones con el campo adicional U_HBT_MunMed
       // Mapear las direcciones con todos los campos requeridos
       const mappedAddresses = shipToAddresses.map(address => ({
         Address: address.AddressName,
@@ -1826,11 +1884,9 @@ class SapClientService extends SapBaseService {
         State: address.State,
         Country: address.Country,
         ZipCode: address.ZipCode,
-        U_AR_Phone: address.U_AR_Phone || '',
-        U_AR_contact_person: address.U_AR_contact_person || '',
         U_HBT_MunMed: address.U_HBT_MunMed,
-        U_HBT_CORREO: address.U_HBT_CORREO || '',
-        U_HBT_ENCARGADO: address.U_HBT_ENCARGADO || ''
+        U_HBT_CORREO: address.U_HBT_CORREO,
+        U_HBT_ENCARGADO: address.U_HBT_ENCARGADO
       }));
 
       return mappedAddresses;
