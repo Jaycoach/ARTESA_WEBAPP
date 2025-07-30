@@ -8,7 +8,7 @@ class BranchAuth {
     static async findByEmail(email) {
         try {
             const { rows } = await pool.query(
-                `SELECT b.*, cp.client_name, cp.document_number, cp.document_type 
+                `SELECT b.*, cp.company_name, cp.nit_number, cp.verification_digit
                  FROM client_branches b 
                  LEFT JOIN client_profiles cp ON b.client_id = cp.client_id 
                  WHERE b.email_branch = $1 AND b.is_login_enabled = true`,
@@ -24,7 +24,7 @@ class BranchAuth {
     static async findById(branchId) {
         try {
             const { rows } = await pool.query(
-                `SELECT b.*, cp.client_name, cp.document_number, cp.document_type 
+                `SELECT b.*, cp.company_name, cp.nit_number, cp.verification_digit
                  FROM client_branches b 
                  LEFT JOIN client_profiles cp ON b.client_id = cp.client_id 
                  WHERE b.branch_id = $1`,
