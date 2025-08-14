@@ -449,6 +449,9 @@ app.use(API_PREFIX, productRoutes);
 app.use(API_PREFIX, secureProductRoutes);
 app.use(API_PREFIX, orderRoutes);
 app.use(`${API_PREFIX}/client-branches`, clientBranchRoutes);
+// Rutas para sucursales
+app.use(`${API_PREFIX}/branch-orders`, branchOrderRoutes);
+app.use(`${API_PREFIX}/branch-dashboard`, branchDashboardRoutes);
 app.use(`${API_PREFIX}/sap`, sapSyncRoutes);
 app.use(`${API_PREFIX}/admin`, adminRoutes);
 app.use(`${API_PREFIX}/client-sync`, clientSyncRoutes);

@@ -1,4 +1,4 @@
-const pool = require('../config/database');
+const pool = require('../config/db');
 const Order = require('../models/Order');
 const { createContextLogger } = require('../config/logger');
 
@@ -413,97 +413,6 @@ class BranchOrderController {
       });
     }
   }
-
-    /**
-     * Obtener productos disponibles para la sucursal
-     */
-    async getProductsForBranch(req, res) {
-        try {
-            const { branch_id, client_id } = req.branch;
-            const { search, category, active_only = true } = req.query;
-
-            logger.debug('Obteniendo productos para sucursal', { 
-            branchId: branch_id,
-            clientId: client_id,
-            search,
-            category
-            });
-
-            // Obtener la lista de precios del cliente
-            const clientQuery = `
-            SELECT cp.price_list_code
-            FROM client_profiles cp
-            WHERE cp.client_id = $1
-            LIMIT 1
-            `;
-
-            const { rows: clientRows } = await pool.query(clientQuery, [client_id]);
-            const priceListCode = clientRows[0]?.price_list_code || '1'; // Lista por defecto
-
-            let whereConditions = ['p.is_active = true'];
-            let queryParams = [];
-            let paramIndex = 1;
-
-            if (search) {
-            whereConditions.push(`(p.name ILIKE $${paramIndex} OR p.sap_code ILIKE $${paramIndex} OR p.description ILIKE $${paramIndex})`);
-            queryParams.push(`%${search}%`);
-            paramIndex++;
-            }
-
-            if (category) {
-            whereConditions.push(`p.sap_group = $${paramIndex}`);
-            queryParams.push(parseInt(category));
-            paramIndex++;
-            }
-
-            const whereClause = whereConditions.join(' AND ');
-
-            const query = `
-            SELECT 
-                p.*,
-                CASE 
-                WHEN pl.price IS NOT NULL THEN pl.price
-                WHEN $${paramIndex} = '1' THEN p.price_list1
-                WHEN $${paramIndex} = '2' THEN p.price_list2
-                WHEN $${paramIndex} = '3' THEN p.price_list3
-                ELSE p.price_list1
-                END as current_price
-            FROM products p
-            LEFT JOIN price_lists pl ON p.sap_code = pl.product_code 
-                AND pl.price_list_code = $${paramIndex}
-                AND pl.is_active = true
-            WHERE ${whereClause}
-            ORDER BY p.name ASC
-            `;
-
-            queryParams.push(priceListCode);
-            const { rows: products } = await pool.query(query, queryParams);
-
-            res.status(200).json({
-            success: true,
-            data: products.map(product => ({
-                ...product,
-                price_list1: parseFloat(product.price_list1),
-                price_list2: parseFloat(product.price_list2),
-                price_list3: parseFloat(product.price_list3),
-                current_price: parseFloat(product.current_price)
-            }))
-            });
-
-        } catch (error) {
-            logger.error('Error al obtener productos para sucursal', {
-            error: error.message,
-            stack: error.stack,
-            branchId: req.branch?.branch_id
-            });
-
-            res.status(500).json({
-            success: false,
-            message: 'Error al obtener productos',
-            error: process.env.NODE_ENV === 'development' ? error.message : undefined
-            });
-        }
-    }
 }
 
 module.exports = new BranchOrderController();
