@@ -499,6 +499,12 @@ app.all('/', (req, res) => {
 const branchRegistrationRoutes = require('./src/routes/branchRegistrationRoutes');
 app.use('/api/branch-registration', branchRegistrationRoutes);
 
+const branchDashboardRoutes = require('./src/routes/branchDashboardRoutes');
+const branchOrderRoutes = require('./src/routes/branchOrderRoutes');
+
+app.use('/api/branch-dashboard', branchDashboardRoutes);
+app.use('/api/branch-orders', branchOrderRoutes);
+
 // =========================================================================
 // MANEJO DE RUTAS NO ENCONTRADAS - Siempre después de todas las rutas
 // =========================================================================
