@@ -416,6 +416,7 @@ const uploadRoutes = require('./src/routes/uploadRoutes');
 const clientProfileRoutes = require('./src/routes/clientProfileRoutes');
 const adminRoutes = require('./src/routes/adminRoutes');
 const clientBranchRoutes = require('./src/routes/clientBranchRoutes');
+const branchOrderRoutes = require('./src/routes/branchOrderRoutes');
 
 // =========================================================================
 // RUTAS DE LA API
@@ -449,9 +450,6 @@ app.use(API_PREFIX, productRoutes);
 app.use(API_PREFIX, secureProductRoutes);
 app.use(API_PREFIX, orderRoutes);
 app.use(`${API_PREFIX}/client-branches`, clientBranchRoutes);
-// Rutas para sucursales
-app.use(`${API_PREFIX}/branch-orders`, branchOrderRoutes);
-app.use(`${API_PREFIX}/branch-dashboard`, branchDashboardRoutes);
 app.use(`${API_PREFIX}/sap`, sapSyncRoutes);
 app.use(`${API_PREFIX}/admin`, adminRoutes);
 app.use(`${API_PREFIX}/client-sync`, clientSyncRoutes);
@@ -465,6 +463,10 @@ app.use(`${API_PREFIX}/client-profiles`, fileUpload(fileUploadOptions), clientPr
 // Rutas que no necesitan fileUpload
 app.use(`${API_PREFIX}/password`, passwordResetRoutes);
 app.use(`${API_PREFIX}/payments`, paymentRoutes);
+
+// Rutas para sucursales
+app.use(`${API_PREFIX}/branch-orders`, branchOrderRoutes);
+app.use(`${API_PREFIX}/branch-dashboard`, branchDashboardRoutes);
 
 // Ruta de prueba/estado para verificar que el servidor está funcionando
 app.get('/', (req, res) => {
