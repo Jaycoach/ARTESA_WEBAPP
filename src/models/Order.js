@@ -237,6 +237,65 @@ class Order {
       client.release();
     }
   }
+
+  /**
+ * Método de conveniencia para crear órdenes con la nueva interfaz
+ * @param {Object} orderData - Datos de la orden
+ * @returns {Promise<Object>} - Orden creada
+ */
+static async create(orderData) {
+  const {
+    user_id,
+    branch_id = null,
+    delivery_date = null,
+    comments = null,
+    products = []
+  } = orderData;
+
+  // Validar productos
+  if (!products || products.length === 0) {
+    throw new Error('Debe especificar al menos un producto');
+  }
+
+  // Calcular el total de los productos
+  let totalAmount = 0;
+  const details = products.map(product => {
+    const lineTotal = parseFloat(product.unit_price || 0) * parseInt(product.quantity || 0);
+    totalAmount += lineTotal;
+    
+    return {
+      product_id: product.product_id,
+      quantity: parseInt(product.quantity),
+      unit_price: parseFloat(product.unit_price || 0)
+    };
+  });
+
+  // Crear la orden usando el método existente
+  const result = await this.createOrder(
+    user_id,
+    totalAmount,
+    details,
+    delivery_date,
+    1, // status_id por defecto (Abierto)
+    branch_id
+  );
+
+  // Obtener la orden completa con detalles
+  const fullOrder = await this.getOrderWithDetails(result.order_id);
+
+  return {
+    order_id: result.order_id,
+    total_amount: fullOrder.total_amount,
+    subtotal: fullOrder.subtotal,
+    tax_amount: fullOrder.tax_amount,
+    delivery_date: fullOrder.delivery_date,
+    status_id: fullOrder.status_id,
+    branch_id: fullOrder.branch_id,
+    user_id: fullOrder.user_id,
+    order_date: fullOrder.order_date,
+    details_count: result.details_count
+  };
+}
   
   /**
    * Obtiene una orden por su ID
