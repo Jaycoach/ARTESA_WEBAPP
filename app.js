@@ -505,7 +505,6 @@ const branchRegistrationRoutes = require('./src/routes/branchRegistrationRoutes'
 app.use('/api/branch-registration', branchRegistrationRoutes);
 
 const branchDashboardRoutes = require('./src/routes/branchDashboardRoutes');
-const branchOrderRoutes = require('./src/routes/branchOrderRoutes');
 
 app.use('/api/branch-dashboard', branchDashboardRoutes);
 app.use('/api/branch-orders', branchOrderRoutes);
