@@ -69,6 +69,34 @@ const sanitizeParams = (req, res, next) => {
   next();
 };
 
+// Middleware para sanitizar query parameters
+const sanitizeQuery = (req, res, next) => {
+  if (req.query) {
+    const sanitizedQuery = {};
+    
+    Object.keys(req.query).forEach(key => {
+      const value = req.query[key];
+      
+      if (typeof value === 'string') {
+        sanitizedQuery[key] = sanitizeString(value);
+      } else if (typeof value === 'number') {
+        sanitizedQuery[key] = sanitizeNumber(value);
+      } else if (Array.isArray(value)) {
+        sanitizedQuery[key] = value.map(item => {
+          if (typeof item === 'string') return sanitizeString(item);
+          if (typeof item === 'number') return sanitizeNumber(item);
+          return item;
+        });
+      } else {
+        sanitizedQuery[key] = value;
+      }
+    });
+
+    req.query = sanitizedQuery;
+  }
+  next();
+};
+
 // Middleware para prevenir ataques de SQL Injection en queries
 const validateQueryParams = (req, res, next) => {
   const sqlInjectionPattern = /('|"|;)\s*(--|\/\*|\*\/|xp_|sp_|exec\s+|execute\s+|insert\s+into|select\s+from|delete\s+from|update\s+|drop\s+table|union\s+select|into\s+outfile|load_file)/i;
@@ -162,6 +190,7 @@ const blockSensitiveFiles = (req, res, next) => {
 module.exports = {
   sanitizeBody,
   sanitizeParams,
+  sanitizeQuery,
   validateQueryParams,
   securityHeaders,
   blockSensitiveFiles
