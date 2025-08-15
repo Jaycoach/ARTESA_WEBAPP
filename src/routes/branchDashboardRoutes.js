@@ -53,3 +53,5 @@ router.use(sanitizeParams, sanitizeQuery);
  *         description: Error interno del servidor
  */
 router.get('/products', branchDashboardController.getProductsForBranch);
+
+module.exports = router;
