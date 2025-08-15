@@ -416,6 +416,7 @@ const uploadRoutes = require('./src/routes/uploadRoutes');
 const clientProfileRoutes = require('./src/routes/clientProfileRoutes');
 const adminRoutes = require('./src/routes/adminRoutes');
 const clientBranchRoutes = require('./src/routes/clientBranchRoutes');
+const branchDashboardRoutes = require('./src/routes/branchDashboardRoutes');
 const branchOrderRoutes = require('./src/routes/branchOrderRoutes');
 
 // =========================================================================
@@ -503,9 +504,6 @@ app.all('/', (req, res) => {
 
 const branchRegistrationRoutes = require('./src/routes/branchRegistrationRoutes');
 app.use('/api/branch-registration', branchRegistrationRoutes);
-
-const branchDashboardRoutes = require('./src/routes/branchDashboardRoutes');
-
 app.use('/api/branch-dashboard', branchDashboardRoutes);
 app.use('/api/branch-orders', branchOrderRoutes);
 
