@@ -106,6 +106,47 @@ class BranchOrderController {
   }
 
   /**
+   * Obtener órdenes creadas por la sucursal
+   * GET /api/branch/orders
+   */
+  async getOrdersForBranch(req, res) {
+    try {
+      const { branch_id, client_id } = req.branch;
+
+      // Obtener todas las órdenes de la sucursal
+      const query = `
+        SELECT o.*, u.name as user_name, os.name as status_name
+        FROM orders o
+        JOIN users u ON o.user_id = u.id
+        JOIN order_status os ON o.status_id = os.status_id
+        WHERE o.branch_id = $1 AND o.user_id IN (
+          SELECT cp.user_id FROM client_profiles cp WHERE cp.client_id = $2
+        )
+        ORDER BY o.order_date DESC
+      `;
+
+      const { rows: orders } = await pool.query(query, [branch_id, client_id]);
+
+      res.status(200).json({
+        success: true,
+        data: orders
+      });
+    } catch (error) {
+      logger.error('Error al obtener órdenes de la sucursal', {
+        error: error.message,
+        stack: error.stack,
+        branchId: req.branch?.branch_id
+      });
+
+      res.status(500).json({
+        success: false,
+        message: 'Error al obtener órdenes de la sucursal',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
+
+  /**
    * Obtener detalles de una orden específica de la sucursal
    */
   async getOrderDetails(req, res) {
