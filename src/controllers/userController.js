@@ -42,7 +42,20 @@ const logger = createContextLogger('UserController');
  *           type: boolean
  *           description: Indica si el usuario está activo
  *           example: true
- *     
+ *         clientProfile:
+ *           type: object
+ *           nullable: true
+ *           description: Perfil de cliente asociado al usuario
+ *           properties:
+ *             price_list:
+ *               type: integer
+ *               description: ID de la lista de precios
+ *               example: 1
+ *             price_list_code:
+ *               type: string
+ *               description: Código de la lista de precios
+ *               example: "ORO"
+ *
  *     UserResponse:
  *       type: object
  *       properties:
@@ -103,9 +116,11 @@ const logger = createContextLogger('UserController');
 const getUsers = async (req, res) => {
   try {
     const { rows } = await pool.query(`
-      SELECT u.id, u.name, u.mail, u.rol_id, u.created_at, u.is_active, r.nombre as role_name
+      SELECT u.id, u.name, u.mail, u.rol_id, u.created_at, u.is_active, r.nombre as role_name,
+       cp.price_list, cp.price_list_code
       FROM users u
       JOIN roles r ON u.rol_id = r.id
+      LEFT JOIN client_profiles cp ON u.id = cp.user_id
       ORDER BY u.created_at DESC
     `);
 
@@ -118,7 +133,11 @@ const getUsers = async (req, res) => {
         name: user.role_name
       },
       createdAt: user.created_at,
-      isActive: user.is_active
+      isActive: user.is_active,
+      clientProfile: user.price_list || user.price_list_code ? {
+        price_list: user.price_list,
+        price_list_code: user.price_list_code
+      } : null
     }));
 
     return res.status(200).json({
@@ -187,10 +206,12 @@ const getUserById = async (req, res) => {
     }
 
     const { rows } = await pool.query(
-      `SELECT u.id, u.name, u.mail, u.rol_id, u.created_at, u.is_active, r.nombre as role_name
-       FROM users u
-       JOIN roles r ON u.rol_id = r.id
-       WHERE u.id = $1`,
+      `SELECT u.id, u.name, u.mail, u.rol_id, u.created_at, u.is_active, r.nombre as role_name,
+       cp.price_list, cp.price_list_code
+      FROM users u
+      JOIN roles r ON u.rol_id = r.id
+      LEFT JOIN client_profiles cp ON u.id = cp.user_id
+      WHERE u.id = $1`,
       [id]
     );
 
@@ -213,7 +234,11 @@ const getUserById = async (req, res) => {
           name: user.role_name
         },
         createdAt: user.created_at,
-        isActive: user.is_active
+        isActive: user.is_active,
+        clientProfile: user.price_list || user.price_list_code ? {
+          price_list: user.price_list,
+          price_list_code: user.price_list_code
+        } : null
       }
     });
   } catch (err) {
@@ -310,12 +335,18 @@ const updateUser = async (req, res) => {
     }
 
     const { rows } = await pool.query(
-      `UPDATE users 
-       SET name = COALESCE($1, name),
-           mail = COALESCE($2, mail),
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id = $3
-       RETURNING id, name, mail, rol_id, updated_at`,
+      `WITH updated_user AS (
+        UPDATE users 
+        SET name = COALESCE($1, name),
+            mail = COALESCE($2, mail),
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = $3
+        RETURNING id, name, mail, rol_id, updated_at
+      )
+      SELECT u.id, u.name, u.mail, u.rol_id, u.updated_at,
+            cp.price_list, cp.price_list_code
+      FROM updated_user u
+      LEFT JOIN client_profiles cp ON u.id = cp.user_id`,
       [name, mail, id]
     );
 
@@ -337,7 +368,11 @@ const updateUser = async (req, res) => {
       role: {
         id: rows[0].rol_id,
         name: roleRows[0]?.nombre
-      }
+      },
+      clientProfile: rows[0].price_list || rows[0].price_list_code ? {
+        price_list: rows[0].price_list,
+        price_list_code: rows[0].price_list_code
+      } : null
     };
 
     logger.info('Usuario actualizado exitosamente', {
