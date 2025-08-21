@@ -276,7 +276,10 @@ class BranchOrderController {
 
       // Obtener la lista de precios del cliente principal
       const clientQuery = `
-        SELECT cp.price_list_code, cp.company_name
+        SELECT 
+            cp.price_list_code, 
+            cp.price_list, 
+            cp.company_name
         FROM client_profiles cp
         WHERE cp.client_id = $1
         LIMIT 1
@@ -290,8 +293,32 @@ class BranchOrderController {
           message: 'Cliente principal no encontrado'
         });
       }
+
+      // Log para debugging de campos de precio con prioridad a price_list
+      logger.debug('Análisis de campos de precio del cliente principal', {
+          clientId: client_id,
+          branchId: branch_id,
+          hasPriceList: !!clientRows[0]?.price_list,
+          hasPriceListCode: !!clientRows[0]?.price_list_code,
+          priceListValue: clientRows[0]?.price_list,
+          priceListCodeValue: clientRows[0]?.price_list_code,
+          willUsePriceList: !!clientRows[0]?.price_list,
+          companyName: clientRows[0]?.company_name
+      });
       
-      const priceListCode = clientRows[0]?.price_list_code || '1';
+      // Priorizar price_list, si no existe usar price_list_code, si no existe usar '1'
+      const priceListCode = clientRows[0]?.price_list ? clientRows[0].price_list.toString() : 
+                          (clientRows[0]?.price_list_code || '1');
+
+      logger.debug('Price list determinado para productos de sucursal', {
+          branchId: branch_id,
+          clientId: client_id,
+          rawPriceList: clientRows[0]?.price_list,
+          rawPriceListCode: clientRows[0]?.price_list_code,
+          finalPriceListCode: priceListCode,
+          source: clientRows[0]?.price_list ? 'price_list' : 
+                (clientRows[0]?.price_list_code ? 'price_list_code' : 'default')
+      });
 
       let whereConditions = ['p.is_active = true'];
       let queryParams = [];
@@ -357,6 +384,12 @@ class BranchOrderController {
           price_inheritance_info: {
             client_id: client_id,
             client_price_list_code: priceListCode,
+            price_list_source: clientRows[0]?.price_list ? 'price_list' : 
+                              (clientRows[0]?.price_list_code ? 'price_list_code' : 'default'),
+            raw_values: {
+                price_list: clientRows[0]?.price_list,
+                price_list_code: clientRows[0]?.price_list_code
+            },
             company_name: clientRows[0].company_name,
             branch_id: branch_id
           }

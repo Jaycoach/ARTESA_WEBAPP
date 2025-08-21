@@ -323,7 +323,26 @@ router.get('/products', branchOrderController.getProductsForBranch);
  *                   properties:
  *                     price_list_code:
  *                       type: string
- *                       example: "ORO"
+ *                       example: "2"
+ *                       description: "Código final de lista de precios (prioriza price_list sobre price_list_code)"
+ *                     price_list_source:
+ *                       type: string
+ *                       enum: [price_list, price_list_code, default]
+ *                       example: "price_list"
+ *                       description: "Origen del código de lista de precios utilizado"
+ *                     raw_values:
+ *                       type: object
+ *                       properties:
+ *                         price_list:
+ *                           type: integer
+ *                           nullable: true
+ *                           example: 2
+ *                           description: "Valor original del campo price_list"
+ *                         price_list_code:
+ *                           type: string
+ *                           nullable: true
+ *                           example: "ORO"
+ *                           description: "Valor original del campo price_list_code"
  *                     company_name:
  *                       type: string
  *                       example: "Empresa Principal S.A.S"
@@ -409,6 +428,18 @@ router.get('/client/price-list-code', branchAuthController.getClientPriceListCod
  *                           type: string
  *                         branch_id:
  *                           type: integer
+ *                         price_list_source:
+ *                           type: string
+ *                           enum: [price_list, price_list_code, default]
+ *                         raw_values:
+ *                           type: object
+ *                           properties:
+ *                             price_list:
+ *                               type: integer
+ *                               nullable: true
+ *                             price_list_code:
+ *                               type: string
+ *                               nullable: true
  *       404:
  *         description: Cliente principal no encontrado
  *       401:
