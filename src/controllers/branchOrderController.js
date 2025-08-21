@@ -267,23 +267,31 @@ class BranchOrderController {
       const { branch_id, client_id } = req.branch;
       const { search, category, active_only = true } = req.query;
 
-      logger.debug('Obteniendo productos para sucursal', { 
+      logger.debug('Obteniendo productos con precios heredados para sucursal', { 
         branchId: branch_id,
         clientId: client_id,
         search,
         category
       });
 
-      // Obtener la lista de precios del cliente
+      // Obtener la lista de precios del cliente principal
       const clientQuery = `
-        SELECT cp.price_list_code
+        SELECT cp.price_list_code, cp.company_name
         FROM client_profiles cp
         WHERE cp.client_id = $1
         LIMIT 1
       `;
 
       const { rows: clientRows } = await pool.query(clientQuery, [client_id]);
-      const priceListCode = clientRows[0]?.price_list_code || '1'; // Lista por defecto
+      
+      if (clientRows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'Cliente principal no encontrado'
+        });
+      }
+      
+      const priceListCode = clientRows[0]?.price_list_code || '1';
 
       let whereConditions = ['p.is_active = true'];
       let queryParams = [];
@@ -303,16 +311,22 @@ class BranchOrderController {
 
       const whereClause = whereConditions.join(' AND ');
 
+      // Query mejorada que hereda los precios del cliente principal
       const query = `
         SELECT 
           p.*,
-          CASE 
-            WHEN pl.price IS NOT NULL THEN pl.price
-            WHEN $${paramIndex} = '1' THEN p.price_list1
-            WHEN $${paramIndex} = '2' THEN p.price_list2
-            WHEN $${paramIndex} = '3' THEN p.price_list3
-            ELSE p.price_list1
-          END as current_price
+          COALESCE(
+            pl.price,
+            CASE 
+              WHEN $${paramIndex} = '1' THEN p.price_list1
+              WHEN $${paramIndex} = '2' THEN p.price_list2
+              WHEN $${paramIndex} = '3' THEN p.price_list3
+              ELSE p.price_list1
+            END
+          ) as inherited_price,
+          pl.price as custom_price,
+          $${paramIndex} as client_price_list_code,
+          '${clientRows[0].company_name}' as inherited_from
         FROM products p
         LEFT JOIN price_lists pl ON p.sap_code = pl.product_code 
           AND pl.price_list_code = $${paramIndex}
@@ -326,17 +340,31 @@ class BranchOrderController {
 
       res.status(200).json({
         success: true,
-        data: products.map(product => ({
-          ...product,
-          price_list1: parseFloat(product.price_list1),
-          price_list2: parseFloat(product.price_list2),
-          price_list3: parseFloat(product.price_list3),
-          current_price: parseFloat(product.current_price)
-        }))
+        data: {
+          products: products.map(product => ({
+            ...product,
+            price_list1: parseFloat(product.price_list1),
+            price_list2: parseFloat(product.price_list2),
+            price_list3: parseFloat(product.price_list3),
+            inherited_price: parseFloat(product.inherited_price),
+            custom_price: product.custom_price ? parseFloat(product.custom_price) : null,
+            price_inheritance: {
+              source: product.custom_price ? 'custom' : 'inherited',
+              inherited_from: product.inherited_from,
+              client_price_list_code: product.client_price_list_code
+            }
+          })),
+          price_inheritance_info: {
+            client_id: client_id,
+            client_price_list_code: priceListCode,
+            company_name: clientRows[0].company_name,
+            branch_id: branch_id
+          }
+        }
       });
 
     } catch (error) {
-      logger.error('Error al obtener productos para sucursal', {
+      logger.error('Error al obtener productos con precios heredados para sucursal', {
         error: error.message,
         stack: error.stack,
         branchId: req.branch?.branch_id
@@ -344,7 +372,7 @@ class BranchOrderController {
 
       res.status(500).json({
         success: false,
-        message: 'Error al obtener productos',
+        message: 'Error al obtener productos con precios heredados',
         error: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }

@@ -146,6 +146,48 @@ class ClientBranch {
       throw error;
     }
   }
+  /**
+   * Obtiene el price_list_code del cliente principal de una sucursal
+   * @param {number} branchId - ID de la sucursal
+   * @returns {Promise<Object|null>} Información del price_list_code o null si no existe
+   */
+  static async getClientPriceListCode(branchId) {
+    try {
+      logger.debug('Obteniendo price_list_code del cliente principal para sucursal', { branchId });    
+    
+      const query = `
+        SELECT 
+          cp.price_list_code,
+          cp.company_name,
+          cp.client_id,
+          cb.branch_name
+        FROM client_branches cb
+        JOIN client_profiles cp ON cb.client_id = cp.client_id
+        WHERE cb.branch_id = $1
+      `;
+        
+      const { rows } = await pool.query(query, [branchId]);
+        
+      if (rows.length === 0) {
+        return null;
+      }
+
+      return {
+        price_list_code: rows[0].price_list_code || '1',
+        company_name: rows[0].company_name,
+        client_id: rows[0].client_id,
+        branch_name: rows[0].branch_name
+      };
+
+    } catch (error) {
+      logger.error('Error al obtener price_list_code del cliente principal', {
+        error: error.message,
+        branchId,
+        stack: error.stack
+      });
+      throw error;
+    }
+  }
 }
 
 module.exports = ClientBranch;
