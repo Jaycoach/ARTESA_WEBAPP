@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const branchOrderController = require('../controllers/branchOrderController');
+const branchAuthController = require('../controllers/branchAuthController');
 const { verifyBranchToken } = require('../middleware/auth');
 const { sanitizeBody, sanitizeParams, sanitizeQuery } = require('../middleware/security');
 
@@ -296,6 +297,126 @@ router.put('/:orderId/status', branchOrderController.updateOrderStatus);
  *         description: Error interno del servidor
  */
 router.get('/products', branchOrderController.getProductsForBranch);
+
+/**
+ * @swagger
+ * /api/branch-orders/client/price-list-code:
+ *   get:
+ *     summary: Obtener el código de lista de precios del cliente principal
+ *     description: Recupera el price_list_code que la sucursal hereda del cliente principal
+ *     tags: [BranchOrders]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Código de lista de precios obtenido exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     price_list_code:
+ *                       type: string
+ *                       example: "ORO"
+ *                     company_name:
+ *                       type: string
+ *                       example: "Empresa Principal S.A.S"
+ *       404:
+ *         description: Cliente principal no encontrado
+ *       401:
+ *         description: No autorizado - Token de sucursal inválido
+ *       500:
+ *         description: Error interno del servidor
+ */
+router.get('/client/price-list-code', branchAuthController.getClientPriceListCode);
+
+/**
+ * @swagger
+ * /api/branch-orders/products/inherited:
+ *   get:
+ *     summary: Obtener productos con precios heredados del cliente principal
+ *     description: Recupera productos con precios que la sucursal hereda del cliente principal, incluyendo información de herencia
+ *     tags: [BranchOrders]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Buscar por nombre, código SAP o descripción
+ *       - in: query
+ *         name: category
+ *         schema:
+ *           type: string
+ *         description: Filtrar por categoría de producto
+ *     responses:
+ *       200:
+ *         description: Productos con información de herencia de precios
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     products:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           product_id:
+ *                             type: integer
+ *                           name:
+ *                             type: string
+ *                           sap_code:
+ *                             type: string
+ *                           inherited_price:
+ *                             type: number
+ *                             format: float
+ *                           custom_price:
+ *                             type: number
+ *                             format: float
+ *                             nullable: true
+ *                           price_inheritance:
+ *                             type: object
+ *                             properties:
+ *                               source:
+ *                                 type: string
+ *                                 enum: [custom, inherited]
+ *                               inherited_from:
+ *                                 type: string
+ *                               client_price_list_code:
+ *                                 type: string
+ *                     price_inheritance_info:
+ *                       type: object
+ *                       properties:
+ *                         client_id:
+ *                           type: integer
+ *                         client_price_list_code:
+ *                           type: string
+ *                         company_name:
+ *                           type: string
+ *                         branch_id:
+ *                           type: integer
+ *       404:
+ *         description: Cliente principal no encontrado
+ *       401:
+ *         description: No autorizado - Token de sucursal inválido
+ *       500:
+ *         description: Error interno del servidor
+ */
+router.get('/products/inherited', branchOrderController.getProductsForBranch);
 
 /**
  * @swagger

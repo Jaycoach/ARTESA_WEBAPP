@@ -231,6 +231,57 @@ class BranchAuthController {
         }
     }
 
+    static async getClientPriceListCode(req, res) {
+        try {
+            const { client_id } = req.branch;
+            
+            // Obtener el price_list_code del cliente principal
+            const query = `
+                SELECT cp.price_list_code, cp.company_name
+                FROM client_profiles cp
+                WHERE cp.client_id = $1
+                LIMIT 1
+            `;
+            
+            const { rows } = await pool.query(query, [client_id]);
+            
+            if (rows.length === 0) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Cliente principal no encontrado'
+                });
+            }
+            
+            const priceListCode = rows[0].price_list_code || '1'; // Lista por defecto
+            
+            logger.debug('Price list code obtenido para sucursal', {
+                branchId: req.branch.branch_id,
+                clientId: client_id,
+                priceListCode
+            });
+            
+            res.status(200).json({
+                success: true,
+                data: {
+                    price_list_code: priceListCode,
+                    company_name: rows[0].company_name
+                }
+            });
+            
+        } catch (error) {
+            logger.error('Error obteniendo price_list_code del cliente principal', {
+                error: error.message,
+                branchId: req.branch?.branch_id,
+                clientId: req.branch?.client_id
+            });
+            
+            res.status(500).json({
+                success: false,
+                message: 'Error interno del servidor'
+            });
+        }
+    }
+
     static async checkRegistration(req, res) {
         const { email } = req.body;
 
@@ -295,5 +346,6 @@ module.exports = {
     logout: BranchAuthController.logout.bind(BranchAuthController),
     getProfile: BranchAuthController.getProfile.bind(BranchAuthController),
     checkRegistration: BranchAuthController.checkRegistration.bind(BranchAuthController),
+    getClientPriceListCode: BranchAuthController.getClientPriceListCode.bind(BranchAuthController),
     branchLoginLimiter
 };
