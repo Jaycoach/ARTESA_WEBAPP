@@ -157,10 +157,11 @@ class ClientBranch {
     
       const query = `
         SELECT 
-          cp.price_list_code,
-          cp.company_name,
-          cp.client_id,
-          cb.branch_name
+            cp.price_list_code,
+            cp.price_list,
+            cp.company_name,
+            cp.client_id,
+            cb.branch_name
         FROM client_branches cb
         JOIN client_profiles cp ON cb.client_id = cp.client_id
         WHERE cb.branch_id = $1
@@ -172,11 +173,30 @@ class ClientBranch {
         return null;
       }
 
+      // Priorizar price_list, si no existe usar price_list_code, si no existe usar '1'
+      const finalPriceListCode = rows[0].price_list ? rows[0].price_list.toString() : 
+                                (rows[0].price_list_code || '1');
+
+      logger.debug('Price list code determinado en modelo', {
+          branchId,
+          rawPriceList: rows[0].price_list,
+          rawPriceListCode: rows[0].price_list_code,
+          finalPriceListCode,
+          source: rows[0].price_list ? 'price_list' : 
+                (rows[0].price_list_code ? 'price_list_code' : 'default')
+      });
+
       return {
-        price_list_code: rows[0].price_list_code || '1',
-        company_name: rows[0].company_name,
-        client_id: rows[0].client_id,
-        branch_name: rows[0].branch_name
+          price_list_code: finalPriceListCode,
+          price_list_source: rows[0].price_list ? 'price_list' : 
+                            (rows[0].price_list_code ? 'price_list_code' : 'default'),
+          raw_values: {
+              price_list: rows[0].price_list,
+              price_list_code: rows[0].price_list_code
+          },
+          company_name: rows[0].company_name,
+          client_id: rows[0].client_id,
+          branch_name: rows[0].branch_name
       };
 
     } catch (error) {

@@ -237,7 +237,10 @@ class BranchAuthController {
             
             // Obtener el price_list_code del cliente principal
             const query = `
-                SELECT cp.price_list_code, cp.company_name
+                SELECT 
+                    cp.price_list_code, 
+                    cp.price_list, 
+                    cp.company_name
                 FROM client_profiles cp
                 WHERE cp.client_id = $1
                 LIMIT 1
@@ -252,18 +255,30 @@ class BranchAuthController {
                 });
             }
             
-            const priceListCode = rows[0].price_list_code || '1'; // Lista por defecto
-            
-            logger.debug('Price list code obtenido para sucursal', {
+            // Priorizar price_list, si no existe usar price_list_code, si no existe usar '1'
+            const priceListCode = rows[0].price_list ? rows[0].price_list.toString() : 
+                                (rows[0].price_list_code || '1');
+
+            logger.debug('Price list code determinado para sucursal', {
                 branchId: req.branch.branch_id,
                 clientId: client_id,
-                priceListCode
+                rawPriceList: rows[0].price_list,
+                rawPriceListCode: rows[0].price_list_code,
+                finalPriceListCode: priceListCode,
+                source: rows[0].price_list ? 'price_list' : 
+                    (rows[0].price_list_code ? 'price_list_code' : 'default')
             });
             
             res.status(200).json({
                 success: true,
                 data: {
                     price_list_code: priceListCode,
+                    price_list_source: rows[0].price_list ? 'price_list' : 
+                                    (rows[0].price_list_code ? 'price_list_code' : 'default'),
+                    raw_values: {
+                        price_list: rows[0].price_list,
+                        price_list_code: rows[0].price_list_code
+                    },
                     company_name: rows[0].company_name
                 }
             });
