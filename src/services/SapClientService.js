@@ -11,6 +11,8 @@ class SapClientService extends SapBaseService {
     super('SapClientService');
     this.syncSchedule = '0 */2 6-20 * *'; // Cada 2 horas desde las 6AM hasta las 8PM
     this.syncTasks = {};
+    this.priceListsCache = null;
+    this.priceListsCacheTime = null;
   }
 
   /**
@@ -636,25 +638,73 @@ class SapClientService extends SapBaseService {
 
             // Capturar PriceListNum desde SAP y mapearlo al price_list_code
             if (sapClient.PriceListNum !== undefined && sapClient.PriceListNum !== null) {
-              // Mapear PriceListNum a price_list_code según tu lógica de negocio
-              let priceListCode = null;
-              switch(sapClient.PriceListNum) {
-                case 1:
-                  priceListCode = 'BRONCE';
-                  break;
-                case 2:
-                  priceListCode = 'PLATA';
-                  break;
-                case 3:
-                  priceListCode = 'ORO';
-                  break;
-                default:
-                  priceListCode = 'BRONCE'; // Valor por defecto
-              }
-              
-              if (priceListCode !== profile.price_list_code) {
-                updates.price_list_code = priceListCode;
-                changesDetected.push('price_list_code');
+              try {
+                // Obtener listas de precios desde SAP
+                const priceListsMap = await this.getPriceListsFromSAP();
+                
+                const priceListInfo = priceListsMap.get(sapClient.PriceListNum);
+                
+                if (priceListInfo) {
+                  const priceListCode = priceListInfo.code;
+                  const priceListNumber = priceListInfo.number;
+                  
+                  this.logger.debug('Lista de precios encontrada en SAP', {
+                    priceListNum: sapClient.PriceListNum,
+                    code: priceListCode,
+                    name: priceListInfo.name,
+                    clientId: profile.client_id
+                  });
+                  
+                  if (priceListCode !== profile.price_list_code) {
+                    updates.price_list_code = priceListCode;
+                    changesDetected.push('price_list_code');
+                  }
+                  
+                  if (priceListNumber !== profile.price_list) {
+                    updates.price_list = priceListNumber;
+                    changesDetected.push('price_list');
+                  }
+                } else {
+                  this.logger.warn('Lista de precios no encontrada en SAP', {
+                    priceListNum: sapClient.PriceListNum,
+                    clientId: profile.client_id,
+                    availableLists: Array.from(priceListsMap.keys())
+                  });
+                  
+                  // Usar valores por defecto si no se encuentra la lista
+                  const defaultPriceListCode = 'ESTANDAR';
+                  const defaultPriceListNumber = 1;
+                  
+                  if (defaultPriceListCode !== profile.price_list_code) {
+                    updates.price_list_code = defaultPriceListCode;
+                    changesDetected.push('price_list_code');
+                  }
+                  
+                  if (defaultPriceListNumber !== profile.price_list) {
+                    updates.price_list = defaultPriceListNumber;
+                    changesDetected.push('price_list');
+                  }
+                }
+              } catch (priceListError) {
+                this.logger.error('Error al procesar lista de precios', {
+                  error: priceListError.message,
+                  priceListNum: sapClient.PriceListNum,
+                  clientId: profile.client_id
+                });
+                
+                // En caso de error, usar valores por defecto
+                const fallbackCode = 'ESTANDAR';
+                const fallbackNumber = 1;
+                
+                if (fallbackCode !== profile.price_list_code) {
+                  updates.price_list_code = fallbackCode;
+                  changesDetected.push('price_list_code');
+                }
+                
+                if (fallbackNumber !== profile.price_list) {
+                  updates.price_list = fallbackNumber;
+                  changesDetected.push('price_list');
+                }
               }
             }
             
@@ -880,6 +930,128 @@ class SapClientService extends SapBaseService {
           // Buscar el cliente en SAP por CardCode
           const sapClient = await this.getBusinessPartnerByCardCode(profile.cardcode_sap);
 
+          // Procesar FederalTaxID para extraer NIT y dígito de verificación
+          const taxInfo = this.processFederalTaxID(sapClient.FederalTaxID);
+
+          // Preparar actualizaciones desde SAP
+          const updates = {};
+          const changesDetected = [];
+
+          // Actualizar datos del FederalTaxID si han cambiado
+          if (taxInfo.tax_id && taxInfo.tax_id !== profile.tax_id) {
+            updates.tax_id = taxInfo.tax_id;
+            changesDetected.push('tax_id');
+          }
+
+          if (taxInfo.nit_number && taxInfo.nit_number !== profile.nit_number) {
+            updates.nit_number = taxInfo.nit_number;
+            changesDetected.push('nit_number');
+          }
+
+          if (taxInfo.verification_digit !== null && taxInfo.verification_digit !== profile.verification_digit) {
+            updates.verification_digit = taxInfo.verification_digit;
+            changesDetected.push('verification_digit');
+          }
+
+          // Capturar PriceListNum desde SAP y mapearlo al price_list_code
+          if (sapClient.PriceListNum !== undefined && sapClient.PriceListNum !== null) {
+            try {
+              // Obtener listas de precios desde SAP
+              const priceListsMap = await this.getPriceListsFromSAP();
+              
+              const priceListInfo = priceListsMap.get(sapClient.PriceListNum);
+              
+              if (priceListInfo) {
+                const priceListCode = priceListInfo.code;
+                const priceListNumber = priceListInfo.number;
+                
+                this.logger.debug('Lista de precios encontrada en SAP', {
+                  priceListNum: sapClient.PriceListNum,
+                  code: priceListCode,
+                  name: priceListInfo.name,
+                  clientId: profile.client_id
+                });
+                
+                if (priceListCode !== profile.price_list_code) {
+                  updates.price_list_code = priceListCode;
+                  changesDetected.push('price_list_code');
+                }
+                
+                if (priceListNumber !== profile.price_list) {
+                  updates.price_list = priceListNumber;
+                  changesDetected.push('price_list');
+                }
+              } else {
+                this.logger.warn('Lista de precios no encontrada en SAP', {
+                  priceListNum: sapClient.PriceListNum,
+                  clientId: profile.client_id,
+                  availableLists: Array.from(priceListsMap.keys())
+                });
+                
+                // Usar valores por defecto si no se encuentra la lista
+                const defaultPriceListCode = 'ESTANDAR';
+                const defaultPriceListNumber = 1;
+                
+                if (defaultPriceListCode !== profile.price_list_code) {
+                  updates.price_list_code = defaultPriceListCode;
+                  changesDetected.push('price_list_code');
+                }
+                
+                if (defaultPriceListNumber !== profile.price_list) {
+                  updates.price_list = defaultPriceListNumber;
+                  changesDetected.push('price_list');
+                }
+              }
+            } catch (priceListError) {
+              this.logger.error('Error al procesar lista de precios', {
+                error: priceListError.message,
+                priceListNum: sapClient.PriceListNum,
+                clientId: profile.client_id
+              });
+              
+              // En caso de error, usar valores por defecto
+              const fallbackCode = 'ESTANDAR';
+              const fallbackNumber = 1;
+              
+              if (fallbackCode !== profile.price_list_code) {
+                updates.price_list_code = fallbackCode;
+                changesDetected.push('price_list_code');
+              }
+              
+              if (fallbackNumber !== profile.price_list) {
+                updates.price_list = fallbackNumber;
+                changesDetected.push('price_list');
+              }
+            }
+          }
+
+          // Si hay cambios para actualizar, ejecutar la actualización
+          if (Object.keys(updates).length > 0) {
+            updates.updated_at = new Date().toISOString();
+            
+            const setClauses = Object.keys(updates).map((key, index) => `${key} = $${index + 1}`);
+            const values = Object.values(updates);
+            
+            const updateQuery = `
+              UPDATE client_profiles
+              SET ${setClauses.join(', ')}
+              WHERE client_id = $${values.length + 1}
+              RETURNING *
+            `;
+            
+            values.push(profile.client_id);
+            
+            await dbClient.query(updateQuery, values);
+            
+            this.logger.info('Datos de perfil actualizados desde SAP', {
+              clientId: profile.client_id,
+              userId: profile.user_id,
+              cardCode: sapClient.CardCode,
+              changesDetected: changesDetected.join(', '),
+              cardType: sapClient.CardType
+            });
+          }
+
           this.logger.info('Cliente encontrado en SAP', {
             clientId: profile.client_id,
             cardCode: profile.cardcode_sap,
@@ -992,7 +1164,7 @@ class SapClientService extends SapBaseService {
    */
   async getBusinessPartnerByCardCode(cardCode) {
     try {
-      const endpoint = `BusinessPartners('${cardCode}')?$select=CardCode,CardName,CardType,GroupCode,FederalTaxID,Phone1,EmailAddress,Address,City,Country`;
+      const endpoint = `BusinessPartners('${cardCode}')?$select=CardCode,CardName,CardType,GroupCode,FederalTaxID,Phone1,EmailAddress,Address,City,Country,PriceListNum`;
       
       const result = await this.request('GET', endpoint);
       
@@ -2551,6 +2723,90 @@ class SapClientService extends SapBaseService {
         nit_number: null,
         verification_digit: null
       };
+    }
+  }
+  /**
+   * Obtiene todas las listas de precios desde SAP y las cachea
+   * @returns {Promise<Map>} Mapa con PriceListNum -> {code, name}
+   */
+  async getPriceListsFromSAP() {
+    try {
+      // Verificar si ya tenemos las listas de precios cacheadas (válidas por 1 hora)
+      const cacheKey = 'sap_price_lists';
+      const cacheExpiry = 60 * 60 * 1000; // 1 hora en milisegundos
+      
+      if (this.priceListsCache && 
+          this.priceListsCacheTime && 
+          (Date.now() - this.priceListsCacheTime) < cacheExpiry) {
+        this.logger.debug('Usando listas de precios desde cache');
+        return this.priceListsCache;
+      }
+
+      this.logger.info('Obteniendo listas de precios desde SAP');
+      
+      // Obtener listas de precios desde SAP (tabla OPLN)
+      const endpoint = 'PriceLists?$select=PriceListNo,PriceListName,Active';
+      
+      const result = await this.request('GET', endpoint);
+      
+      if (!result || !result.value) {
+        this.logger.warn('No se obtuvieron listas de precios de SAP');
+        return new Map();
+      }
+      
+      // Crear mapa con número -> {code, name}
+      const priceListsMap = new Map();
+      
+      result.value.forEach(priceList => {
+        if (priceList.Active === 'Y') {
+          // Generar código basado en el nombre (convertir a mayúsculas y sin espacios)
+          let code = priceList.PriceListName
+            .toUpperCase()
+            .replace(/[^A-Z0-9]/g, '_')
+            .replace(/_+/g, '_')
+            .replace(/^_|_$/g, '');
+          
+          // Si el código queda vacío, usar un código por defecto
+          if (!code) {
+            code = `LISTA_${priceList.PriceListNo}`;
+          }
+          
+          priceListsMap.set(priceList.PriceListNo, {
+            code: code,
+            name: priceList.PriceListName,
+            number: priceList.PriceListNo,
+            active: priceList.Active === 'Y'
+          });
+        }
+      });
+      
+      // Cachear las listas de precios
+      this.priceListsCache = priceListsMap;
+      this.priceListsCacheTime = Date.now();
+      
+      this.logger.info(`Se cargaron ${priceListsMap.size} listas de precios activas desde SAP`, {
+        listas: Array.from(priceListsMap.entries()).map(([num, data]) => ({
+          numero: num,
+          codigo: data.code,
+          nombre: data.name
+        }))
+      });
+      
+      return priceListsMap;
+      
+    } catch (error) {
+      this.logger.error('Error al obtener listas de precios de SAP', {
+        error: error.message,
+        stack: error.stack
+      });
+      
+      // En caso de error, retornar mapa con valores por defecto
+      const fallbackMap = new Map();
+      fallbackMap.set(1, { code: 'BRONCE', name: 'Lista Bronce', number: 1, active: true });
+      fallbackMap.set(2, { code: 'PLATA', name: 'Lista Plata', number: 2, active: true });
+      fallbackMap.set(3, { code: 'ORO', name: 'Lista Oro', number: 3, active: true });
+      
+      return fallbackMap;
     }
   }
 }
