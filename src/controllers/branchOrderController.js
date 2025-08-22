@@ -60,21 +60,21 @@ class BranchOrderController {
       let canCreateOrder = false;
       let validationReason = '';
 
-      if (userInfo.client_id && userInfo.cardcode_sap && userInfo.cardtype_sap === 'cCli') {
+      if (userInfo.client_id && userInfo.cardcode_sap && userInfo.cardtype_sap === 'cCustomer') {
         canCreateOrder = true;
         validationReason = userInfo.is_active ? 
           'Usuario activo con perfil SAP válido' : 
           'Usuario con perfil SAP válido pero inactivo';
       } else if (userInfo.client_id) {
         canCreateOrder = false;
-        validationReason = 'Perfil existe pero sin cardcode_sap o cardtype_sap no es cCli';
+        validationReason = 'Perfil existe pero sin cardcode_sap o cardtype_sap no es cCustomer';
       } else {
         canCreateOrder = false;
         validationReason = 'Usuario sin perfil de cliente';
       }
 
       if (!canCreateOrder) {
-        logger.warn('Usuario sin permisos para crear órdenes desde sucursal', { 
+        logger.warn(' ', { 
           user_id, 
           reason: validationReason,
           userInfo 
