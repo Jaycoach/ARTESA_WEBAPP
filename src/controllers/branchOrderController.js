@@ -29,22 +29,83 @@ class BranchOrderController {
         productsCount: products?.length
       });
 
-      // Validar que el user_id corresponde al cliente de la sucursal
-      const userValidationQuery = `
-        SELECT cp.user_id, cp.client_id, u.name as user_name
-        FROM client_profiles cp
-        JOIN users u ON cp.user_id = u.id
-        WHERE cp.user_id = $1 AND cp.client_id = $2
+      // === VALIDACIÓN MEJORADA DEL USUARIO ===
+      // 1. Verificar que el usuario existe y tiene permiso para crear órdenes
+      const canCreateQuery = `
+        SELECT 
+          u.id as user_id,
+          u.is_active,
+          cp.client_id,
+          cp.cardcode_sap,
+          cp.cardtype_sap,
+          cp.company_name
+        FROM users u
+        LEFT JOIN client_profiles cp ON u.id = cp.user_id
+        WHERE u.id = $1
       `;
 
-      const { rows: userRows } = await pool.query(userValidationQuery, [user_id, client_id]);
-      
-      if (userRows.length === 0) {
+      const { rows: userCheckRows } = await pool.query(canCreateQuery, [user_id]);
+
+      if (userCheckRows.length === 0) {
+        logger.warn('Usuario no encontrado para creación de orden desde sucursal', { user_id });
+        return res.status(400).json({
+          success: false,
+          message: 'El usuario especificado no existe'
+        });
+      }
+
+      const userInfo = userCheckRows[0];
+
+      // 2. Validar permiso para crear órdenes (igual que can-create endpoint)
+      let canCreateOrder = false;
+      let validationReason = '';
+
+      if (userInfo.client_id && userInfo.cardcode_sap && userInfo.cardtype_sap === 'cCli') {
+        canCreateOrder = true;
+        validationReason = userInfo.is_active ? 
+          'Usuario activo con perfil SAP válido' : 
+          'Usuario con perfil SAP válido pero inactivo';
+      } else if (userInfo.client_id) {
+        canCreateOrder = false;
+        validationReason = 'Perfil existe pero sin cardcode_sap o cardtype_sap no es cCli';
+      } else {
+        canCreateOrder = false;
+        validationReason = 'Usuario sin perfil de cliente';
+      }
+
+      if (!canCreateOrder) {
+        logger.warn('Usuario sin permisos para crear órdenes desde sucursal', { 
+          user_id, 
+          reason: validationReason,
+          userInfo 
+        });
+        return res.status(403).json({
+          success: false,
+          message: `No se puede crear la orden: ${validationReason}`
+        });
+      }
+
+      // 3. Verificar que el usuario pertenece al mismo cliente que la sucursal
+      if (userInfo.client_id !== client_id) {
+        logger.warn('Usuario no pertenece al cliente de la sucursal', {
+          user_id,
+          userClientId: userInfo.client_id,
+          branchClientId: client_id,
+          companyName: userInfo.company_name
+        });
         return res.status(400).json({
           success: false,
           message: 'El usuario especificado no pertenece al cliente de esta sucursal'
         });
       }
+
+      logger.debug('Validación de usuario exitosa para orden desde sucursal', {
+        user_id,
+        client_id,
+        companyName: userInfo.company_name,
+        cardcodeSap: userInfo.cardcode_sap,
+        isActive: userInfo.is_active
+      });
 
       // Validar productos
       if (!products || !Array.isArray(products) || products.length === 0) {
