@@ -149,10 +149,10 @@ const createOrder = async (req, res) => {
       const profileQuery = 'SELECT client_id, cardcode_sap, cardtype_sap FROM client_profiles WHERE user_id = $1';
       const profileResult = await pool.query(profileQuery, [user_id]);
 
-      // Solo permitir si tiene perfil completo Y cardtype_sap = 'cCli' (ya no es Lead)
+      // Solo permitir si tiene perfil completo Y cardtype_sap = 'cCustomer' (ya no es Lead)
       if (profileResult.rows.length > 0 && 
           profileResult.rows[0].cardcode_sap && 
-          profileResult.rows[0].cardtype_sap === 'cCli') {
+          profileResult.rows[0].cardtype_sap === 'cCustomer') {
         logger.info('Usuario inactivo con perfil completo y cliente confirmado en SAP, permitiendo creación de orden', {
           userId: user_id,
           cardcodeSap: profileResult.rows[0].cardcode_sap,
@@ -866,14 +866,14 @@ const checkUserCanCreateOrders = async (req, res) => {
     // Verificar primero si tiene perfil y cardtype_sap válido
     if (profileResult.rows.length > 0 && 
         profileResult.rows[0].cardcode_sap && 
-        profileResult.rows[0].cardtype_sap === 'cCli') {
+        profileResult.rows[0].cardtype_sap === 'cCustomer') {
       canCreate = true;
       reason = userResult.rows[0].is_active ? 
         'Usuario activo con perfil SAP válido' : 
         'Usuario con perfil SAP válido pero inactivo';
     } else if (profileResult.rows.length > 0) {
       canCreate = false;
-      reason = 'Perfil existe pero sin cardcode_sap o cardtype_sap no es cCli';
+      reason = 'Perfil existe pero sin cardcode_sap o cardtype_sap no es cCustomer';
     } else {
       canCreate = false;
       reason = 'Usuario sin perfil de cliente';
@@ -885,7 +885,7 @@ const checkUserCanCreateOrders = async (req, res) => {
       hasProfile: profileResult.rows.length > 0,
       hasCardCode: profileResult.rows.length > 0 && 
                   profileResult.rows[0].cardcode_sap && 
-                  profileResult.rows[0].cardtype_sap === 'cCli'
+                  profileResult.rows[0].cardtype_sap === 'cCustomer'
     };
 
     logger.debug('Resultado de validación can-create', {
