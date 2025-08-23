@@ -829,15 +829,17 @@ class SapSyncController {
 // Crear instancia del controlador
 const sapSyncController = new SapSyncController();
 
-// Exportar métodos del controlador
 module.exports = {
-  startSync: sapSyncController.startSync,
+  // Métodos que NO necesitan bind (no usan 'this')
   getSyncStatus: sapSyncController.getSyncStatus,
   testSapConnection: sapSyncController.testSapConnection,
   analyzeView: sapSyncController.analyzeView,
-  syncProductsByGroup: sapSyncController.syncProductsByGroup,
   getGroupSyncStatus: sapSyncController.getGroupSyncStatus,
-  configureGroupSync: sapSyncController.configureGroupSync,
-  updateProductDescription: sapSyncController.updateProductDescription,
-  getProductsDirectQuery: sapSyncController.getProductsDirectQuery
+  getProductsDirectQuery: sapSyncController.getProductsDirectQuery,
+  
+  // Métodos que SÍ necesitan bind (usan 'this')
+  startSync: sapSyncController.startSync.bind(sapSyncController),
+  syncProductsByGroup: sapSyncController.syncProductsByGroup.bind(sapSyncController),
+  configureGroupSync: sapSyncController.configureGroupSync.bind(sapSyncController),
+  updateProductDescription: sapSyncController.updateProductDescription.bind(sapSyncController),
 };
