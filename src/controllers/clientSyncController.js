@@ -1703,19 +1703,22 @@ const clientSyncController = new ClientSyncController();
 
 // Exportar métodos del controlador
 module.exports = {
+  // Métodos que NO necesitan bind (no usan 'this' internamente)
   getSyncStatus: clientSyncController.getSyncStatus,
-  syncClients: clientSyncController.syncClients,
-  syncAllClients: clientSyncController.syncAllClients,
   getPendingClients: clientSyncController.getPendingClients,
-  activateClient: clientSyncController.activateClient,
-  syncClient: clientSyncController.syncClient,
-  syncInstitutionalClients: clientSyncController.syncInstitutionalClients,
-  validateClientBranches: clientSyncController.validateClientBranches,
-  syncClientBranches: clientSyncController.syncClientBranches,
-  simulateSapSync: clientSyncController.simulateSapSync,
-  testEmailSes: clientSyncController.testEmailSes,
-  syncCIClients: clientSyncController.syncCIClients,
   listCIClients: clientSyncController.listCIClients,
-  validateSpecificClientBranches: clientSyncController.validateSpecificClientBranches,
-  debugClientStatus: clientSyncController.debugClientStatus,
+  
+  // Métodos que SÍ necesitan bind (usan 'this' para llamar a otros métodos de la clase)
+  syncClients: clientSyncController.syncClients.bind(clientSyncController),
+  syncAllClients: clientSyncController.syncAllClients.bind(clientSyncController),
+  activateClient: clientSyncController.activateClient.bind(clientSyncController),
+  syncClient: clientSyncController.syncClient.bind(clientSyncController),
+  syncInstitutionalClients: clientSyncController.syncInstitutionalClients.bind(clientSyncController),
+  validateClientBranches: clientSyncController.validateClientBranches.bind(clientSyncController),
+  syncClientBranches: clientSyncController.syncClientBranches.bind(clientSyncController),
+  simulateSapSync: clientSyncController.simulateSapSync.bind(clientSyncController),
+  testEmailSes: clientSyncController.testEmailSes.bind(clientSyncController),
+  syncCIClients: clientSyncController.syncCIClients.bind(clientSyncController),
+  validateSpecificClientBranches: clientSyncController.validateSpecificClientBranches.bind(clientSyncController),
+  debugClientStatus: clientSyncController.debugClientStatus.bind(clientSyncController),
 };
