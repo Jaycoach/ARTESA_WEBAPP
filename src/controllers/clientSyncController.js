@@ -1297,13 +1297,19 @@ class ClientSyncController {
             errors: 0
           };
           
-          // Usar el método existente del servicio SAP
-          await sapServiceManager.clientService.syncClientBranches(
-            client.cardcode_sap, 
-            client.client_id, 
-            branchStats,
-            forceUpdateBool
-          );
+          // Usar el método correcto para sincronización desde CRD1
+          const branches = await sapServiceManager.clientService.getClientBranchesFromCRD1(client.cardcode_sap);
+          branchStats.total = branches.length;
+
+          if (branches.length > 0) {
+            // Usar el método de sincronización correcto que maneja la lógica de filtrado
+            await this.syncBranchesFromSAP(client.client_id, branches, branchStats, forceUpdateBool);
+          } else {
+            this.logger.warn('No se encontraron sucursales Ship To con correo para sincronizar', {
+              clientId: client.client_id,
+              cardCode: client.cardcode_sap
+            });
+          }
           
           // Actualizar estadísticas generales
           syncResults.totalBranches += branchStats.total;
@@ -1597,6 +1603,103 @@ class ClientSyncController {
 
 // Crear instancia del controlador
 const clientSyncController = new ClientSyncController();
+
+/**
+ * Sincroniza las sucursales de un cliente desde los datos de SAP
+ * @param {number} clientId - ID del cliente en la plataforma
+ * @param {Array} branches - Sucursales obtenidas de SAP
+ * @param {Object} stats - Estadísticas de sincronización
+ * @param {boolean} forceUpdate - Si forzar la actualización
+ */
+async syncBranchesFromSAP(clientId, branches, stats, forceUpdate = false) {
+  for (const branch of branches) {
+    try {
+      // Normalizar los campos para evitar valores nulos
+      const normalizedBranch = {
+        AddressName: branch.AddressName || branch.Address,
+        Address: branch.AddressName || branch.Address,
+        Street: branch.Street || '',
+        City: branch.City || '',
+        State: branch.State || '',
+        Country: branch.Country || 'CO',
+        ZipCode: branch.ZipCode || '',
+        U_HBT_MunMed: branch.U_HBT_MunMed || null,
+        U_HBT_CORREO: branch.U_HBT_CORREO || null,
+        U_HBT_ENCARGADO: branch.U_HBT_ENCARGADO || null
+      };
+
+      // Verificar si la sucursal ya existe
+      const query = 'SELECT branch_id FROM client_branches WHERE client_id = $1 AND ship_to_code = $2';
+      const { rows } = await pool.query(query, [clientId, normalizedBranch.AddressName]);
+      
+      if (rows.length === 0 || forceUpdate) {
+        if (rows.length === 0) {
+          // Crear nueva sucursal
+          await pool.query(
+            `INSERT INTO client_branches 
+            (client_id, ship_to_code, branch_name, address, city, state, country, zip_code, phone, contact_person, is_default, municipality_code, mail, email_branch, manager_name)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+            [
+              clientId,
+              normalizedBranch.AddressName,
+              normalizedBranch.AddressName,
+              normalizedBranch.Street,
+              normalizedBranch.City,
+              normalizedBranch.State,
+              normalizedBranch.Country,
+              normalizedBranch.ZipCode,
+              '',
+              '',
+              normalizedBranch.AddressName === 'PRINCIPAL' || branches.length === 1,
+              normalizedBranch.U_HBT_MunMed,
+              null,
+              normalizedBranch.U_HBT_CORREO,
+              normalizedBranch.U_HBT_ENCARGADO
+            ]
+          );
+          
+          stats.created++;
+          
+          logger.info('Sucursal creada desde SAP', {
+            clientId,
+            shipToCode: normalizedBranch.AddressName,
+            hasEmail: !!normalizedBranch.U_HBT_CORREO
+          });
+        } else if (forceUpdate) {
+          // Actualizar sucursal existente
+          await pool.query(
+            `UPDATE client_branches 
+            SET branch_name = $1, address = $2, city = $3, state = $4, country = $5, 
+                zip_code = $6, municipality_code = $7, email_branch = $8, manager_name = $9,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE branch_id = $10`,
+            [
+              normalizedBranch.AddressName,
+              normalizedBranch.Street,
+              normalizedBranch.City,
+              normalizedBranch.State,
+              normalizedBranch.Country,
+              normalizedBranch.ZipCode,
+              normalizedBranch.U_HBT_MunMed,
+              normalizedBranch.U_HBT_CORREO,
+              normalizedBranch.U_HBT_ENCARGADO,
+              rows[0].branch_id
+            ]
+          );
+          
+          stats.updated++;
+        }
+      }
+    } catch (branchError) {
+      stats.errors++;
+      logger.error('Error al sincronizar sucursal individual', {
+        clientId,
+        branch: branch.AddressName,
+        error: branchError.message
+      });
+    }
+  }
+}
 
 // Exportar métodos del controlador
 module.exports = {

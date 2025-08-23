@@ -1737,16 +1737,16 @@ class SapClientService extends SapBaseService {
             }))
           });
           
-          // Filtrar direcciones Ship To, si no hay, usar Bill To
+          // SOLO filtrar direcciones Ship To con correo válido - REQUISITO CRÍTICO
           let filteredAddresses = expandResult.BPAddresses.filter(addr => 
-            addr.AddressType === 'bo_ShipTo'
+            addr.AddressType === 'bo_ShipTo' && 
+            addr.U_HBT_CORREO && 
+            addr.U_HBT_CORREO.trim() !== ''
           );
-          
+
           if (filteredAddresses.length === 0) {
-            this.logger.info('No hay Ship To, usando Bill To como alternativa', { cardCode });
-            filteredAddresses = expandResult.BPAddresses.filter(addr => 
-              addr.AddressType === 'bo_BillTo'
-            );
+            this.logger.warn('No hay direcciones Ship To con correo válido en método 1', { cardCode });
+            return [];
           }
           
           if (filteredAddresses.length > 0) {
@@ -1799,29 +1799,23 @@ class SapClientService extends SapBaseService {
         }
         // Filtrar solo las direcciones de tipo "Ship To" (bo_ShipTo)
         const shipToAddresses = addressesResult.BPAddresses.filter(address => 
-          address.AddressType === 'bo_ShipTo' && 
-          address.U_HBT_CORREO && 
-          address.U_HBT_CORREO.trim() !== ''
+          address.AddressType === 'bo_ShipTo'
         );
         this.logger.info(`Se encontraron ${shipToAddresses.length} direcciones Ship To en método 2`, { cardCode });
 
-        // Si no hay Ship To, buscar Bill To como alternativa
-        // Filtrar solo direcciones con U_HBT_CORREO
+        // SOLO sincronizar direcciones Ship To que tengan correo - REQUISITO CRÍTICO
         let filteredAddresses = shipToAddresses.filter(address => 
           address.U_HBT_CORREO && 
           address.U_HBT_CORREO.trim() !== ''
         );
 
         if (filteredAddresses.length === 0) {
-          this.logger.info('No hay Ship To con correo, usando Ship To sin filtro como alternativa', { cardCode });
-          filteredAddresses = shipToAddresses;
-        }
-
-        if (filteredAddresses.length === 0) {
-          this.logger.info('No hay Ship To, usando Bill To como alternativa en método 2', { cardCode });
-          filteredAddresses = addressesResult.BPAddresses.filter(address => 
-            address.AddressType === 'bo_BillTo'
-          );
+          this.logger.warn('No hay direcciones Ship To con correo válido - requerido para sincronización', { 
+            cardCode,
+            totalShipTo: shipToAddresses.length,
+            shipToSinCorreo: shipToAddresses.filter(addr => !addr.U_HBT_CORREO || addr.U_HBT_CORREO.trim() === '').length
+          });
+          return [];
         }
 
         if (filteredAddresses.length > 0) {
