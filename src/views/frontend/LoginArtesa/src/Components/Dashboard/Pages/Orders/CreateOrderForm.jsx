@@ -155,9 +155,12 @@ const CreateOrderForm = ({ onOrderCreated }) => {
   const calculateAvailableDeliveryDates = (zone, orderTimeLimit = '18:00') => {
     if (!zone) return [];
 
+    // Usar fecha local normalizada para evitar problemas de zona horaria
     const today = new Date();
-    const currentHour = today.getHours();
-    const currentMinute = today.getMinutes();
+    today.setHours(0, 0, 0, 0); // Normalizar a medianoche local
+    
+    const currentHour = new Date().getHours();
+    const currentMinute = new Date().getMinutes();
     const [limitHour, limitMinute] = orderTimeLimit.split(':').map(Number);
 
     const isAfterLimit = currentHour > limitHour ||
@@ -184,12 +187,14 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     const maxDaysToCheck = 30;
 
     for (let i = additionalDays; i <= maxDaysToCheck; i++) {
-      const checkDate = new Date(today);
-      checkDate.setDate(today.getDate() + i);
+      // Crear fecha normalizada sin problemas de zona horaria
+      const checkDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() + i);
       const dayOfWeek = checkDate.getDay();
 
       if (zone.days.includes(dayOfWeek)) {
-        availableDates.push(new Date(checkDate));
+        // Crear fecha normalizada para consistencia
+        const normalizedDate = new Date(checkDate.getFullYear(), checkDate.getMonth(), checkDate.getDate());
+        availableDates.push(normalizedDate);
       }
     }
 
@@ -330,9 +335,11 @@ const CreateOrderForm = ({ onOrderCreated }) => {
 
       if (deliveryDate) {
         const selectedDate = new Date(deliveryDate);
-        const isDateAvailable = dates.some(date =>
-          date.toDateString() === selectedDate.toDateString()
-        );
+        const isDateAvailable = dates.some(date => {
+          const normalizedAvailable = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+          const normalizedSelected = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+          return normalizedAvailable.getTime() === normalizedSelected.getTime();
+        });
         if (!isDateAvailable) {
           setDeliveryDate('');
         }
@@ -535,9 +542,12 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     }
 
     const selectedDate = new Date(deliveryDate);
-    const isDateAvailable = availableDeliveryDays.some(date =>
-      date.toDateString() === selectedDate.toDateString()
-    );
+    const isDateAvailable = availableDeliveryDays.some(date => {
+      // Normalizar ambas fechas para comparación consistente
+      const normalizedAvailable = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      const normalizedSelected = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+      return normalizedAvailable.getTime() === normalizedSelected.getTime();
+    });
 
     if (!isDateAvailable) {
       showNotification(`La fecha seleccionada no está disponible para entregas en ${deliveryZone.name}`, 'error');
