@@ -541,9 +541,10 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       return;
     }
 
-    const selectedDate = new Date(deliveryDate);
+    // Crear fecha a partir del string sin problemas de zona horaria
+    const [year, month, day] = deliveryDate.split('-').map(Number);
+    const selectedDate = new Date(year, month - 1, day); // month - 1 porque los meses en Date van de 0-11
     const isDateAvailable = availableDeliveryDays.some(date => {
-      // Normalizar ambas fechas para comparación consistente
       const normalizedAvailable = new Date(date.getFullYear(), date.getMonth(), date.getDate());
       const normalizedSelected = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
       return normalizedAvailable.getTime() === normalizedSelected.getTime();
