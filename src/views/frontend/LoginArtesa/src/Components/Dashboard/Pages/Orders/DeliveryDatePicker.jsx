@@ -41,10 +41,12 @@ const DeliveryDatePicker = ({
     // Verificar que no sea domingo
     if (date.getDay() === 0) return false;
     
-    // Verificar que esté en la lista de fechas disponibles
-    return availableDates.some(availableDate => 
-      isSameDay(availableDate, date)
-    );
+    return availableDates.some(availableDate => {
+      // Normalizar ambas fechas para comparación sin zona horaria
+      const normalizedAvailable = new Date(availableDate.getFullYear(), availableDate.getMonth(), availableDate.getDate());
+      const normalizedDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      return normalizedAvailable.getTime() === normalizedDate.getTime();
+    });
   }, [availableDates]);
 
   // Manejo consistente de cambios de fecha
@@ -57,15 +59,11 @@ const DeliveryDatePicker = ({
       return;
     }
 
-    const utcDate = new Date(Date.UTC(
-      date.getFullYear(),
-      date.getMonth(),
-      date.getDate(),
-      12, 0, 0
-    ));
+    // Crear fecha en zona horaria de Colombia para consistencia
+    const colombianDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const formattedDate = format(colombianDate, 'yyyy-MM-dd');
     
-    const formattedDate = format(utcDate, 'yyyy-MM-dd');
-    console.log(`Fecha seleccionada: ${formattedDate} (UTC)`);
+    console.log(`Fecha seleccionada: ${formattedDate} (Colombia)`);
     
     setSelectedDate(date);
     onChange(formattedDate);
@@ -79,8 +77,12 @@ const DeliveryDatePicker = ({
       try {
         const parsedDate = parseISO(value);
         
-        // Verificar si esta fecha existe en nuestras fechas disponibles
-        const isValid = isDateAvailable(parsedDate);
+        // Normalizar fecha para comparación consistente independiente de zona horaria
+        const normalizedParsedDate = new Date(parsedDate.getFullYear(), parsedDate.getMonth(), parsedDate.getDate());
+        const isValid = availableDates.some(availableDate => {
+          const normalizedAvailableDate = new Date(availableDate.getFullYear(), availableDate.getMonth(), availableDate.getDate());
+          return normalizedAvailableDate.getTime() === normalizedParsedDate.getTime();
+        });
         
         if (isValid) {
           setSelectedDate(parsedDate);
@@ -106,7 +108,7 @@ const DeliveryDatePicker = ({
       initialLoadRef.current = false;
       setErrorMessage('');
     }
-  }, [value, availableDates, isDateAvailable, onChange]);
+  }, [value, availableDates, onChange]);
 
   // Efecto para limpiar fecha cuando cambia la zona de entrega
   useEffect(() => {
