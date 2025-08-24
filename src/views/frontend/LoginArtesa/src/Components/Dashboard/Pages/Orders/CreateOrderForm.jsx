@@ -575,7 +575,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
         price_list_code: userPriceListCode || 'GENERAL',
         has_custom_pricing: userPriceListCode && userPriceListCode !== 'GENERAL',
         subtotal_amount: subtotal,
-        iva_amount: iva,
+        iva_amount: ivaTotal,
         shipping_amount: shipping || 0,
         details: orderDetails.map(detail => ({
           product_id: parseInt(detail.product_id || 0),
