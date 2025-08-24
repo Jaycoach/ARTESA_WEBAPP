@@ -64,6 +64,16 @@ const DeliveryDatePicker = ({
     const formattedDate = format(colombianDate, 'yyyy-MM-dd');
     
     console.log(`Fecha seleccionada: ${formattedDate} (Colombia)`);
+
+    // DEBUG: Verificar que la fecha formateada se puede parsear correctamente
+    const [testYear, testMonth, testDay] = formattedDate.split('-').map(Number);
+    const testParsedDate = new Date(testYear, testMonth - 1, testDay);
+    console.log('Fecha parseada de vuelta:', testParsedDate);
+    console.log('¿Coincide con la original?', 
+      testParsedDate.getFullYear() === date.getFullYear() &&
+      testParsedDate.getMonth() === date.getMonth() &&
+      testParsedDate.getDate() === date.getDate()
+    );
     
     setSelectedDate(date);
     onChange(formattedDate);
@@ -74,11 +84,13 @@ const DeliveryDatePicker = ({
   // Efecto para sincronizar cuando cambia el valor externo
   useEffect(() => {
     if (value && value !== '') {
-      try {
-        const parsedDate = parseISO(value);
-        
-        // Normalizar fecha para comparación consistente independiente de zona horaria
-        const normalizedParsedDate = new Date(parsedDate.getFullYear(), parsedDate.getMonth(), parsedDate.getDate());
+  try {
+    // CORRECCIÓN: Crear fecha directamente desde string sin problemas de zona horaria
+    const [year, month, day] = value.split('-').map(Number);
+    const parsedDate = new Date(year, month - 1, day); // month - 1 porque los meses van de 0-11
+    
+    // Normalizar fecha para comparación consistente
+    const normalizedParsedDate = new Date(parsedDate.getFullYear(), parsedDate.getMonth(), parsedDate.getDate());
         const isValid = availableDates.some(availableDate => {
           const normalizedAvailableDate = new Date(availableDate.getFullYear(), availableDate.getMonth(), availableDate.getDate());
           return normalizedAvailableDate.getTime() === normalizedParsedDate.getTime();
