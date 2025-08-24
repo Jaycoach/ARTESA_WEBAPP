@@ -212,6 +212,16 @@ const createOrder = async (req, res) => {
       const deliveryDateOnly = new Date(parsedDeliveryDate.toDateString());
       const minDeliveryDateOnly = new Date(minDeliveryDate.toDateString());
 
+      // Logging para debug de zona horaria
+      logger.debug('Validación de fecha con zona horaria', {
+        receivedDate: delivery_date,
+        parsedDeliveryDate: parsedDeliveryDate.toISOString(),
+        deliveryDateOnly: deliveryDateOnly.toISOString(),
+        minDeliveryDate: minDeliveryDate.toISOString(),
+        minDeliveryDateOnly: minDeliveryDateOnly.toISOString(),
+        timezone: process.env.TZ || 'UTC'
+      });
+
       // Validar que sea un día hábil
       const colombianHolidays = require('../utils/colombianHolidays');
       
