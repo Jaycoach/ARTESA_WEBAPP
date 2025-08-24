@@ -57,6 +57,34 @@ const CreateOrderForm = ({ onOrderCreated }) => {
   const [notification, setNotification] = useState({ show: false, message: '', type: '' });
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [siteSettings, setSiteSettings] = useState({ orderTimeLimit: '18:00' });
+  // Cargar configuración del sitio
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        console.log('🔍 Obteniendo configuración de API...');
+        const response = await API.get('/admin/settings');
+        
+        if (response.data && response.data.success) {
+          const settingsData = response.data.data || {};
+          console.log('✅ Configuración desde API:', settingsData);
+          
+          setSiteSettings(prev => ({
+            ...prev,
+            ...settingsData,
+            orderTimeLimit: settingsData.orderTimeLimit || '18:00'
+          }));
+        } else {
+          console.warn('⚠️ Respuesta API sin éxito, usando valor por defecto');
+        }
+      } catch (error) {
+        console.error('❌ Error obteniendo configuración:', error);
+        // Mantener valor por defecto
+        console.log('🔄 Usando valor por defecto: 18:00');
+      }
+    };
+
+    fetchSettings();
+  }, []);
   const [loadingSettings, setLoadingSettings] = useState(false);
   const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
@@ -329,22 +357,41 @@ const CreateOrderForm = ({ onOrderCreated }) => {
   }, [branches]);
 
   useEffect(() => {
-    if (deliveryZone && siteSettings.orderTimeLimit) {
+    console.log('🔍 VERIFICANDO CONDICIONES FECHAS:', {
+      deliveryZone: deliveryZone?.name,
+      orderTimeLimit: siteSettings?.orderTimeLimit,
+      siteSettingsCompleto: siteSettings,
+      deliveryDate: deliveryDate
+    });
+
+    if (deliveryZone && siteSettings?.orderTimeLimit) {
       const dates = calculateAvailableDeliveryDates(deliveryZone, siteSettings.orderTimeLimit);
       setAvailableDeliveryDays(dates);
 
+      console.log('🔍 FECHAS CALCULADAS:', {
+        fechasGeneradas: dates.length,
+        primerasFechas: dates.slice(0, 3).map(d => d.toISOString().split('T')[0]),
+        zone: deliveryZone.name
+      });
+
       if (deliveryDate) {
-        const selectedDate = new Date(deliveryDate);
+        // CORRECCIÓN: Crear fecha sin problemas de zona horaria
+        const [year, month, day] = deliveryDate.split('-').map(Number);
+        const selectedDate = new Date(year, month - 1, day);
+        
         const isDateAvailable = dates.some(date => {
           const normalizedAvailable = new Date(date.getFullYear(), date.getMonth(), date.getDate());
           const normalizedSelected = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
           return normalizedAvailable.getTime() === normalizedSelected.getTime();
         });
+        
         if (!isDateAvailable) {
+          console.log('⚠️ Fecha seleccionada no válida, limpiando...');
           setDeliveryDate('');
         }
       }
     } else {
+      console.log('❌ Condiciones no cumplidas para calcular fechas');
       setAvailableDeliveryDays([]);
     }
   }, [deliveryZone, siteSettings.orderTimeLimit, deliveryDate]);
