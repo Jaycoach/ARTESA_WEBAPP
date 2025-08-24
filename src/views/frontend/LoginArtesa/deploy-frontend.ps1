@@ -6,6 +6,23 @@ param(
 Write-Host "=== DEPLOY FRONTEND ARTESA ===" -ForegroundColor Cyan
 Write-Host "Desplegando frontend a AWS S3 + CloudFront - Ambiente: $Environment" -ForegroundColor Green
 
+# CONFIGURAR PERFIL ARTESA
+Write-Host "🔑 Configurando credenciales para proyecto ARTESA..." -ForegroundColor Yellow
+$env:AWS_PROFILE = "artesa"
+$env:AWS_DEFAULT_PROFILE = "artesa"
+
+# Verificar credenciales correctas
+$identity = aws sts get-caller-identity 2>&1 | ConvertFrom-Json
+if ($identity.Account -eq "476114150454") {
+    Write-Host "✅ Credenciales ARTESA configuradas correctamente" -ForegroundColor Green
+    Write-Host "   Usuario: $($identity.Arn)" -ForegroundColor Cyan
+    Write-Host "   Cuenta AWS: $($identity.Account)" -ForegroundColor Cyan
+} else {
+    Write-Host "❌ Error: Credenciales incorrectas - se detectó: $($identity.Arn)" -ForegroundColor Red
+    Write-Host "💡 Ejecuta: aws configure --profile artesa" -ForegroundColor Yellow
+    exit 1
+}
+
 # Configurar AWS CLI
 $awsExePath = "C:\Program Files\Amazon\AWSCLIV2\aws.exe"
 if (Test-Path $awsExePath) {
