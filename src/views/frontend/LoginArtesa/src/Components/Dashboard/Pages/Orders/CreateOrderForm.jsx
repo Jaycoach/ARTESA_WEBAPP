@@ -564,11 +564,13 @@ const CreateOrderForm = ({ onOrderCreated }) => {
 
     // === DEBUG TEMPORAL - AGREGAR ESTAS LÍNEAS ===
     console.log('=== INICIANDO DEBUG handleConfirmCreateOrder ===');
+    const { ivaTotal, impuestoSaludableTotal } = calculateTaxByProduct(orderDetails);
+    const totalTaxes = ivaTotal + impuestoSaludableTotal;
     console.log('subtotal existe:', typeof subtotal !== 'undefined' ? subtotal : 'NO DEFINIDA');
     console.log('ivaTotal existe:', typeof ivaTotal !== 'undefined' ? ivaTotal : 'NO DEFINIDA');
     console.log('impuestoSaludableTotal existe:', typeof impuestoSaludableTotal !== 'undefined' ? impuestoSaludableTotal : 'NO DEFINIDA');
     console.log('totalTaxes existe:', typeof totalTaxes !== 'undefined' ? totalTaxes : 'NO DEFINIDA');
-    console.log('iva existe:', typeof iva !== 'undefined' ? iva : 'NO DEFINIDA');
+    console.log('ivaTotal existe:', typeof ivaTotal !== 'undefined' ? ivaTotal : 'NO DEFINIDA');
     console.log('shipping existe:', typeof shipping !== 'undefined' ? shipping : 'NO DEFINIDA');
     console.log('=== FIN DEBUG INICIAL ===');
     // === FIN DEBUG TEMPORAL ===
@@ -586,7 +588,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
         price_list_code: userPriceListCode || 'GENERAL',
         has_custom_pricing: userPriceListCode && userPriceListCode !== 'GENERAL',
         subtotal_amount: subtotal,
-        iva_amount: iva,
+        iva_amount: ivaTotal,
         shipping_amount: shipping || 0,
         details: orderDetails.map(detail => ({
           product_id: parseInt(detail.product_id || 0),
