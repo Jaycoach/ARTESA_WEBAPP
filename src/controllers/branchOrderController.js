@@ -223,8 +223,7 @@ class BranchOrderController {
       const query = `
         SELECT 
           o.*,
-          os.status_name,
-          os.status_color,
+          os.name as status_name,
           u.name as user_name,
           u.mail as user_email,
           cb.branch_name,

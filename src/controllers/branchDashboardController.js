@@ -209,7 +209,7 @@ class BranchDashboardController {
           o.invoice_total,
           o.docnum_sap,
           o.comments,
-          os.status_name,
+          os.name as status_name,
           os.status_color,
           u.name as user_name,
           u.mail as user_email,
@@ -219,7 +219,7 @@ class BranchDashboardController {
         JOIN users u ON o.user_id = u.id
         LEFT JOIN order_details od ON o.order_id = od.order_id
         WHERE ${whereClause}
-        GROUP BY o.order_id, os.status_name, os.status_color, u.name, u.mail
+        GROUP BY o.order_id, os.name, u.name, u.mail
         ORDER BY o.order_date DESC
         LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
       `;
@@ -469,14 +469,14 @@ class BranchDashboardController {
           o.total_amount,
           u.name as user_name,
           u.mail as user_email,
-          os.status_name,
+          os.name as status_name,
           COUNT(od.order_detail_id) as products_count
         FROM orders o
         JOIN order_status os ON o.status_id = os.status_id
         JOIN users u ON o.user_id = u.id
         LEFT JOIN order_details od ON o.order_id = od.order_id
         WHERE ${whereClause}
-        GROUP BY o.order_id, os.status_name, u.name, u.mail
+        GROUP BY o.order_id, os.name, u.name, u.mail
         ORDER BY o.invoice_date DESC
         LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
       `;
