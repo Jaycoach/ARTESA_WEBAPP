@@ -172,9 +172,39 @@ router.post('/logout', verifyBranchToken, branchAuthController.logout);
  *                 success:
  *                   type: boolean
  *                   example: true
- *                 data:
+ *                 *                 data:
  *                   type: object
- *                   description: Datos de la sucursal
+ *                   properties:
+ *                     branch_id:
+ *                       type: integer
+ *                       description: ID de la sucursal
+ *                     client_id:
+ *                       type: integer
+ *                       description: ID del cliente
+ *                     branch_name:
+ *                       type: string
+ *                       description: Nombre de la sucursal
+ *                     client_name:
+ *                       type: string
+ *                       description: Nombre del cliente
+ *                     user_id:
+ *                       type: integer
+ *                       description: ID del usuario principal del cliente
+ *                     user_name:
+ *                       type: string
+ *                       description: Nombre del usuario principal
+ *                     user_email:
+ *                       type: string
+ *                       description: Email del usuario principal
+ *                     user_cardcode_sap:
+ *                       type: string
+ *                       description: Código SAP del usuario principal
+ *                     user_cardtype_sap:
+ *                       type: string
+ *                       description: Tipo de cliente en SAP (cCustomer, cLid, etc.)
+ *                     type:
+ *                       type: string
+ *                       example: branch
  *       401:
  *         description: No autorizado
  *       404:

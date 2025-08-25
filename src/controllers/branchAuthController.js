@@ -207,21 +207,63 @@ class BranchAuthController {
                 });
             }
 
+            // Obtener el user_id del cliente principal asociado a esta sucursal
+            const clientUserQuery = `
+                SELECT 
+                    cp.user_id,
+                    u.name as user_name,
+                    u.mail as user_email,
+                    cp.cardcode_sap,
+                    cp.cardtype_sap
+                FROM client_profiles cp
+                JOIN users u ON cp.user_id = u.id
+                WHERE cp.client_id = $1
+                LIMIT 1
+            `;
+            
+            const { rows: userRows } = await pool.query(clientUserQuery, [branch.client_id]);
+            
             // Remover datos sensibles
             const { password: _, ...branchData } = branch;
 
+            // Preparar respuesta con user_id incluido
+            const profileData = {
+                ...branchData,
+                type: 'branch'
+            };
+
+            // Agregar información del usuario principal si existe
+            if (userRows.length > 0) {
+                const userInfo = userRows[0];
+                profileData.user_id = userInfo.user_id;
+                profileData.user_name = userInfo.user_name;
+                profileData.user_email = userInfo.user_email;
+                profileData.user_cardcode_sap = userInfo.cardcode_sap;
+                profileData.user_cardtype_sap = userInfo.cardtype_sap;
+                
+                logger.debug('Usuario principal encontrado para sucursal', {
+                    branchId: req.branch.branch_id,
+                    clientId: branch.client_id,
+                    userId: userInfo.user_id,
+                    cardTypeSap: userInfo.cardtype_sap
+                });
+            } else {
+                logger.warn('No se encontró usuario principal para la sucursal', {
+                    branchId: req.branch.branch_id,
+                    clientId: branch.client_id
+                });
+            }
+
             res.status(200).json({
                 success: true,
-                data: {
-                    ...branchData,
-                    type: 'branch'
-                }
+                data: profileData
             });
 
         } catch (error) {
             logger.error('Error obteniendo perfil de sucursal', {
                 error: error.message,
-                branchId: req.branch.branch_id
+                branchId: req.branch.branch_id,
+                stack: error.stack
             });
 
             res.status(500).json({
