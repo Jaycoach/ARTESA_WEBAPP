@@ -4,6 +4,9 @@ const jwt = require('jsonwebtoken');
 const rateLimit = require('express-rate-limit');
 const { createContextLogger } = require('../config/logger');
 const BranchAuth = require('../models/BranchAuth');
+const crypto = require('crypto');
+const EmailService = require('../services/EmailService');
+const AuditService = require('../services/AuditService');
 
 const logger = createContextLogger('BranchAuthController');
 
@@ -24,6 +27,11 @@ const branchLoginLimiter = rateLimit({
 });
 
 class BranchAuthController {
+    /**
+     * Genera un token JWT para una sucursal
+     * @param {Object} branch - Datos de la sucursal
+     * @returns {Promise<string>} Token JWT
+     */
     static async generateToken(branch) {
         const payload = {
             branch_id: branch.branch_id,
@@ -41,6 +49,11 @@ class BranchAuthController {
         });
     }
 
+    /**
+     * Inicia sesión de una sucursal
+     * @param {Request} req - Express request
+     * @param {Response} res - Express response
+     */
     static async login(req, res) {
         const { email, password } = req.body;
 
@@ -165,6 +178,11 @@ class BranchAuthController {
         }
     }
 
+    /**
+     * Cierra sesión de una sucursal
+     * @param {Request} req - Express request
+     * @param {Response} res - Express response
+     */
     static async logout(req, res) {
         try {
             const token = req.headers.authorization?.split(' ')[1];
@@ -196,6 +214,11 @@ class BranchAuthController {
         }
     }
 
+    /**
+     * Obtiene el perfil de una sucursal
+     * @param {Request} req - Express request
+     * @param {Response} res - Express response
+     */
     static async getProfile(req, res) {
         try {
             const branch = await BranchAuth.findById(req.branch.branch_id);
@@ -273,6 +296,11 @@ class BranchAuthController {
         }
     }
 
+    /**
+     * Obtiene el código de lista de precios del cliente principal
+     * @param {Request} req - Express request
+     * @param {Response} res - Express response
+     */
     static async getClientPriceListCode(req, res) {
         try {
             const { client_id } = req.branch;
@@ -339,6 +367,11 @@ class BranchAuthController {
         }
     }
 
+    /**
+     * Verifica el registro de una sucursal
+     * @param {Request} req - Express request
+     * @param {Response} res - Express response
+     */
     static async checkRegistration(req, res) {
         const { email } = req.body;
 
@@ -396,13 +429,263 @@ class BranchAuthController {
             });
         }
     }
+    /**
+     * Verificar email de sucursal
+     */
+    static async verifyEmail(req, res) {
+        const { token } = req.params;
+
+        try {
+            logger.info('Iniciando verificación de email para sucursal', {
+                token: token ? token.substring(0, 8) + '...' : 'undefined',
+                ip: req.ip
+            });
+
+            if (!token) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Token de verificación es requerido'
+                });
+            }
+
+            // Buscar sucursal por token de verificación
+            const { rows } = await pool.query(
+                `SELECT branch_id, email_branch, branch_name, client_id, verification_token, 
+                        verification_expires, email_verified
+                 FROM client_branches 
+                 WHERE verification_token = $1`,
+                [token]
+            );
+
+            if (rows.length === 0) {
+                logger.warn('Token de verificación no encontrado', {
+                    token: token.substring(0, 8) + '...'
+                });
+
+                return res.status(400).json({
+                    success: false,
+                    message: 'Token de verificación inválido'
+                });
+            }
+
+            const branch = rows[0];
+
+            // Verificar si el token ha expirado
+            if (branch.verification_expires && new Date() > new Date(branch.verification_expires)) {
+                logger.warn('Token de verificación expirado', {
+                    branchId: branch.branch_id,
+                    expiredAt: branch.verification_expires
+                });
+
+                return res.status(400).json({
+                    success: false,
+                    message: 'El token de verificación ha expirado. Solicita un nuevo enlace de verificación.',
+                    expired: true
+                });
+            }
+
+            // Verificar si ya está verificado
+            if (branch.email_verified) {
+                logger.info('Email de sucursal ya verificado', {
+                    branchId: branch.branch_id,
+                    email: branch.email_branch
+                });
+
+                return res.status(200).json({
+                    success: true,
+                    message: 'El email ya está verificado. Puedes iniciar sesión.',
+                    alreadyVerified: true
+                });
+            }
+
+            // Verificar y activar la sucursal
+            await pool.query(
+                `UPDATE client_branches 
+                 SET email_verified = true,
+                     verification_token = NULL,
+                     verification_expires = NULL,
+                     updated_at_auth = CURRENT_TIMESTAMP
+                 WHERE branch_id = $1`,
+                [branch.branch_id]
+            );
+
+            logger.info('Email de sucursal verificado exitosamente', {
+                branchId: branch.branch_id,
+                email: branch.email_branch
+            });
+
+            // Registrar en auditoría
+            await AuditService.logAuditEvent(
+                AuditService.AUDIT_EVENTS.SECURITY_EVENT,
+                {
+                    details: {
+                        action: 'BRANCH_EMAIL_VERIFIED',
+                        branchId: branch.branch_id,
+                        clientId: branch.client_id,
+                        email: branch.email_branch
+                    },
+                    ipAddress: req.ip
+                },
+                null, // No hay user_id para branches
+                branch.branch_id
+            );
+
+            return res.status(200).json({
+                success: true,
+                message: 'Email de sucursal verificado exitosamente. Ya puedes iniciar sesión.',
+                verified: true
+            });
+
+        } catch (error) {
+            logger.error('Error verificando email de sucursal', {
+                error: error.message,
+                stack: error.stack,
+                token: token ? token.substring(0, 8) + '...' : 'undefined'
+            });
+
+            return res.status(500).json({
+                success: false,
+                message: 'Error interno al verificar email de sucursal'
+            });
+        }
+    }
+
+    /**
+     * Reenviar verificación de email para sucursal
+     */
+    static async resendVerification(req, res) {
+        const { mail, recaptchaToken } = req.body;
+
+        if (!mail) {
+            return res.status(400).json({
+                success: false,
+                message: 'El correo electrónico es requerido'
+            });
+        }
+
+        try {
+            logger.info('Reenviando verificación para sucursal', { mail, ip: req.ip });
+
+            // Verificar si la sucursal existe
+            const { rows } = await pool.query(
+                'SELECT branch_id, email_verified, is_login_enabled, branch_name, client_id FROM client_branches WHERE email_branch = $1',
+                [mail]
+            );
+
+            if (rows.length === 0) {
+                // Por seguridad, no indicamos si el correo existe o no
+                return res.status(200).json({
+                    success: true,
+                    message: 'Si tu correo de sucursal está registrado, recibirás un enlace de verificación'
+                });
+            }
+
+            const branch = rows[0];
+
+            // Verificar que tenga login habilitado
+            if (!branch.is_login_enabled) {
+                logger.warn('Intento de reenvío en sucursal con login deshabilitado', {
+                    branchId: branch.branch_id,
+                    mail
+                });
+                return res.status(200).json({
+                    success: true,
+                    message: 'Si tu correo de sucursal está registrado, recibirás un enlace de verificación'
+                });
+            }
+
+            // Si ya está verificado, informar sin revelar el estado
+            if (branch.email_verified) {
+                logger.info('Intento de reenvío a sucursal ya verificada', {
+                    branchId: branch.branch_id,
+                    mail
+                });
+
+                return res.status(200).json({
+                    success: true,
+                    message: 'Si tu correo de sucursal está registrado y no verificado, recibirás un enlace de verificación'
+                });
+            }
+
+            // Generar nuevo token y fecha de expiración
+            const verificationToken = crypto.randomBytes(32).toString('hex');
+            const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 horas
+
+            // Actualizar token en la base de datos
+            await pool.query(
+                'UPDATE client_branches SET verification_token = $1, verification_expires = $2 WHERE branch_id = $3',
+                [verificationToken, verificationExpires, branch.branch_id]
+            );
+
+            // Enviar correo de verificación
+            try {
+                await EmailService.sendBranchVerificationEmail(
+                    mail, 
+                    verificationToken,
+                    branch.branch_name
+                );
+
+                logger.info('Correo de verificación reenviado para sucursal', {
+                branchId: branch.branch_id,
+                mail
+                });
+                // Registrar en auditoría
+                await AuditService.logAuditEvent(
+                    AuditService.AUDIT_EVENTS.SECURITY_EVENT,
+                    {
+                        details: {
+                            action: 'BRANCH_VERIFICATION_RESENT',
+                            branchId: branch.branch_id,
+                            clientId: branch.client_id,
+                            email: mail
+                        },
+                        ipAddress: req.ip
+                    },
+                    null, // No hay user_id para branches
+                    branch.branch_id
+                );
+
+            } catch (emailError) {
+                logger.error('Error enviando correo de verificación para sucursal', {
+                    error: emailError.message,
+                    branchId: branch.branch_id,
+                    mail
+                });
+
+                return res.status(500).json({
+                    success: false,
+                    message: 'Error enviando correo de verificación'
+                });
+            }
+
+            return res.status(200).json({
+                success: true,
+                message: 'Si tu correo de sucursal está registrado, recibirás un enlace de verificación'
+            });
+
+        } catch (error) {
+            logger.error('Error reenviando verificación para sucursal', {
+                error: error.message,
+                stack: error.stack,
+                mail
+            });
+
+            return res.status(500).json({
+                success: false,
+                message: 'Error interno del servidor'
+            });
+        }
+    }
 }
 
+// Exports con nombres más descriptivos y mejor organización
 module.exports = {
     login: BranchAuthController.login.bind(BranchAuthController),
     logout: BranchAuthController.logout.bind(BranchAuthController),
     getProfile: BranchAuthController.getProfile.bind(BranchAuthController),
     checkRegistration: BranchAuthController.checkRegistration.bind(BranchAuthController),
     getClientPriceListCode: BranchAuthController.getClientPriceListCode.bind(BranchAuthController),
+    verifyEmail: BranchAuthController.verifyEmail.bind(BranchAuthController),
+    resendVerification: BranchAuthController.resendVerification.bind(BranchAuthController),
     branchLoginLimiter
 };

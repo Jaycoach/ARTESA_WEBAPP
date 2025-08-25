@@ -465,6 +465,9 @@ app.use(`${API_PREFIX}/client-profiles`, fileUpload(fileUploadOptions), clientPr
 app.use(`${API_PREFIX}/password`, passwordResetRoutes);
 app.use(`${API_PREFIX}/payments`, paymentRoutes);
 
+// Branch password reset routes
+app.use('/branch-password', require('./src/routes/branchPasswordResetRoutes'));
+
 // Rutas para sucursales
 app.use(`${API_PREFIX}/branch-orders`, branchOrderRoutes);
 app.use(`${API_PREFIX}/branch-dashboard`, branchDashboardRoutes);

@@ -151,7 +151,65 @@ router.post('/login',
  *         description: Error interno del servidor
  */
 router.post('/logout', verifyBranchToken, branchAuthController.logout);
+/**
+ * @swagger
+ * /api/branch-auth/verify-email/{token}:
+ *   get:
+ *     summary: Verificar email de sucursal
+ *     description: Verifica el email de una sucursal usando el token recibido por correo
+ *     tags: [BranchAuth]
+ *     parameters:
+ *       - in: path
+ *         name: token
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Token de verificación de email
+ *     responses:
+ *       200:
+ *         description: Email verificado exitosamente
+ *       400:
+ *         description: Token inválido o expirado
+ *       500:
+ *         description: Error interno del servidor
+ */
+router.get('/verify-email/:token', branchAuthController.verifyEmail);
 
+/**
+ * @swagger
+ * /api/branch-auth/resend-verification:
+ *   post:
+ *     summary: Reenviar verificación de email para sucursal
+ *     description: Reenvía el correo de verificación a una sucursal
+ *     tags: [BranchAuth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - mail
+ *             properties:
+ *               mail:
+ *                 type: string
+ *                 format: email
+ *                 description: Correo electrónico de la sucursal
+ *               recaptchaToken:
+ *                 type: string
+ *                 description: Token de reCAPTCHA
+ *     responses:
+ *       200:
+ *         description: Correo de verificación enviado
+ *       400:
+ *         description: Datos inválidos
+ *       500:
+ *         description: Error interno del servidor
+ */
+router.post('/resend-verification', 
+    sanitizeBody, 
+    branchAuthController.resendVerification
+);
 /**
  * @swagger
  * /api/branch-auth/profile:

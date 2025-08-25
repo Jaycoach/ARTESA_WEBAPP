@@ -253,6 +253,96 @@ class EmailService {
       throw new Error(`Error al enviar el correo de confirmación de verificación: ${error.message}`);
     }
   }
+  /**
+   * Enviar email de verificación para sucursal
+   */
+  async sendBranchVerificationEmail(email, token, branchName) {
+      try {
+          const verificationUrl = `${process.env.FRONTEND_URL}/branch-verify-email?token=${token}`;
+          
+          const mailOptions = {
+              from: {
+                  name: 'La Artesa',
+                  address: process.env.SMTP_FROM
+              },
+              to: email,
+              subject: `Verificar email de sucursal - ${branchName}`,
+              html: `
+                  <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                      <h2>Verificación de Email - Sucursal ${branchName}</h2>
+                      <p>Para completar el acceso a tu sucursal, verifica tu dirección de email haciendo clic en el siguiente enlace:</p>
+                      <a href="${verificationUrl}" style="background-color: #4CAF50; color: white; padding: 14px 20px; text-decoration: none; border-radius: 4px;">
+                          Verificar Email
+                      </a>
+                      <p>Si no puedes hacer clic en el botón, copia y pega este enlace en tu navegador:</p>
+                      <p>${verificationUrl}</p>
+                      <p>Este enlace expirará en 24 horas.</p>
+                  </div>
+              `
+          };
+
+          const info = await this.transporter.sendMail(mailOptions);
+          logger.info('Correo de verificación de sucursal enviado exitosamente', {
+              messageId: info.messageId,
+              response: info.response
+          });
+
+          return info;
+      } catch (error) {
+          logger.error('Error al enviar correo de verificación para sucursal:', {
+              error: error.message,
+              stack: error.stack
+          });
+          throw new Error(`Error al enviar el correo de verificación: ${error.message}`);
+      }
+  }
+
+  /**
+   * Enviar email de reset de contraseña para sucursal
+   */
+  async sendBranchPasswordResetEmail(email, token, branchName, companyName) {
+      try {
+          const resetUrl = `${process.env.FRONTEND_URL}/branch-reset-password?token=${token}`;
+          
+          const mailOptions = {
+              from: {
+                  name: 'La Artesa',
+                  address: process.env.SMTP_FROM
+              },
+              to: email,
+              subject: `Restablecer contraseña - Sucursal ${branchName}`,
+              html: `
+                  <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                      <h2>Restablecimiento de Contraseña</h2>
+                      <p><strong>Sucursal:</strong> ${branchName}</p>
+                      <p><strong>Cliente:</strong> ${companyName}</p>
+                      <p>Has solicitado restablecer tu contraseña. Haz clic en el siguiente enlace para crear una nueva contraseña:</p>
+                      <a href="${resetUrl}" style="background-color: #2196F3; color: white; padding: 14px 20px; text-decoration: none; border-radius: 4px;">
+                          Restablecer Contraseña
+                      </a>
+                      <p>Si no puedes hacer clic en el botón, copia y pega este enlace en tu navegador:</p>
+                      <p>${resetUrl}</p>
+                      <p>Este enlace expirará en 1 hora.</p>
+                      <p>Si no solicitaste este cambio, puedes ignorar este correo.</p>
+                  </div>
+              `
+          };
+
+          const info = await this.transporter.sendMail(mailOptions);
+          logger.info('Correo de reset de contraseña para sucursal enviado exitosamente', {
+              messageId: info.messageId,
+              response: info.response
+          });
+
+          return info;
+      } catch (error) {
+          logger.error('Error al enviar correo de reset para sucursal:', {
+              error: error.message,
+              stack: error.stack
+          });
+          throw new Error(`Error al enviar el correo de reset: ${error.message}`);
+      }
+  }
 }
 
 
