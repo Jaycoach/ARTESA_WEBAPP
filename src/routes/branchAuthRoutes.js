@@ -172,7 +172,7 @@ router.post('/logout', verifyBranchToken, branchAuthController.logout);
  *                 success:
  *                   type: boolean
  *                   example: true
- *                 *                 data:
+ *                 data:
  *                   type: object
  *                   properties:
  *                     branch_id:
