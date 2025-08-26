@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Select from 'react-select';
 import { useAuth } from '../../../../hooks/useAuth';
 import { useUserActivation } from '../../../../hooks/useUserActivation';
 import { orderService } from '../../../../services/orderService';
 import UserActivationStatus from '../../../UserActivationStatus';
-import API from '../../../../api/config';
+import { AUTH_TYPES } from '../../../../constants/AuthTypes';
+import API, { BranchOrdersAPI, getProductsAPI, isBranchUser, debugTokens } from '../../../../api/config';
 import DeliveryDatePicker from './DeliveryDatePicker';
 import OrderFileUpload from './OrderFileUpload';
 import Notification from '../../../../Components/ui/Notification';
@@ -12,7 +13,7 @@ import { useNavigate } from 'react-router-dom';
 import usePriceList from '../../../../hooks/usePriceList';
 
 const CreateOrderForm = ({ onOrderCreated }) => {
-  const { user } = useAuth();
+  const { user, branch, authType, isAuthenticated } = useAuth();
   const {
     userPriceListCode,
     priceCache,
@@ -26,7 +27,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
 
   // Estados de validación simplificados basados en useUserActivation
   const isValidating = userStatus.loading;
-  const canAccessForm = userStatus.canCreateOrders && !userStatus.loading;
+  const canAccessForm = userStatus.canCreateOrders && !userStatus.loading && isAuthenticated;
 
   // Resultado de validación
   const validationResult = {
@@ -38,15 +39,6 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     }] : [],
     warnings: []
   };
-  
-
-  // Debug para diagnosticar el problema
-  useEffect(() => {
-  }, [userStatus.loading, userStatus.canCreateOrders, userStatus.isActive, userStatus.hasClientProfile, isValidating, canAccessForm]);
-
-  // Debug simplificado
-  useEffect(() => {
-  }, [isValidating, canAccessForm, userStatus, user?.id]);
 
   const [products, setProducts] = useState([]);
   const [orderDetails, setOrderDetails] = useState([{ product_id: '', quantity: 1, unit_price: 0 }]);
@@ -57,6 +49,11 @@ const CreateOrderForm = ({ onOrderCreated }) => {
   const [notification, setNotification] = useState({ show: false, message: '', type: '' });
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [siteSettings, setSiteSettings] = useState({ orderTimeLimit: '18:00' });
+  const [branchInfo, setBranchInfo] = useState(null);
+  const [loadingBranchInfo, setLoadingBranchInfo] = useState(false);
+  const fetchProductsCalledRef = useRef(false);
+  const fetchBranchesCalledRef = useRef(false);
+
   // Cargar configuración del sitio
   useEffect(() => {
     const fetchSettings = async () => {
@@ -94,6 +91,9 @@ const CreateOrderForm = ({ onOrderCreated }) => {
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [deliveryZone, setDeliveryZone] = useState(null);
   const [availableDeliveryDays, setAvailableDeliveryDays] = useState([]);
+  const isFetchingProducts = useRef(false);
+  const isFetchingBranches = useRef(false);
+  const [search, setSearch] = useState('');
   const showNotification = (message, type = 'success') => {
     setNotification({ show: true, message, type });
     setTimeout(() => setNotification({ show: false, message: '', type: '' }), 5000);
@@ -243,7 +243,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     );
   };
 
-  useEffect(() => {
+  /*useEffect(() => {
     if (!canAccessForm) return;
 
     const fetchProducts = async () => {
@@ -322,7 +322,149 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       }
     };
     fetchProducts();
-  }, [canAccessForm, userPriceListCode, fetchMultiplePrices]);
+  }, [canAccessForm, userPriceListCode, fetchMultiplePrices]);*/
+  useEffect(() => {
+    if (!canAccessForm) return;
+
+    const fetchProducts = async () => {
+      console.log('🚀 Iniciando fetchProducts - CARGANDO TODOS LOS PRODUCTOS:', {
+        authType,
+        timestamp: new Date().toISOString()
+      });
+      setLoadingProducts(true);
+
+      try {
+        // ✅ DETERMINAR CÓDIGO DE LISTA DE PRECIOS
+        let priceListCode = '1';
+
+        if (authType === AUTH_TYPES.BRANCH) {
+          try {
+            console.log('🏢 Obteniendo price_list_code para usuario BRANCH...');
+            const branchResponse = await API.get('/branch-auth/profile');
+            if (branchResponse.data.success && branchResponse.data.data.price_list_code) {
+              priceListCode = branchResponse.data.data.price_list_code;
+            }
+          } catch (error) {
+            console.warn('⚠️ Error obteniendo price_list_code, usando fallback:', error.message);
+          }
+        }
+
+        console.log(`🎯 Usando lista de precios: ${priceListCode}`);
+
+        // ✅ CARGAR TODOS LOS PRODUCTOS CON PAGINACIÓN COMPLETA
+        let allProducts = [];
+        let currentPage = 1;
+        let totalPages = 1;
+        let totalProductCount = 0;
+
+        do {
+          const params = new URLSearchParams({
+            page: currentPage.toString(),
+            limit: '50',
+            orderBy: 'product_code',
+            orderDirection: 'ASC'
+          });
+
+          const endpoint = `/price-lists/${priceListCode}/products?${params.toString()}`;
+          console.log(`📡 Cargando página ${currentPage}/${totalPages}:`, endpoint);
+
+          const response = await API.get(endpoint);
+
+          if (response.data.success && Array.isArray(response.data.data)) {
+            const pageProducts = response.data.data;
+            allProducts = [...allProducts, ...pageProducts];
+
+            // ✅ ACTUALIZAR INFORMACIÓN DE PAGINACIÓN
+            if (response.data.pagination) {
+              totalPages = response.data.pagination.totalPages;
+              totalProductCount = response.data.pagination.totalCount;
+              console.log(`✅ Página ${currentPage}/${totalPages} cargada: ${pageProducts.length} productos (Total: ${allProducts.length}/${totalProductCount})`);
+            }
+
+            currentPage++;
+          } else {
+            throw new Error(response.data.message || 'Error en respuesta del API');
+          }
+
+          // ✅ SEGURIDAD: Evitar bucle infinito
+          if (currentPage > 20) {
+            console.warn('⚠️ Límite de seguridad alcanzado (20 páginas)');
+            break;
+          }
+
+        } while (currentPage <= totalPages);
+
+        console.log(`🎉 CARGA COMPLETA: ${allProducts.length} productos cargados de ${totalProductCount} disponibles`);
+
+        // ✅ MAPEO DE TODOS LOS PRODUCTOS
+        const mappedProducts = allProducts.map((plProduct, index) => {
+          const priceValue = parseFloat(plProduct.price) || 0;
+
+          return {
+            product_id: plProduct.price_list_id || (index + 1), // Usar price_list_id como ID único
+            name: plProduct.local_product_name || plProduct.product_name,
+            description: plProduct.local_product_description || plProduct.product_name,
+            sap_code: plProduct.product_code,
+            code: plProduct.product_code,
+
+            // ✅ PRECIOS
+            price: priceValue,
+            price_list1: priceValue,
+            effective_price: priceValue,
+            unit_price: priceValue,
+
+            // ✅ INFORMACIÓN ADICIONAL
+            price_list_code: plProduct.price_list_code,
+            price_list_name: plProduct.price_list_name,
+            currency: plProduct.currency || 'COP',
+            image_url: null,
+            has_custom_price: true,
+            custom_price_info: {
+              price: priceValue,
+              currency: plProduct.currency || 'COP',
+              updated_at: plProduct.updated_at
+            },
+            price_source: 'price_list',
+            has_impuesto_saludable: false,
+            updated_at: plProduct.updated_at,
+            sap_last_sync: plProduct.sap_last_sync,
+
+            // ✅ DATOS ORIGINALES
+            _original: plProduct
+          };
+        });
+
+        // ✅ FILTRAR PRODUCTOS CON PRECIOS VÁLIDOS
+        const validProducts = mappedProducts.filter(product => {
+          const price = parseFloat(product.price);
+          return price > 0;
+        });
+
+        setProducts(validProducts);
+
+        console.log(`✅ PRODUCTOS FINALES CARGADOS: ${validProducts.length} productos válidos con precios > 0`);
+        console.log(`📊 ESTADÍSTICAS:`);
+        console.log(`   - Total obtenido del API: ${allProducts.length}`);
+        console.log(`   - Productos con precios válidos: ${validProducts.length}`);
+        console.log(`   - Lista de precios: ${priceListCode} (${allProducts[0]?.price_list_name || 'N/A'})`);
+
+        if (validProducts.length === 0) {
+          showNotification('No se encontraron productos con precios válidos', 'warning');
+        } else {
+          showNotification(`${validProducts.length} productos cargados exitosamente`, 'success');
+        }
+
+      } catch (error) {
+        console.error('❌ Error cargando TODOS los productos:', error);
+        showNotification('Error al cargar productos: ' + error.message, 'error');
+        setProducts([]);
+      } finally {
+        setLoadingProducts(false);
+      }
+    };
+
+    fetchProducts();
+  }, [canAccessForm, authType]);
 
     useEffect(() => {
   }, [products]);
@@ -442,6 +584,68 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       setDeliveryDate('');
     }
   };
+
+  useEffect(() => {
+  // Condición: usuario autenticado, tipo BRANCH y aún no hay sucursal seleccionada
+  const shouldLoadBranchInfo =
+    authType === AUTH_TYPES.BRANCH &&
+    isAuthenticated &&
+    !selectedBranch;
+
+  if (shouldLoadBranchInfo) {
+    const loadBranchInfo = async () => {
+      try {
+        // Llamada API idéntica a Products para asegurar consistencia
+        const response = await API.get('/branch-auth/profile');
+        if (response.data.success) {
+          const branchData = response.data.data;
+
+          // Construir objeto branchOption idéntico
+          const branchOption = {
+            value: branchData.branch_id,
+            label: branchData.branch_name,
+            address: branchData.address,
+            municipality_code: branchData.municipality_code,
+            city: branchData.city || "",
+            municipality_name: getCityNameByDANECode(branchData.municipality_code),
+            data: branchData // opcional, si lo usas en selects
+          };
+
+          setSelectedBranch(branchOption);
+          setBranchAddress(branchData.address || '');
+          setDeliveryAddress(branchData.address || '');
+
+          // Zona de entrega
+          const zone = getDeliveryZoneByDANECode(
+            branchData.municipality_code,
+            branchData.city || ""
+          );
+          setDeliveryZone(zone);
+
+          setDeliveryDate('');
+          if (zone) {
+            const dates = calculateAvailableDeliveryDates(
+              zone,
+              siteSettings?.orderTimeLimit || '18:00'
+            );
+            setAvailableDeliveryDays(dates);
+            // Si tienes función para setMunicipalityCode:
+            if (typeof setMunicipalityCode === "function") {
+              setMunicipalityCode(branchData.municipality_code);
+            }
+          } else {
+            setAvailableDeliveryDays([]);
+          }
+        }
+      } catch (error) {
+        console.error('❌ Error cargando info de sucursal:', error);
+        showNotification('Error al cargar información de sucursal', 'error');
+      }
+    };
+    loadBranchInfo();
+  }
+  // solo dispara cuando relevante, igual que Products
+}, [authType, isAuthenticated, selectedBranch, siteSettings, getCityNameByDANECode, getDeliveryZoneByDANECode, calculateAvailableDeliveryDates]);
 
   const handleDeliveryAddressChange = (e) => {
     setDeliveryAddress(e.target.value);
@@ -616,66 +820,160 @@ const CreateOrderForm = ({ onOrderCreated }) => {
   };
 
   const handleConfirmCreateOrder = async () => {
-  try {
-    setIsSubmitting(true);
-    setShowConfirmationModal(false);
+    try {
+      setIsSubmitting(true);
+      setShowConfirmationModal(false);
 
-    // === DEBUG TEMPORAL - AGREGAR ESTAS LÍNEAS ===
-    console.log('=== INICIANDO DEBUG handleConfirmCreateOrder ===');
-    const { ivaTotal, impuestoSaludableTotal } = calculateTaxByProduct(orderDetails);
-    const totalTaxes = ivaTotal + impuestoSaludableTotal;
-    console.log('subtotal existe:', typeof subtotal !== 'undefined' ? subtotal : 'NO DEFINIDA');
-    console.log('ivaTotal existe:', typeof ivaTotal !== 'undefined' ? ivaTotal : 'NO DEFINIDA');
-    console.log('impuestoSaludableTotal existe:', typeof impuestoSaludableTotal !== 'undefined' ? impuestoSaludableTotal : 'NO DEFINIDA');
-    console.log('totalTaxes existe:', typeof totalTaxes !== 'undefined' ? totalTaxes : 'NO DEFINIDA');
-    console.log('ivaTotal existe:', typeof ivaTotal !== 'undefined' ? ivaTotal : 'NO DEFINIDA');
-    console.log('shipping existe:', typeof shipping !== 'undefined' ? shipping : 'NO DEFINIDA');
-    console.log('=== FIN DEBUG INICIAL ===');
-    // === FIN DEBUG TEMPORAL ===
-
+      console.log('=== INICIANDO DEBUG handleConfirmCreateOrder ===');
+      const { ivaTotal, impuestoSaludableTotal } = calculateTaxByProduct(orderDetails);
+      const totalTaxes = ivaTotal + impuestoSaludableTotal;
       const totalAmount = parseFloat(calculateTotal());
 
-      const orderData = {
-        user_id: user.id,
-        total_amount: totalAmount,
-        delivery_date: deliveryDate,
-        notes: orderNotes,
-        delivery_zone: deliveryZone ? deliveryZone.key : null,
-        delivery_zone_name: deliveryZone ? deliveryZone.name : null,
-        municipality_dane_code: selectedBranch ? selectedBranch.municipality_code : null,
-        price_list_code: userPriceListCode || 'GENERAL',
-        has_custom_pricing: userPriceListCode && userPriceListCode !== 'GENERAL',
-        subtotal_amount: subtotal,
-        iva_amount: ivaTotal,
-        shipping_amount: shipping || 0,
-        details: orderDetails.map(detail => ({
-          product_id: parseInt(detail.product_id || 0),
-          quantity: parseInt(detail.quantity || 0),
-          branch_id: selectedBranch ? selectedBranch.value : null,
-          branch_name: selectedBranch ? selectedBranch.label : '',
-          branch_address: branchAddress,
-          delivery_address: branchAddress,
-          shipping_fee: shipping,
-          unit_price: parseFloat(detail.unit_price || 0),
-          municipality_dane_code: selectedBranch ? selectedBranch.municipality_code : null,
-          price_source: detail.price_source || 'default',
-          original_unit_price: parseFloat(detail.original_price || detail.unit_price || 0)
-        }))
-      };
+      const isBranchUser = authType === AUTH_TYPES.BRANCH;
 
-      console.log('Datos de orden a enviar con código DANE:', {
-        userId: user.id,
-        userActive: user.is_active,
-        deliveryZone: deliveryZone,
-        municipalityDANE: selectedBranch ? selectedBranch.municipality_code : null,
-        orderData: orderData
-      });
+      let orderData;
+
+      if (isBranchUser) {
+        // 🏢 PAYLOAD PARA USUARIO BRANCH - usar datos COMPLETOS del localStorage
+        const branchDataStorage = localStorage.getItem('branchData');
+        const priceListStorage = localStorage.getItem('priceListProfile');
+
+        if (!branchDataStorage) {
+          throw new Error('No se encontraron datos de sucursal');
+        }
+
+        const branchInfo = JSON.parse(branchDataStorage);
+        const priceListInfo = priceListStorage ? JSON.parse(priceListStorage) : {};
+
+        console.log('🏢 Datos completos de Branch disponibles:', {
+          branch_id: branchInfo.branch_id,
+          user_id: branchInfo.user_id, // ← DEBE ESTAR PRESENTE
+          client_id: branchInfo.client_id,
+          user_name: branchInfo.user_name,
+          user_cardcode_sap: branchInfo.user_cardcode_sap
+        });
+
+        // ✅ VALIDAR QUE TODOS LOS DATOS CRÍTICOS ESTÉN PRESENTES
+        if (!branchInfo.user_id) {
+          console.error('❌ ERROR CRÍTICO: user_id no encontrado en branchData:', branchInfo);
+          throw new Error('Datos de usuario incompletos. Por favor, cierra sesión e inicia sesión nuevamente.');
+        }
+
+        orderData = {
+          // ✅ IDENTIFICACIÓN COMPLETA (BRANCH + USER)
+          branch_id: branchInfo.branch_id,
+          client_id: branchInfo.client_id,
+          user_id: branchInfo.user_id, // ← USAR EL user_id REAL DEL CONTEXTO
+          order_type: 'BRANCH_ORDER',
+
+          // ✅ INFORMACIÓN FINANCIERA
+          total_amount: totalAmount,
+          subtotal_amount: subtotal,
+          iva_amount: ivaTotal,
+          shipping_amount: shipping || 0,
+
+          // ✅ INFORMACIÓN DE ENTREGA
+          delivery_date: deliveryDate,
+          notes: orderNotes,
+          delivery_zone: deliveryZone ? deliveryZone.key : null,
+          delivery_zone_name: deliveryZone ? deliveryZone.name : branchInfo.city,
+          municipality_dane_code: branchInfo.municipality_code,
+
+          // ✅ LISTA DE PRECIOS
+          price_list_code: priceListInfo.price_list_code || '1',
+          has_custom_pricing: !!(priceListInfo.price_list_code && priceListInfo.price_list_code !== '1'),
+
+          // ✅ INFORMACIÓN COMPLETA DE BRANCH
+          branch_name: branchInfo.branch_name || branchInfo.branchname,
+          branch_address: branchInfo.address,
+          branch_email: branchInfo.email_branch || branchInfo.email,
+          branch_phone: branchInfo.phone,
+          company_name: branchInfo.company_name,
+          nit_number: branchInfo.nit_number,
+          ship_to_code: branchInfo.ship_to_code,
+
+          // ✅ INFORMACIÓN DEL USUARIO PRINCIPAL ASOCIADO
+          user_name: branchInfo.user_name,
+          user_email: branchInfo.user_email,
+          user_cardcode_sap: branchInfo.user_cardcode_sap,
+          user_cardtype_sap: branchInfo.user_cardtype_sap,
+
+          // ✅ DETALLES DE PRODUCTOS
+          products: orderDetails.map(products => ({
+            product_id: parseInt(products.product_id || 0),
+            quantity: parseInt(products.quantity || 0),
+            unit_price: parseFloat(products.unit_price || 0),
+            original_unit_price: parseFloat(products.original_price || detail.unit_price || 0),
+            price_source: products.price_source || 'price_list',
+
+            // Branch como origen Y destino
+            branch_id: branchInfo.branch_id,
+            branch_name: branchInfo.branch_name || branchInfo.branchname,
+            branch_address: branchInfo.address,
+            delivery_address: branchInfo.address,
+            shipping_fee: shipping || 0,
+            municipality_dane_code: branchInfo.municipality_code,
+
+            // Información del usuario principal
+            user_id: branchInfo.user_id,
+            client_id: branchInfo.client_id
+          }))
+        };
+
+        console.log('🏢 Payload BRANCH COMPLETO construido:', {
+          branch_id: orderData.branch_id,
+          user_id: orderData.user_id, // ← VERIFICAR QUE ESTÉ PRESENTE
+          client_id: orderData.client_id,
+          company_name: orderData.company_name,
+          totalItems: orderData.products.length
+        });
+
+      } else {
+        // 👤 PAYLOAD USUARIO PRINCIPAL (TU LÓGICA ORIGINAL INTACTA)
+        orderData = {
+          user_id: user.id,
+          total_amount: totalAmount,
+          delivery_date: deliveryDate,
+          notes: orderNotes,
+          delivery_zone: deliveryZone ? deliveryZone.key : null,
+          delivery_zone_name: deliveryZone ? deliveryZone.name : null,
+          municipality_dane_code: selectedBranch ? selectedBranch.municipality_code : null,
+          price_list_code: userPriceListCode || 'GENERAL',
+          has_custom_pricing: userPriceListCode && userPriceListCode !== 'GENERAL',
+          subtotal_amount: subtotal,
+          iva_amount: ivaTotal,
+          shipping_amount: shipping || 0,
+          details: orderDetails.map(detail => ({
+            product_id: parseInt(detail.product_id || 0),
+            quantity: parseInt(detail.quantity || 0),
+            branch_id: selectedBranch ? selectedBranch.value : null,
+            branch_name: selectedBranch ? selectedBranch.label : '',
+            branch_address: branchAddress,
+            delivery_address: branchAddress,
+            shipping_fee: shipping,
+            unit_price: parseFloat(detail.unit_price || 0),
+            municipality_dane_code: selectedBranch ? selectedBranch.municipality_code : null,
+            price_source: detail.price_source || 'default',
+            original_unit_price: parseFloat(detail.original_price || detail.unit_price || 0)
+          }))
+        };
+
+        console.log('👤 Payload USER construido (lógica original):', orderData);
+      }
 
       let formData = null;
       if (orderFile) {
         formData = new FormData();
         formData.append('orderFile', orderFile);
-        formData.append('user_id', user.id.toString());
+
+        if (isBranchUser) {
+          const branchInfo = JSON.parse(localStorage.getItem('branchData'));
+          formData.append('branch_id', branchInfo.branch_id.toString());
+          formData.append('user_id', branchInfo.user_id.toString());
+        } else {
+          formData.append('user_id', user.id.toString());
+        }
+
         formData.append('orderData', JSON.stringify(orderData));
       }
 
@@ -683,24 +981,23 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       if (formData) {
         result = await orderService.createOrder(formData, true);
       } else {
-        const orderWithUserId = {
-          ...orderData,
-          user_id: user.id
-        };
-        result = await orderService.createOrder(orderWithUserId, false);
+        result = await orderService.createOrder(orderData, false);
       }
 
       if (result.success) {
         showNotification('Pedido creado exitosamente', 'success');
-
+        // Reset form...
         setOrderDetails([{ product_id: '', quantity: 1, unit_price: 0 }]);
         setDeliveryDate('');
         setOrderFile(null);
         setOrderNotes('');
-        setSelectedBranch(null);
-        setBranchAddress('');
-        setDeliveryAddress('');
-        setDeliveryZone(null);
+
+        if (!isBranchUser) {
+          setSelectedBranch(null);
+          setBranchAddress('');
+          setDeliveryAddress('');
+          setDeliveryZone(null);
+        }
 
         if (onOrderCreated) onOrderCreated(result.data);
       } else {
@@ -752,28 +1049,30 @@ const CreateOrderForm = ({ onOrderCreated }) => {
 
   const handleSelectChange = (index, option) => {
     const newDetails = [...orderDetails];
-
     if (option) {
       newDetails[index].product_id = option.value;
       const selectedProduct = products.find(p => p.product_id === parseInt(option.value));
+
       if (selectedProduct) {
-        if (selectedProduct.has_custom_price && selectedProduct.custom_price_info) {
-          newDetails[index].unit_price = selectedProduct.custom_price_info.price;
-          newDetails[index].price_source = 'custom';
-          newDetails[index].original_price = parseFloat(selectedProduct.effective_price || selectedProduct.price_list1 || selectedProduct.price_list || selectedProduct.price || 0);
-        } else {
-          const defaultPrice = parseFloat(selectedProduct.effective_price || selectedProduct.price_list1 || selectedProduct.price_list || selectedProduct.price || 0);
-          newDetails[index].unit_price = defaultPrice;
-          newDetails[index].price_source = 'default';
-          newDetails[index].original_price = defaultPrice;
-        }
+        // ✅ LÓGICA SIMPLIFICADA - usar directamente el precio del producto
+        const productPrice = parseFloat(selectedProduct.price || selectedProduct.effective_price || selectedProduct.price_list1 || 0);
+
+        newDetails[index].unit_price = productPrice;
+        newDetails[index].price_source = selectedProduct.price_source || 'price_list';
+        newDetails[index].original_price = productPrice;
+
+        console.log('✅ Producto seleccionado:', {
+          name: selectedProduct.name,
+          price: productPrice,
+          source: selectedProduct.price_source
+        });
       }
     } else {
       newDetails[index].product_id = '';
       newDetails[index].unit_price = 0;
     }
 
-    handleProductChange(index, 'product_id', option ? option.value : '');
+    setOrderDetails(newDetails);
   };
 
   const formatOptionLabel = ({ value, label, image, price }) => (

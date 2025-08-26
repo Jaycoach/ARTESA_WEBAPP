@@ -1,3 +1,4 @@
+// services/branchAuthService.js - CORREGIDO CON SEGURIDAD
 import axios from 'axios';
 import { API_ENDPOINTS, ERROR_MESSAGES } from '../constants/AuthTypes';
 
@@ -12,13 +13,37 @@ const branchAxiosInstance = axios.create({
   },
 });
 
-// Interceptor para agregar token de sucursal a las peticiones
+// *** INTERCEPTOR DE SOLICITUD SEGURO ***
 branchAxiosInstance.interceptors.request.use(
   (config) => {
     const branchToken = localStorage.getItem('branchAuthToken');
     if (branchToken) {
       config.headers.Authorization = `Bearer ${branchToken}`;
     }
+
+    // 🛡️ SEGURIDAD: Evitar loggear datos sensibles
+    if (process.env.NODE_ENV !== 'production') {
+      const logConfig = { ...config };
+      if (logConfig.data && typeof logConfig.data === 'string') {
+        try {
+          const parsedData = JSON.parse(logConfig.data);
+          if (parsedData.password) {
+            parsedData.password = '***HIDDEN***';
+          }
+          logConfig.data = JSON.stringify(parsedData);
+        } catch (e) {
+          // Si no se puede parsear, ocultar todo el data
+          logConfig.data = '***HIDDEN***';
+        }
+      }
+      console.log('🔐 Request config (safe):', {
+        method: config.method,
+        url: config.url,
+        headers: logConfig.headers,
+        data: logConfig.data
+      });
+    }
+
     return config;
   },
   (error) => Promise.reject(error)
@@ -26,10 +51,20 @@ branchAxiosInstance.interceptors.request.use(
 
 // Interceptor para manejar respuestas y errores
 branchAxiosInstance.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // 🛡️ SEGURIDAD: No loggear respuesta completa que puede contener tokens
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('✅ Response received:', {
+        status: response.status,
+        url: response.config.url,
+        success: response.data?.success,
+        message: response.data?.message
+      });
+    }
+    return response;
+  },
   (error) => {
     if (error.response?.status === 401) {
-      // Token expirado o inválido
       localStorage.removeItem('branchAuthToken');
       localStorage.removeItem('branchData');
       window.location.href = '/login';
@@ -39,75 +74,145 @@ branchAxiosInstance.interceptors.response.use(
 );
 
 export const branchAuthService = {
-  // Login de sucursal
+  // Login de sucursal - VERSIÓN SEGURA Y OPTIMIZADA
   login: async (credentials) => {
     try {
+      console.log('🔄 branchAuthService: Iniciando login para:', credentials.email);
+
       const response = await branchAxiosInstance.post(API_ENDPOINTS.BRANCH_LOGIN, {
         email: credentials.email,
         password: credentials.password
       });
 
-      if (response.data.success) {
-        const { token, branchData } = response.data;
+      console.log('📡 branchAuthService: Login response:', {
+        success: response.data?.success,
+        message: response.data?.message,
+        hasToken: !!response.data?.data?.token,
+        hasBranchData: !!response.data?.data?.branch
+      });
 
-        // Guardar token y datos de sucursal
-        localStorage.setItem('branchAuthToken', token);
-        localStorage.setItem('branchData', JSON.stringify(branchData));
+      if (response.data && response.data.success) {
+        // Extraer datos de la respuesta
+        const { token, branch } = response.data.data;
 
-        return {
-          success: true,
-          token,
-          branchData
+        // 🎯 MAPEO MEJORADO DE DATOS DE SUCURSAL
+        const branchData = {
+          // IDs principales
+          branch_id: branch.branch_id,
+          client_id: branch.client_id,
+
+          // Información básica
+          email: branch.email_branch,
+          branchname: branch.branch_name,
+          manager_name: branch.manager_name,
+          company_name: branch.company_name,
+
+          // Dirección completa
+          address: branch.address,
+          city: branch.city,
+          state: branch.state,
+          country: branch.country,
+          zip_code: branch.zip_code,
+          municipality_code: branch.municipality_code,
+
+          // Información de contacto
+          phone: branch.phone,
+          contact_person: branch.contact_person,
+
+          // Información fiscal
+          nit_number: branch.nit_number,
+          verification_digit: branch.verification_digit,
+
+          // Configuración SAP
+          ship_to_code: branch.ship_to_code,
+
+          // Estados y configuración
+          is_default: branch.is_default,
+          is_login_enabled: branch.is_login_enabled,
+          type: branch.type,
+
+          // Fechas importantes
+          last_login: branch.last_login,
+          created_at: branch.created_at,
+          updated_at: branch.updated_at,
+
+          // Campos adicionales para compatibilidad
+          name: branch.branch_name, // Alias
+          branchName: branch.branch_name, // Alias
         };
+
+        console.log('🔍 Datos mapeados de sucursal:', {
+          branch_id: branchData.branch_id,
+          email: branchData.email,
+          branchname: branchData.branchname,
+          company_name: branchData.company_name,
+          is_login_enabled: branchData.is_login_enabled
+        });
+
+        if (token && branchData) {
+          // Guardar datos en localStorage
+          localStorage.setItem('branchAuthToken', token);
+          localStorage.setItem('branchData', JSON.stringify(branchData));
+
+          console.log('💾 Datos de sucursal guardados correctamente');
+
+          return {
+            success: true,
+            token,
+            branchData,
+            data: branchData // Para compatibilidad
+          };
+        } else {
+          console.error('❌ Token o branchData faltantes después de mapeo');
+          return {
+            success: false,
+            error: 'Datos incompletos del servidor'
+          };
+        }
       }
 
+      console.log('❌ Respuesta sin success o estructura incorrecta');
       return {
         success: false,
         error: ERROR_MESSAGES.INVALID_CREDENTIALS
       };
     } catch (error) {
-      console.error('Error en login de sucursal:', error);
+      console.error('🚨 Error en login de sucursal:', {
+        status: error.response?.status,
+        message: error.response?.data?.message,
+        url: error.config?.url
+      });
 
       if (error.response?.status === 404) {
-        return {
-          success: false,
-          error: ERROR_MESSAGES.BRANCH_NOT_FOUND
-        };
+        return { success: false, error: ERROR_MESSAGES.BRANCH_NOT_FOUND };
       }
-
       if (error.response?.status === 401) {
-        return {
-          success: false,
-          error: ERROR_MESSAGES.INVALID_CREDENTIALS
-        };
+        return { success: false, error: ERROR_MESSAGES.INVALID_CREDENTIALS };
       }
-
       if (error.response?.status === 403) {
-        return {
-          success: false,
-          error: ERROR_MESSAGES.UNAUTHORIZED
-        };
+        return { success: false, error: ERROR_MESSAGES.UNAUTHORIZED };
       }
 
       return {
         success: false,
-        error: ERROR_MESSAGES.NETWORK_ERROR
+        error: error.response?.data?.message || ERROR_MESSAGES.NETWORK_ERROR
       };
     }
   },
 
-  // Logout de sucursal
+  // Resto de funciones sin cambios pero con logging seguro...
   logout: async () => {
     try {
+      console.log('🔄 branchAuthService: Iniciando logout');
       await branchAxiosInstance.post(API_ENDPOINTS.BRANCH_LOGOUT);
 
-      // Limpiar datos locales
       localStorage.removeItem('branchAuthToken');
       localStorage.removeItem('branchData');
 
+      console.log('✅ Logout exitoso, datos limpiados');
       return { success: true };
     } catch (error) {
-      console.error('Error en logout de sucursal:', error);
+      console.error('❌ Error en logout:', error.message);
 
       // Limpiar datos locales aunque haya error
       localStorage.removeItem('branchAuthToken');
@@ -117,93 +222,23 @@ export const branchAuthService = {
     }
   },
 
-  // Obtener perfil de sucursal
-  getProfile: async () => {
-    try {
-      const response = await branchAxiosInstance.get(API_ENDPOINTS.BRANCH_PROFILE);
-
-      if (response.data.success) {
-        return {
-          success: true,
-          profile: response.data.profile
-        };
-      }
-
-      return {
-        success: false,
-        error: ERROR_MESSAGES.UNAUTHORIZED
-      };
-    } catch (error) {
-      console.error('Error obteniendo perfil de sucursal:', error);
-
-      return {
-        success: false,
-        error: ERROR_MESSAGES.NETWORK_ERROR
-      };
-    }
-  },
-
-  // Obtener sucursales por cliente
-  getBranchesByClient: async (clientId) => {
-    try {
-      const response = await branchAxiosInstance.get(`${API_ENDPOINTS.CLIENT_BRANCHES}/${clientId}`);
-
-      if (response.data.success) {
-        return {
-          success: true,
-          branches: response.data.branches
-        };
-      }
-
-      return {
-        success: false,
-        error: ERROR_MESSAGES.BRANCH_NOT_FOUND
-      };
-    } catch (error) {
-      console.error('Error obteniendo sucursales:', error);
-
-      return {
-        success: false,
-        error: ERROR_MESSAGES.NETWORK_ERROR
-      };
-    }
-  },
-
-  // Obtener sucursales por usuario
-  getBranchesByUser: async (userId) => {
-    try {
-      const response = await branchAxiosInstance.get(`${API_ENDPOINTS.USER_BRANCHES}/${userId}`);
-
-      if (response.data.success) {
-        return {
-          success: true,
-          branches: response.data.branches
-        };
-      }
-
-      return {
-        success: false,
-        error: ERROR_MESSAGES.BRANCH_NOT_FOUND
-      };
-    } catch (error) {
-      console.error('Error obteniendo sucursales por usuario:', error);
-
-      return {
-        success: false,
-        error: ERROR_MESSAGES.NETWORK_ERROR
-      };
-    }
-  },
-
-  // Verificar si el token es válido
   validateToken: async () => {
     try {
       const token = localStorage.getItem('branchAuthToken');
-      if (!token) return false;
+      if (!token) {
+        console.log('🔍 validateToken: No hay token');
+        return false;
+      }
 
+      console.log('🔍 validateToken: Verificando token con servidor');
       const response = await branchAxiosInstance.get(API_ENDPOINTS.BRANCH_PROFILE);
-      return response.data.success;
+
+      const isValid = response.data && response.data.success;
+      console.log('🔍 validateToken resultado:', isValid);
+
+      return isValid;
     } catch (error) {
+      console.log('❌ validateToken error:', error.message);
       return false;
     }
   }

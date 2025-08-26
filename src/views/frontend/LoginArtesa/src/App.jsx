@@ -6,8 +6,8 @@ import {
   Navigate,
   Outlet,
 } from 'react-router-dom';
-import { useAuth } from './hooks/useAuth';             // ← Import único de autenticación
-import { AuthProvider } from './context/AuthContext';  // Proveedor de contexto
+import { useAuth } from './hooks/useAuth';
+import { AuthProvider } from './context/AuthContext';
 
 // 2️⃣  Imports sincrónicos (landing)
 import Home from './Components/Home/Home';
@@ -33,6 +33,7 @@ const AdminPage           = lazy(() => import('./Components/Dashboard/Pages/Admi
 const Users               = lazy(() => import('./Components/Dashboard/Pages/Users/ClientList'));
 const EmailVerification   = lazy(() => import('./Components/Register/EmailVerification'));
 const ResendVerification  = lazy(() => import('./Components/Register/ResendVerification'));
+const EmailVerificationPending = lazy(() => import('./Components/Login/EmailVerificationPending.jsx'));
 const RegistrationSuccess = lazy(() => import('./Components/Register/RegistrationSuccess'));
 const DashboardBranchLayout = lazy(() => import('./Components/Dashboard/DashboardBranchLayout'));
 
@@ -110,6 +111,16 @@ const router = createBrowserRouter([
       <Suspense fallback={<LoadingScreen />}>
         <ErrorBoundary>
           <ResendVerification />
+        </ErrorBoundary>
+      </Suspense>
+    ),
+  },
+  {
+    path: '/email-verification-pending/:token',
+    element: (
+      <Suspense fallback={<LoadingScreen />}>
+        <ErrorBoundary>
+          <EmailVerificationPending />
         </ErrorBoundary>
       </Suspense>
     ),
