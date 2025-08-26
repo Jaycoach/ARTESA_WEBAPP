@@ -94,6 +94,71 @@ router.post('/', branchOrderController.createOrder);
 
 /**
  * @swagger
+ * /api/branch-orders/orders:
+ *   get:
+ *     summary: Obtener órdenes creadas por la sucursal
+ *     description: Recupera la lista de órdenes creadas por la sucursal autenticada
+ *     tags: [BranchOrders]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: integer
+ *         description: Filtrar por estado de la orden (opcional)
+ *       - in: query
+ *         name: from_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Fecha inicial (opcional)
+ *       - in: query
+ *         name: to_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Fecha final (opcional)
+ *     responses:
+ *       200:
+ *         description: Lista de órdenes obtenida exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       order_id:
+ *                         type: integer
+ *                       order_date:
+ *                         type: string
+ *                         format: date-time
+ *                       delivery_date:
+ *                         type: string
+ *                         format: date
+ *                       status_name:
+ *                         type: string
+ *                       user_name:
+ *                         type: string
+ *                       total_amount:
+ *                         type: number
+ *                         format: float
+ *       401:
+ *         description: No autorizado - Token de sucursal inválido
+ *       500:
+ *         description: Error interno del servidor
+ */
+router.get('/orders', branchOrderController.getOrdersForBranch);
+
+/**
+ * @swagger
  * /api/branch-orders/{orderId}:
  *   get:
  *     summary: Obtener detalles de una orden específica
@@ -448,70 +513,5 @@ router.get('/client/price-list-code', branchAuthController.getClientPriceListCod
  *         description: Error interno del servidor
  */
 router.get('/products/inherited', branchOrderController.getProductsForBranch);
-
-/**
- * @swagger
- * /api/branch-orders/orders:
- *   get:
- *     summary: Obtener órdenes creadas por la sucursal
- *     description: Recupera la lista de órdenes creadas por la sucursal autenticada
- *     tags: [BranchOrders]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: status
- *         schema:
- *           type: integer
- *         description: Filtrar por estado de la orden (opcional)
- *       - in: query
- *         name: from_date
- *         schema:
- *           type: string
- *           format: date
- *         description: Fecha inicial (opcional)
- *       - in: query
- *         name: to_date
- *         schema:
- *           type: string
- *           format: date
- *         description: Fecha final (opcional)
- *     responses:
- *       200:
- *         description: Lista de órdenes obtenida exitosamente
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 data:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       order_id:
- *                         type: integer
- *                       order_date:
- *                         type: string
- *                         format: date-time
- *                       delivery_date:
- *                         type: string
- *                         format: date
- *                       status_name:
- *                         type: string
- *                       user_name:
- *                         type: string
- *                       total_amount:
- *                         type: number
- *                         format: float
- *       401:
- *         description: No autorizado - Token de sucursal inválido
- *       500:
- *         description: Error interno del servidor
- */
-router.get('/orders', branchOrderController.getOrdersForBranch);
 
 module.exports = router;

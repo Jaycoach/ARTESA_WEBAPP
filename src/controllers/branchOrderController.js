@@ -215,6 +215,14 @@ class BranchOrderController {
       const { branch_id, client_id } = req.branch;
       const { orderId } = req.params;
 
+      // Validar que orderId sea numérico
+      if (isNaN(parseInt(orderId))) {
+        return res.status(400).json({
+          success: false,
+          message: 'ID de orden inválido. Debe ser un número entero.'
+        });
+      }
+
       logger.debug('Obteniendo detalles de orden para sucursal', { 
         branchId: branch_id,
         orderId
