@@ -282,12 +282,12 @@ class BranchOrderController {
       // Obtener notas de la orden
       const notesQuery = `
         SELECT 
-          on.*,
+          u.*,
           u.name as created_by
-        FROM order_notes on
-        LEFT JOIN users u ON on.user_id = u.id
-        WHERE on.order_id = $1
-        ORDER BY on.created_at DESC
+        FROM order_notes n
+        LEFT JOIN users u ON n.user_id = u.id
+        WHERE n.order_id = $1
+        ORDER BY n.created_at DESC
       `;
 
       const { rows: notes } = await pool.query(notesQuery, [orderId]);
