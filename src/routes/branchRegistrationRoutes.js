@@ -44,7 +44,6 @@ router.post('/check-email', sanitizeBody, branchRegistrationController.checkEmai
  *             required:
  *               - email
  *               - password
- *               - manager_name
  *             properties:
  *               email:
  *                 type: string

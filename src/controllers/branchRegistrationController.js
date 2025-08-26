@@ -84,11 +84,11 @@ class BranchRegistrationController {
         try {
             logger.info('Iniciando registro de sucursal', { email, manager_name, ip: req.ip });
 
-            // Validaciones
-            if (!email || !password || !manager_name) {
+            // Validaciones - manager_name es opcional ya que viene desde SAP
+            if (!email || !password) {
                 return res.status(400).json({
                     success: false,
-                    message: 'Email, contraseña y nombre del encargado son requeridos'
+                    message: 'Email y contraseña son requeridos'
                 });
             }
 
@@ -125,24 +125,24 @@ class BranchRegistrationController {
             // Hashear contraseña
             const hashedPassword = await bcrypt.hash(password, 10);
 
-            // Actualizar sucursal con credenciales
+            // Actualizar sucursal con credenciales - manager_name es opcional
             const updateQuery = `
                 UPDATE client_branches 
                 SET 
                     password = $1,
-                    manager_name = $2,
+                    ${manager_name ? 'manager_name = $2,' : ''}
                     is_login_enabled = true,
                     created_at_auth = CURRENT_TIMESTAMP,
                     updated_at_auth = CURRENT_TIMESTAMP
-                WHERE branch_id = $3
+                WHERE branch_id = ${manager_name ? '$3' : '$2'}
                 RETURNING branch_id, branch_name, email_branch, manager_name, is_login_enabled
             `;
 
-            const { rows: updatedRows } = await pool.query(updateQuery, [
-                hashedPassword,
-                manager_name,
-                branch.branch_id
-            ]);
+            const queryParams = manager_name ? 
+                [hashedPassword, manager_name, branch.branch_id] : 
+                [hashedPassword, branch.branch_id];
+
+            const { rows: updatedRows } = await pool.query(updateQuery, queryParams);
 
             // Registrar en auditoría
             await AuditService.logAuditEvent(
