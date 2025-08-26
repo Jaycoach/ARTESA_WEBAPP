@@ -1,23 +1,32 @@
-import React, { useState } from "react";
-import { useNavigate, useParams, Link } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { useNavigate, useParams, Link, useSearchParams } from "react-router-dom";
 import { useRecaptcha } from "../../hooks/useRecaptcha";
 import { useFormValidation } from "../../hooks/useFormValidation";
 import { useError } from "../../context/ErrorContext";
+import { useAuth } from "../../hooks/useAuth"; // ✅ AGREGAR
+import { AUTH_TYPES } from "../../constants/AuthTypes"; // ✅ AGREGAR
 import FormErrorMessage from "../ui/FormErrorMessage";
-import API from "../../api/config";
 import img from "../../LoginsAssets/principal_img.gif";
 import logo from "../../LoginsAssets/logo_artesa_new.png";
-import { BsFillShieldLockFill } from "react-icons/bs";
+import { BsFillShieldLockFill, BsBuilding } from "react-icons/bs";
 import { TiArrowRightOutline } from "react-icons/ti";
 import { FaLock, FaEye, FaEyeSlash } from "react-icons/fa";
 
 const ResetPassword = () => {
   const { token } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  // ✅ DETECTAR TIPO DESDE URL
+  const userType = searchParams.get('type') === 'branch' ? AUTH_TYPES.BRANCH : AUTH_TYPES.USER;
+  const isBranchReset = userType === AUTH_TYPES.BRANCH;
 
   const { generateRecaptchaToken, error: recaptchaError, isRecaptchaReady } = useRecaptcha();
   const { values, setValues } = useFormValidation({ newPassword: '', confirmPassword: '' });
   const { errors, setFieldError, clearFieldError, clearAllErrors } = useError();
+
+  // ✅ USAR FUNCIONES DEL AUTHCONTEXT
+  const { resetPassword, resetBranchPassword } = useAuth();
 
   const [loading, setLoading] = useState(false);
   const [generalError, setGeneralError] = useState('');
@@ -25,11 +34,20 @@ const ResetPassword = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  // ✅ VERIFICAR TOKEN AL CARGAR
+  useEffect(() => {
+    if (!token) {
+      setGeneralError('Token de restablecimiento no válido');
+      setTimeout(() => navigate('/login'), 3000);
+    }
+  }, [token, navigate]);
+
   const handleChange = e => {
     const { id, value } = e.target;
     setValues({ ...values, [id]: value });
     if (errors[id]) clearFieldError(id);
     if (successMessage) setSuccessMessage('');
+    if (generalError) setGeneralError('');
   };
 
   const handleBlur = e => {
@@ -51,32 +69,72 @@ const ResetPassword = () => {
     clearAllErrors();
     setGeneralError('');
     setSuccessMessage('');
+
     let valid = true;
     if (!values.newPassword.trim()) {
-      setFieldError('newPassword', 'La contraseña es requerida'); valid = false;
+      setFieldError('newPassword', 'La contraseña es requerida');
+      valid = false;
     } else if (values.newPassword.length < 8) {
-      setFieldError('newPassword', 'La contraseña debe tener al menos 8 caracteres'); valid = false;
+      setFieldError('newPassword', 'La contraseña debe tener al menos 8 caracteres');
+      valid = false;
     }
     if (!values.confirmPassword.trim()) {
-      setFieldError('confirmPassword', 'Debe confirmar la contraseña'); valid = false;
+      setFieldError('confirmPassword', 'Debe confirmar la contraseña');
+      valid = false;
     } else if (values.confirmPassword !== values.newPassword) {
-      setFieldError('confirmPassword', 'Las contraseñas no coinciden'); valid = false;
+      setFieldError('confirmPassword', 'Las contraseñas no coinciden');
+      valid = false;
     }
+
     if (!valid) return;
+
     setLoading(true);
+
     try {
-      const recaptchaToken = await generateRecaptchaToken('reset_password');
+      // ✅ TOKEN DIFERENCIADO POR TIPO
+      const actionType = isBranchReset ? 'branch_reset_password' : 'reset_password';
+      const recaptchaToken = await generateRecaptchaToken(actionType);
+
       if (!recaptchaToken) {
         setGeneralError(recaptchaError || 'Error en la verificación de seguridad.');
         setLoading(false);
         return;
       }
-      const resetData = { token, newPassword: values.newPassword, recaptchaToken };
-      const response = await API.post("/password/reset", resetData);
-      setSuccessMessage(response.data?.message || "Contraseña restablecida con éxito.");
-      setTimeout(() => navigate("/login"), 2000);
-    } catch {
-      setGeneralError("No se pudo restablecer la contraseña. Intenta de nuevo.");
+
+      console.log(`🔄 Restableciendo contraseña ${isBranchReset ? 'BRANCH' : 'USER'}`);
+
+      let result;
+
+      // ✅ USAR FUNCIÓN CORRECTA SEGÚN TIPO
+      if (isBranchReset) {
+        result = await resetBranchPassword(token, values.newPassword);
+      } else {
+        result = await resetPassword(token, values.newPassword, recaptchaToken);
+      }
+
+      if (result.success !== false) {
+        const successMsg = result.message || `Contraseña ${isBranchReset ? 'de sucursal' : ''} restablecida con éxito.`;
+        setSuccessMessage(successMsg);
+        console.log(`✅ Reset ${isBranchReset ? 'Branch' : 'User'} exitoso`);
+
+        // ✅ REDIRECCIÓN DIFERENCIADA
+        setTimeout(() => {
+          navigate('/login', {
+            state: {
+              message: `Contraseña ${isBranchReset ? 'de sucursal' : ''} actualizada. Ya puedes iniciar sesión.`,
+              type: isBranchReset ? 'branch' : 'user'
+            }
+          });
+        }, 2000);
+      } else {
+        throw new Error(result.error || `Error al restablecer contraseña${isBranchReset ? ' de sucursal' : ''}`);
+      }
+
+    } catch (error) {
+      console.error(`❌ Error reset ${isBranchReset ? 'Branch' : 'User'}:`, error);
+      const errorMessage = error.response?.data?.message || error.message ||
+        `No se pudo restablecer la contraseña${isBranchReset ? ' de sucursal' : ''}. Intenta de nuevo.`;
+      setGeneralError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -94,7 +152,7 @@ const ResetPassword = () => {
           overflow-hidden
         `}
       >
-        {/* Lado Imagen RELLENO */}
+        {/* Lado Imagen */}
         <div className={`
           hidden md:flex md:w-1/2 relative
           min-h-[560px]
@@ -109,37 +167,63 @@ const ResetPassword = () => {
             draggable={false}
           />
         </div>
+
         {/* Formulario */}
         <div className={`
           flex flex-1 items-center justify-center py-8 px-4 sm:px-8 md:px-10 lg:px-16 bg-white
           rounded-none md:rounded-r-2xl
         `}>
           <div className="w-full max-w-[410px] mx-auto">
-            {/* Logo y títulos */}
-            <img src={logo} alt="Artesa Logo" className="h-14 mb-4 mx-auto" />
-            <h2 className="font-semibold text-xl text-gray-800 mb-1 text-center">
-              Restablecer Contraseña
-            </h2>
-            <p className="text-sm text-gray-500 mb-4 text-center">
-              Ingresa tu nueva contraseña para continuar
-            </p>
+            {/* ✅ LOGO Y TÍTULOS DIFERENCIADOS */}
+            <div className="text-center mb-6">
+              <img src={logo} alt="Artesa Logo" className="h-14 mb-4 mx-auto" />
+              <div className="flex items-center justify-center mb-2">
+                {isBranchReset ? (
+                  <BsBuilding className="text-2xl text-blue-500 mr-2" />
+                ) : (
+                  <FaLock className="text-2xl text-blue-500 mr-2" />
+                )}
+                <h2 className="font-semibold text-xl text-gray-800">
+                  Restablecer Contraseña {isBranchReset ? 'de Sucursal' : ''}
+                </h2>
+              </div>
+              <p className="text-sm text-gray-500">
+                Ingresa tu nueva contraseña{isBranchReset ? ' de sucursal' : ''} para continuar
+              </p>
+
+              {/* ✅ INDICADOR DE TIPO */}
+              {isBranchReset && (
+                <div className="mt-2 inline-flex items-center px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">
+                  <BsBuilding className="w-3 h-3 mr-1" />
+                  Cuenta de Sucursal
+                </div>
+              )}
+            </div>
+
+            {/* ✅ MENSAJES CON CONTEXTO */}
             {generalError && (
               <div className="mb-3 w-full bg-red-50 border border-red-200 text-red-700 rounded px-3 py-2 flex items-center text-xs">
                 <BsFillShieldLockFill className="mr-2 text-red-400" />
                 {generalError}
               </div>
             )}
+
             {successMessage && (
               <div className="mb-3 w-full bg-green-50 border border-green-200 text-green-700 rounded px-3 py-2 flex items-center text-xs">
-                <BsFillShieldLockFill className="mr-2 text-green-400" />
+                {isBranchReset ? (
+                  <BsBuilding className="mr-2 text-green-400" />
+                ) : (
+                  <BsFillShieldLockFill className="mr-2 text-green-400" />
+                )}
                 {successMessage}
               </div>
             )}
+
             <form onSubmit={handleSubmit} className="w-full space-y-4">
               {/* Nueva contraseña */}
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1" htmlFor="newPassword">
-                  Nueva Contraseña *
+                  Nueva Contraseña{isBranchReset ? ' de Sucursal' : ''} *
                 </label>
                 <div className="relative">
                   <FaLock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
@@ -171,6 +255,7 @@ const ResetPassword = () => {
                 </div>
                 <FormErrorMessage message={errors.newPassword} />
               </div>
+
               {/* Confirmar contraseña */}
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1" htmlFor="confirmPassword">
@@ -206,7 +291,8 @@ const ResetPassword = () => {
                 </div>
                 <FormErrorMessage message={errors.confirmPassword} />
               </div>
-              {/* Submit */}
+
+              {/* ✅ SUBMIT BUTTON DIFERENCIADO */}
               <button
                 type="submit"
                 disabled={loading || !isRecaptchaReady}
@@ -227,22 +313,29 @@ const ResetPassword = () => {
                   </>
                 ) : (
                   <>
-                    Completar Restablecimiento
+                    Completar Restablecimiento{isBranchReset ? ' de Sucursal' : ''}
                     <TiArrowRightOutline className="ml-2 h-4 w-4" />
                   </>
                 )}
               </button>
             </form>
+
             {/* Link volver */}
             <div className="w-full mt-4 text-center">
               <Link to="/login" className="text-sm text-[#215174] hover:underline font-medium">
                 ← Volver al inicio de sesión
               </Link>
             </div>
-            {/* Información de seguridad */}
+
+            {/* ✅ INFORMACIÓN DE SEGURIDAD DIFERENCIADA */}
             <div className="w-full mt-4 px-3 py-2 text-[11px] bg-[#f3f4f6] border border-blue-100 text-blue-900 rounded-lg leading-tight">
-              <BsFillShieldLockFill className="inline mr-1 text-blue-400" />
-              <span className="font-semibold">Debe tener al menos 8 caracteres.</span> Usa letras, números y símbolos. Este enlace expirará tras su primer uso.
+              {isBranchReset ? (
+                <BsBuilding className="inline mr-1 text-blue-400" />
+              ) : (
+                <BsFillShieldLockFill className="inline mr-1 text-blue-400" />
+              )}
+              <span className="font-semibold">Debe tener al menos 8 caracteres.</span>
+              Usa letras, números y símbolos. Este enlace{isBranchReset ? ' de sucursal' : ''} expirará tras su primer uso.
             </div>
           </div>
         </div>

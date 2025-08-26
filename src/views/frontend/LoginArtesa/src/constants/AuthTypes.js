@@ -25,5 +25,9 @@ export const API_ENDPOINTS = {
   CLIENT_BRANCHES: '/api/client-branches/client',
   USER_BRANCHES: '/api/client-branches/user',
   ENABLE_BRANCH_LOGIN: '/api/admin/branches',
-  DISABLE_BRANCH_LOGIN: '/api/admin/branches'
+  DISABLE_BRANCH_LOGIN: '/api/admin/branches',
+  BRANCH_VERIFY_EMAIL: '/api/branch-auth/verify-email',
+  BRANCH_RESEND_VERIFICATION: '/api/branch-auth/resend-verification',
+  BRANCH_PASSWORD_REQUEST_RESET: '/branch-password/request-reset',
+  BRANCH_PASSWORD_RESET: '/branch-password/reset'
 };

@@ -6,7 +6,8 @@ import {
 } from 'react-icons/fi';
 import Select from 'react-select';
 import { useBranches } from '../../../../hooks/useBranches';
-import API, { UploadAPI, ProductsAPI } from '../../../../api/config';
+import API, { UploadAPI, ProductsAPI, BranchOrdersAPI } from '../../../../api/config';
+import usePriceList from '../../../../hooks/usePriceList';
 import { useAuth } from '../../../../hooks/useAuth';
 import DeliveryDatePicker from '../Orders/DeliveryDatePicker';
 import Notification from '../../../../Components/ui/Notification';
@@ -15,6 +16,8 @@ import Input from '../../../../Components/ui/Input';
 import Card from '../../../../Components/ui/Card';
 import Button from '../../../../Components/ui/Button';
 import ProductImage from './components/ProductImage';
+import { AUTH_TYPES } from '../../../../constants/AuthTypes';
+import { orderService } from '../../../../services/orderService';
 
 // **CONSTANTES DE ZONAS DE ENTREGA Y CÁLCULOS**
 const DELIVERY_ZONES = {
@@ -51,102 +54,10 @@ const SHIPPING_CHARGE = 10000;
 const SHIPPING_LIMIT = 50000;
 const SHIPPING_FREE_LIMIT = 80000;
 
-// **HOOK PERSONALIZADO PARA GESTIÓN DE PRECIOS**
-const usePriceList = () => {
-  const { user } = useAuth();
-  const [userPriceListCode, setUserPriceListCode] = useState(null);
-  const [priceCache, setPriceCache] = useState({});
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-  const determinePriceList = () => {
-    if (!user) return;
-
-    let priceListCode = 'GENERAL';
-
-    // ✅ Administradores (roles 1 y 3) obtienen lista ORO
-    if ([1, 3].includes(user.role)) {
-      priceListCode = 'ORO';
-    } else if (user.clientProfile?.tamanoEmpresa === 'Grande') {
-      priceListCode = 'ORO';
-    } else if (user.clientProfile?.tamanoEmpresa === 'Mediana') {
-      priceListCode = 'PLATA';
-    } else if (user.clientProfile?.tamanoEmpresa === 'Pequena') {
-      priceListCode = 'BRONCE';
-    }
-
-    setUserPriceListCode(priceListCode);
-  };
-
-  determinePriceList();
-}, [user]);
-
-  const fetchMultiplePrices = useCallback(async (productCodes) => {
-    if (!userPriceListCode || !productCodes.length) return {};
-
-    setLoading(true);
-    try {
-      const response = await API.post(
-        `/api/price-lists/${userPriceListCode}/products/prices`,
-        { productCodes }
-      );
-
-      if (response.data.success) {
-        const newPrices = response.data.data;
-        setPriceCache(prev => ({ ...prev, ...newPrices }));
-        return newPrices;
-      }
-      return {};
-    } catch (error) {
-      console.error('Error fetching prices:', error);
-      return {};
-    } finally {
-      setLoading(false);
-    }
-  }, [userPriceListCode]);
-
-  const getProductPrice = useCallback(async (productCode) => {
-    if (!userPriceListCode) return null;
-
-    if (priceCache[productCode]) {
-      return priceCache[productCode];
-    }
-
-    try {
-      const response = await API.get(
-        `/api/price-lists/${userPriceListCode}/products/${productCode}/price`
-      );
-
-      if (response.data.success) {
-        const priceData = {
-          price: response.data.data.price,
-          currency: response.data.data.currency,
-          productName: response.data.data.product_name,
-          lastUpdate: response.data.data.updated_at
-        };
-
-        setPriceCache(prev => ({ ...prev, [productCode]: priceData }));
-        return priceData;
-      }
-      return null;
-    } catch (error) {
-      console.error('Error fetching product price:', error);
-      return null;
-    }
-  }, [userPriceListCode, priceCache]);
-
-  return {
-    userPriceListCode,
-    priceCache,
-    loading,
-    fetchMultiplePrices,
-    getProductPrice
-  };
-};
-
 const Products = () => {
   // **AUTENTICACIÓN**
-  const { user, isAuthenticated, isAdmin } = useAuth();
+  const { user, branch, authType, isAuthenticated, isAdmin, updateUserInfo } = useAuth();
+  const isBranchUser = authType === AUTH_TYPES.BRANCH;
   const userIsAdmin = isAdmin();
 
   // **HOOKS PERSONALIZADOS**
@@ -159,14 +70,16 @@ const Products = () => {
 
   const {
     userPriceListCode,
-    priceCache,
     loading: pricesLoading,
+    fetchProductsWithPrices,
+    priceCache,
     fetchMultiplePrices,
     getProductPrice
   } = usePriceList();
 
   // **ESTADOS PRINCIPALES**
   const [products, setProducts] = useState([]);
+  const [loadingProducts, setLoadingProducts] = useState(true);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
@@ -203,7 +116,9 @@ const Products = () => {
 
   // **ESTADOS PARA PAGINACIÓN**
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10);
+  const [itemsPerPage] = useState(50);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalProducts, setTotalProducts] = useState(0);
   const [siteSettings, setSiteSettings] = useState({ orderTimeLimit: '18:00' });
 
   // **FUNCIÓN PARA NOTIFICACIONES**
@@ -213,16 +128,70 @@ const Products = () => {
 
   // **FUNCIONES AUXILIARES**
   const getCurrentUserId = useCallback(() => {
-    if (!user || !user.id) {
-      console.error("Error: No se pudo obtener el ID de usuario", user);
-      return null;
+    // Para usuarios principales
+    if (authType === AUTH_TYPES.USER && user && user.id) {
+      console.log('✅ User ID obtenido de usuario principal:', user.id);
+      return user.id;
     }
-    return user.id;
-  }, [user]);
 
+    // Para usuarios BRANCH
+    if (authType === AUTH_TYPES.BRANCH) {
+      try {
+        // 1. Intentar obtener de branchData en localStorage
+        const branchDataStorage = localStorage.getItem('branchData');
+        if (branchDataStorage) {
+          const branchInfo = JSON.parse(branchDataStorage);
+          if (branchInfo.user_id) {
+            console.log('✅ User ID obtenido de branchData localStorage:', branchInfo.user_id);
+            return branchInfo.user_id;
+          }
+        }
+
+        // 2. Fallback: intentar obtener del contexto branch
+        if (branch && branch.user_id) {
+          console.log('✅ User ID obtenido del contexto branch:', branch.user_id);
+          return branch.user_id;
+        }
+
+        console.error('❌ ERROR CRÍTICO: user_id no encontrado en branchData ni en contexto');
+        console.log('🔍 Datos disponibles:', {
+          branchDataStorage: branchDataStorage,
+          branchFromContext: branch,
+          localStorage: JSON.parse(branchDataStorage || '{}')
+        });
+
+      } catch (error) {
+        console.error('❌ Error parseando branchData:', error);
+      }
+    }
+
+    console.error("❌ No se pudo obtener el ID de usuario para authType:", authType);
+    return null;
+  }, [user, authType, branch]);
+
+  // ✅ FUNCIÓN UNIFICADA DE FORMATEO DE MONEDA
   const formatCurrency = useCallback((value) => {
-    return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(value);
+    const numValue = parseFloat(value);
+    if (isNaN(numValue)) return "$ 0";
+
+    const intValue = Math.floor(numValue);
+    const valueStr = intValue.toString();
+
+    if (valueStr.length <= 6) {
+      return `$ ${valueStr.replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
+    }
+
+    const millionsPart = valueStr.slice(0, valueStr.length - 6);
+    const thousandsPart = valueStr.slice(valueStr.length - 6);
+
+    const formattedMillions = millionsPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    const formattedThousands = thousandsPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+
+    return `$ ${formattedMillions}'${formattedThousands}`;
   }, []);
+
+  // ✅ ALIAS PARA COMPATIBILIDAD
+  const formatCurrencyCOP = formatCurrency;
 
   // **FUNCIONES DE ZONA DE ENTREGA**
   const getDeliveryZoneByDANECode = useCallback((daneCode, cityName = '') => {
@@ -292,18 +261,18 @@ const Products = () => {
   const calculateTaxByProduct = (orderDetails) => {
     let ivaTotal = 0;
     let impuestoSaludableTotal = 0;
-    
+
     orderDetails.forEach(detail => {
       const itemSubtotal = detail.quantity * detail.unit_price;
       const product = products.find(p => p.product_id === parseInt(detail.product_id));
-      
+
       if (product && product.has_impuesto_saludable) {
         impuestoSaludableTotal += itemSubtotal * IMPUESTO_SALUDABLE_RATE;
       } else {
         ivaTotal += itemSubtotal * IVA_RATE;
       }
     });
-    
+
     return { ivaTotal, impuestoSaludableTotal };
   };
 
@@ -313,19 +282,19 @@ const Products = () => {
 
   const calculateShipping = (subtotal, totalTaxes) => {
     const subtotalWithTaxes = subtotal + totalTaxes;
-    
+
     if (subtotalWithTaxes < MIN_ORDER_AMOUNT) {
       return null; // No se aplica flete si está por debajo del mínimo
     }
-    
+
     if (subtotalWithTaxes >= SHIPPING_FREE_LIMIT) {
       return 0; // Envío gratis
     }
-    
+
     if (subtotalWithTaxes >= SHIPPING_LIMIT) {
       return SHIPPING_CHARGE; // Costo de envío con impuestos incluidos
     }
-    
+
     return null;
   };
 
@@ -366,77 +335,248 @@ const Products = () => {
 
   const paginate = useCallback((pageNumber) => setCurrentPage(pageNumber), []);
 
-  // **FUNCIÓN PRINCIPAL: fetchProducts CON PRECIOS PERSONALIZADOS**
   const fetchProducts = useCallback(async () => {
     setLoading(true);
     try {
-      const endpoint = `/products${search ? `?search=${encodeURIComponent(search)}` : ''}`;
-      console.log('🔄 Fetching products from:', endpoint);
+      let response;
 
-      const response = await API.get(endpoint);
+      // ✅ UNIFICADO: Todos los usuarios usan endpoint de price-lists
+      console.log('🔍 fetchProducts - Usando endpoint unificado de listas de precios:', {
+        authType,
+        userPriceListCode,
+        timestamp: new Date().toISOString()
+      });
 
-      if (response.data.success) {
-        const productsData = response.data.data || [];
+      // ✅ DETERMINAR CÓDIGO DE LISTA DE PRECIOS
+      let priceListCode = 'GENERAL'; // Valor por defecto
 
-        // Si hay lista de precios personalizada, obtener precios
-        if (userPriceListCode && userPriceListCode !== 'GENERAL' && productsData.length > 0) {
-          try {
-            const productCodes = productsData.map(p =>
-              p.sap_code || p.code || p.product_id.toString()
-            );
-
-            console.log('🔄 Fetching custom prices for list:', userPriceListCode);
-            const customPrices = await fetchMultiplePrices(productCodes);
-
-            const productsWithCustomPrices = productsData.map(product => {
-              const productCode = product.sap_code || product.code || product.product_id.toString();
-              const customPrice = customPrices[productCode];
-
-              return {
-                ...product,
-                original_price_list1: product.price_list1,
-                original_price_list2: product.price_list2,
-                original_price_list3: product.price_list3,
-                price_list1: customPrice?.price || product.price_list1,
-                price_list2: product.price_list2,
-                price_list3: product.price_list3,
-                has_custom_price: !!customPrice,
-                custom_price_info: customPrice || null,
-                price_list_code: userPriceListCode
-              };
-            });
-
-            setProducts(productsWithCustomPrices);
-            setCustomPricesApplied(true);
-            console.log('✅ Products loaded with custom prices:', productsWithCustomPrices.length);
-          } catch (priceError) {
-            console.warn('⚠️ Error loading custom prices, using default prices:', priceError);
-            setProducts(productsData);
-            setCustomPricesApplied(false);
+      if (authType === AUTH_TYPES.BRANCH) {
+        // ✅ PARA USUARIOS BRANCH: Obtener lista de precios de la sucursal
+        try {
+          const branchResponse = await API.get('/branch-auth/profile');
+          if (branchResponse.data.success && branchResponse.data.data.price_list_code) {
+            priceListCode = branchResponse.data.data.price_list_code;
+          } else {
+            // Fallback: usar lista general
+            priceListCode = '1';
           }
-        } else {
-          setProducts(productsData);
-          setCustomPricesApplied(false);
+        } catch (error) {
+          console.warn('⚠️ No se pudo obtener price_list_code de sucursal, usando fallback');
+          priceListCode = '1';
         }
-
-        setProductQuantities(
-          productsData.reduce((acc, product) => ({
-            ...acc,
-            [product.product_id]: 1
-          }), {})
-        );
-
-        console.log('✅ Products loaded:', productsData.length);
+      } else if (userPriceListCode && userPriceListCode !== 'GENERAL') {
+        // Para usuarios principales, usar su lista personalizada
+        priceListCode = userPriceListCode;
       } else {
-        throw new Error(response.data.message || 'Error al cargar productos');
+        // Fallback a lista general
+        priceListCode = '1';
       }
+
+      console.log(`🎯 Usando lista de precios: ${priceListCode} para tipo de usuario: ${authType}`);
+
+      // ✅ ENDPOINT UNIFICADO para todos los tipos de usuario
+      const endpoint = `/price-lists/${priceListCode}/products`;
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        limit: '50',
+        orderBy: 'product_name',
+        orderDirection: 'ASC'
+      });
+
+      // Agregar búsqueda si existe
+      if (search && search.trim()) {
+        params.append('search', search.trim());
+      }
+
+      const fullEndpoint = `${endpoint}?${params.toString()}`;
+      console.log('📡 Endpoint completo:', fullEndpoint);
+
+      response = await API.get(fullEndpoint);
+
+      if (response.data.success && Array.isArray(response.data.data)) {
+        const priceListProducts = response.data.data;
+
+        const paginationInfo = response.data.pagination || {
+          currentPage: 1,
+          totalPages: 1,
+          totalCount: priceListProducts.length
+        };
+
+        console.log('📊 Información de paginación:', paginationInfo);
+
+        /*/ ✅ MAPEO UNIFICADO (igual que CreateOrderForm)
+        const mappedProducts = priceListProducts.map((plProduct, index) => {
+          // Generar ID válido
+          let productId;
+          if (plProduct.product_id && !isNaN(parseInt(plProduct.product_id))) {
+            productId = parseInt(plProduct.product_id);
+          } else if (plProduct.product_code && !isNaN(parseInt(plProduct.product_code))) {
+            productId = parseInt(plProduct.product_code);
+          } else if (plProduct.id && !isNaN(parseInt(plProduct.id))) {
+            productId = parseInt(plProduct.id);
+          } else {
+            productId = index + 1000;
+          }
+
+          const priceValue = parseFloat(plProduct.price) || 0;
+
+          return {
+            product_id: productId,
+            name: plProduct.local_product_name || plProduct.product_name,
+            description: plProduct.local_product_description || plProduct.product_name,
+            sap_code: plProduct.product_code,
+            code: plProduct.product_code,
+
+            // ✅ MÚLTIPLES CAMPOS DE PRECIO para compatibilidad
+            price: priceValue,
+            price_list1: priceValue,
+            unit_price: priceValue,
+
+            // Info adicional
+            price_list_code: plProduct.price_list_code,
+            price_list_name: plProduct.price_list_name,
+            currency: plProduct.currency || 'COP',
+            image_url: plProduct.image_url || null,
+            has_custom_price: authType === AUTH_TYPES.BRANCH ? true : false,
+            custom_price_info: authType === AUTH_TYPES.BRANCH ? {
+              price: priceValue,
+              currency: plProduct.currency || 'COP',
+              updated_at: plProduct.updated_at
+            } : null,
+            price_source: 'price_list',
+            has_impuesto_saludable: plProduct.has_impuesto_saludable || false,
+            last_sync: plProduct.sap_last_sync,
+            updated_at: plProduct.updated_at,
+
+            // Campos originales para referencia
+            _original: plProduct
+          };
+        });
+
+        // Filtrar solo productos con precios válidos
+        const validProducts = mappedProducts.filter(product => {
+          const price = parseFloat(product.price);
+          return price > 0;
+        });
+
+        setProducts(validProducts);*/
+        const mappedProducts = priceListProducts.map((plProduct, index) => {
+          const priceValue = parseFloat(plProduct.price) || 0;
+
+          // ✅ SOLUCIÓN: Usar price_list_id directamente como product_id
+          const correctProductId = plProduct.price_list_id;
+
+          // ✅ DEBUG: Log para verificar el mapeo correcto
+          console.log('🔍 Product mapping debug:', {
+            originalIndex: index,
+            price_list_id: plProduct.price_list_id,
+            product_code: plProduct.product_code,
+            product_name: plProduct.product_name || plProduct.local_product_name,
+            finalProductId: correctProductId
+          });
+
+          return {
+            product_id: correctProductId, // ✅ USAR EL ID CORRECTO DEL BACKEND
+            name: plProduct.local_product_name || plProduct.product_name,
+            description: plProduct.local_product_description || plProduct.product_name,
+            sap_code: plProduct.product_code,
+            code: plProduct.product_code,
+
+            // ✅ MÚLTIPLES CAMPOS DE PRECIO para compatibilidad
+            price: priceValue,
+            price_list1: priceValue,
+            effective_price: priceValue,
+            unit_price: priceValue,
+
+            // Info adicional
+            price_list_code: plProduct.price_list_code,
+            price_list_name: plProduct.price_list_name,
+            currency: plProduct.currency || 'COP',
+            image_url: plProduct.image_url || null,
+            has_custom_price: authType === AUTH_TYPES.BRANCH ? true : false,
+            custom_price_info: authType === AUTH_TYPES.BRANCH ? {
+              price: priceValue,
+              currency: plProduct.currency || 'COP',
+              updated_at: plProduct.updated_at
+            } : null,
+            price_source: 'price_list',
+            has_impuesto_saludable: plProduct.has_impuesto_saludable || false,
+            last_sync: plProduct.sap_last_sync,
+            updated_at: plProduct.updated_at,
+
+            // ✅ MANTENER datos originales para referencia
+            _original: plProduct
+          };
+        });
+
+        // Filtrar solo productos con precios válidos Y price_list_id válido
+        const validProducts = mappedProducts.filter(product => {
+          const price = parseFloat(product.price);
+          const hasValidId = product.product_id && !isNaN(product.product_id);
+          return price > 0 && hasValidId;
+        });
+
+        setProducts(validProducts);
+
+        // Actualizar información de paginación
+        setTotalPages(paginationInfo.totalPages);
+        setTotalProducts(paginationInfo.totalCount);
+
+        /*/ Inicializar cantidades
+        const initialQuantities = {};
+        validProducts.forEach(product => {
+          initialQuantities[product.product_id] = 1;
+        });
+        setProductQuantities(initialQuantities);
+        setCustomPricesApplied(authType === AUTH_TYPES.BRANCH || (userPriceListCode && userPriceListCode !== 'GENERAL'));
+
+        console.log('✅ Productos cargados desde lista de precios:', {
+          priceListCode,
+          priceListName: priceListProducts[0]?.price_list_name,
+          totalProducts: validProducts.length,
+          authType: authType,
+          sampleProduct: validProducts
+        });*/
+        const initialQuantities = {};
+        validProducts.forEach(product => {
+          initialQuantities[product.product_id] = 1; // Ya usa el ID correcto
+        });
+        setProductQuantities(initialQuantities);
+        setCustomPricesApplied(authType === AUTH_TYPES.BRANCH || (userPriceListCode && userPriceListCode !== 'GENERAL'));
+
+        console.log('✅ Productos cargados desde lista de precios (ID CORREGIDO):', {
+          priceListCode,
+          priceListName: priceListProducts[0]?.price_list_name,
+          totalProducts: validProducts.length,
+          authType: authType,
+          sampleProductWithCorrectId: {
+            product_id: validProducts[0]?.product_id,
+            price_list_id_from_original: validProducts[0]?._original?.price_list_id,
+            name: validProducts[0]?.name,
+            code: validProducts[0]?.sap_code
+          }
+        });
+
+      } else {
+        throw new Error(response.data.message || 'No se pudieron cargar los productos desde la lista de precios');
+      }
+
     } catch (error) {
-      console.error('❌ Error fetching products:', error);
-      showNotification(error.response?.data?.message || 'Error al cargar productos', 'error');
+      console.error('❌ Error fetching products from price list:', error);
+
+      if (error.response?.status === 404) {
+        showNotification(`Lista de precios no encontrada. Verifica la configuración.`, 'error');
+      } else if (error.response?.status === 403) {
+        showNotification('Sin permisos para acceder a la lista de precios.', 'error');
+      } else {
+        showNotification('Error al cargar productos con precios verificados', 'error');
+      }
+
+      setProducts([]);
     } finally {
       setLoading(false);
     }
-  }, [search, userPriceListCode, fetchMultiplePrices, showNotification]);
+  }, [search, userPriceListCode, showNotification, currentPage, authType]);
 
   // **FUNCIONES CRUD DE PRODUCTOS**
   const handleCreateProduct = useCallback(async (productData) => {
@@ -804,7 +944,6 @@ const Products = () => {
       return;
     }
 
-    // **NUEVA VALIDACIÓN: Zona de entrega**
     if (!deliveryZone) {
       showNotification('No se pudo determinar la zona de entrega para la sucursal seleccionada', 'error');
       return;
@@ -815,12 +954,17 @@ const Products = () => {
       return;
     }
 
-    // **NUEVA VALIDACIÓN: Fecha disponible para la zona**
+    // ✅ VALIDACIÓN CRÍTICA: Fecha disponible para la zona
     if (availableDeliveryDays.length > 0) {
-      const selectedDate = new Date(deliveryDate);
-      const isDateAvailable = availableDeliveryDays.some(date =>
-        date.toDateString() === selectedDate.toDateString()
-      );
+      // Crear fecha sin problemas de zona horaria
+      const [year, month, day] = deliveryDate.split('-').map(Number);
+      const selectedDate = new Date(year, month - 1, day);
+
+      const isDateAvailable = availableDeliveryDays.some(date => {
+        const normalizedAvailable = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+        const normalizedSelected = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+        return normalizedAvailable.getTime() === normalizedSelected.getTime();
+      });
 
       if (!isDateAvailable) {
         showNotification(`La fecha seleccionada no está disponible para entregas en ${deliveryZone.name}`, 'error');
@@ -828,14 +972,20 @@ const Products = () => {
       }
     }
 
-    // Cálculos financieros
+    // ✅ CÁLCULOS FINANCIEROS CON IMPUESTOS SALUDABLES
     const subtotal = calculateSubtotal();
-    const iva = calculateIVA(subtotal);
-    const shipping = calculateShipping(subtotal);
+    const { ivaTotal, impuestoSaludableTotal } = calculateTaxByProduct(orderItems);
+    const totalTaxes = ivaTotal + impuestoSaludableTotal;
+    const shipping = calculateShipping(subtotal, totalTaxes);
 
-    // **NUEVA VALIDACIÓN: Monto mínimo con IVA**
+    // ✅ VALIDACIÓN: Monto mínimo
     if (subtotal < MIN_ORDER_AMOUNT) {
       showNotification(`El monto mínimo para crear un pedido es ${formatCurrency(MIN_ORDER_AMOUNT)} (sin IVA)`, 'error');
+      return;
+    }
+
+    if (shipping === null) {
+      showNotification('El monto mínimo para aplicar flete es $50.000. Por favor, ajusta tu pedido.', 'error');
       return;
     }
 
@@ -859,68 +1009,184 @@ const Products = () => {
     setSubmittingOrder(true);
 
     try {
-      const orderData = {
-        user_id: userId,
-        total_amount: shipping !== null ? subtotal + iva + shipping : subtotal + iva,
-        subtotal_amount: subtotal,
-        iva_amount: iva,
-        shipping_amount: shipping || 0,
-        delivery_date: deliveryDate,
-        branch_id: selectedBranch.value,
-        branch_name: selectedBranch.label,
-        branch_address: branchAddress,
-        delivery_zone: deliveryZone.key,
-        delivery_zone_name: deliveryZone.name,
-        municipality_code: municipalityCode,
-        price_list_code: userPriceListCode || 'GENERAL',
-        has_custom_pricing: customPricesApplied,
-        details: orderItems.map(item => ({
-          product_id: parseInt(item.product_id),
-          quantity: parseInt(item.quantity),
-          unit_price: parseFloat(item.unit_price),
-          price_source: item.price_source || 'default',
-          original_unit_price: parseFloat(item.original_price || item.unit_price)
-        }))
-      };
+      console.log('=== INICIANDO DEBUG submitOrder desde Products ===');
+      const totalAmount = shipping !== null ? subtotal + totalTaxes + shipping : subtotal + totalTaxes;
 
-      const response = await API.post('/orders', orderData);
+      let response;
 
+      if (authType === AUTH_TYPES.BRANCH) {
+        // 🏢 LÓGICA PARA USUARIO BRANCH
+        const branchDataStorage = localStorage.getItem('branchData');
+        const priceListStorage = localStorage.getItem('priceListProfile');
+
+        if (!branchDataStorage) {
+          throw new Error('No se encontraron datos de sucursal');
+        }
+
+        const branchInfo = JSON.parse(branchDataStorage);
+        const priceListInfo = priceListStorage ? JSON.parse(priceListStorage) : {};
+
+        if (!branchInfo.user_id) {
+          throw new Error('Datos de usuario incompletos. Por favor, cierra sesión e inicia sesión nuevamente.');
+        }
+
+        const orderData = {
+          // ✅ INFORMACIÓN DE LA ORDEN (nivel superior)
+          branch_id: branchInfo.branch_id,
+          client_id: branchInfo.client_id,
+          user_id: branchInfo.user_id,
+          order_type: 'BRANCH_ORDER',
+          total_amount: totalAmount,
+          subtotal_amount: subtotal,
+          iva_amount: ivaTotal,
+          shipping_amount: shipping || 0,
+          delivery_date: deliveryDate,
+          notes: '',
+          delivery_zone: deliveryZone ? deliveryZone.key : null,
+          delivery_zone_name: deliveryZone ? deliveryZone.name : branchInfo.city,
+          municipality_dane_code: branchInfo.municipality_code,
+          price_list_code: priceListInfo.price_list_code || '1',
+          has_custom_pricing: !!(priceListInfo.price_list_code && priceListInfo.price_list_code !== '1'),
+          branch_name: branchInfo.branch_name || branchInfo.branchname,
+          branch_address: branchInfo.address,
+          branch_email: branchInfo.email_branch || branchInfo.email,
+          branch_phone: branchInfo.phone,
+          company_name: branchInfo.company_name,
+          nit_number: branchInfo.nit_number,
+          ship_to_code: branchInfo.ship_to_code,
+          user_name: branchInfo.user_name,
+          user_email: branchInfo.user_email,
+          user_cardcode_sap: branchInfo.user_cardcode_sap,
+          user_cardtype_sap: branchInfo.user_cardtype_sap,
+
+          // ✅ PRODUCTOS - SOLO 3 CAMPOS ESENCIALES
+          products: orderItems.map(item => ({
+            product_id: parseInt(item.product_id || 0),
+            quantity: parseInt(item.quantity || 0),
+            unit_price: parseFloat(item.unit_price || 0)
+          }))
+        };
+
+        console.log('🏢 Payload BRANCH simplificado:', {
+          branch_id: orderData.branch_id,
+          user_id: orderData.user_id,
+          totalProducts: orderData.products.length,
+          sampleProduct: orderData.products[0]
+        });
+
+        const result = await orderService.createOrder(orderData, false);
+
+        if (result.success) {
+          response = { data: { success: true, data: result.data } };
+        } else {
+          throw new Error(result.message || 'Error al crear el pedido de sucursal');
+        }
+
+      } else {
+        // 👤 LÓGICA PARA USUARIO PRINCIPAL
+        const orderData = {
+          user_id: userId,
+          total_amount: totalAmount,
+          subtotal_amount: subtotal,
+          iva_amount: ivaTotal,
+          impuesto_saludable_amount: impuestoSaludableTotal,
+          shipping_amount: shipping || 0,
+          delivery_date: deliveryDate,
+          branch_id: selectedBranch.value,
+          branch_name: selectedBranch.label,
+          branch_address: branchAddress,
+          delivery_zone: deliveryZone.key,
+          delivery_zone_name: deliveryZone.name,
+          municipality_code: municipalityCode,
+          price_list_code: userPriceListCode || 'GENERAL',
+          has_custom_pricing: customPricesApplied,
+          notes: '',
+
+          // ✅ PRODUCTOS SIMPLIFICADOS - MISMO FORMATO
+          details: orderItems.map(item => ({
+            product_id: parseInt(item.product_id),
+            quantity: parseInt(item.quantity),
+            unit_price: parseFloat(item.unit_price)
+          }))
+        };
+
+        console.log('👤 Payload USER simplificado:', orderData);
+
+        const result = await orderService.createOrder(orderData, false);
+
+        if (result.success) {
+          response = { data: { success: true, data: result.data } };
+        } else {
+          throw new Error(result.message || 'Error al crear el pedido de usuario');
+        }
+      }
+
+      // ✅ MANEJO DE RESPUESTA (mantener como está)
       if (response.data.success) {
-        showNotification('Pedido creado exitosamente');
+        showNotification('Pedido creado exitosamente desde Products');
         setOrderItems([]);
         setOrderTotal(0);
         setDeliveryDate('');
-        setSelectedBranch(null);
-        setBranchAddress('');
-        setDeliveryZone(null);
-        setAvailableDeliveryDays([]);
+
+        if (authType !== AUTH_TYPES.BRANCH) {
+          setSelectedBranch(null);
+          setBranchAddress('');
+          setDeliveryZone(null);
+          setAvailableDeliveryDays([]);
+          setMunicipalityCode(null);
+        }
+
+        console.log('✅ Pedido creado exitosamente desde Products component');
       } else {
         throw new Error(response.data.message || 'Error al crear el pedido');
       }
+
     } catch (error) {
-      console.error('❌ Error submitting order:', error);
-      showNotification(
-        error.response?.data?.message || 'Error al crear el pedido',
-        'error'
-      );
+      console.error('❌ Error submitting order from Products:', error);
+      showNotification(error.message || 'Error al crear el pedido', 'error');
     } finally {
       setSubmittingOrder(false);
     }
-  }, [orderItems, deliveryDate, selectedBranch, branchAddress, deliveryZone, availableDeliveryDays, municipalityCode, userPriceListCode, customPricesApplied, calculateSubtotal, calculateIVA, calculateShipping, formatCurrency, getCurrentUserId, isAuthenticated, showNotification]);
+  }, [
+    orderItems,
+    deliveryDate,
+    selectedBranch,
+    branchAddress,
+    deliveryZone,
+    availableDeliveryDays,
+    municipalityCode,
+    userPriceListCode,
+    customPricesApplied,
+    calculateSubtotal,
+    calculateTaxByProduct,
+    calculateShipping,
+    formatCurrency,
+    getCurrentUserId,
+    isAuthenticated,
+    authType,
+    products,
+    siteSettings,
+    showNotification,
+    orderService,
+    siteSettings?.orderTimeLimit
+  ]);
 
   // **DATOS COMPUTADOS**
   const paginatedProducts = useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    return products.slice(startIndex, startIndex + itemsPerPage);
-  }, [products, currentPage, itemsPerPage]);
+    return products;
+  }, [products]);
 
-  const totalPages = Math.ceil(products.length / itemsPerPage);
-
-  // **CÁLCULOS FINANCIEROS COMPUTADOS**
+  // **CÁLCULOS FINANCIEROS COMPUTADOS - CORREGIDOS**
   const subtotal = calculateSubtotal();
-  const iva = calculateIVA(subtotal);
-  const shipping = calculateShipping(subtotal);
-  const total = shipping !== null ? subtotal + iva + shipping : subtotal + iva;
+
+  // ✅ USAR calculateTaxByProduct en lugar de calculateIVA simple
+  const { ivaTotal, impuestoSaludableTotal } = useMemo(() => {
+    return calculateTaxByProduct(orderItems);
+  }, [orderItems, products, calculateTaxByProduct]);
+
+  const totalTaxes = ivaTotal + impuestoSaludableTotal;
+  const shipping = calculateShipping(subtotal, totalTaxes);
+  const total = shipping !== null ? subtotal + totalTaxes + shipping : subtotal + totalTaxes;
 
   // **VERIFICAR SI HAY PRECIOS PERSONALIZADOS**
   const hasCustomPrices = useMemo(() => {
@@ -953,14 +1219,10 @@ const Products = () => {
   }, []);
 
   useEffect(() => {
-    if (products.length > 0) {
-      const initialQuantities = {};
-      products.forEach(product => {
-        initialQuantities[product.product_id] = 1;
-      });
-      setProductQuantities(initialQuantities);
+    if (isAuthenticated && userPriceListCode) {
+      fetchProducts();
     }
-  }, [products]);
+  }, [fetchProducts, isAuthenticated, userPriceListCode]);
 
   useEffect(() => {
     const loadBranches = async () => {
@@ -981,6 +1243,152 @@ const Products = () => {
 
     loadBranches();
   }, [isAuthenticated, user, fetchBranches, formatBranchOptions]);
+
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development' && user) {
+      console.group('🔍 Debug Lista de Precios');
+      console.log('Usuario:', user);
+      console.log('priceListProfile:', user.priceListProfile);
+      console.log('price_list_code:', user.priceListProfile?.price_list_code);
+      console.log('effective_price_list_code:', user.priceListProfile?.effective_price_list_code);
+      console.log('localStorage priceListProfile:', JSON.parse(localStorage.getItem('priceListProfile') || 'null'));
+      console.groupEnd();
+    }
+  }, [user]);
+  useEffect(() => {
+    const shouldLoadBranchInfo = authType === AUTH_TYPES.BRANCH && isAuthenticated && !selectedBranch;
+
+    if (shouldLoadBranchInfo) {
+      const loadBranchInfo = async () => {
+        try {
+          console.log('🏢 Cargando información de sucursal automáticamente...');
+          const response = await API.get('/branch-auth/profile');
+
+          if (response.data.success) {
+            const branchData = response.data.data;
+
+            // ✅ Auto-configurar sucursal
+            const branchOption = {
+              value: branchData.branch_id,
+              label: branchData.branch_name,
+              address: branchData.address,
+              municipality_code: branchData.municipality_code,
+              data: branchData
+            };
+
+            setSelectedBranch(branchOption);
+            setBranchAddress(branchData.address);
+
+            // ✅ Configurar zona de entrega
+            const zone = getDeliveryZoneByDANECode(branchData.municipality_code);
+            if (zone) {
+              setDeliveryZone(zone);
+              const dates = calculateAvailableDeliveryDates(zone, siteSettings?.orderTimeLimit);
+              setAvailableDeliveryDays(dates);
+              setMunicipalityCode(branchData.municipality_code);
+            }
+
+            console.log('✅ Sucursal auto-configurada:', branchData.branch_name);
+          }
+        } catch (error) {
+          console.error('❌ Error cargando info de sucursal:', error);
+          showNotification('Error al cargar información de sucursal', 'error');
+        }
+      };
+
+      loadBranchInfo();
+    }
+  }, [authType, isAuthenticated, selectedBranch, showNotification, getDeliveryZoneByDANECode, calculateAvailableDeliveryDates, siteSettings]);
+
+  useEffect(() => {
+    console.log('🔍 VERIFICANDO CONDICIONES FECHAS:', {
+      deliveryZone: deliveryZone?.name,
+      orderTimeLimit: siteSettings?.orderTimeLimit,
+      siteSettingsCompleto: siteSettings,
+      deliveryDate: deliveryDate
+    });
+
+    if (deliveryZone && siteSettings?.orderTimeLimit) {
+      const dates = calculateAvailableDeliveryDates(deliveryZone, siteSettings.orderTimeLimit);
+      setAvailableDeliveryDays(dates);
+
+      console.log('🔍 FECHAS CALCULADAS:', {
+        fechasGeneradas: dates.length,
+        primerasFechas: dates.slice(0, 3).map(d => d.toISOString().split('T')[0]),
+        zone: deliveryZone.name
+      });
+
+      if (deliveryDate) {
+        // CORRECCIÓN: Crear fecha sin problemas de zona horaria
+        const [year, month, day] = deliveryDate.split('-').map(Number);
+        const selectedDate = new Date(year, month - 1, day);
+
+        const isDateAvailable = dates.some(date => {
+          const normalizedAvailable = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+          const normalizedSelected = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+          return normalizedAvailable.getTime() === normalizedSelected.getTime();
+        });
+
+        if (!isDateAvailable) {
+          console.log('⚠️ Fecha seleccionada no válida, limpiando...');
+          setDeliveryDate('');
+        }
+      }
+    } else {
+      console.log('❌ Condiciones no cumplidas para calcular fechas');
+      setAvailableDeliveryDays([]);
+    }
+  }, [deliveryZone, siteSettings?.orderTimeLimit, deliveryDate, calculateAvailableDeliveryDates]);
+
+  useEffect(() => {
+    if (authType === AUTH_TYPES.BRANCH) {
+      console.group('🔍 DEBUG: Verificando datos completos de usuario BRANCH');
+
+      const branchDataStorage = localStorage.getItem('branchData');
+      if (branchDataStorage) {
+        try {
+          const branchInfo = JSON.parse(branchDataStorage);
+          console.log('📋 BranchData completo desde localStorage:', branchInfo);
+          console.log('🆔 User ID presente:', !!branchInfo.user_id, '- Valor:', branchInfo.user_id);
+          console.log('🏢 Branch ID:', branchInfo.branch_id);
+          console.log('👤 Client ID:', branchInfo.client_id);
+          console.log('📧 User Email:', branchInfo.user_email);
+          console.log('👨‍💼 User Name:', branchInfo.user_name);
+
+          if (!branchInfo.user_id) {
+            console.error('❌ PROBLEMA: user_id falta en localStorage');
+            console.log('🔄 Intentando recargar datos...');
+
+            // Forzar recarga de datos si falta user_id
+            const reloadBranchData = async () => {
+              try {
+                const response = await API.get('/branch-auth/profile');
+                if (response.data.success && response.data.data.user_id) {
+                  console.log('✅ Datos recargados con user_id:', response.data.data.user_id);
+                  localStorage.setItem('branchData', JSON.stringify(response.data.data));
+                  window.location.reload(); // Forzar recarga de la página
+                }
+              } catch (error) {
+                console.error('❌ Error recargando datos:', error);
+              }
+            };
+
+            reloadBranchData();
+          } else {
+            console.log('✅ Todos los datos necesarios están presentes');
+          }
+        } catch (error) {
+          console.error('❌ Error parseando branchData:', error);
+        }
+      } else {
+        console.error('❌ No hay branchData en localStorage');
+      }
+
+      console.log('📱 Contexto branch:', branch);
+      console.log('👤 Contexto user:', user);
+      console.groupEnd();
+    }
+  }, [authType, branch, user]);
 
   // **PROTECCIÓN DE AUTENTICACIÓN**
   if (!isAuthenticated) {
@@ -1167,8 +1575,9 @@ const Products = () => {
             <p className="text-sm text-yellow-800">
               <strong>Debug AuthContext:</strong> Usuario: {user?.name || user?.nombre} |
               Email: {user?.mail || user?.email} |
-              Role: {user?.role} | Rol: {user?.rol} |
+              AuthType: {authType} |
               Es Admin: {userIsAdmin ? 'SÍ' : 'NO'} |
+              Es Branch: {authType === AUTH_TYPES.BRANCH ? 'SÍ' : 'NO'} |
               Modo Admin: {adminMode ? 'ACTIVADO' : 'DESACTIVADO'} |
               Autenticado: {isAuthenticated ? 'SÍ' : 'NO'} |
               Lista Precios: {userPriceListCode || 'GENERAL'} |
@@ -1177,17 +1586,25 @@ const Products = () => {
             <p className="text-sm text-purple-800 mt-1">
               <strong>Debug Delivery:</strong>
               Sucursal: {selectedBranch?.label || 'Ninguna'} |
+              Auto-configurada: {authType === AUTH_TYPES.BRANCH && selectedBranch ? 'SÍ' : 'NO'} |
               Zona: {deliveryZone?.name || 'No definida'} |
               Fechas disponibles: {availableDeliveryDays.length} |
               Fecha seleccionada: {deliveryDate || 'Ninguna'}
+            </p>
+            <p className="text-sm text-green-800 mt-1">
+              <strong>Debug Products:</strong>
+              Total: {products.length} |
+              Con precios personalizados: {products.filter(p => p.has_custom_price).length} |
+              Loading: {loading ? 'SÍ' : 'NO'} |
+              Página actual: {currentPage}
             </p>
           </div>
         )}
 
         {/* **INFORMACIÓN DE PRODUCTOS** */}
-        {!loading && products.length > 0 && (
+        {!loading && totalProducts > 0 && totalPages > 1 && (
           <div className="mb-4 text-sm text-gray-600">
-            Mostrando {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, products.length)} de {products.length} productos
+            Mostrando {((currentPage - 1) * 50) + 1} - {Math.min((currentPage - 1) * 50 + products.length, totalProducts)} de {totalProducts} productos
           </div>
         )}
 
@@ -1222,11 +1639,21 @@ const Products = () => {
                   <div className="flex items-center gap-4 ml-auto">
                     <div className="text-right">
                       <div className="text-sm text-gray-600">Subtotal: {formatCurrency(subtotal)}</div>
-                      <div className="text-sm text-gray-600">IVA (19%): {formatCurrency(iva)}</div>
+
+                      {/* ✅ MOSTRAR IVA SOLO SI EXISTE */}
+                      {ivaTotal > 0 && (
+                        <div className="text-sm text-gray-600">IVA (19%): {formatCurrency(ivaTotal)}</div>
+                      )}
+
+                      {/* ✅ NUEVO: MOSTRAR IMPUESTO SALUDABLE SOLO SI EXISTE */}
+                      {impuestoSaludableTotal > 0 && (
+                        <div className="text-sm text-gray-600">Impuesto Saludable (10%): {formatCurrency(impuestoSaludableTotal)}</div>
+                      )}
+
                       <div className="text-sm text-gray-600">
                         Flete: {shipping === 0 ? 'Gratis' : shipping ? formatCurrency(shipping) : 'No aplica'}
                       </div>
-                      <div className="text-xl font-bold text-primary-300 border-t pt-1">
+                      <div className="text-xl font-bold text-primary-900 border-t pt-1">
                         Total: {formatCurrency(total)}
                       </div>
                     </div>
@@ -1304,7 +1731,7 @@ const Products = () => {
         )}
 
         {/* **SELECTOR DE SUCURSALES MEJORADO** */}
-        {!adminMode && (
+        {!adminMode && authType !== AUTH_TYPES.BRANCH && (
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Selecciona tu sucursal
@@ -1352,6 +1779,48 @@ const Products = () => {
             {!selectedBranch && (
               <p className="text-red-500 text-xs mt-1">Selecciona una sucursal para continuar</p>
             )}
+          </div>
+        )}
+
+        {/* **INFORMACIÓN DE SUCURSAL PARA USUARIOS BRANCH** */}
+        {!adminMode && authType === AUTH_TYPES.BRANCH && selectedBranch && (
+          <div className="mb-4">
+            <div className="bg-green-50 p-4 rounded-md border-l-4 border-green-400 mb-4">
+              <div className="flex items-center">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="font-medium text-green-800">
+                  Tu Sucursal: {selectedBranch.label}
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">
+                  Dirección de tu sucursal
+                </label>
+                <input
+                  type="text"
+                  value={branchAddress}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-100"
+                  readOnly
+                />
+              </div>
+
+              {deliveryZone && (
+                <div className="bg-blue-50 p-4 rounded-md border-l-4 border-blue-400">
+                  <div className="flex items-center mb-2">
+                    <span className="text-blue-500 mr-2">🚚</span>
+                    <span className="font-medium text-blue-800">
+                      Zona de Entrega: {deliveryZone.name}
+                    </span>
+                  </div>
+                  <p className="text-sm text-blue-700">
+                    Entregas: {deliveryZone.name}
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -1836,7 +2305,7 @@ const Products = () => {
         )}
 
         {/* **PAGINACIÓN** */}
-        {!loading && products.length > 0 && (
+        {!loading && totalProducts > 0 && totalPages > 1 && (
           <div className="flex flex-col items-center mt-4 mb-2">
             <div className="flex items-center justify-center gap-2 mb-3">
               <button
@@ -2099,7 +2568,7 @@ const ProductFormSimple = ({ product, onSubmit, onCancel }) => {
     }
   };
 
-return (
+  return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="md:col-span-2">
@@ -2303,7 +2772,7 @@ const ImageUploadSimple = ({ product, onUpload, onCancel }) => {
   const handleDrop = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     const file = e.dataTransfer.files[0];
     if (file) {
       const fakeEvent = { target: { files: [file] } };

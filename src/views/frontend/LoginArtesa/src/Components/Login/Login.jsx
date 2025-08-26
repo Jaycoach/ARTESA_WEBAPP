@@ -9,6 +9,7 @@ import FormErrorMessage from "../ui/FormErrorMessage";
 import AuthTypeSelector from "./AuthTypeSelector";
 import { AUTH_TYPES } from "../../constants/AuthTypes";
 import BranchRegistrationForm from "./BranchRegistrationForm";
+import API from "../../api/config";
 
 // Import Assets
 import img from "../../LoginsAssets/principal_img.gif";
@@ -32,10 +33,10 @@ const Login = () => {
         isLoading: authLoading,
         error: authError,
         requestPasswordReset,
+        requestBranchPasswordReset,
         checkBranchRegistration,
         registerBranch,
         isBranchVerifying,
-        branchVerificationStatus,
         validateBranchEmail  // Reutilizada para verificación previa
     } = useAuth();
 
@@ -44,6 +45,17 @@ const Login = () => {
     // Estados locales
     const [authType, setAuthType] = useState(AUTH_TYPES.USER);
     const [forgotPassword, setForgotPassword] = useState(false);
+    const [branchEmail, setBranchEmail] = useState('');
+    const [branchPassword, setBranchPassword] = useState('');
+    const [branchCheck, setBranchCheck] = useState({
+        loading: false,
+        needsEmailVerification: false,
+        emailVerified: null,
+        message: ''
+    });
+
+    const [showEmailVerificationBanner, setShowEmailVerificationBanner] = useState(false);
+    const [pendingVerificationEmail, setPendingVerificationEmail] = useState('');
 
     // Validación de formulario
     const { values, setValues, validateField } = useFormValidation({
@@ -67,6 +79,18 @@ const Login = () => {
     const [showEmailVerification, setShowEmailVerification] = useState(false);
     const [showPasswordField, setShowPasswordField] = useState(false);
 
+    useEffect(() => {
+        if (authType === AUTH_TYPES.BRANCH) {
+            console.log('🔍 Estado actual Branch:', {
+                showEmailVerification,
+                showPasswordField,
+                showBranchRegistration,
+                branchFoundMessage: !!branchFoundMessage,
+                email: values.mail
+            });
+        }
+    }, [authType, showEmailVerification, showPasswordField, showBranchRegistration, branchFoundMessage, values.mail]);
+
     // Redirección automática para usuarios ya autenticados
     useEffect(() => {
         if (isAuthenticated && currentAuthType) {
@@ -89,14 +113,34 @@ const Login = () => {
     // Activar verificación previa al seleccionar Branch
     useEffect(() => {
         if (authType === AUTH_TYPES.BRANCH) {
-            setShowEmailVerification(true);
-            setShowPasswordField(false);
+            // Solo resetear a verificación de email si no estamos en medio de un flujo
+            if (!showPasswordField && !showBranchRegistration) {
+                setShowEmailVerification(true);
+                setShowPasswordField(false);
+            }
             setShowBranchRegistration(false);
         } else {
             setShowEmailVerification(false);
             setShowPasswordField(true);
+            setShowBranchRegistration(false);
         }
     }, [authType]);
+
+    useEffect(() => {
+        // Mostrar mensaje de estado al regresar del reset de contraseña
+        if (location.state?.message) {
+            setGeneralError(''); // Limpiar errores
+            setBranchFoundMessage(location.state.message); // Mostrar mensaje de éxito
+
+            // Limpiar el mensaje después de 5 segundos
+            setTimeout(() => {
+                setBranchFoundMessage('');
+            }, 5000);
+
+            // Limpiar el state para evitar que se repita
+            navigate(location.pathname, { replace: true, state: {} });
+        }
+    }, [location.state, navigate]);
 
     // Funciones de manejo de formularios
     const handleChange = (e) => {
@@ -143,8 +187,13 @@ const Login = () => {
     const handleAuthTypeChange = (newAuthType) => {
         setAuthType(newAuthType);
         setGeneralError('');
+        setBranchFoundMessage('');
         if (clearError) clearError();
         clearAllErrors();
+
+        // ✅ AÑADIR ESTAS LÍNEAS
+        setShowEmailVerificationBanner(false);
+        setPendingVerificationEmail('');
 
         // Limpiar estados de sucursales al cambiar tipo
         setShowBranchRegistration(false);
@@ -164,34 +213,47 @@ const Login = () => {
                 return;
             }
 
-            // Completar registro de sucursal
-            await registerBranch(registrationData, recaptchaToken);
+            console.log('🔄 Registrando sucursal:', registrationData.email);
 
-            // Después del registro exitoso, intentar login automático
-            const loginCredentials = {
-                mail: registrationData.email,
-                password: registrationData.password,
-                recaptchaToken: await generateRecaptchaToken('login'),
-            };
+            // ✅ SOLO REGISTRAR - NO HACER LOGIN AUTOMÁTICO
+            const registrationResult = await registerBranch(registrationData, recaptchaToken);
 
-            const result = await login(loginCredentials, AUTH_TYPES.BRANCH);
+            if (registrationResult && registrationResult.success !== false) {
+                console.log('✅ Registro de sucursal completado exitosamente');
 
-            if (result.success) {
+                // ✅ LIMPIAR FORMULARIO
                 setShowBranchRegistration(false);
                 setBranchRegistrationEmail('');
-                console.log('Registro y login de sucursal completados exitosamente');
+                setGeneralError('');
+
+                // ✅ MOSTRAR MENSAJE DE VERIFICACIÓN PENDIENTE
+                setBranchFoundMessage(
+                    `¡Registro completado! Se ha enviado un correo de verificación a ${registrationData.email}. ` +
+                    `Revisa tu bandeja de entrada y haz clic en el enlace para activar tu cuenta de sucursal.`
+                );
+
+                // ✅ VOLVER AL ESTADO INICIAL
+                setShowEmailVerification(false);
+                setShowPasswordField(false);
+                setValues({ mail: '', password: '' }); // Limpiar campos
+
+                // ✅ LIMPIAR MENSAJE DESPUÉS DE 15 SEGUNDOS
+                setTimeout(() => {
+                    setBranchFoundMessage('');
+                    setShowEmailVerification(true);
+                    console.log('🔄 Volviendo a verificación de email tras registro exitoso');
+                }, 15000);
+
             } else {
-                setGeneralError('Registro completado. Por favor, inicia sesión manualmente.');
-                setShowBranchRegistration(false);
-                setBranchRegistrationEmail('');
-                // Limpiar campos para login manual
-                setValues({ mail: registrationData.email, password: '' });
-                setShowPasswordField(true);
+                throw new Error(registrationResult?.error || 'Error en el registro de sucursal');
             }
+
         } catch (error) {
-            console.error('Error en registro de sucursal:', error);
+            console.error('❌ Error en registro de sucursal:', error);
             const apiErrorMessage = extractApiErrorMessage(error);
             setGeneralError(apiErrorMessage);
+
+            // No limpiar el formulario si hay error para que el usuario pueda corregir
         }
     };
 
@@ -199,7 +261,7 @@ const Login = () => {
         e.preventDefault();
         clearAllErrors();
         setGeneralError('');
-        setBranchFoundMessage(''); // Limpiar mensaje previo
+        setBranchFoundMessage('');
 
         // Validación inicial del email
         if (!values.mail || values.mail.trim() === '') {
@@ -216,54 +278,65 @@ const Login = () => {
         setIsVerifyingBranch(true);
 
         try {
-            const result = await validateBranchEmail(values.mail);
+            const result = await checkBranchRegistration(values.mail);
 
-            if (!result.success) {
-                setGeneralError(result.error || 'Error validando email de sucursal');
-                return;
-            }
+            if (result) {
+                // ✅ CORRECCIÓN: Acceder correctamente a los datos
+                const branchInfo = result.data || result;
 
-            const { isValid, branchInfo } = result;
+                console.log('🔍 branchInfo procesado:', {
+                    branch_name: branchInfo.branch_name,
+                    email_verified: branchInfo.email_verified,
+                    needsEmailVerification: branchInfo.needsEmailVerification
+                });
 
-            if (isValid && branchInfo) {
-                // ESCENARIO 1: Sucursal encontrada y necesita completar registro
+                // ✅ PASO 1: VERIFICAR EMAIL PRIMERO
+                if (branchInfo.needsEmailVerification === true || branchInfo.email_verified === false) {
+                    console.log(`⚠️ Sucursal "${branchInfo.branch_name}" necesita verificación de email`);
+
+                    setShowEmailVerificationBanner(true);
+                    setPendingVerificationEmail(values.mail);
+                    setBranchFoundMessage(
+                        `Sucursal "${branchInfo.branch_name}" encontrada, pero debes verificar tu correo electrónico antes de continuar.`
+                    );
+                    setGeneralError('');
+                    setShowEmailVerification(true);
+                    setShowPasswordField(false);
+                    return;
+                }
+
+                // ✅ PASO 2: Verificar si necesita completar registro
                 if (branchInfo.needsRegistration === true && branchInfo.hasPassword === false) {
                     console.log(`✅ Sucursal "${branchInfo.branch_name}" encontrada - Requiere registro completo`);
 
-                    // ✅ USAR setBranchFoundMessage
                     setBranchFoundMessage(`Sucursal "${branchInfo.branch_name}" encontrada. Completa el registro para continuar.`);
-
                     setBranchRegistrationEmail(values.mail);
                     setShowBranchRegistration(true);
                     setShowEmailVerification(false);
+                    setShowEmailVerificationBanner(false);
                     setGeneralError('');
-
                     return;
                 }
 
-                // ESCENARIO 2: Sucursal ya registrada y tiene contraseña
-                else if (branchInfo.needsRegistration === false && branchInfo.hasPassword === true) {
+                // ✅ PASO 3: Sucursal lista para login
+                else if (branchInfo.needsRegistration === false && branchInfo.hasPassword === true && branchInfo.email_verified === true) {
                     console.log(`✅ Sucursal "${branchInfo.branch_name}" ya registrada - Solicitando contraseña`);
 
-                    // ✅ USAR setBranchFoundMessage para este escenario también
-                    setBranchFoundMessage(`Sucursal "${branchInfo.branch_name}" encontrada. Ingresa tu contraseña.`);
-
+                    setBranchFoundMessage(`Sucursal "${branchInfo.branch_name}" encontrada. Ingresa tu contraseña para continuar.`);
                     setShowPasswordField(true);
                     setShowEmailVerification(false);
+                    setShowEmailVerificationBanner(false);
                     setGeneralError('');
-
                     return;
                 }
 
-                // ESCENARIO 3: Estado inconsistente
+                // ✅ PASO 4: Estado realmente inconsistente
                 else {
                     console.error('Estado inconsistente de sucursal:', branchInfo);
                     setGeneralError(`Estado inconsistente de la sucursal "${branchInfo.branch_name}". Contacta soporte técnico.`);
                     return;
                 }
-            }
-
-            else {
+            } else {
                 setGeneralError('No se encontró una sucursal registrada con este email. Verifica el correo ingresado o contacta al administrador.');
                 return;
             }
@@ -271,11 +344,36 @@ const Login = () => {
         } catch (error) {
             console.error('Error en verificación de email de sucursal:', error);
 
-            const apiErrorMessage = extractApiErrorMessage(error);
-            setGeneralError(apiErrorMessage);
+            if (error.message && error.message.includes('No se encontró una sucursal')) {
+                setGeneralError('Email de sucursal no registrado en el sistema. Verifica el correo o contacta al administrador.');
+            } else if (error.code === 'ERR_NETWORK') {
+                setGeneralError('Error de conexión. Verifica tu internet e intenta nuevamente.');
+            } else {
+                setGeneralError(error.message || 'Error verificando email de sucursal. Intenta nuevamente.');
+            }
+            setShowEmailVerificationBanner(false);
         } finally {
             setIsVerifyingBranch(false);
         }
+    };
+
+    const handleChangeEmail = () => {
+        setShowEmailVerification(true);
+        setShowPasswordField(false);
+        setShowBranchRegistration(false);
+        setBranchFoundMessage('');
+        setGeneralError('');
+        setValues(prev => ({ ...prev, password: '' }));
+        clearAllErrors();
+        console.log('🔄 Volviendo a verificación de email');
+    };
+
+    const handleSendEmailVerification = () => {
+        const emailToVerify = pendingVerificationEmail || values.mail;
+        console.log('📧 Navegando a reenvío de verificación para:', emailToVerify);
+        navigate('/resend-verification?type=branch', {
+            state: { email: emailToVerify }
+        });
     };
 
     // Función de login principal
@@ -304,7 +402,9 @@ const Login = () => {
                 setIsVerifyingBranch(true);
 
                 try {
-                    const registrationStatus = await checkBranchRegistration(values.mail);
+                    // Usar checkBranchRegistration para verificación final antes del login
+                    const registrationResult = await checkBranchRegistration(values.mail);
+                    const registrationStatus = registrationResult.data || registrationResult;
 
                     if (registrationStatus.needsRegistration && !registrationStatus.hasPassword) {
                         console.log('BRANCH: Sucursal necesita completar registro');
@@ -316,7 +416,15 @@ const Login = () => {
                     }
 
                     if (!registrationStatus.needsRegistration && registrationStatus.hasPassword) {
-                        console.log('BRANCH: Sucursal con credenciales, procediendo con login directo');
+                        console.log('BRANCH: Sucursal con credenciales completas, procediendo con login');
+
+                        // Verificar si el login está habilitado
+                        if (registrationStatus.is_login_enabled === false) {
+                            setGeneralError(`La sucursal no tiene el acceso habilitado. Contacta al administrador.`);
+                            setIsVerifyingBranch(false);
+                            setLoading(false);
+                            return;
+                        }
                     }
                 } catch (branchError) {
                     const apiErrorMessage = extractApiErrorMessage(branchError);
@@ -351,7 +459,30 @@ const Login = () => {
                 setGeneralError(result.error || 'Error en el login');
             }
         } catch (error) {
-            console.error('Error en handleSubmit:', error);
+            console.error('🚨 Error en login:', {
+                message: error.message,
+                status: error.response?.status,
+                authType
+            });
+
+            // ✅ DETECTAR ERROR DE EMAIL NO VERIFICADO
+            if (authType === AUTH_TYPES.BRANCH && error.response?.status === 403) {
+                const errorMsg = error.response?.data?.message || error.message || '';
+
+                if (errorMsg.toLowerCase().includes('verificar') ||
+                    errorMsg.toLowerCase().includes('verify') ||
+                    errorMsg.includes('email')) {
+
+                    console.log('📧 Detectado error de verificación de email, mostrando banner');
+                    setShowEmailVerificationBanner(true);
+                    setPendingVerificationEmail(values.mail);
+                    setGeneralError('Debes verificar tu correo electrónico antes de iniciar sesión.');
+
+                    // ✅ NAVEGACIÓN AUTOMÁTICA OPCIONAL (descomenta si prefieres navegación directa)
+                    // handleSendEmailVerification();
+                    return;
+                }
+            }
 
             const apiErrorMessage = extractApiErrorMessage(error);
             setGeneralError(apiErrorMessage);
@@ -389,6 +520,74 @@ const Login = () => {
         console.log('Registro de sucursal cancelado - Volviendo a verificación de email');
     };
 
+    const determineAccountTypeAndReset = async (email, recaptchaToken) => {
+        try {
+            console.log('🔍 Verificando tipo de cuenta para:', email);
+
+            // ✅ PASO 1: Verificar si el email es de una sucursal
+            const checkResponse = await API.post('/branch-auth/check-registration', { email });
+
+            if (checkResponse.data?.success && checkResponse.data?.data) {
+                const branchInfo = checkResponse.data.data;
+
+                // ✅ PASO 2: Si encontramos datos de branch y el email coincide
+                if (branchInfo.email_branch && branchInfo.email_branch.toLowerCase() === email.toLowerCase()) {
+                    console.log('🏢 Email detectado como BRANCH:', branchInfo.branch_name);
+
+                    // ✅ USAR ENDPOINT DE BRANCH
+                    const resetResponse = await API.post('/branch-password/request-reset', {
+                        email,
+                        recaptchaToken
+                    });
+
+                    return {
+                        success: true,
+                        data: resetResponse.data,
+                        type: 'branch',
+                        branchName: branchInfo.branch_name
+                    };
+                }
+            }
+
+            // ✅ PASO 3: Si no es branch, usar endpoint de usuario principal
+            console.log('👤 Email detectado como USUARIO PRINCIPAL');
+            const resetResponse = await API.post('/password/request-reset', {
+                mail: email, // ← Nota: el endpoint de user usa 'mail'
+                recaptchaToken
+            });
+
+            return {
+                success: true,
+                data: resetResponse.data,
+                type: 'user'
+            };
+
+        } catch (error) {
+            console.error('❌ Error en determineAccountTypeAndReset:', error);
+
+            // ✅ PASO 4: Fallback a usuario principal en caso de error
+            try {
+                console.log('🔄 Fallback a endpoint de usuario principal');
+                const fallbackResponse = await API.post('/password/request-reset', {
+                    mail: email,
+                    recaptchaToken
+                });
+
+                return {
+                    success: true,
+                    data: fallbackResponse.data,
+                    type: 'user',
+                    fallback: true
+                };
+            } catch (fallbackError) {
+                return {
+                    success: false,
+                    error: fallbackError.response?.data?.message || fallbackError.message || 'Error enviando solicitud de reset'
+                };
+            }
+        }
+    };
+
     const handleResetPassword = async (e) => {
         e.preventDefault();
         setResetMessage("");
@@ -403,16 +602,36 @@ const Login = () => {
         setLoading(true);
 
         try {
+            // ✅ GENERAR TOKEN RECAPTCHA
             const recaptchaToken = await generateRecaptchaToken('password_reset');
             if (!recaptchaToken) {
                 setGeneralError(recaptchaError || 'Error en verificación de seguridad');
                 return;
             }
 
-            const response = await requestPasswordReset(resetEmail, recaptchaToken);
-            setResetMessage(response.message || "Revisa tu correo para continuar.");
+            // ✅ USAR FUNCIÓN DE AUTO-DETECCIÓN
+            const result = await determineAccountTypeAndReset(resetEmail, recaptchaToken);
+
+            if (result.success) {
+                // ✅ MENSAJE DIFERENCIADO POR TIPO
+                let messageText = '';
+                if (result.type === 'branch') {
+                    messageText = `Correo de recuperación enviado a la sucursal "${result.branchName}". Revisa tu bandeja de entrada.`;
+                } else {
+                    messageText = result.fallback
+                        ? "Correo de recuperación enviado. Revisa tu bandeja de entrada."
+                        : "Correo de recuperación enviado. Revisa tu bandeja de entrada.";
+                }
+
+                setResetMessage(messageText);
+                console.log(`✅ Reset request ${result.type.toUpperCase()} enviado exitosamente`);
+            } else {
+                setGeneralError(result.error || 'Error procesando la solicitud');
+            }
+
         } catch (error) {
-            setGeneralError("No se pudo procesar la solicitud.");
+            console.error('❌ Error en handleResetPassword:', error);
+            setGeneralError('No se pudo procesar la solicitud. Intenta nuevamente.');
         } finally {
             setLoading(false);
         }
@@ -451,7 +670,7 @@ const Login = () => {
                         </div>
                     </div>
 
-                <div className="lg:w-1/2 p-4 sm:p-6 lg:p-8 bg-white flex items-start lg:items-center overflow-y-auto">
+                    <div className="lg:w-1/2 p-4 sm:p-6 lg:p-8 bg-white flex items-start lg:items-center overflow-y-auto">
                         <div className="w-full max-w-sm mx-auto">
                             <div className="text-center mb-6">
                                 <img
@@ -505,63 +724,89 @@ const Login = () => {
                                     />
                                 </div>
                             ) : forgotPassword ? (
-                                <form onSubmit={handleResetPassword} className="space-y-4">
-                                    {resetMessage && (
-                                        <div className="bg-green-50 border border-green-200 text-green-700 p-3 rounded-lg text-xs">
-                                            {resetMessage}
-                                        </div>
-                                    )}
-
-                                    {generalError && (
-                                        <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-lg text-xs">
-                                            {generalError}
-                                        </div>
-                                    )}
-
-                                    <div>
-                                        <label htmlFor="resetEmail" className="block text-xs font-medium text-gray-700 mb-1">
-                                            Correo Electrónico
-                                        </label>
-                                        <div className="relative">
-                                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                                <MdEmail className="h-4 w-4 text-gray-400" />
+                                    <form onSubmit={handleResetPassword} className="space-y-4">
+                                        {/* ✅ MENSAJE INFORMATIVO */}
+                                        <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg text-xs">
+                                            <div className="flex items-center space-x-2">
+                                                <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
+                                                    <span className="text-white text-xs">i</span>
+                                                </div>
+                                                <span className="text-blue-700">
+                                                    El sistema detectará automáticamente si tu email es de sucursal o cuenta principal.
+                                                </span>
                                             </div>
-                                            <input
-                                                type="email"
-                                                id="resetEmail"
-                                                placeholder="Ingrese su correo registrado"
-                                                value={resetEmail}
-                                                onChange={handleResetChange}
-                                                required
-                                                className="block w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                                                style={{ backgroundColor: '#f6db8e' }}
-                                                disabled={isCurrentlyLoading}
-                                            />
                                         </div>
-                                    </div>
 
-                                    <button
-                                        type="submit"
-                                        className="w-full flex items-center justify-center space-x-2 py-2 px-4 rounded-lg text-sm font-medium text-white transition-all duration-200 hover:shadow-lg transform hover:-translate-y-0.5 disabled:opacity-50"
-                                        style={{ backgroundColor: '#478090' }}
-                                        disabled={isCurrentlyLoading}
-                                    >
-                                        <span>{isCurrentlyLoading ? "Enviando..." : "Enviar enlace"}</span>
-                                        <TiArrowRightOutline className="h-4 w-4" />
-                                    </button>
+                                        {resetMessage && (
+                                            <div className="bg-green-50 border border-green-200 text-green-700 p-3 rounded-lg text-xs">
+                                                <div className="flex items-center space-x-2">
+                                                    <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
+                                                        <span className="text-white text-xs">✓</span>
+                                                    </div>
+                                                    <span>{resetMessage}</span>
+                                                </div>
+                                            </div>
+                                        )}
 
-                                    <div className="text-center">
+                                        {generalError && (
+                                            <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-lg text-xs">
+                                                <div className="flex items-center space-x-2">
+                                                    <div className="w-4 h-4 bg-red-500 rounded-full flex items-center justify-center">
+                                                        <span className="text-white text-xs">!</span>
+                                                    </div>
+                                                    <span>{generalError}</span>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Campo de email */}
+                                        <div>
+                                            <label htmlFor="resetEmail" className="block text-xs font-medium text-gray-700 mb-1">
+                                                Correo Electrónico
+                                            </label>
+                                            <div className="relative">
+                                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                    <MdEmail className="h-4 w-4 text-gray-400" />
+                                                </div>
+                                                <input
+                                                    type="email"
+                                                    id="resetEmail"
+                                                    placeholder="Ingrese su correo registrado"
+                                                    value={resetEmail}
+                                                    onChange={handleResetChange}
+                                                    required
+                                                    className="block w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                                                    style={{ backgroundColor: '#f6db8e' }}
+                                                    disabled={isCurrentlyLoading}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* ✅ BOTÓN CON INDICADOR MEJORADO */}
                                         <button
-                                            type="button"
-                                            onClick={() => setForgotPassword(false)}
-                                            className="text-xs font-medium hover:underline"
-                                            style={{ color: '#478090' }}
+                                            type="submit"
+                                            className="w-full flex items-center justify-center space-x-2 py-2 px-4 rounded-lg text-sm font-medium text-white transition-all duration-200 hover:shadow-lg transform hover:-translate-y-0.5 disabled:opacity-50"
+                                            style={{ backgroundColor: '#478090' }}
                                             disabled={isCurrentlyLoading}
                                         >
-                                            ¿Recordaste tu contraseña? Inicia sesión aquí
+                                            <span>
+                                                {isCurrentlyLoading ? "Detectando tipo de cuenta..." : "Enviar enlace de recuperación"}
+                                            </span>
+                                            <TiArrowRightOutline className="h-4 w-4" />
                                         </button>
-                                    </div>
-                                </form>
+
+                                        <div className="text-center">
+                                            <button
+                                                type="button"
+                                                onClick={() => setForgotPassword(false)}
+                                                className="text-xs font-medium hover:underline"
+                                                style={{ color: '#478090' }}
+                                                disabled={isCurrentlyLoading}
+                                            >
+                                                ¿Recordaste tu contraseña? Inicia sesión aquí
+                                            </button>
+                                        </div>
+                                    </form>
                             ) : (
                                 <form onSubmit={authType === AUTH_TYPES.BRANCH && showEmailVerification ? handleEmailVerification : handleSubmit} className="space-y-4" noValidate>
                                     <AuthTypeSelector
@@ -575,6 +820,30 @@ const Login = () => {
                                         <div className="bg-blue-50 border border-blue-200 text-blue-700 p-3 rounded-lg text-xs flex items-center space-x-2">
                                             <div className="w-4 h-4 border-2 border-blue-300 border-t-blue-600 rounded-full animate-spin"></div>
                                             <span>Verificando estado de la sucursal...</span>
+                                        </div>
+                                    )}
+
+                                    {showEmailVerificationBanner && authType === AUTH_TYPES.BRANCH && (
+                                        <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 p-3 rounded-lg text-xs mb-4">
+                                            <div className="flex items-start space-x-2">
+                                                <div className="w-4 h-4 bg-yellow-500 rounded-full flex items-center justify-center mt-0.5">
+                                                    <span className="text-white text-xs">!</span>
+                                                </div>
+                                                <div className="flex-1">
+                                                    <p className="mb-2">
+                                                        Tu correo de sucursal no está verificado. Debes verificarlo para poder iniciar sesión.
+                                                    </p>
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleSendEmailVerification}
+                                                        className="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-xs font-medium"
+                                                        disabled={isCurrentlyLoading}
+                                                    >
+                                                        <MdEmail className="mr-1.5 h-3 w-3" />
+                                                        Enviar correo de verificación
+                                                    </button>
+                                                </div>
+                                            </div>
                                         </div>
                                     )}
 
@@ -642,15 +911,15 @@ const Login = () => {
                                                     style={{ backgroundColor: '#478090' }}
                                                     disabled={isCurrentlyLoading}
                                                 >
-                                                    <span>{isVerifyingBranch ? "Verificando email..." : "Verificar Email"}</span>
+                                                    <span>{isVerifyingBranch ? "Verificando email..." : "Verificar Email de Sucursal"}</span>
                                                     {!isCurrentlyLoading && <TiArrowRightOutline className="h-4 w-4" />}
                                                     {isCurrentlyLoading && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
                                                 </button>
                                             ) : showPasswordField ? (
                                                 <>
-                                                    {/* ✅ AGREGAR MENSAJE DE CONFIRMACIÓN PARA PASSWORD FIELD */}
+                                                    {/* ✅ MENSAJE MEJORADO para sucursales con credenciales */}
                                                     {branchFoundMessage && (
-                                                        <div className="bg-green-50 border border-green-200 text-green-700 p-3 rounded-lg text-xs">
+                                                        <div className="bg-green-50 border border-green-200 text-green-700 p-3 rounded-lg text-xs mb-4">
                                                             <div className="flex items-center space-x-2">
                                                                 <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
                                                                     <span className="text-white text-xs">✓</span>
@@ -662,7 +931,7 @@ const Login = () => {
 
                                                     <div>
                                                         <label htmlFor="password" className="block text-xs font-medium text-gray-700 mb-1">
-                                                            Contraseña
+                                                            Contraseña de la Sucursal
                                                         </label>
                                                 <div className="relative">
                                                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -698,6 +967,20 @@ const Login = () => {
                                                 </div>
                                                 {errors.password && <FormErrorMessage message={errors.password} />}
                                             </div>
+
+                                                        {authType === AUTH_TYPES.BRANCH && showPasswordField && (
+                                                            <div className="text-center">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={handleChangeEmail}
+                                                                    className="text-xs font-medium hover:underline"
+                                                                    style={{ color: '#478090' }}
+                                                                    disabled={isCurrentlyLoading}
+                                                                >
+                                                                    ← Cambiar email de sucursal
+                                                                </button>
+                                                            </div>
+                                                        )}
 
                                             <button
                                                 type="submit"

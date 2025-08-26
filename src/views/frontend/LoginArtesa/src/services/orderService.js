@@ -1,49 +1,133 @@
+// src/services/orderService.js
 import API from '../api/config';
 
-export const orderService = {
-  // Crear una nueva orden
-  async createOrder(orderData, isMultipart = false) {
-    try {
-      // Verificar si tenemos user_id en los datos
-      if (!isMultipart && (!orderData.user_id || orderData.user_id === undefined)) {
-        console.error('Error: user_id no encontrado en los datos de la orden', orderData);
+// ✅ FUNCIÓN PARA DETECTAR CONTEXTO DE USUARIO
+const detectUserContext = () => {
+  const branchToken = localStorage.getItem('branchAuthToken');
+  const userToken = localStorage.getItem('token');
+  const branchData = localStorage.getItem('branchData');
+  
+  if (branchToken && branchData) {
+    return {
+      type: 'branch',
+      data: JSON.parse(branchData),
+      token: branchToken,
+      endpoint: '/branch-orders' // ← ENDPOINT ESPECÍFICO PARA BRANCH
+    };
+  } else if (userToken) {
+    return {
+      type: 'user', 
+      token: userToken,
+      endpoint: '/orders' // ← ENDPOINT ORIGINAL PARA USUARIOS
+    };
+  }
+  
+  return null;
+};
+
+// ✅ FUNCIÓN PARA VALIDAR DATOS SEGÚN CONTEXTO
+const validateOrderData = (orderData, isMultipart, userContext) => {
+  if (userContext.type === 'branch') {
+    // Validaciones para Branch
+    if (!isMultipart) {
+      if (!orderData.branch_id) {
+        console.error('Error: branch_id no encontrado en datos de Branch order', orderData);
+        throw new Error('ID de sucursal requerido');
+      }
+      if (!orderData.user_id) {
+        console.error('Error: user_id no encontrado en datos de Branch order', orderData);
+        throw new Error('ID de usuario principal requerido');
+      }
+    } else if (isMultipart && orderData instanceof FormData) {
+      const hasBranchId = orderData.has('branch_id');
+      const hasUserId = orderData.has('user_id'); 
+      const orderDataJson = orderData.get('orderData');
+      
+      if (!hasBranchId && (!orderDataJson || !JSON.parse(orderDataJson).branch_id)) {
+        throw new Error('ID de sucursal requerido en FormData');
+      }
+      if (!hasUserId && (!orderDataJson || !JSON.parse(orderDataJson).user_id)) {
+        throw new Error('ID de usuario principal requerido en FormData');
+      }
+    }
+  } else {
+    // Validaciones para Usuario Principal (lógica original)
+    if (!isMultipart && (!orderData.user_id || orderData.user_id === undefined)) {
+      console.error('Error: user_id no encontrado en los datos de la orden', orderData);
+      throw new Error('ID de usuario requerido');
+    }
+    
+    if (isMultipart && orderData instanceof FormData) {
+      const hasUserId = orderData.has('user_id');
+      const orderDataJson = orderData.get('orderData');
+      
+      if (!hasUserId && (!orderDataJson || !JSON.parse(orderDataJson).user_id)) {
+        console.error('Error: user_id no encontrado en FormData', orderData);
         throw new Error('ID de usuario requerido');
       }
+    }
+  }
+};
 
-      // Si es multipart, verificar que el FormData contiene user_id o está en orderData
-      if (isMultipart && orderData instanceof FormData) {
-        const hasUserId = orderData.has('user_id');
-        const orderDataJson = orderData.get('orderData');
-
-        if (!hasUserId && (!orderDataJson || !JSON.parse(orderDataJson).user_id)) {
-          console.error('Error: user_id no encontrado en FormData', orderData);
-          throw new Error('ID de usuario requerido');
-        }
+export const orderService = {
+  // ✅ CREAR ORDEN ADAPTADA PARA DUAL CONTEXT
+  async createOrder(orderData, isMultipart = false) {
+    try {
+      // ✅ DETECTAR CONTEXTO AUTOMÁTICAMENTE
+      const userContext = detectUserContext();
+      
+      if (!userContext) {
+        throw new Error('No se pudo determinar el contexto de usuario');
       }
+      
+      console.log(`🔍 Contexto detectado: ${userContext.type.toUpperCase()}`);
+      console.log(`📡 Endpoint a usar: ${userContext.endpoint}`);
 
-      // Determinar el método de envío según si hay archivos adjuntos
+      // ✅ VALIDAR DATOS SEGÚN CONTEXTO
+      validateOrderData(orderData, isMultipart, userContext);
+
+      // ✅ CONFIGURAR HEADERS
       const headers = isMultipart
         ? { 'Content-Type': 'multipart/form-data' }
         : { 'Content-Type': 'application/json' };
 
-      console.log(`Enviando orden a API${isMultipart ? ' (multipart)' : ' (JSON)'}:`,
-        isMultipart ? 'FormData (contenido no visible)' : orderData);
+      // ✅ LOG DETALLADO SEGÚN CONTEXTO
+      if (userContext.type === 'branch') {
+        console.log(`🏢 Enviando orden de SUCURSAL a ${userContext.endpoint}${isMultipart ? ' (multipart)' : ' (JSON)'}:`);
+        console.log('🏢 Datos de sucursal:', {
+          branch_id: userContext.data.branch_id,
+          branch_name: userContext.data.branch_name || userContext.data.branchname,
+          user_id: userContext.data.user_id,
+          company_name: userContext.data.company_name
+        });
+      } else {
+        console.log(`👤 Enviando orden de USUARIO a ${userContext.endpoint}${isMultipart ? ' (multipart)' : ' (JSON)'}:`);
+      }
 
-      const response = await API.post('/orders', orderData, {
+      if (!isMultipart) {
+        console.log('📦 Payload:', orderData);
+      } else {
+        console.log('📦 FormData (contenido no visible por seguridad)');
+      }
+
+      // ✅ ENVIAR A ENDPOINT CORRECTO
+      const response = await API.post(userContext.endpoint, orderData, {
         headers
       });
 
       if (response.data.success) {
+        console.log(`✅ Orden ${userContext.type.toUpperCase()} creada exitosamente`);
         return {
           success: true,
           data: response.data.data,
-          message: 'Pedido creado exitosamente'
+          message: 'Pedido creado exitosamente',
+          context: userContext.type // ← Info adicional
         };
       } else {
         throw new Error(response.data.message || 'Error al crear el pedido');
       }
     } catch (error) {
-      console.error('Error creating order:', error);
+      console.error(`❌ Error creando orden:`, error);
       throw {
         success: false,
         message: error.response?.data?.message || error.message || 'Error al crear el pedido',
@@ -52,29 +136,37 @@ export const orderService = {
     }
   },
 
-  // Actualizar una orden existente
+  // ✅ ACTUALIZAR ORDEN ADAPTADA
   async updateOrder(orderId, orderData, isMultipart = false) {
     try {
-      // Determinar el método de envío según si hay archivos adjuntos
+      const userContext = detectUserContext();
+      
+      if (!userContext) {
+        throw new Error('No se pudo determinar el contexto de usuario');
+      }
+
       const headers = isMultipart
         ? { 'Content-Type': 'multipart/form-data' }
         : { 'Content-Type': 'application/json' };
 
-      const response = await API.put(`/orders/${orderId}`, orderData, {
-        headers
-      });
+      console.log(`🔄 Actualizando orden ${userContext.type.toUpperCase()}: ${orderId}`);
+
+      // ✅ USAR ENDPOINT CORRECTO PARA ACTUALIZACIÓN
+      const endpoint = `${userContext.endpoint}/${orderId}`;
+      const response = await API.put(endpoint, orderData, { headers });
 
       if (response.data.success) {
         return {
           success: true,
           data: response.data.data,
-          message: 'Pedido actualizado exitosamente'
+          message: 'Pedido actualizado exitosamente',
+          context: userContext.type
         };
       } else {
         throw new Error(response.data.message || 'Error al actualizar el pedido');
       }
     } catch (error) {
-      console.error('Error updating order:', error);
+      console.error('❌ Error updating order:', error);
       throw {
         success: false,
         message: error.response?.data?.message || error.message || 'Error al actualizar el pedido',
@@ -83,25 +175,36 @@ export const orderService = {
     }
   },
 
-  // Obtener una orden por su ID
+  // ✅ OBTENER ORDEN POR ID ADAPTADA
   async getOrderById(orderId) {
     try {
       if (!orderId) {
         throw new Error('ID de orden no proporcionado o inválido');
       }
 
-      const response = await API.get(`/orders/${orderId}`);
+      const userContext = detectUserContext();
+      
+      if (!userContext) {
+        throw new Error('No se pudo determinar el contexto de usuario');
+      }
+
+      console.log(`🔍 Obteniendo orden ${userContext.type.toUpperCase()}: ${orderId}`);
+
+      // ✅ USAR ENDPOINT CORRECTO
+      const endpoint = `${userContext.endpoint}/${orderId}`;
+      const response = await API.get(endpoint);
 
       if (response.data.success) {
         return {
           success: true,
-          data: response.data.data
+          data: response.data.data,
+          context: userContext.type
         };
       } else {
         throw new Error(response.data.message || 'Error al obtener la orden');
       }
     } catch (error) {
-      console.error('Error fetching order details:', error);
+      console.error('❌ Error fetching order details:', error);
       throw {
         success: false,
         message: error.response?.data?.message || error.message || 'Error al obtener detalles del pedido',
@@ -110,7 +213,44 @@ export const orderService = {
     }
   },
 
-  // Obtener órdenes por fecha de entrega (para administradores)
+  // ✅ OBTENER ÓRDENES DE USUARIO ADAPTADA
+  async getUserOrders(userId) {
+    try {
+      const userContext = detectUserContext();
+      
+      if (!userContext) {
+        throw new Error('No se pudo determinar el contexto de usuario');
+      }
+
+      let endpoint;
+      if (userContext.type === 'branch') {
+        // Para branch, obtener órdenes de la sucursal
+        endpoint = '/branch-orders/orders'; // Sin userId en la ruta
+        console.log('🏢 Obteniendo órdenes de sucursal');
+      } else {
+        // Para usuario principal, usar lógica original
+        endpoint = `/orders/user/${userId}`;
+        console.log(`👤 Obteniendo órdenes de usuario: ${userId}`);
+      }
+
+      const response = await API.get(endpoint);
+
+      if (response.data.success) {
+        return response.data.data || [];
+      } else {
+        throw new Error(response.data.message || 'Error al obtener los pedidos del usuario');
+      }
+    } catch (error) {
+      console.error('❌ Error fetching user orders:', error);
+      throw {
+        success: false,
+        message: error.response?.data?.message || error.message || 'Error al obtener los pedidos',
+        error: error
+      };
+    }
+  },
+
+  // ✅ RESTO DE FUNCIONES SIN CAMBIOS (pueden usar endpoint genérico)
   async getOrdersByDeliveryDate(deliveryDate, statusId = null) {
     try {
       const params = new URLSearchParams({ deliveryDate });
@@ -135,30 +275,12 @@ export const orderService = {
     }
   },
 
-  // Obtener todas las órdenes de un usuario
-  async getUserOrders(userId) {
-    try {
-      const response = await API.get(`/orders/user/${userId}`);
-
-      if (response.data.success) {
-        return response.data.data || [];
-      } else {
-        throw new Error(response.data.message || 'Error al obtener los pedidos del usuario');
-      }
-    } catch (error) {
-      console.error('Error fetching user orders:', error);
-      throw {
-        success: false,
-        message: error.response?.data?.message || error.message || 'Error al obtener los pedidos',
-        error: error
-      };
-    }
-  },
-
-  // Verificar si un pedido puede ser editado
+  // ✅ CAN EDIT ORDER ADAPTADA
   async canEditOrder(orderId, orderTimeLimit = null) {
     try {
-      console.log(`Verificando si se puede editar la orden ${orderId} con límite ${orderTimeLimit}`);
+      console.log(`🔍 Verificando si se puede editar la orden ${orderId} con límite ${orderTimeLimit}`);
+      
+      // Usar la función adaptada que ya detecta contexto
       const orderResult = await this.getOrderById(orderId);
 
       // Obtener la configuración actualizada del sitio si no se proporcionó
@@ -186,17 +308,8 @@ export const orderService = {
       const order = orderResult.data;
       console.log('Datos del pedido:', order);
 
-      // Obtener la configuración actualizada del sitio
-      let actualOrderTimeLimit = orderTimeLimit;
-      try {
-        const siteConfigResponse = await API.get('/admin/settings');
-        if (siteConfigResponse.data && siteConfigResponse.data.success) {
-          actualOrderTimeLimit = siteConfigResponse.data.data.orderTimeLimit || orderTimeLimit;
-          console.log(`Límite actualizado de configuración: ${actualOrderTimeLimit}`);
-        }
-      } catch (error) {
-        console.warn('No se pudo obtener la configuración actualizada, usando valor predeterminado');
-      }
+      // Resto de la lógica de validación igual...
+      // (mantener toda la lógica de validación de tiempo y estado)
 
       // Verificar si el pedido está en un estado que permite edición
       if (['completado', 'completed', 'entregado', 'delivered', 'cancelado', 'canceled'].includes(
@@ -215,14 +328,12 @@ export const orderService = {
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const orderDay = new Date(orderDate.getFullYear(), orderDate.getMonth(), orderDate.getDate());
 
-      // Calcular días transcurridos
       const diffTime = Math.abs(today - orderDay);
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
       console.log(`Días entre la creación y hoy: ${diffDays}`);
       console.log(`Fecha de pedido: ${orderDate.toLocaleString()}, Hoy: ${now.toLocaleString()}`);
 
-      // Si el pedido es de más de un día, verificar la hora límite
       if (diffDays > 1) {
         console.log(`Pedido de hace más de 1 día - no editable`);
         return {
@@ -231,7 +342,6 @@ export const orderService = {
         };
       }
 
-      // Si el pedido es de un día diferente al actual, no se puede editar
       if (diffDays > 0) {
         console.log(`Pedido de un día diferente al actual - no editable`);
         return {
@@ -241,7 +351,7 @@ export const orderService = {
       }
 
       // Si es el mismo día, verificar la hora límite
-      const [limitHours, limitMinutes] = actualOrderTimeLimit.split(':').map(Number);
+      const [limitHours, limitMinutes] = orderTimeLimit.split(':').map(Number);
       const limitTime = new Date();
       limitTime.setHours(limitHours, limitMinutes, 0, 0);
 
@@ -251,7 +361,7 @@ export const orderService = {
         console.log(`Fuera de la hora límite de edición`);
         return {
           canEdit: false,
-          reason: `No se puede editar después de las ${actualOrderTimeLimit}`
+          reason: `No se puede editar después de las ${orderTimeLimit}`
         };
       }
 
@@ -268,7 +378,7 @@ export const orderService = {
     }
   },
 
-  // Obtener configuración del sitio (incluyendo orderTimeLimit)
+  // ✅ OBTENER CONFIGURACIÓN (sin cambios)
   async getSiteSettings() {
     try {
       const response = await API.get('/admin/settings');
@@ -276,7 +386,7 @@ export const orderService = {
       if (response.data.success) {
         return {
           success: true,
-          data: response.data.data || { orderTimeLimit: '18:00' } // Valor por defecto
+          data: response.data.data || { orderTimeLimit: '18:00' }
         };
       } else {
         throw new Error(response.data.message || 'Error al obtener la configuración');
@@ -285,9 +395,9 @@ export const orderService = {
       console.error('Error fetching site settings:', error);
       return {
         success: false,
-        data: { orderTimeLimit: '18:00' }, // Valor por defecto
+        data: { orderTimeLimit: '18:00' },
         message: error.message || 'Error al obtener configuración'
       };
     }
   }
-}
+};

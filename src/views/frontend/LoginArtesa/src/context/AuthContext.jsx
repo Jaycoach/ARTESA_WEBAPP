@@ -1,9 +1,11 @@
+// context/AuthContext.jsx - VERSIÓN DEFINITIVA SIN ERRORES
 import React, {
     createContext,
     useReducer,
     useEffect,
     useMemo,
     useCallback,
+    useRef,
 } from 'react';
 import API from '../api/config';
 import { branchAuthService } from '../services/branchAuthService';
@@ -11,20 +13,22 @@ import { AUTH_TYPES, ERROR_MESSAGES } from '../constants/AuthTypes';
 import { isDevelopment } from '../utils/environment';
 
 // ============================================================================
-// SERVICIO DE REGISTRO DE SUCURSALES INTEGRADO
+// SERVICIOS Y CONFIGURACIÓN
 // ============================================================================
+
 const branchRegistrationService = {
-    // Cambiar de GET a POST según documentación
     checkRegistrationStatus: async (email) => {
         try {
-            const response = await API.post('/branch-auth/check-registration', {
-                email  // Enviar email en el body, no como parámetro
-            });
+            console.log('🔄 Verificando estado de registro para:', email);
+            const response = await API.post('/branch-auth/check-registration', { email });
+
+            console.log('✅ Estado de registro obtenido:', response.data);
             return {
                 success: true,
                 data: response.data
             };
         } catch (error) {
+            console.error('❌ Error verificando estado de registro:', error);
             return {
                 success: false,
                 error: error.response?.data?.message || 'Error verificando estado de registro'
@@ -32,22 +36,25 @@ const branchRegistrationService = {
         }
     },
 
-    // Corregir ruta y estructura de datos
     registerBranch: async (registrationData) => {
         try {
-            // Mapear campos según documentación del backend
+            console.log('🔄 Registrando sucursal:', registrationData.email);
+
             const payload = {
                 email: registrationData.email,
                 password: registrationData.password,
-                manager_name: registrationData.branchName // Mapear branchName a manager_name
+                manager_name: registrationData.branchName || registrationData.manager_name
             };
 
             const response = await API.post('/branch-registration/register', payload);
+
+            console.log('✅ Sucursal registrada exitosamente');
             return {
                 success: true,
                 data: response.data
             };
         } catch (error) {
+            console.error('❌ Error registrando sucursal:', error);
             return {
                 success: false,
                 error: error.response?.data?.message || 'Error completando el registro'
@@ -55,49 +62,153 @@ const branchRegistrationService = {
         }
     },
 
-    // Cambiar a POST según documentación
-    validateBranchEmail: async (email) => {
+    verifyBranchEmail: async (token) => {
         try {
-            const response = await API.post('/branch-registration/check-email', {
-                email: email  
-            });
-
-            
-            const { success, data } = response.data;
-
+            console.log('🔄 Verificando email de sucursal con token:', token);
+            // ✅ AJUSTE: Remover /api/ ya que API.defaults.baseURL lo incluye
+            const response = await API.get(`/branch-auth/verify-email/${token}`);
+            console.log('✅ Email de sucursal verificado exitosamente');
             return {
                 success: true,
-                isValid: success, 
+                data: response.data
+            };
+        } catch (error) {
+            console.error('❌ Error verificando email de sucursal:', error);
+            return {
+                success: false,
+                error: error.response?.data?.message || 'Error verificando email de sucursal'
+            };
+        }
+    },
+
+    resendBranchVerification: async (email, recaptchaToken = null) => {
+        try {
+            console.log('🔄 Reenviando verificación de sucursal para:', email);
+            // ✅ AJUSTE: Usar 'email' consistentemente (no 'mail')
+            const payload = { email };
+            if (recaptchaToken) payload.recaptchaToken = recaptchaToken;
+
+            const response = await API.post('/branch-auth/resend-verification', payload);
+            console.log('✅ Verificación de sucursal reenviada exitosamente');
+            return {
+                success: true,
+                message: response.data.message || 'Correo de verificación enviado'
+            };
+        } catch (error) {
+            console.error('❌ Error reenviando verificación de sucursal:', error);
+            return {
+                success: false,
+                error: error.response?.data?.message || 'Error reenviando verificación'
+            };
+        }
+    },
+
+    requestBranchPasswordReset: async (email, recaptchaToken = null) => {
+        try {
+            console.log('🔄 Solicitando reset de contraseña para sucursal:', email);
+            // ✅ AJUSTE: Usar 'email' consistentemente
+            const payload = { email };
+            if (recaptchaToken) payload.recaptchaToken = recaptchaToken;
+
+            const response = await API.post('/branch-password/request-reset', payload);
+            console.log('✅ Reset de contraseña de sucursal solicitado exitosamente');
+            return {
+                success: true,
+                message: response.data.message || 'Correo de recuperación enviado'
+            };
+        } catch (error) {
+            console.error('❌ Error solicitando reset de sucursal:', error);
+            return {
+                success: false,
+                error: error.response?.data?.message || 'Error solicitando reset de contraseña'
+            };
+        }
+    },
+
+    resetBranchPassword: async (token, newPassword) => {
+        try {
+            console.log('🔄 Reseteando contraseña de sucursal');
+            const response = await API.post('/branch-password/reset', {
+                token,
+                newPassword
+            });
+            console.log('✅ Contraseña de sucursal actualizada exitosamente');
+            return {
+                success: true,
+                message: response.data.message || 'Contraseña actualizada correctamente'
+            };
+        } catch (error) {
+            console.error('❌ Error reseteando contraseña de sucursal:', error);
+            return {
+                success: false,
+                error: error.response?.data?.message || 'Error actualizando contraseña'
+            };
+        }
+    },
+
+    validateBranchEmail: async (email) => {
+        try {
+            console.log('🔄 Validando email de sucursal:', email);
+            const response = await API.post('/branch-registration/check-email', { email });
+
+            const { success, data } = response.data;
+
+            console.log('✅ Email validado exitosamente');
+            return {
+                success: true,
+                isValid: success,
                 branchInfo: data
             };
         } catch (error) {
+            console.error('❌ Error validando email:', error);
+
+            if (error.response?.status === 400) {
+                const errorMessage = error.response.data?.message || '';
+
+                if (errorMessage.includes('ya tiene credenciales configuradas')) {
+                    return {
+                        success: true,
+                        isValid: true,
+                        branchInfo: {
+                            needsRegistration: false,
+                            hasPassword: true,
+                            branch_name: '',
+                            is_login_enabled: true,
+                            ...error.response.data
+                        }
+                    };
+                }
+
+                return {
+                    success: false,
+                    error: errorMessage
+                };
+            }
+
             return {
                 success: false,
                 error: error.response?.data?.message || 'Error validando email de sucursal'
             };
         }
-    }
+    },
 };
 
 // ============================================================================
-// ESTADOS Y CONFIGURACIÓN
+// ESTADOS Y REDUCER
 // ============================================================================
 
-// Estado inicial
 const initialState = {
-    authType: null,        // 'user' | 'branch'
+    authType: null,
     user: null,
     branch: null,
     token: null,
     isAuthenticated: false,
     isLoading: true,
     error: null,
-    // Nuevos estados para manejo de sucursales
     branchVerificationStatus: null,
     isBranchVerifying: false,
 };
 
-// Acciones
 const TYPES = {
     SET_LOADING: 'SET_LOADING',
     SET_ERROR: 'SET_ERROR',
@@ -105,13 +216,11 @@ const TYPES = {
     LOGOUT_SUCCESS: 'LOGOUT_SUCCESS',
     CLEAR_ERROR: 'CLEAR_ERROR',
     UPDATE_USER: 'UPDATE_USER',
-    // Nuevas acciones para sucursales
     SET_BRANCH_VERIFYING: 'SET_BRANCH_VERIFYING',
     SET_BRANCH_VERIFICATION_STATUS: 'SET_BRANCH_VERIFICATION_STATUS',
     UPDATE_BRANCH: 'UPDATE_BRANCH',
 };
 
-// Reducer actualizado
 function reducer(state, { type, payload }) {
     switch (type) {
         case TYPES.SET_LOADING:
@@ -121,7 +230,7 @@ function reducer(state, { type, payload }) {
         case TYPES.LOGIN_SUCCESS:
             return {
                 ...state,
-                ...payload,             // authType, user or branch, token
+                ...payload,
                 isAuthenticated: true,
                 isLoading: false,
                 error: null,
@@ -145,28 +254,67 @@ function reducer(state, { type, payload }) {
     }
 }
 
-// Contexto
-export const AuthContext = createContext(null);
+const AuthContext = createContext(null);
 
 // ============================================================================
 // PROVIDER PRINCIPAL
 // ============================================================================
-export function AuthProvider({ children }) {
+    function AuthProvider({ children }) {
     const [state, dispatch] = useReducer(reducer, initialState);
 
-    // Verificación de estado inconsistente
-    if (!state.user && state.isAuthenticated) {
-        console.error('Estado inconsistente: isAuthenticated=true pero user=null');
-        clearStorage();
-        dispatch({ type: TYPES.LOGOUT_SUCCESS });
-    }
+    const useAuthOptimizer = () => {
+        const authCheckRef = useRef({
+            isChecking: false,
+            lastCheck: 0,
+            hasInitialCheck: false,
+            minInterval: 30000, // 30 segundos
+        });
 
+        const shouldAllowAuthCheck = useCallback(() => {
+            const now = Date.now();
+            const { isChecking, lastCheck, hasInitialCheck, minInterval } = authCheckRef.current;
+
+            // Primera vez siempre permitida
+            if (!hasInitialCheck) {
+                authCheckRef.current.hasInitialCheck = true;
+                return true;
+            }
+
+            // Evitar checks simultáneos
+            if (isChecking) {
+                console.log('🚫 [AuthOptimizer] Verificación ya en progreso, omitiendo...');
+                return false;
+            }
+
+            // Limitar frecuencia
+            if ((now - lastCheck) < minInterval) {
+                const remaining = Math.ceil((minInterval - (now - lastCheck)) / 1000);
+                console.log(`⏳ [AuthOptimizer] Verificación muy frecuente. Esperar ${remaining}s`);
+                return false;
+            }
+
+            return true;
+        }, []);
+
+        const markAuthCheckStart = useCallback(() => {
+            authCheckRef.current.isChecking = true;
+            authCheckRef.current.lastCheck = Date.now();
+        }, []);
+
+        const markAuthCheckEnd = useCallback(() => {
+            authCheckRef.current.isChecking = false;
+        }, []);
+
+        return { shouldAllowAuthCheck, markAuthCheckStart, markAuthCheckEnd };
+    };
+
+    const { shouldAllowAuthCheck, markAuthCheckStart, markAuthCheckEnd } = useAuthOptimizer();
     // ========================================================================
     // FUNCIONES UTILITARIAS
     // ========================================================================
 
-    // Limpieza de storage y headers
     const clearStorage = useCallback(() => {
+        console.log('🧹 Limpiando localStorage y headers');
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         localStorage.removeItem('branchAuthToken');
@@ -177,8 +325,9 @@ export function AuthProvider({ children }) {
         }
     }, []);
 
-    // Normalizar datos de usuario
     const normalizeUserData = useCallback((userData) => {
+        if (!userData) return userData;
+
         // Normalizar is_active
         userData.is_active = userData.is_active !== undefined
             ? (typeof userData.is_active === 'string'
@@ -198,11 +347,465 @@ export function AuthProvider({ children }) {
         return userData;
     }, []);
 
+    const loadClientProfile = useCallback(async (userId) => {
+        // Cache simple para evitar llamadas repetidas en la misma sesión
+        const cacheKey = `profile_${userId}`;
+        if (window.clientProfileCache && window.clientProfileCache[cacheKey]) {
+            console.log('✅ [AuthContext] Perfil obtenido desde cache de sesión');
+            return window.clientProfileCache[cacheKey];
+        }
+
+        try {
+            console.log('🔄 [AuthContext] Cargando perfil de cliente para usuario:', userId);
+
+            const response = await API.get(`/client-profiles/user/${userId}`);
+
+            if (response.data.success) {
+                const clientProfile = response.data.data;
+                console.log('✅ [AuthContext] ClientProfile obtenido:', clientProfile);
+
+                const priceListData = {
+                    price_list: clientProfile.price_list || null,
+                    price_list_code: clientProfile.price_list_code || 'GENERAL',
+                    effective_price_list_code: clientProfile.effective_price_list_code || 'GENERAL',
+                    client_id: clientProfile.client_id,
+                    cardcode_sap: clientProfile.cardcode_sap,
+                    razonSocial: clientProfile.razonSocial,
+                    nit: clientProfile.nit
+                };
+
+                // Guardar en cache de sesión
+                window.clientProfileCache = window.clientProfileCache || {};
+                window.clientProfileCache[cacheKey] = priceListData;
+
+                console.log('📋 [AuthContext] Datos de lista de precios extraídos:', priceListData);
+                return priceListData;
+            }
+
+            return null;
+        } catch (error) {
+            console.log('⚠️ [AuthContext] Usuario sin perfil de cliente registrado:', error.message);
+            return null;
+        }
+    }, []);
+
+    const enrichUserWithProfile = useCallback(async (userData) => {
+        if (!userData.id) return userData;
+
+        const priceListProfile = await loadClientProfile(userData.id);
+
+        if (priceListProfile) {
+            const enrichedUser = {
+                ...userData,
+                priceListProfile
+            };
+
+            localStorage.setItem('user', JSON.stringify(enrichedUser));
+            localStorage.setItem('priceListProfile', JSON.stringify(priceListProfile));
+
+            console.log('✅ [AuthContext] Usuario enriquecido con priceListProfile');
+            return enrichedUser;
+        }
+
+        return userData;
+    }, [loadClientProfile]);
+
     // ========================================================================
-    // FUNCIONES DE SUCURSALES (NUEVAS)
+    // INICIALIZACIÓN
+    // ========================================================================
+    useEffect(() => {
+        const checkAuthState = async () => {
+            if (!shouldAllowAuthCheck()) {
+                return;
+            }
+
+            console.log('🔄 Verificando estado de autenticación...');
+            markAuthCheckStart();
+
+            try {
+                const token = localStorage.getItem("token");
+                const storedUser = localStorage.getItem("user");
+                const storedProfile = localStorage.getItem("clientProfile");
+                const branchToken = localStorage.getItem('branchAuthToken');
+                const branchData = localStorage.getItem('branchData');
+
+                // Verificar sesión de usuario principal
+                if (token && storedUser) {
+                    try {
+                        let userData = JSON.parse(storedUser);
+                        userData = normalizeUserData(userData);
+
+                        // Solo cargar perfil si realmente no existe
+                        if (!userData.priceListProfile && !storedProfile) {
+                            console.log('🔄 [AuthContext] Usuario sin priceListProfile, intentando cargar...');
+                            try {
+                                userData = await enrichUserWithProfile(userData);
+                            } catch (error) {
+                                console.warn('⚠️ Error cargando perfil, continuando sin él:', error.message);
+                            }
+                        } else if (storedProfile && !userData.priceListProfile) {
+                            // Si hay perfil en localStorage pero no en el objeto usuario, combinarlo
+                            try {
+                                const profileData = JSON.parse(storedProfile);
+                                userData.priceListProfile = profileData;
+                                console.log('✅ [AuthContext] PriceListProfile restaurado desde localStorage');
+                            } catch (error) {
+                                console.warn('⚠️ Error parseando perfil guardado:', error.message);
+                            }
+                        }
+
+                        console.log('✅ Sesión de usuario principal restaurada:', userData.email || userData.mail);
+
+                        dispatch({
+                            type: TYPES.LOGIN_SUCCESS,
+                            payload: {
+                                authType: AUTH_TYPES.USER,
+                                user: userData,
+                                token,
+                            },
+                        });
+                        API.defaults.headers.common.Authorization = `Bearer ${token}`;
+                        return;
+                    } catch (err) {
+                        console.error("❌ Error verificando sesión user:", err);
+                        localStorage.removeItem('token');
+                        localStorage.removeItem('user');
+                        localStorage.removeItem('clientProfile');
+                    }
+                }
+
+                if (branchToken && branchData) {
+                    try {
+                        // Validación básica del token
+                        const tokenParts = branchToken.split('.');
+                        if (tokenParts.length === 3) { // JWT básicamente válido
+                            const parsedBranchData = JSON.parse(branchData);
+
+                            console.log('🔄 Sesión de sucursal encontrada, enriqueciendo datos...');
+
+                            // ✅ NUEVO: Enriquecer con datos completos del perfil
+                            try {
+                                // Configurar temporalmente el header para la llamada
+                                API.defaults.headers.common.Authorization = `Bearer ${branchToken}`;
+
+                                const profileResponse = await API.get('/branch-auth/profile');
+
+                                if (profileResponse.data.success) {
+                                    const completeProfileData = profileResponse.data.data;
+
+                                    // Combinar datos guardados con datos completos del perfil
+                                    const enrichedBranchData = {
+                                        ...parsedBranchData,
+                                        ...completeProfileData,
+
+                                        // ✅ CAMPOS CRÍTICOS MAPEADOS CORRECTAMENTE
+                                        branch_id: completeProfileData.branch_id || parsedBranchData.branch_id,
+                                        client_id: completeProfileData.client_id || parsedBranchData.client_id,
+                                        email: completeProfileData.email_branch || parsedBranchData.email,
+                                        branchname: completeProfileData.branch_name || parsedBranchData.branchname,
+                                        branch_name: completeProfileData.branch_name || parsedBranchData.branchname,
+
+                                        // ✅ INFORMACIÓN DE EMPRESA
+                                        company_name: completeProfileData.company_name || parsedBranchData.company_name,
+                                        nit_number: completeProfileData.nit_number || parsedBranchData.nit_number,
+                                        verification_digit: completeProfileData.verification_digit || parsedBranchData.verification_digit,
+
+                                        // ✅ UBICACIÓN COMPLETA
+                                        address: completeProfileData.address || parsedBranchData.address,
+                                        city: completeProfileData.city || parsedBranchData.city,
+                                        state: completeProfileData.state || parsedBranchData.state,
+                                        country: completeProfileData.country || parsedBranchData.country,
+                                        municipality_code: completeProfileData.municipality_code || parsedBranchData.municipality_code,
+                                        zip_code: completeProfileData.zip_code || parsedBranchData.zip_code,
+
+                                        // ✅ INFORMACIÓN DE CONTACTO
+                                        phone: completeProfileData.phone || parsedBranchData.phone,
+                                        contact_person: completeProfileData.contact_person || parsedBranchData.contact_person,
+                                        manager_name: completeProfileData.manager_name || parsedBranchData.manager_name,
+
+                                        // ✅ DATOS DEL USUARIO PRINCIPAL ASOCIADO
+                                        user_id: completeProfileData.user_id, // ← ESTE ES EL CAMPO QUE NECESITAS
+                                        user_name: completeProfileData.user_name,
+                                        user_email: completeProfileData.user_email,
+                                        user_cardcode_sap: completeProfileData.user_cardcode_sap,
+                                        user_cardtype_sap: completeProfileData.user_cardtype_sap,
+
+                                        // ✅ CONFIGURACIÓN DE SUCURSAL
+                                        ship_to_code: completeProfileData.ship_to_code,
+                                        is_default: completeProfileData.is_default,
+                                        is_login_enabled: completeProfileData.is_login_enabled,
+                                        type: completeProfileData.type,
+
+                                        // ✅ INFORMACIÓN DE SEGURIDAD Y FECHAS
+                                        last_login: completeProfileData.last_login,
+                                        failed_login_attempts: completeProfileData.failed_login_attempts,
+                                        locked_until: completeProfileData.locked_until,
+                                        created_at: completeProfileData.created_at,
+                                        updated_at: completeProfileData.updated_at,
+                                        created_at_auth: completeProfileData.created_at_auth,
+                                        updated_at_auth: completeProfileData.updated_at_auth,
+
+                                        // ✅ CAMPOS ADICIONALES
+                                        mail: completeProfileData.mail,
+                                        email_branch: completeProfileData.email_branch,
+                                    };
+
+                                    // Actualizar localStorage con datos COMPLETOS enriquecidos
+                                    localStorage.setItem('branchData', JSON.stringify(enrichedBranchData));
+
+                                    console.log('✅ Sesión de sucursal enriquecida con TODOS los campos:', {
+                                        branch_id: enrichedBranchData.branch_id,
+                                        user_id: enrichedBranchData.user_id, // ← Verificar que esté presente
+                                        email: enrichedBranchData.email,
+                                        branch_name: enrichedBranchData.branch_name,
+                                        company_name: enrichedBranchData.company_name,
+                                        client_id: enrichedBranchData.client_id,
+                                        address: enrichedBranchData.address,
+                                        municipality_code: enrichedBranchData.municipality_code,
+                                        user_cardcode_sap: enrichedBranchData.user_cardcode_sap
+                                    });
+                                    dispatch({
+                                        type: TYPES.LOGIN_SUCCESS,
+                                        payload: {
+                                            authType: 'branch', // ✅ CRÍTICO: String literal
+                                            branch: enrichedBranchData,
+                                            token: branchToken,
+                                        },
+                                    });
+                                    return;
+                                } else {
+                                    console.warn('⚠️ No se pudo obtener perfil completo, usando datos básicos');
+                                    // Fallback a datos básicos
+                                    dispatch({
+                                        type: TYPES.LOGIN_SUCCESS,
+                                        payload: {
+                                            authType: 'branch',
+                                            branch: parsedBranchData,
+                                            token: branchToken,
+                                        },
+                                    });
+                                    return;
+                                }
+                            } catch (profileError) {
+                                console.warn('⚠️ Error obteniendo perfil completo, usando datos básicos:', profileError.message);
+
+                                // Fallback a datos básicos si falla la carga del perfil
+                                dispatch({
+                                    type: TYPES.LOGIN_SUCCESS,
+                                    payload: {
+                                        authType: 'branch',
+                                        branch: parsedBranchData,
+                                        token: branchToken,
+                                    },
+                                });
+                                API.defaults.headers.common.Authorization = `Bearer ${branchToken}`;
+                                return;
+                            }
+                        } else {
+                            console.log('❌ Token de sucursal con formato inválido, limpiando datos');
+                            localStorage.removeItem('branchAuthToken');
+                            localStorage.removeItem('branchData');
+                        }
+                    } catch (err) {
+                        console.error("❌ Error verificando sesión branch:", err);
+                        localStorage.removeItem('branchAuthToken');
+                        localStorage.removeItem('branchData');
+                    }
+                }
+
+                console.log('ℹ️ No se encontró sesión válida');
+                dispatch({ type: TYPES.SET_LOADING, payload: false });
+            } finally {
+                markAuthCheckEnd();
+            }
+        };
+
+        checkAuthState();
+    }, [shouldAllowAuthCheck,
+        markAuthCheckStart,
+        markAuthCheckEnd,
+        normalizeUserData,
+        enrichUserWithProfile]);
+
+    // ========================================================================
+    // LOGIN CORREGIDO
     // ========================================================================
 
-    // Verificar estado de registro de sucursal
+    const login = useCallback(async (credentials, authType = AUTH_TYPES.USER) => {
+        dispatch({ type: TYPES.SET_LOADING, payload: true });
+        dispatch({ type: TYPES.CLEAR_ERROR });
+
+        try {
+            console.log('🔄 Iniciando login:', {
+                authType,
+                email: credentials.email || credentials.mail,
+                hasPassword: !!credentials.password
+            });
+
+            if (authType === AUTH_TYPES.BRANCH) {
+                // ✅ LOGIN DE SUCURSAL CORREGIDO
+                const normalizedCredentials = {
+                    email: credentials.email || credentials.mail,
+                    password: credentials.password
+                };
+
+                console.log('🔄 Llamando a branchAuthService.login...');
+                const branchResult = await branchAuthService.login(normalizedCredentials);
+
+                console.log('📡 Resultado de branchAuthService:', {
+                    success: branchResult?.success,
+                    hasToken: !!branchResult?.token,
+                    hasBranchData: !!branchResult?.branchData,
+                    branchName: branchResult?.branchData?.branchname,
+                    email: branchResult?.branchData?.email
+                });
+
+                if (!branchResult || !branchResult.success) {
+                    throw new Error(branchResult?.error || 'Error desconocido en login de sucursal');
+                }
+
+                const { token, branchData } = branchResult;
+
+                if (!token || !branchData) {
+                    throw new Error('Datos incompletos recibidos del servicio de autenticación');
+                }
+
+                console.log('✅ Branch login successful:', {
+                    branch_id: branchData.branch_id,
+                    email: branchData.email,
+                    branchname: branchData.branchname,
+                    company_name: branchData.company_name,
+                    tokenLength: token.length
+                });
+
+                // Verificar que los datos se guardaron correctamente
+                const savedToken = localStorage.getItem('branchAuthToken');
+                const savedData = localStorage.getItem('branchData');
+
+                if (!savedToken || !savedData) {
+                    console.warn('⚠️ Datos no guardados por branchAuthService, guardando manualmente...');
+                    localStorage.setItem('branchAuthToken', token);
+                    localStorage.setItem('branchData', JSON.stringify(branchData));
+                }
+
+                // ✅ CRÍTICO: Configurar header de autorización
+                API.defaults.headers.common.Authorization = `Bearer ${token}`;
+
+                // ✅ CORRECTO: Actualizar estado con 'branch'
+                dispatch({
+                    type: TYPES.LOGIN_SUCCESS,
+                    payload: {
+                        authType: AUTH_TYPES.BRANCH,
+                        branch: branchData, // ✅ CORRECTO: 'branch', no 'branchData'
+                        token: token,
+                    },
+                });
+
+                return { success: true, data: branchData };
+
+            } else {
+                // LOGIN DE USUARIO PRINCIPAL
+                const normalizedCredentials = {
+                    mail: credentials.mail || credentials.email,
+                    password: credentials.password
+                };
+
+                console.log('🔄 Llamando a API de usuario principal para:', normalizedCredentials.mail);
+                const response = await API.post('/auth/login', normalizedCredentials);
+                const data = response.data;
+
+                if (!data.success) {
+                    throw new Error(data.message || ERROR_MESSAGES.INVALID_CREDENTIALS);
+                }
+
+                const { token, user: userObject } = data.data;
+                let normalizedUser = normalizeUserData(userObject);
+
+                // ✅ NUEVO: Intentar enriquecer con clientProfile después del login
+                normalizedUser = await enrichUserWithProfile(normalizedUser);
+
+                localStorage.setItem("token", token);
+                localStorage.setItem("user", JSON.stringify(normalizedUser));
+                API.defaults.headers.common.Authorization = `Bearer ${token}`;
+
+                dispatch({
+                    type: TYPES.LOGIN_SUCCESS,
+                    payload: {
+                        authType: AUTH_TYPES.USER,
+                        user: normalizedUser,
+                        token
+                    },
+                });
+
+                console.log('✅ User login successful:', normalizedUser.email || normalizedUser.mail);
+                return { success: true };
+            }
+
+        } catch (err) {
+            console.error('🚨 Error en login:', {
+                message: err.message,
+                status: err.response?.status,
+                authType
+            });
+
+            // Limpiar solo los datos del tipo de auth que falló
+            if (authType === AUTH_TYPES.BRANCH) {
+                localStorage.removeItem('branchAuthToken');
+                localStorage.removeItem('branchData');
+            } else {
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                localStorage.removeItem('clientProfile');
+            }
+
+            const errorMessage = err.response?.data?.message || err.message || ERROR_MESSAGES.UNKNOWN_ERROR;
+            dispatch({ type: TYPES.SET_ERROR, payload: errorMessage });
+
+            return { success: false, error: errorMessage };
+        } finally {
+            dispatch({ type: TYPES.SET_LOADING, payload: false });
+        }
+    }, [normalizeUserData, enrichUserWithProfile]);
+
+    useEffect(() => {
+        if (process.env.NODE_ENV === 'development' && state.user) {
+            console.log('🔍 Debug AuthContext - Usuario completo:', {
+                name: state.user.name,
+                email: state.user.email || state.user.mail,
+                role: state.user.role,
+                clientProfile: state.user.clientProfile,
+                tamanoEmpresa: state.user.clientProfile?.tamanoEmpresa
+            });
+        }
+    }, [state.user]);
+
+    // ========================================================================
+    // RESTO DE FUNCIONES (sin cambios críticos)
+    // ========================================================================
+
+    const logout = useCallback(async () => {
+        console.log('🔄 Iniciando logout...');
+        dispatch({ type: TYPES.SET_LOADING, payload: true });
+
+        try {
+            if (state.authType === AUTH_TYPES.BRANCH) {
+                console.log('🔄 Logout de sucursal...');
+                await branchAuthService.logout();
+                console.log('✅ Branch logout successful');
+            } else {
+                console.log('🔄 Logout de usuario principal...');
+                console.log('✅ User logout successful');
+            }
+        } catch (err) {
+            console.error('❌ Error during logout:', err);
+        } finally {
+            clearStorage();
+            dispatch({ type: TYPES.LOGOUT_SUCCESS });
+            console.log('✅ Logout completado');
+        }
+    }, [state.authType, clearStorage]);
+
+    // Resto de funciones (register, resetPassword, etc.)...
     const checkBranchRegistration = useCallback(async (email) => {
         dispatch({ type: TYPES.SET_BRANCH_VERIFYING, payload: true });
         try {
@@ -221,7 +824,6 @@ export function AuthProvider({ children }) {
         }
     }, []);
 
-    // Registrar sucursal
     const registerBranch = useCallback(async (registrationData, recaptchaToken = null) => {
         dispatch({ type: TYPES.SET_LOADING, payload: true });
         try {
@@ -234,7 +836,7 @@ export function AuthProvider({ children }) {
             }
 
             if (isDevelopment) {
-                console.log('Branch registration successful:', result.data);
+                console.log('✅ Branch registration successful:', result.data);
             }
 
             return result.data;
@@ -246,203 +848,94 @@ export function AuthProvider({ children }) {
         }
     }, []);
 
-    // Validar email de sucursal
     const validateBranchEmail = useCallback(async (email) => {
         try {
             const result = await branchRegistrationService.validateBranchEmail(email);
             return result;
         } catch (err) {
-            console.error('Error validating branch email:', err);
+            console.error('❌ Error validating branch email:', err);
             return { success: false, error: err.message };
         }
     }, []);
 
-    // ========================================================================
-    // INICIALIZACIÓN Y VERIFICACIÓN DE SESIÓN
-    // ========================================================================
-    useEffect(() => {
-        const checkAuthState = async () => {
-            const token = localStorage.getItem("token");
-            const storedUser = localStorage.getItem("user");
-            const storedProfile = localStorage.getItem("clientProfile");
-            const branchToken = localStorage.getItem('branchAuthToken');
-            const branchData = localStorage.getItem('branchData');
-
-            // Verificar sesión de usuario principal
-            if (token && storedUser) {
-                try {
-                    let userData = JSON.parse(storedUser);
-                    userData = normalizeUserData(userData);
-
-                    // Combinar con perfil si existe
-                    if (storedProfile) {
-                        const profileData = JSON.parse(storedProfile);
-                        const isActive = userData.is_active;
-                        userData = { ...userData, ...profileData, is_active: isActive };
-                    }
-
-                    dispatch({
-                        type: TYPES.LOGIN_SUCCESS,
-                        payload: {
-                            authType: AUTH_TYPES.USER,
-                            user: userData,
-                            token,
-                        },
-                    });
-                    API.defaults.headers.common.Authorization = `Bearer ${token}`;
-                    return;
-                } catch (err) {
-                    console.error("Error verificando sesión user:", err);
-                    clearStorage();
-                    dispatch({ type: TYPES.SET_ERROR, payload: "Sesión inválida" });
-                }
-            }
-
-            // Verificar sesión de sucursal
-            if (branchToken && branchData) {
-                try {
-                    const valid = await branchAuthService.validateToken();
-                    if (valid) {
-                        const parsedBranchData = JSON.parse(branchData);
-                        dispatch({
-                            type: TYPES.LOGIN_SUCCESS,
-                            payload: {
-                                authType: AUTH_TYPES.BRANCH,
-                                branch: parsedBranchData,
-                                token: branchToken,
-                            },
-                        });
-                        API.defaults.headers.common.Authorization = `Bearer ${branchToken}`;
-                        return;
-                    }
-                } catch (err) {
-                    console.error("Error verificando sesión branch:", err);
-                }
-            }
-
-            clearStorage();
-            dispatch({ type: TYPES.SET_LOADING, payload: false });
-        };
-
-        checkAuthState();
-    }, [clearStorage, normalizeUserData]);
-
-    // ========================================================================
-    // FUNCIONES DE AUTENTICACIÓN
-    // ========================================================================
-
-    // Login unificado con soporte completo para sucursales
-    const login = useCallback(async (credentials, authType = AUTH_TYPES.USER) => {
+    const verifyBranchEmail = useCallback(async (token) => {
         dispatch({ type: TYPES.SET_LOADING, payload: true });
         try {
-            let result;
+            const result = await branchRegistrationService.verifyBranchEmail(token);
 
-            if (authType === AUTH_TYPES.BRANCH) {
-                // Login para sucursales (este bloque se mantiene igual)
-                result = await branchAuthService.login(credentials);
-                if (!result.success) throw new Error(result.error);
-
-                localStorage.setItem('branchAuthToken', result.token);
-                localStorage.setItem('branchData', JSON.stringify(result.branchData));
-                API.defaults.headers.common.Authorization = `Bearer ${result.token}`;
-
-                dispatch({
-                    type: TYPES.LOGIN_SUCCESS,
-                    payload: {
-                        authType: AUTH_TYPES.BRANCH,
-                        branch: result.branchData,
-                        token: result.token,
-                    },
-                });
-
-                if (isDevelopment) {
-                    console.log('Branch login successful:', result.branchData);
-                }
-            } else {
-                // Login para usuarios principales
-                const res = await API.post('/auth/login', credentials);
-                const data = res.data;
-                if (!data.success) throw new Error(data.message || ERROR_MESSAGES.INVALID_CREDENTIALS);
-                const { token, user: userObject } = data.data;
-
-                // Normalizar datos de usuario
-                const normalizedUser = normalizeUserData(userObject);
-
-                // Combinar con perfil almacenado si existe
-                const storedProfile = localStorage.getItem("clientProfile");
-                let userWithProfile = normalizedUser;
-                if (storedProfile) {
-                    const profileData = JSON.parse(storedProfile);
-                    if (profileData.nombre && profileData.email === (normalizedUser.email || normalizedUser.mail)) {
-                        userWithProfile = { ...normalizedUser, ...profileData, is_active: normalizedUser.is_active };
-                    }
-                }
-
-                // Almacenar datos de usuario
-                localStorage.setItem("token", token);
-                localStorage.setItem("user", JSON.stringify(userWithProfile));
-                API.defaults.headers.common.Authorization = `Bearer ${token}`;
-
-                dispatch({
-                    type: TYPES.LOGIN_SUCCESS,
-                    payload: { authType: AUTH_TYPES.USER, user: userWithProfile, token },
-                });
-
-                if (isDevelopment) {
-                    console.log('User login successful:', userWithProfile);
-                }
+            if (!result.success) {
+                dispatch({ type: TYPES.SET_ERROR, payload: result.error });
+                return result;
             }
 
-            return { success: true };
+            console.log('✅ Verificación de email de sucursal completada');
+            return result;
         } catch (err) {
-            clearStorage();
-
-            // 🔥 AQUÍ ESTÁ EL CAMBIO CLAVE: Extraer el mensaje exacto de la API
-            const errorMessage = err.response?.data?.message || err.message || ERROR_MESSAGES.UNKNOWN_ERROR;
-
-            // Para debugging - puedes quitar este console.log después
-            if (isDevelopment) {
-                console.log('🔍 Error capturado en AuthContext:', {
-                    hasResponse: !!err.response,
-                    hasData: !!err.response?.data,
-                    apiMessage: err.response?.data?.message,
-                    fallbackMessage: err.message,
-                    finalMessage: errorMessage
-                });
-            }
-
+            const errorMessage = err.message || 'Error verificando email de sucursal';
             dispatch({ type: TYPES.SET_ERROR, payload: errorMessage });
             return { success: false, error: errorMessage };
         } finally {
             dispatch({ type: TYPES.SET_LOADING, payload: false });
         }
-    }, [clearStorage, normalizeUserData]);
+    }, []);
 
-    // Logout mejorado
-    const logout = useCallback(async () => {
+    const resendBranchVerification = useCallback(async (email, recaptchaToken = null) => {
         dispatch({ type: TYPES.SET_LOADING, payload: true });
         try {
-            if (state.authType === AUTH_TYPES.BRANCH) {
-                await branchAuthService.logout();
-                if (isDevelopment) {
-                    console.log('Branch logout successful');
-                }
-            } else if (isDevelopment) {
-                console.log('User logout successful');
+            const result = await branchRegistrationService.resendBranchVerification(email, recaptchaToken);
+
+            if (!result.success) {
+                dispatch({ type: TYPES.SET_ERROR, payload: result.error });
             }
+
+            return result;
         } catch (err) {
-            console.error('Error during logout:', err);
+            const errorMessage = err.message || 'Error reenviando verificación';
+            dispatch({ type: TYPES.SET_ERROR, payload: errorMessage });
+            return { success: false, error: errorMessage };
         } finally {
-            clearStorage();
-            dispatch({ type: TYPES.LOGOUT_SUCCESS });
+            dispatch({ type: TYPES.SET_LOADING, payload: false });
         }
-    }, [state.authType, clearStorage]);
+    }, []);
 
-    // ========================================================================
-    // FUNCIONES EXISTENTES (MANTENIDAS SIN CAMBIOS)
-    // ========================================================================
+    const requestBranchPasswordReset = useCallback(async (email, recaptchaToken = null) => {
+        dispatch({ type: TYPES.SET_LOADING, payload: true });
+        try {
+            const result = await branchRegistrationService.requestBranchPasswordReset(email, recaptchaToken);
 
-    // Resend verification email
+            if (!result.success) {
+                dispatch({ type: TYPES.SET_ERROR, payload: result.error });
+            }
+
+            return result;
+        } catch (err) {
+            const errorMessage = err.message || 'Error solicitando reset de contraseña';
+            dispatch({ type: TYPES.SET_ERROR, payload: errorMessage });
+            return { success: false, error: errorMessage };
+        } finally {
+            dispatch({ type: TYPES.SET_LOADING, payload: false });
+        }
+    }, []);
+
+    const resetBranchPassword = useCallback(async (token, newPassword) => {
+        dispatch({ type: TYPES.SET_LOADING, payload: true });
+        try {
+            const result = await branchRegistrationService.resetBranchPassword(token, newPassword);
+
+            if (!result.success) {
+                dispatch({ type: TYPES.SET_ERROR, payload: result.error });
+            }
+
+            return result;
+        } catch (err) {
+            const errorMessage = err.message || 'Error actualizando contraseña';
+            dispatch({ type: TYPES.SET_ERROR, payload: errorMessage });
+            return { success: false, error: errorMessage };
+        } finally {
+            dispatch({ type: TYPES.SET_LOADING, payload: false });
+        }
+    }, []);
+
     const resendVerificationEmail = useCallback(async (email, recaptchaToken = null) => {
         dispatch({ type: TYPES.SET_LOADING, payload: true });
         try {
@@ -451,30 +944,28 @@ export function AuthProvider({ children }) {
             const res = await API.post("/auth/resend-verification", payload);
             return { success: true, message: res.data.message || 'Correo enviado' };
         } catch (err) {
-            dispatch({ type: TYPES.SET_ERROR, payload: err.message });
-            throw err;
+            const errorMessage = err.response?.data?.message || err.message || "Error enviando correo";
+            dispatch({ type: TYPES.SET_ERROR, payload: errorMessage });
+            throw new Error(errorMessage);
         } finally {
             dispatch({ type: TYPES.SET_LOADING, payload: false });
         }
     }, []);
 
-    // Register
     const register = useCallback(async (userData) => {
         dispatch({ type: TYPES.SET_LOADING, payload: true });
         try {
             const res = await API.post("/auth/register", userData);
             return res.data;
         } catch (err) {
-            // 🔥 CAMBIO: Priorizar mensaje de la API
             const errorMessage = err.response?.data?.message || err.message || "Error en el registro";
             dispatch({ type: TYPES.SET_ERROR, payload: errorMessage });
-            throw new Error(errorMessage); // Cambiar para que propague el mensaje correcto
+            throw new Error(errorMessage);
         } finally {
             dispatch({ type: TYPES.SET_LOADING, payload: false });
         }
     }, []);
 
-    // Request password reset
     const requestPasswordReset = useCallback(async (email, recaptchaToken = null) => {
         dispatch({ type: TYPES.SET_LOADING, payload: true });
         try {
@@ -483,7 +974,6 @@ export function AuthProvider({ children }) {
             const res = await API.post("/password/request-reset", payload);
             return res.data;
         } catch (err) {
-            // 🔥 CAMBIO: Priorizar mensaje de la API
             const errorMessage = err.response?.data?.message || err.message || "Error al solicitar recuperación";
             dispatch({ type: TYPES.SET_ERROR, payload: errorMessage });
             throw new Error(errorMessage);
@@ -492,7 +982,6 @@ export function AuthProvider({ children }) {
         }
     }, []);
 
-    // Reset password
     const resetPassword = useCallback(async (token, password, recaptchaToken = null) => {
         dispatch({ type: TYPES.SET_LOADING, payload: true });
         try {
@@ -501,7 +990,6 @@ export function AuthProvider({ children }) {
             const res = await API.post("/password/reset", payload);
             return res.data;
         } catch (err) {
-            // 🔥 CAMBIO: Priorizar mensaje de la API
             const errorMessage = err.response?.data?.message || err.message || "Error al restablecer contraseña";
             dispatch({ type: TYPES.SET_ERROR, payload: errorMessage });
             throw new Error(errorMessage);
@@ -510,7 +998,6 @@ export function AuthProvider({ children }) {
         }
     }, []);
 
-    // isAdmin
     const isAdmin = useCallback(() => {
         const u = state.user;
         if (!u) return false;
@@ -523,7 +1010,6 @@ export function AuthProvider({ children }) {
         return typeof role === 'number' && (role === 1 || role === 3);
     }, [state.user]);
 
-    // Update user info
     const updateUserInfo = useCallback((updatedUserData) => {
         const u = state.user;
         if (!u) return;
@@ -540,7 +1026,6 @@ export function AuthProvider({ children }) {
         dispatch({ type: TYPES.UPDATE_USER, payload: newUser });
     }, [state.user]);
 
-    // Update branch info (Nueva función para sucursales)
     const updateBranchInfo = useCallback((updatedBranchData) => {
         const b = state.branch;
         if (!b) return;
@@ -549,7 +1034,6 @@ export function AuthProvider({ children }) {
         dispatch({ type: TYPES.UPDATE_BRANCH, payload: newBranch });
     }, [state.branch]);
 
-    // Clear error
     const clearError = useCallback(() => {
         dispatch({ type: TYPES.CLEAR_ERROR });
     }, []);
@@ -558,47 +1042,66 @@ export function AuthProvider({ children }) {
     // VALOR DEL CONTEXTO
     // ========================================================================
     const value = useMemo(() => ({
-        // Estados existentes
+        // Estados
         ...state,
 
-        // Funciones existentes
+        // Funciones principales
         login,
         logout,
-        resendVerificationEmail,
         register,
+        resendVerificationEmail,
         requestPasswordReset,
         resetPassword,
+        clearError,
+        loadClientProfile,
+        enrichUserWithProfile,
+
+        // Funciones de utilidad
         isAdmin,
         updateUserInfo,
-        clearError,
+        updateBranchInfo,
 
-        // Nuevas funciones para sucursales
+        // Funciones de sucursales
         checkBranchRegistration,
         registerBranch,
         validateBranchEmail,
-        updateBranchInfo,
+        verifyBranchEmail,
+        resendBranchVerification,
+        requestBranchPasswordReset,
+        resetBranchPassword,
 
-        // Estados adicionales para sucursales
+        // Estados adicionales para compatibilidad
         isBranchVerifying: state.isBranchVerifying,
         branchVerificationStatus: state.branchVerificationStatus,
+
+        // Funciones de utilidad adicionales
+        isUserAuth: () => state.authType === AUTH_TYPES.USER,
+        isBranchAuth: () => state.authType === AUTH_TYPES.BRANCH,
     }), [
         state,
+        isAdmin,
         login,
         logout,
-        resendVerificationEmail,
         register,
+        resendVerificationEmail,
         requestPasswordReset,
         resetPassword,
-        isAdmin,
-        updateUserInfo,
         clearError,
+        loadClientProfile,
+        enrichUserWithProfile,
+        updateUserInfo,
+        updateBranchInfo,
         checkBranchRegistration,
         registerBranch,
         validateBranchEmail,
-        updateBranchInfo,
+        verifyBranchEmail,
+        resendBranchVerification,
+        requestBranchPasswordReset,
+        resetBranchPassword
     ]);
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
+export { AuthContext, AuthProvider };
 export default AuthContext;

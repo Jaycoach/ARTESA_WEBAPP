@@ -4,68 +4,34 @@ import App from './App.jsx';
 import { AuthProvider } from "./context/AuthContext";
 import { ErrorProvider } from "./context/ErrorContext";
 import { logEnvironmentInfo } from './utils/environment';
+import ErrorBoundary from './Components/ErrorBoundary.jsx';
 import './App.css';
 
-// **Logs de desarrollo**
+console.log("🚀 Iniciando aplicación...");
 console.log("Modo de ejecución:", import.meta.env.MODE);
 console.log("API URL:", import.meta.env.VITE_API_URL);
-console.log("Usando ngrok:", import.meta.env.VITE_USE_NGROK);
-console.log("URL de ngrok:", import.meta.env.VITE_NGROK_URL);
 
-// **Función para test de API asíncrono**
-const initializeApiConnection = async () => {
+// ✅ VERSIÓN SIMPLE SIN ASYNC
+const renderApp = () => {
   try {
-    // Test de conectividad dinámico
-    const { testApiConnection } = await import('./utils/apiHelper');
-    const success = await testApiConnection();
-
-    if (success) {
-      console.log('🟢 API HTTPS connection verified');
-    } else {
-      console.warn('🔴 API HTTPS connection failed - check certificate acceptance');
-    }
+    createRoot(document.getElementById('root')).render(
+      <React.StrictMode>
+        <ErrorBoundary>
+          <ErrorProvider>
+            <ErrorBoundary>
+              <AuthProvider>
+                <App />
+              </AuthProvider>
+            </ErrorBoundary>
+          </ErrorProvider>
+        </ErrorBoundary>
+      </React.StrictMode>
+    );
+    console.log("✅ App renderizada exitosamente");
   } catch (error) {
-    console.error('🔴 Error al verificar conectividad API:', error);
+    console.error("❌ Error al renderizar:", error);
   }
 };
 
-
-// **Inicialización de la aplicación**
-const initializeApp = async () => {
-  // Registrar información del entorno en desarrollo
-  if (import.meta.env.DEV) {
-    logEnvironmentInfo();
-
-    // Ejecutar tests de API de forma asíncrona
-    await Promise.all([
-      initializeApiConnection(),
-    ]);
-  }
-
-  // Renderizar la aplicación
-  createRoot(document.getElementById('root')).render(
-    <React.StrictMode>
-      <ErrorProvider>
-        <AuthProvider>
-          <App />
-        </AuthProvider>
-      </ErrorProvider>
-    </React.StrictMode>
-  );
-};
-
-// **Inicializar aplicación**
-initializeApp().catch(error => {
-  console.error('Error al inicializar la aplicación:', error);
-
-  // Fallback: renderizar la aplicación sin tests
-  createRoot(document.getElementById('root')).render(
-    <React.StrictMode>
-      <ErrorProvider>
-        <AuthProvider>
-          <App />
-        </AuthProvider>
-      </ErrorProvider>
-    </React.StrictMode>
-  );
-});
+// ✅ EJECUTAR INMEDIATAMENTE
+renderApp();

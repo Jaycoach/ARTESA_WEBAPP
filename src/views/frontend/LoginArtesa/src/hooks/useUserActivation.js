@@ -1,10 +1,13 @@
-import { useState, useEffect, useCallback } from 'react';
+// hooks/useUserActivation.js - VERSIÓN FINAL CORREGIDA
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from './useAuth';
 import { sapSyncService } from '../services/sapSyncService';
 import API from '../api/config';
+import { AUTH_TYPES } from '../constants/AuthTypes';
 
 export const useUserActivation = () => {
-  const { user } = useAuth();
+  const { user, branch, authType, isAuthenticated } = useAuth();
+
   const [userStatus, setUserStatus] = useState({
     isActive: false,
     hasClientProfile: false,
@@ -13,173 +16,272 @@ export const useUserActivation = () => {
     canCreateOrders: false,
     statusMessage: '',
     loading: true,
-    lastChecked: null
+    lastChecked: null,
+    userType: null,
+    clientInfo: null,
+    branchInfo: null
   });
 
   const [error, setError] = useState(null);
 
-  // Función para verificar el estado completo del usuario
-  const checkUserActivationStatus = useCallback(async () => {
-    if (!user?.id) {
+  // ✅ REFS PARA EVITAR POLLING INNECESARIO
+  const isCheckingRef = useRef(false);
+  const pollingCountRef = useRef(0);
+  const MAX_POLLING_ATTEMPTS = 5; // Máximo 5 intentos
+  const POLLING_INTERVAL = 60000; // 1 minuto en lugar de 30 segundos
+
+  const checkUserActivationStatus = useCallback(async (forceCheck = false) => {
+    if (isCheckingRef.current && !forceCheck) {
+      console.log('🔒 useUserActivation: Check ya en progreso, saltando...');
+      return;
+    }
+
+    if (!isAuthenticated) {
       setUserStatus(prev => ({
         ...prev,
         loading: false,
+        userType: null,
         statusMessage: 'Usuario no autenticado'
       }));
       return;
     }
 
     try {
+      isCheckingRef.current = true;
       setUserStatus(prev => ({ ...prev, loading: true }));
-      
-      // 1. CORREGIDO: Verificar estado del usuario usando el endpoint correcto
-      const userResponse = await API.get(`/users/${user.id}`);
-      const userData = userResponse.data.data || userResponse.data;
-      
-      // CORREGIDO: Obtener isActive directamente del usuario
-      const isUserActive = userData.isActive !== undefined ? userData.isActive : userData.is_active;
-      
-      // 2. Verificar si el usuario tiene perfil de cliente
-      let hasProfile = false;
-      let profileData = null;
-      try {
-        const profileResponse = await API.get(`/client-profiles/user/${user.id}`);
-        profileData = profileResponse.data.data || profileResponse.data;
-        hasProfile = !!(profileData && (profileData.nit_number || profileData.nit));
-      } catch (profileError) {
-        console.log('Usuario sin perfil de cliente:', profileError.response?.status);
-        hasProfile = false;
+
+      if (authType === AUTH_TYPES.BRANCH && branch) {
+        await validateBranchUser();
+      } else if (authType === AUTH_TYPES.USER && user) {
+        await validatePrincipalUser();
+      } else {
+        throw new Error('Tipo de usuario no identificado');
       }
-
-      // 3. Verificar si está pendiente de sincronización SAP (solo para admins)
-      let isPending = false;
-      try {
-          // Solo verificar si es administrador
-          if (userData.rol_id === 1) {
-              isPending = await sapSyncService.isUserPendingSync(user.id);
-          }
-      } catch (syncError) {
-          console.log('Error verificando estado de sync, continuando...', syncError.message);
-          isPending = false; // Asumir que no está pendiente si no se puede verificar
-      }
-
-      // 4. Determinar estado general
-      const newStatus = {
-        isActive: Boolean(isUserActive),
-        hasClientProfile: hasProfile,
-        isPendingSync: isPending,
-        syncInProgress: isPending,
-        canCreateOrders: Boolean(isUserActive) && hasProfile, // Solo requiere usuario activo y perfil
-        loading: false,
-        lastChecked: new Date().toISOString(),
-        statusMessage: getStatusMessage(Boolean(isUserActive), hasProfile, isPending)
-      };
-
-      setUserStatus(newStatus);
-      setError(null);
 
     } catch (error) {
-      console.error('Error checking user activation status:', error);
+      console.error('❌ useUserActivation Error:', error);
       setError(error.response?.data?.message || error.message || 'Error al verificar estado del usuario');
       setUserStatus(prev => ({
         ...prev,
         loading: false,
         statusMessage: 'Error al verificar estado del usuario'
       }));
+    } finally {
+      isCheckingRef.current = false;
     }
-  }, [user?.id]);
+  }, [authType, user, branch, isAuthenticated]);
 
-  // Función para obtener mensaje de estado
-  const getStatusMessage = (isActive, hasProfile, isPending) => {
-    if (!hasProfile) {
-      return 'Debes completar tu perfil de cliente para poder crear pedidos';
+  const validateBranchUser = async () => {
+    console.log('🏢 Validando usuario BRANCH');
+    
+    const branchResponse = await API.get('/branch-auth/profile');
+
+    if (branchResponse.data.success) {
+      const branchData = branchResponse.data.data;
+      const canCreate = !!(branchData.client_id && branchData.company_name);
+
+      const newStatus = {
+        isActive: true,
+        hasClientProfile: true,
+        isPendingSync: false, // ✅ BRANCH nunca está pendiente
+        syncInProgress: false,
+        canCreateOrders: canCreate,
+        loading: false,
+        lastChecked: new Date().toISOString(),
+        userType: 'branch',
+        clientInfo: {
+          client_id: branchData.client_id,
+          company_name: branchData.company_name,
+          nit_number: branchData.nit_number,
+          card_code: branchData.company_name
+        },
+        branchInfo: {
+          branch_id: branchData.branch_id,
+          branch_name: branchData.branch_name,
+          manager_name: branchData.manager_name,
+          email: branchData.email_branch,
+          municipality_code: branchData.municipality_code
+        },
+        statusMessage: canCreate
+          ? 'Tu sucursal está habilitada para crear pedidos'
+          : 'Tu sucursal está en configuración'
+      };
+
+      setUserStatus(newStatus);
+      setError(null);
+
+      console.log('✅ Validación BRANCH completada:', {
+        canCreate,
+        isPendingSync: false // ✅ SIEMPRE FALSE para branch
+      });
+    } else {
+      throw new Error('No se pudo obtener información de la sucursal');
     }
-    if (!isActive) {
-      return 'Tu cuenta no está activa. Contacta con el administrador para activar tu cuenta.';
-    }
-    if (hasProfile && isActive && !isPending) {
-      return 'Tu cuenta está activa y puedes crear pedidos';
-    }
-    if (hasProfile && isActive && isPending) {
-      return 'Tu cuenta está activa y puedes crear pedidos. Tu perfil está siendo sincronizado en segundo plano.';
-    }
-    return 'Tu cuenta está configurada correctamente';
   };
 
-  // Función para activar usuario manualmente (para administradores)
+  const validatePrincipalUser = async () => {
+    const userId = user.id;
+    console.log('👤 Validando usuario PRINCIPAL:', userId);
+
+    try {
+      // ✅ USAR SOLO EL ENDPOINT REAL COMO FUENTE DE VERDAD
+      const canCreateResponse = await API.get(`/orders/can-create/${userId}`);
+
+      if (canCreateResponse.data.success) {
+        const endpointData = canCreateResponse.data.data;
+
+        console.log('📊 Respuesta del endpoint /orders/can-create:', endpointData);
+
+        // ✅ LÓGICA SIMPLE Y DIRECTA
+        const canCreateOrders = endpointData.canCreate;
+        
+        // 🔥 REGLA FUNDAMENTAL: Si puede crear órdenes, NO está pendiente de sincronización
+        const isPendingSync = !canCreateOrders && endpointData.hasProfile && !endpointData.hasCardCode;
+
+        let statusMessage;
+        if (canCreateOrders) {
+          statusMessage = 'Tu cuenta está activa y puedes crear pedidos';
+        } else if (!endpointData.hasProfile) {
+          statusMessage = 'Debes completar tu perfil de cliente para poder crear pedidos';
+        } else if (!endpointData.isActive) {
+          statusMessage = 'Tu cuenta no está activa. Contacta con el administrador para activar tu cuenta.';
+        } else if (!endpointData.hasCardCode) {
+          statusMessage = 'Tu perfil está siendo sincronizado. Podrás crear pedidos una vez completado.';
+        } else {
+          statusMessage = 'No puedes crear pedidos en este momento';
+        }
+
+        const newStatus = {
+          isActive: endpointData.isActive,
+          hasClientProfile: endpointData.hasProfile,
+          isPendingSync: isPendingSync, // ✅ LÓGICA CORREGIDA
+          syncInProgress: isPendingSync,
+          canCreateOrders: canCreateOrders,
+          loading: false,
+          lastChecked: new Date().toISOString(),
+          userType: 'principal',
+          clientInfo: null, // Se puede obtener por separado si es necesario
+          branchInfo: null,
+          statusMessage: statusMessage
+        };
+
+        setUserStatus(newStatus);
+        setError(null);
+
+        console.log('✅ Validación PRINCIPAL completada:', {
+          canCreateOrders,
+          isPendingSync,
+          statusMessage,
+          willPoll: isPendingSync && pollingCountRef.current < MAX_POLLING_ATTEMPTS
+        });
+
+        // ✅ Si ya puede crear órdenes, detener polling completamente
+        if (canCreateOrders) {
+          pollingCountRef.current = MAX_POLLING_ATTEMPTS; // Forzar detención
+          console.log('🛑 Usuario ya puede crear órdenes, polling detenido');
+        }
+
+      } else {
+        throw new Error('Respuesta inválida del endpoint');
+      }
+
+    } catch (error) {
+      console.error('❌ Error validating principal user:', error);
+      throw error;
+    }
+  };
+
   const activateUser = useCallback(async () => {
+    if (authType === AUTH_TYPES.BRANCH) {
+      return { success: false, error: 'Los usuarios branch no pueden activarse directamente' };
+    }
+
     if (!user?.id) return { success: false, error: 'Usuario no identificado' };
 
     try {
       const result = await sapSyncService.activateClient(user.id);
       if (result.success) {
-        setTimeout(() => checkUserActivationStatus(), 2000);
+        // ✅ Resetear contador y forzar check
+        pollingCountRef.current = 0;
+        setTimeout(() => checkUserActivationStatus(true), 2000);
       }
       return result;
     } catch (error) {
-      console.error('Error activating user:', error);
       return { success: false, error: 'Error al activar usuario' };
     }
-  }, [user?.id, checkUserActivationStatus]);
+  }, [authType, user?.id, checkUserActivationStatus]);
 
-  // Función para iniciar sincronización manual
   const triggerSync = useCallback(async () => {
     try {
       const result = await sapSyncService.triggerFullSync();
       if (result.success) {
-        setTimeout(() => checkUserActivationStatus(), 3000);
+        // ✅ Resetear contador y forzar check
+        pollingCountRef.current = 0;
+        setTimeout(() => checkUserActivationStatus(true), 3000);
       }
       return result;
     } catch (error) {
-      console.error('Error triggering sync:', error);
       setError('Error al iniciar sincronización');
       return { success: false, error: 'Error al iniciar sincronización' };
     }
   }, [checkUserActivationStatus]);
 
-  // NUEVO: Función para obtener estado actual del usuario directamente
-  const getCurrentUserStatus = useCallback(async () => {
-    if (!user?.id) return null;
-    
-    try {
-      const response = await API.get(`/users/${user.id}`);
-      const userData = response.data.data || response.data;
-      return {
-        isActive: userData.isActive !== undefined ? userData.isActive : userData.is_active,
-        userData: userData
-      };
-    } catch (error) {
-      console.error('Error getting current user status:', error);
-      return null;
-    }
-  }, [user?.id]);
-
-  // Verificar estado al cargar
+  // EFFECT INICIAL
   useEffect(() => {
-    checkUserActivationStatus();
-  }, [checkUserActivationStatus]);
+    console.log('🚀 useUserActivation: Iniciando validación inicial');
+    checkUserActivationStatus(true);
+  }, [authType, user?.id, checkUserActivationStatus, branch?.branch_id]);
 
-  // Auto-refresh si está pendiente de sincronización
+  // POLLING INTELIGENTE
   useEffect(() => {
     let interval;
-    if (userStatus.isPendingSync && !userStatus.loading) {
+    
+    const shouldPoll = (
+      userStatus.isPendingSync && 
+      !userStatus.loading && 
+      pollingCountRef.current < MAX_POLLING_ATTEMPTS
+    );
+
+    if (shouldPoll) {
+      pollingCountRef.current += 1;
+      
+      console.log(`⏰ Iniciando polling limitado (${pollingCountRef.current}/${MAX_POLLING_ATTEMPTS})`);
+      
       interval = setInterval(() => {
-        checkUserActivationStatus();
-      }, 30000); // Verificar cada 30 segundos
+        if (pollingCountRef.current >= MAX_POLLING_ATTEMPTS) {
+          console.log('🛑 Límite de polling alcanzado, deteniendo...');
+          return;
+        }
+        
+        console.log(`🔄 Polling check (${pollingCountRef.current}/${MAX_POLLING_ATTEMPTS})`);
+        checkUserActivationStatus(false);
+      }, POLLING_INTERVAL);
     }
 
     return () => {
-      if (interval) clearInterval(interval);
+      if (interval) {
+        console.log('🛑 Limpiando interval de polling');
+        clearInterval(interval);
+      }
     };
   }, [userStatus.isPendingSync, userStatus.loading, checkUserActivationStatus]);
+
+  // FUNCIÓN PARA RESETEAR DESDE COMPONENTES
+  const resetPolling = useCallback(() => {
+    pollingCountRef.current = 0;
+    console.log('🔄 Polling counter reset');
+  }, []);
 
   return {
     userStatus,
     error,
-    checkStatus: checkUserActivationStatus,
+    checkStatus: () => checkUserActivationStatus(true),
     triggerSync,
     activateUser,
-    refresh: checkUserActivationStatus,
-    getCurrentUserStatus // NUEVO: Función adicional para obtener estado directo
+    refresh: () => {
+      resetPolling();
+      return checkUserActivationStatus(true);
+    },
+    resetPolling
   };
 };

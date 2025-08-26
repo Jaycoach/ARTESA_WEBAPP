@@ -31,6 +31,9 @@ export const CLOUDFRONT_URL = import.meta.env.VITE_CLOUDFRONT_URL;
 export const getApiUrl = () => API_URL;
 export const getAppVersion = () => APP_VERSION;
 
+// ✅ ELIMINAR: Esta línea problemática (línea 33)
+// export const testApiConnectivity = testApiConnectivityOptimized;
+
 // Función para construir URLs completas de API
 export const buildApiUrl = (endpoint) => {
   const baseUrl = API_URL || '';
@@ -94,12 +97,16 @@ export const determineBaseUrl = () => {
 };
 
 // **NUEVA FUNCIÓN**: Probar conectividad con diferentes opciones de API
-export const testApiConnectivity = async () => {
+export const testApiConnectivityOptimized = async () => {
+  // Verificar cache de sesión
+  if (window.connectivityCache && (Date.now() - window.connectivityCache.timestamp) < 300000) { // 5 minutos
+    console.log('✅ Resultados de conectividad desde cache de sesión');
+    return window.connectivityCache.results;
+  }
+
   const apiOptions = [
-    'http://ec2-44-216-131-63.compute-1.amazonaws.com:3000',
+    'https://ec2-44-216-131-63.compute-1.amazonaws.com', // Solo los que funcionan
     'http://ec2-44-216-131-63.compute-1.amazonaws.com',
-    'https://ec2-44-216-131-63.compute-1.amazonaws.com',
-    'https://44.216.131.63',
     'http://44.216.131.63'
   ];
   
@@ -110,14 +117,12 @@ export const testApiConnectivity = async () => {
       console.log(`🔍 Probando conectividad con: ${url}`);
       
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 segundos timeout
+      const timeoutId = setTimeout(() => controller.abort(), 3000); // Reducir timeout
       
       const response = await fetch(`${url}/api/health`, {
         method: 'GET',
         signal: controller.signal,
-        headers: {
-          'Accept': 'application/json',
-        }
+        headers: { 'Accept': 'application/json' }
       });
       
       clearTimeout(timeoutId);
@@ -131,6 +136,11 @@ export const testApiConnectivity = async () => {
       
       console.log(`✅ ${url} - Status: ${response.status}`);
       
+      // Si encontramos uno que funciona, parar ahí
+      if (response.ok) {
+        break;
+      }
+      
     } catch (error) {
       results.push({
         url,
@@ -143,8 +153,17 @@ export const testApiConnectivity = async () => {
     }
   }
   
+  // Guardar en cache de sesión
+  window.connectivityCache = {
+    results,
+    timestamp: Date.now()
+  };
+  
   return results;
 };
+
+// ✅ MOVER: Después de la definición de testApiConnectivityOptimized
+export const testApiConnectivity = testApiConnectivityOptimized;
 
 // **FUNCIÓN MEJORADA**: Logging con información de la API remota
 export const logEnvironmentInfo = () => {
@@ -164,10 +183,10 @@ export const logEnvironmentInfo = () => {
     console.log('🌐 Force Allow Any Host:', FORCE_ALLOW_ANY_HOST);
     console.groupEnd();
     
-    // **TEST DE CONECTIVIDAD AUTOMÁTICO** en desarrollo
-    if (isDevelopment) {
+    // ✅ SOLO EJECUTAR EN DEBUG MODE
+    if (isDevelopment && window.location.search.includes('debug=true')) {
       console.log('🔍 Iniciando test de conectividad...');
-      testApiConnectivity().then(results => {
+      testApiConnectivityOptimized().then(results => {
         console.group('📊 Resultados de conectividad');
         results.forEach(result => {
           const icon = result.ok ? '✅' : '❌';
@@ -179,7 +198,7 @@ export const logEnvironmentInfo = () => {
   }
 };
 
-// **FUNCIÓN MEJORADA**: Obtener información del entorno como objeto
+// Resto de funciones sin cambios...
 export const getEnvironmentInfo = () => {
   return {
     mode: import.meta.env.MODE,
@@ -201,21 +220,18 @@ export const getEnvironmentInfo = () => {
   };
 };
 
-// **NUEVA FUNCIÓN**: Construir URL completa para endpoint de upload
 export const buildUploadUrl = (endpoint = '') => {
   const baseUrl = determineBaseUrl();
   const path = API_PATH || '/api';
   return `${baseUrl}${path}/upload${endpoint}`;
 };
 
-// **NUEVA FUNCIÓN**: Construir URL completa para endpoint de client-profiles
 export const buildClientProfileUrl = (endpoint = '') => {
   const baseUrl = determineBaseUrl();
   const path = API_PATH || '/api';
   return `${baseUrl}${path}/client-profiles${endpoint}`;
 };
 
-// **NUEVA FUNCIÓN**: Validar configuración mínima requerida
 export const validateEnvironmentConfig = () => {
   const errors = [];
   
@@ -236,9 +252,8 @@ export const validateEnvironmentConfig = () => {
   return true;
 };
 
-// **EJECUTAR LOGGING AUTOMÁTICAMENTE**
-if (typeof window !== 'undefined') {
-  // Ejecutar cuando se carga el módulo
+// ✅ SOLO EJECUTAR CON DEBUG
+if (typeof window !== 'undefined' && window.location.search.includes('debug=true')) {
   setTimeout(() => {
     logEnvironmentInfo();
     validateEnvironmentConfig();

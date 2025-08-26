@@ -1,31 +1,45 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { FaPaperPlane, FaEnvelope, FaSpinner } from 'react-icons/fa';
-import { useRecaptcha } from "../../hooks/useRecaptcha"; // Importar el hook de reCAPTCHA
+import { BsBuilding } from 'react-icons/bs';
+import { useRecaptcha } from "../../hooks/useRecaptcha";
+import { useAuth } from "../../hooks/useAuth";
+import AuthTypeSelector from "./../Login/AuthTypeSelector";
+import { AUTH_TYPES } from "../../constants/AuthTypes";
 import API from '../../api/config';
-import '../../App.scss';
 
 const ResendVerification = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const initialEmail =
+    location.state?.email || searchParams.get('email') || '';
+
+  // ✅ DETECTAR TIPO DESDE URL O PERMITIR SELECCIÓN
+  const initialType = searchParams.get('type') === 'branch' ? AUTH_TYPES.BRANCH : AUTH_TYPES.USER;
+
   const { generateRecaptchaToken, loading: recaptchaLoading, error: recaptchaError, isRecaptchaReady } = useRecaptcha();
+
+  // ✅ USAR FUNCIONES DEL AUTHCONTEXT
+  const { resendVerificationEmail, resendBranchVerification } = useAuth();
+
+  const [authType, setAuthType] = useState(initialType);
   const [email, setEmail] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-  
-  // Contador para el límite de intentos
   const [attempts, setAttempts] = useState(0);
   const [isBlocked, setIsBlocked] = useState(false);
   const [countdown, setCountdown] = useState(0);
 
+  const isBranchMode = authType === AUTH_TYPES.BRANCH;
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (isBlocked) {
-      return;
-    }
-
+    if (isBlocked) return;
     if (!email) {
       setError('Por favor ingresa tu dirección de correo electrónico');
       return;
@@ -36,55 +50,43 @@ const ResendVerification = () => {
     setIsLoading(true);
 
     try {
-      // Generar token de reCAPTCHA
-      console.log("Generando token reCAPTCHA para resend_verification");
-      const recaptchaToken = await generateRecaptchaToken('resend_verification');
+      // ✅ GENERAR TOKEN DIFERENCIADO
+      const actionType = isBranchMode ? 'branch_resend_verification' : 'resend_verification';
+      console.log(`🔄 Generando token reCAPTCHA para ${actionType}`);
+
+      const recaptchaToken = await generateRecaptchaToken(actionType);
 
       if (!recaptchaToken) {
         setError(recaptchaError || 'No se pudo completar la verificación de seguridad. Por favor, recargue la página e intente nuevamente.');
-        console.error("No se pudo obtener token reCAPTCHA para resend_verification");
         setIsLoading(false);
         return;
       }
 
-      console.log("Token reCAPTCHA obtenido correctamente para resend_verification");
-      console.log("Enviando solicitud de reenvío de verificación con token reCAPTCHA");
+      console.log(`📧 Reenviando verificación ${isBranchMode ? 'BRANCH' : 'USER'} para:`, email);
 
-      // Ahora usar la API normal
-      const response = await API.post('/auth/resend-verification', { 
-        mail: email,
-        recaptchaToken
-      });
+      let result;
 
-      console.log("Respuesta de API normal:", response);
-      
-      // Si llegamos aquí, fue exitoso
-      setSuccess(true);
-      setMessage(response.data?.message || 'Correo de verificación enviado con éxito');
-      console.log("Reenvío de verificación exitoso");
+      if (isBranchMode) {
+        // ✅ REENVÍO PARA BRANCH
+        result = await resendBranchVerification(email, recaptchaToken);
+      } else {
+        // ✅ REENVÍO PARA USUARIO PRINCIPAL
+        result = await resendVerificationEmail(email, recaptchaToken);
+      }
+
+      if (result.success !== false) {
+        setSuccess(true);
+        setMessage(result.message || `Correo de verificación ${isBranchMode ? 'de sucursal' : ''} enviado con éxito`);
+        console.log(`✅ Reenvío de verificación ${isBranchMode ? 'Branch' : 'User'} exitoso`);
+      } else {
+        throw new Error(result.error || `Error al enviar correo de verificación ${isBranchMode ? 'de sucursal' : ''}`);
+      }
 
     } catch (error) {
-      console.error('Error completo al reenviar verificación:', error);
-      console.error('Response del error:', error.response);
-      console.error('Data del error:', error.response?.data);
-      console.error('Headers del error:', error.response?.headers);
-      console.error('Config del error:', error.config);
+      console.error(`❌ Error reenviando verificación ${isBranchMode ? 'Branch' : 'User'}:`, error);
 
-      // Verificar si realmente es un error de red/CORS
-      if (!error.response && error.request) {
-        setError('Error de conexión. Verificando conectividad con el servidor...');
-
-      }
-
-      // Manejar errores específicos de reCAPTCHA
-      if (error.response?.data?.code === 'RECAPTCHA_FAILED') {
-        setError('Verificación de seguridad fallida. Por favor, intenta nuevamente.');
-        setIsLoading(false);
-        return;
-      }
-
-      // Manejar error de límite de intentos (429)
-      if (error.response && error.response.status === 429) {
+      // Manejar errores específicos
+      if (error.response?.status === 429) {
         setIsBlocked(true);
         const retryAfter = error.response.headers['retry-after'] || 60;
         setCountdown(parseInt(retryAfter, 10));
@@ -101,36 +103,33 @@ const ResendVerification = () => {
         }, 1000);
 
         setError('Has excedido el límite de intentos. Por favor espera antes de intentar nuevamente.');
-        setIsLoading(false);
-        return;
+      } else {
+        const errorMessage = error.response?.data?.message || error.message || `Error al enviar el correo de verificación${isBranchMode ? ' de sucursal' : ''}`;
+        setError(errorMessage);
+
+        // Incrementar contador de intentos
+        setAttempts(prev => {
+          const newAttempts = prev + 1;
+          if (newAttempts >= 3) {
+            setIsBlocked(true);
+            setCountdown(30);
+
+            const timer = setInterval(() => {
+              setCountdown(prevCountdown => {
+                if (prevCountdown <= 1) {
+                  clearInterval(timer);
+                  setIsBlocked(false);
+                  setAttempts(0);
+                  return 0;
+                }
+                return prevCountdown - 1;
+              });
+            }, 1000);
+          }
+          return newAttempts;
+        });
       }
-
-      // Para cualquier otro error real
-      const errorMessage = error.response?.data?.message || error.message || 'Error al enviar el correo de verificación';
-      setError(errorMessage);
-
-      // Incrementar contador de intentos
-      setAttempts(prev => {
-        const newAttempts = prev + 1;
-        if (newAttempts >= 3) {
-          setIsBlocked(true);
-          setCountdown(30);
-
-          const timer = setInterval(() => {
-            setCountdown(prevCountdown => {
-              if (prevCountdown <= 1) {
-                clearInterval(timer);
-                setIsBlocked(false);
-                setAttempts(0);
-                return 0;
-              }
-              return prevCountdown - 1;
-            });
-          }, 1000);
-        }
-        return newAttempts;
-      });
-      
+    } finally {
       setIsLoading(false);
     }
   };
@@ -141,19 +140,23 @@ const ResendVerification = () => {
         <div className="max-w-md w-full mx-auto bg-white p-8 rounded-xl shadow-lg">
           <div className="text-center">
             <div className="bg-green-100 text-green-700 p-4 rounded-lg mb-6">
-              <FaEnvelope className="text-4xl mx-auto mb-2" />
+              {isBranchMode ? (
+                <BsBuilding className="text-4xl mx-auto mb-2" />
+              ) : (
+                <FaEnvelope className="text-4xl mx-auto mb-2" />
+              )}
               <h2 className="text-xl font-bold">¡Correo Enviado!</h2>
               <p>{message}</p>
             </div>
             <p className="text-gray-600 mb-4">
-              Hemos enviado un nuevo correo de verificación a: <strong>{email}</strong>
+              Hemos enviado un nuevo correo de verificación {isBranchMode ? 'de sucursal' : ''} a: <strong>{email}</strong>
             </p>
             <p className="text-sm text-gray-500 mb-6">
               Por favor revisa tu bandeja de entrada (y la carpeta de spam) para completar la verificación.
             </p>
             <div className="flex flex-col space-y-2">
-              <button 
-                onClick={() => navigate('/login')} 
+              <button
+                onClick={() => navigate('/login')}
                 className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition"
               >
                 Ir al inicio de sesión
@@ -169,9 +172,26 @@ const ResendVerification = () => {
     <div className="flex items-center justify-center min-h-screen" style={{ backgroundColor: '#687e8d' }}>
       <div className="max-w-md w-full mx-auto bg-white p-8 rounded-xl shadow-lg">
         <div className="text-center mb-6">
-          <FaPaperPlane className="text-5xl text-blue-500 mx-auto mb-2" />
-          <h2 className="text-2xl font-bold text-gray-800">Reenviar Correo de Verificación</h2>
-          <p className="text-gray-600">Ingresa tu dirección de correo electrónico para recibir un nuevo enlace de verificación.</p>
+          {isBranchMode ? (
+            <BsBuilding className="text-5xl text-blue-500 mx-auto mb-2" />
+          ) : (
+            <FaPaperPlane className="text-5xl text-blue-500 mx-auto mb-2" />
+          )}
+          <h2 className="text-2xl font-bold text-gray-800">
+            Reenviar Correo de Verificación {isBranchMode ? 'de Sucursal' : ''}
+          </h2>
+          <p className="text-gray-600">
+            Ingresa tu dirección de correo electrónico para recibir un nuevo enlace de verificación{isBranchMode ? ' de sucursal' : ''}.
+          </p>
+        </div>
+
+        {/* ✅ SELECTOR DE TIPO DE USUARIO */}
+        <div className="mb-4">
+          <AuthTypeSelector
+            selectedType={authType}
+            onTypeChange={setAuthType}
+            disabled={isLoading || isBlocked}
+          />
         </div>
 
         {error && (
@@ -188,7 +208,7 @@ const ResendVerification = () => {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-              Correo Electrónico
+              {isBranchMode ? 'Correo de la Sucursal' : 'Correo Electrónico'}
             </label>
             <input
               type="email"
@@ -196,7 +216,7 @@ const ResendVerification = () => {
               name="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="Ingresa tu correo electrónico"
+              placeholder={isBranchMode ? 'Correo de la sucursal' : 'Ingresa tu correo electrónico'}
               className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
               disabled={isLoading || isBlocked || recaptchaLoading}
@@ -205,25 +225,24 @@ const ResendVerification = () => {
 
           <button
             type="submit"
-            className={`w-full flex justify-center items-center px-4 py-2 ${
-                isLoading || isBlocked || recaptchaLoading
-                    ? 'bg-gray-400 cursor-not-allowed'
-                    : 'bg-blue-600 hover:bg-blue-700'
-            } text-white rounded-md transition`}
+            className={`w-full flex justify-center items-center px-4 py-2 ${isLoading || isBlocked || recaptchaLoading
+                ? 'bg-gray-400 cursor-not-allowed'
+                : 'bg-blue-600 hover:bg-blue-700'
+              } text-white rounded-md transition`}
             disabled={isLoading || isBlocked || recaptchaLoading}
           >
             {isLoading || recaptchaLoading ? (
-                <>
-                    <FaSpinner className="animate-spin mr-2" /> Enviando...
-                </>
+              <>
+                <FaSpinner className="animate-spin mr-2" /> Enviando...
+              </>
             ) : isBlocked ? (
-                `Espera ${countdown} segundos`
+              `Espera ${countdown} segundos`
             ) : !isRecaptchaReady ? (
-                "Cargando seguridad..."
+              "Cargando seguridad..."
             ) : (
-                'Enviar Correo de Verificación'
+              `Enviar Correo de Verificación${isBranchMode ? ' de Sucursal' : ''}`
             )}
-        </button>
+          </button>
 
           <div className="text-center">
             <button

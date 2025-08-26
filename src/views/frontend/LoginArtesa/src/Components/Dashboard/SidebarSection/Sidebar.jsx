@@ -1,3 +1,4 @@
+// components/Dashboard/Sidebar.jsx - VERSIÓN FINAL RESTAURADA
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../../hooks/useAuth";
@@ -7,16 +8,20 @@ import {
   FaSignOutAlt, FaTools, FaUsers
 } from "react-icons/fa";
 
-const Sidebar = ({ collapsed, mobileMenuOpen, onCloseMobileMenu, onToggleCollapse, authType }) => {
+const Sidebar = ({ collapsed, mobileMenuOpen, onCloseMobileMenu, onToggleCollapse }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const sidebarRef = useRef(null);
-  const { user, logout } = useAuth();
+
+  // *** AMPLIADO: Obtener datos del contexto incluyendo branch ***
+  const { user, branch, authType, logout } = useAuth();
+
   const [hasAdminAccess, setHasAdminAccess] = useState(false);
 
-  // Verificar permisos de administración
+  // *** MANTENIDO: Verificar permisos de administración (lógica original) ***
   useEffect(() => {
-    if (user) {
+    // Solo verificar permisos para usuarios principales
+    if (authType !== AUTH_TYPES.BRANCH && user) {
       const role = user.role || user.rol;
       let isAdmin = false;
 
@@ -40,8 +45,9 @@ const Sidebar = ({ collapsed, mobileMenuOpen, onCloseMobileMenu, onToggleCollaps
     } else {
       setHasAdminAccess(false);
     }
-  }, [user]);
+  }, [user, authType]);
 
+  // *** MANTENIDO: Click fuera para cerrar menú móvil (lógica original) ***
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (sidebarRef.current && !sidebarRef.current.contains(event.target)) {
@@ -52,45 +58,70 @@ const Sidebar = ({ collapsed, mobileMenuOpen, onCloseMobileMenu, onToggleCollaps
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [mobileMenuOpen, onCloseMobileMenu]);
 
+  // *** MANTENIDO: Función isActive original ***
   const isActive = (path) => {
-    if (path === '/dashboard') {
-      return location.pathname === '/dashboard';
+    if (path === '/dashboard' || path === '/dashboard-branch') {
+      return location.pathname === path;
     }
     return location.pathname.startsWith(path);
   };
 
+  // *** MANTENIDO: Función handleMenuClick original ***
   const handleMenuClick = (path) => {
     navigate(path);
     if (mobileMenuOpen && onCloseMobileMenu) onCloseMobileMenu();
   };
 
+  // *** MANTENIDO: Función handleLogout original ***
   const handleLogout = async () => {
-  await logout();                // espera limpieza
-  navigate('/login', { replace:true });
-};
-  // Definir ítems del menú y filtrar según authType
-  const menuItems = [
-    { path: "/dashboard", icon: FaHome, label: "Inicio" },
-    { path: "/dashboard/orders", icon: FaListAlt, label: "Pedidos" },
-    { path: "/dashboard/invoices", icon: FaFileInvoiceDollar, label: "Facturas" },
-    { path: "/dashboard/products", icon: FaBoxes, label: "Productos" },
-    { path: "/dashboard/Users", icon: FaUsers, label: "Clientes", restricted: true }, // Ocultar para branches
-    { path: "/dashboard/settings", icon: FaCog, label: "Configuración" },
-    { path: "/dashboard/admin", icon: FaTools, label: "Administración", adminOnly: true } // Solo admins
-  ];
+    await logout();
+    navigate('/login', { replace: true });
+  };
 
-  const filteredItems = menuItems.filter(item => {
+  // *** MEJORADO: Definir ítems del menú según tipo de usuario ***
+  const getMenuItems = () => {
     if (authType === AUTH_TYPES.BRANCH) {
-      return !item.restricted && !item.adminOnly;
+      // Menú específico para usuarios branch
+      return [
+        { path: "/dashboard-branch", icon: FaHome, label: "Inicio" },
+        { path: "/dashboard-branch/orders", icon: FaListAlt, label: "Pedidos" },
+        { path: "/dashboard-branch/invoices", icon: FaFileInvoiceDollar, label: "Facturas" },
+        { path: "/dashboard-branch/products", icon: FaBoxes, label: "Productos" },
+        { path: "/dashboard-branch/settings", icon: FaCog, label: "Configuración" }
+      ];
+    } else {
+      // Menú para usuarios principales (lógica original)
+      return [
+        { path: "/dashboard", icon: FaHome, label: "Inicio" },
+        { path: "/dashboard/orders", icon: FaListAlt, label: "Pedidos" },
+        { path: "/dashboard/invoices", icon: FaFileInvoiceDollar, label: "Facturas" },
+        { path: "/dashboard/products", icon: FaBoxes, label: "Productos" },
+        { path: "/dashboard/Users", icon: FaUsers, label: "Clientes", restricted: true },
+        { path: "/dashboard/settings", icon: FaCog, label: "Configuración" },
+        { path: "/dashboard/admin", icon: FaTools, label: "Administración", adminOnly: true }
+      ];
     }
-    return !item.adminOnly || hasAdminAccess;
-  });
+  };
+
+  const menuItems = getMenuItems();
+
+  // *** MEJORADO: Filtrar ítems según permisos (usuarios principales únicamente) ***
+  const filteredItems = authType === AUTH_TYPES.BRANCH
+    ? menuItems // Para branch, mostrar todos los elementos
+    : menuItems.filter(item => !item.adminOnly || hasAdminAccess); // Para usuarios principales, filtrar por permisos
 
   return (
-    <div className="h-full flex flex-col text-white overflow-y-auto">
+    // *** MANTENIDO: Estructura y clases originales exactas ***
+    <div className="h-full flex flex-col text-white overflow-y-auto" ref={sidebarRef}>
       <div className="flex-1 overflow-y-auto pt-8">
-        {!collapsed && <h3 className="text-xs uppercase text-white/70 px-4 mb-2">Menú</h3>}
+        {/* *** MANTENIDO: Header del menú original *** */}
+        {!collapsed && (
+          <h3 className="text-xs uppercase text-white/70 px-4 mb-2">
+            {authType === AUTH_TYPES.BRANCH ? 'Menú Sucursal' : 'Menú'}
+          </h3>
+        )}
 
+        {/* *** MANTENIDO: Lista de menús con estilos originales *** */}
         <ul className="space-y-1 px-2">
           {filteredItems.map((item) => (
             <li key={item.path}>
@@ -103,22 +134,30 @@ const Sidebar = ({ collapsed, mobileMenuOpen, onCloseMobileMenu, onToggleCollaps
                     : 'hover:bg-secondary-200/20 hover:text-secondary-300 text-white'
                   }`}
               >
-                <item.icon className={`text-lg transform transition-transform duration-200 group-hover:scale-110 ${collapsed ? 'mx-auto' : 'mr-3'}`} />
-                {!collapsed && <span className="transition-opacity duration-200">{item.label}</span>}
+                <item.icon
+                  className={`text-lg transform transition-transform duration-200 group-hover:scale-110 ${collapsed ? 'mx-auto' : 'mr-3'
+                    }`}
+                />
+                {!collapsed && (
+                  <span className="transition-opacity duration-200">{item.label}</span>
+                )}
               </button>
             </li>
           ))}
         </ul>
       </div>
 
-      {/* Botón de cerrar sesión */}
+      {/* *** MANTENIDO: Botón de cerrar sesión original *** */}
       <div className="p-2 mt-auto">
         <button
           onClick={handleLogout}
           title={collapsed ? "Cerrar Sesión" : undefined}
           className="relative w-full flex items-center py-2 px-3 rounded-md hover:bg-secondary-200/20 hover:text-secondary-300 text-white transition-all duration-200 ease-in-out group"
         >
-          <FaSignOutAlt className={`text-lg transform transition-transform duration-200 group-hover:scale-110 ${collapsed ? 'mx-auto' : 'mr-3'}`} />
+          <FaSignOutAlt
+            className={`text-lg transform transition-transform duration-200 group-hover:scale-110 ${collapsed ? 'mx-auto' : 'mr-3'
+              }`}
+          />
           {!collapsed && <span>Cerrar Sesión</span>}
         </button>
       </div>

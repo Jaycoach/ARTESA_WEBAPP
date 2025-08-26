@@ -8,7 +8,7 @@ import { FaEdit, FaEye, FaExclamationTriangle, FaTrashAlt, FaFilter, FaUserCheck
 import API from '../../../../api/config';
 
 const OrderList = ({ canCreateValidation, onCreateOrderClick }) => {
-  const { user } = useAuth();
+  const { user, branch, authType, isAuthenticated } = useAuth();
   const { userStatus, error: userError, refresh: refreshUserStatus } = useUserActivation(); // NUEVO
   const [orders, setOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -121,10 +121,41 @@ const OrderList = ({ canCreateValidation, onCreateOrderClick }) => {
     fetchSettingsAndStatuses();
   }, []);
 
-  // fetchOrders function (mantener igual)
   const fetchOrders = useCallback(async () => {
-    if (!user?.id) {
-      setError('Usuario no identificado');
+    if (!isAuthenticated) {
+      setError('No hay sesión activa');
+      setIsLoading(false);
+      return;
+    }
+
+    // ✅ IDENTIFICAR USUARIO SEGÚN CONTEXTO
+    let currentUserId;
+    let isCurrentAdmin = false;
+
+    if (authType === 'branch' && branch) {
+      currentUserId = branch.branch_id || branch.client_id;
+      isCurrentAdmin = false; // Branch users no son admin generalmente
+      console.log('🏢 OrderList - Cargando para BRANCH:', {
+        branch_id: branch.branch_id,
+        branch_name: branch.branchname || branch.branch_name,
+        user_id: branch.user_id
+      });
+    } else if (authType === 'user' && user) {
+      currentUserId = user.id;
+      isCurrentAdmin = user?.role === 1;
+      console.log('👤 OrderList - Cargando para USER:', {
+        user_id: user.id,
+        name: user.nombre || user.name,
+        role: user.role
+      });
+    } else {
+      setError('Contexto de usuario no válido');
+      setIsLoading(false);
+      return;
+    }
+
+    if (!currentUserId) {
+      setError('ID de usuario/sucursal no encontrado');
       setIsLoading(false);
       return;
     }
@@ -135,20 +166,28 @@ const OrderList = ({ canCreateValidation, onCreateOrderClick }) => {
     try {
       let data = [];
 
-      if (isAdmin) {
-        const userOrders = await orderService.getUserOrders(user.id);
-        const todayISO = new Date().toISOString().split('T')[0];
-        const todayOrders = await orderService.getOrdersByDeliveryDate(todayISO);
-        const combined = [...userOrders, ...todayOrders];
-        const uniqueMap = new Map();
-        for (const o of combined) {
-          uniqueMap.set(o.order_id, o);
-        }
-        data = Array.from(uniqueMap.values());
+      if (authType === 'branch') {
+        // ✅ LÓGICA PARA BRANCH - Usar orderService adaptado
+        console.log('🏢 Obteniendo órdenes de sucursal...');
+        data = await orderService.getUserOrders(currentUserId);
       } else {
-        data = await orderService.getUserOrders(user.id);
+        // ✅ LÓGICA ORIGINAL PARA USER
+        if (isCurrentAdmin) {
+          const userOrders = await orderService.getUserOrders(currentUserId);
+          const todayISO = new Date().toISOString().split('T')[0];
+          const todayOrders = await orderService.getOrdersByDeliveryDate(todayISO);
+          const combined = [...userOrders, ...todayOrders];
+          const uniqueMap = new Map();
+          for (const o of combined) {
+            uniqueMap.set(o.order_id, o);
+          }
+          data = Array.from(uniqueMap.values());
+        } else {
+          data = await orderService.getUserOrders(currentUserId);
+        }
       }
 
+      // ✅ FILTRAR ÓRDENES INVÁLIDAS (lógica común)
       const active = data.filter(o => {
         const invalidStates = [6];
         if (invalidStates.includes(o.status_id)) return false;
@@ -156,14 +195,16 @@ const OrderList = ({ canCreateValidation, onCreateOrderClick }) => {
         return true;
       });
 
+      // ✅ CARGAR DETALLES DE ÓRDENES
       const ordersWithDetails = await Promise.all(
         active.map(async (order) => {
           try {
-            const detailsResponse = await API.get(`/orders/${order.order_id}`);
-            if (detailsResponse.data.success) {
+            // Usar orderService adaptado que detecta contexto automáticamente
+            const orderResult = await orderService.getOrderById(order.order_id);
+            if (orderResult.success) {
               return {
                 ...order,
-                orderDetails: detailsResponse.data.data.details || []
+                orderDetails: orderResult.data.details || []
               };
             }
             return order;
@@ -173,8 +214,10 @@ const OrderList = ({ canCreateValidation, onCreateOrderClick }) => {
           }
         })
       );
+
       setOrders(ordersWithDetails);
 
+      // ✅ VERIFICAR EDITABILIDAD DE ÓRDENES
       const editMap = {};
       for (const order of active) {
         const check = await orderService.canEditOrder(order.order_id, orderTimeLimit);
@@ -182,13 +225,27 @@ const OrderList = ({ canCreateValidation, onCreateOrderClick }) => {
       }
       setEditableOrders(editMap);
 
+      console.log(`✅ Órdenes cargadas para ${authType.toUpperCase()}:`, {
+        total: ordersWithDetails.length,
+        userId: currentUserId
+      });
+
     } catch (err) {
-      console.error('Error fetching orders:', err);
-      setError(err.message || 'Error al cargar los pedidos');
+      console.error(`❌ Error cargando órdenes para ${authType}:`, err);
+
+      // ✅ MANEJO ESPECÍFICO PARA BRANCH SIN ÓRDENES
+      if (authType === 'branch' && err.message?.includes('404')) {
+        console.log('ℹ️ Sucursal sin órdenes registradas');
+        setOrders([]);
+        setError(null); // No mostrar error, solo lista vacía
+      } else {
+        setError(err.message || 'Error al cargar los pedidos');
+        setOrders([]);
+      }
     } finally {
       setIsLoading(false);
     }
-  }, [user, isAdmin, filters, orderTimeLimit]);
+  }, [orderTimeLimit]);
 
   useEffect(() => {
     fetchOrders();
