@@ -78,6 +78,23 @@ class BranchAuthController {
                 });
             }
 
+            // Verificar si el email está verificado
+            if (!branch.email_verified) {
+                await BranchAuth.logLoginAttempt(
+                    branch.branch_id, 
+                    req.ip, 
+                    'failed', 
+                    'Email no verificado',
+                    req.headers['user-agent']
+                );
+                
+                return res.status(403).json({
+                    success: false,
+                    message: 'Debe verificar su email antes de iniciar sesión. Revise su bandeja de entrada.',
+                    emailNotVerified: true
+                });
+            }
+
             // Verificar si la sucursal está bloqueada
             const isLocked = await BranchAuth.isLocked(branch.branch_id);
             if (isLocked) {
@@ -390,7 +407,8 @@ class BranchAuthController {
                     branch_name, 
                     email_branch, 
                     password,
-                    is_login_enabled
+                    is_login_enabled,
+                    email_verified
                  FROM client_branches 
                  WHERE email_branch = $1`,
                 [email]
@@ -413,7 +431,9 @@ class BranchAuthController {
                     email_branch: branch.email_branch,
                     hasPassword: !!branch.password,
                     needsRegistration: !branch.password,
-                    is_login_enabled: branch.is_login_enabled
+                    is_login_enabled: branch.is_login_enabled,
+                    email_verified: branch.email_verified,
+                    needsEmailVerification: !branch.email_verified
                 }
             });
 
@@ -429,6 +449,161 @@ class BranchAuthController {
             });
         }
     }
+
+    /**
+     * Inicia el proceso de verificación de email para sucursal
+     * @param {Request} req - Express request
+     * @param {Response} res - Express response
+     */
+    static async initiateEmailVerification(req, res) {
+        const { email } = req.body;
+
+        try {
+            logger.info('Iniciando verificación de email para sucursal', { email, ip: req.ip });
+
+            if (!email) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'El email es requerido'
+                });
+            }
+
+            // Buscar sucursal por email
+            const { rows } = await pool.query(
+                `SELECT 
+                    branch_id, 
+                    branch_name, 
+                    email_branch, 
+                    password,
+                    is_login_enabled,
+                    email_verified,
+                    verification_token,
+                    verification_expires,
+                    client_id
+                 FROM client_branches 
+                 WHERE email_branch = $1`,
+                [email]
+            );
+
+            if (rows.length === 0) {
+                // Por seguridad, no revelar si el email existe o no
+                return res.status(200).json({
+                    success: true,
+                    message: 'Si tu correo de sucursal está registrado, recibirás un enlace de verificación'
+                });
+            }
+
+            const branch = rows[0];
+
+            // Verificar que la sucursal tenga login habilitado
+            if (!branch.is_login_enabled) {
+                logger.warn('Intento de verificación en sucursal con login deshabilitado', {
+                    branchId: branch.branch_id,
+                    email
+                });
+                return res.status(200).json({
+                    success: true,
+                    message: 'Si tu correo de sucursal está registrado, recibirás un enlace de verificación'
+                });
+            }
+
+            // Si no tiene contraseña configurada, debe usar el flujo de registro primero
+            if (!branch.password) {
+                logger.info('Intento de verificación en sucursal sin contraseña', {
+                    branchId: branch.branch_id,
+                    email
+                });
+                return res.status(400).json({
+                    success: false,
+                    message: 'Esta sucursal debe completar su registro primero',
+                    needsRegistration: true
+                });
+            }
+
+            // Si ya está verificado, informar sin revelar detalles
+            if (branch.email_verified) {
+                logger.info('Intento de verificación en sucursal ya verificada', {
+                    branchId: branch.branch_id,
+                    email
+                });
+                return res.status(200).json({
+                    success: true,
+                    message: 'Si tu correo de sucursal está registrado y no verificado, recibirás un enlace de verificación'
+                });
+            }
+
+            // Generar nuevo token de verificación
+            const verificationToken = crypto.randomBytes(32).toString('hex');
+            const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 horas
+
+            // Actualizar token en la base de datos
+            await pool.query(
+                'UPDATE client_branches SET verification_token = $1, verification_expires = $2, updated_at_auth = CURRENT_TIMESTAMP WHERE branch_id = $3',
+                [verificationToken, verificationExpires, branch.branch_id]
+            );
+
+            // Enviar correo de verificación
+            try {
+                await EmailService.sendBranchVerificationEmail(
+                    email, 
+                    verificationToken,
+                    branch.branch_name
+                );
+
+                logger.info('Correo de verificación enviado exitosamente para sucursal', {
+                    branchId: branch.branch_id,
+                    email
+                });
+
+                // Registrar en auditoría
+                await AuditService.logAuditEvent(
+                    AuditService.AUDIT_EVENTS.SECURITY_EVENT,
+                    {
+                        details: {
+                            action: 'BRANCH_VERIFICATION_INITIATED',
+                            branchId: branch.branch_id,
+                            clientId: branch.client_id,
+                            email: email
+                        },
+                        ipAddress: req.ip
+                    },
+                    null, // No hay user_id para branches
+                    branch.branch_id
+                );
+
+            } catch (emailError) {
+                logger.error('Error enviando correo de verificación para sucursal', {
+                    error: emailError.message,
+                    branchId: branch.branch_id,
+                    email
+                });
+
+                return res.status(500).json({
+                    success: false,
+                    message: 'Error enviando correo de verificación'
+                });
+            }
+
+            return res.status(200).json({
+                success: true,
+                message: 'Si tu correo de sucursal está registrado, recibirás un enlace de verificación',
+                verificationSent: true
+            });
+
+        } catch (error) {
+            logger.error('Error iniciando verificación de email para sucursal', {
+                error: error.message,
+                stack: error.stack,
+                email
+            });
+
+            return res.status(500).json({
+                success: false,
+                message: 'Error interno del servidor'
+            });
+        }
+    }
+    
     /**
      * Verificar email de sucursal
      */
@@ -684,6 +859,7 @@ module.exports = {
     logout: BranchAuthController.logout.bind(BranchAuthController),
     getProfile: BranchAuthController.getProfile.bind(BranchAuthController),
     checkRegistration: BranchAuthController.checkRegistration.bind(BranchAuthController),
+    initiateEmailVerification: BranchAuthController.initiateEmailVerification.bind(BranchAuthController),
     getClientPriceListCode: BranchAuthController.getClientPriceListCode.bind(BranchAuthController),
     verifyEmail: BranchAuthController.verifyEmail.bind(BranchAuthController),
     resendVerification: BranchAuthController.resendVerification.bind(BranchAuthController),

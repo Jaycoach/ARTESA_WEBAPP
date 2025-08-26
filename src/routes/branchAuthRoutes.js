@@ -98,6 +98,39 @@ router.post('/check-registration',
   sanitizeBody,
   branchAuthController.checkRegistration);
 
+  /**
+ * @swagger
+ * /api/branch-auth/initiate-email-verification:
+ *   post:
+ *     summary: Inicia el proceso de verificación de email para sucursal
+ *     description: Envía un correo de verificación a la sucursal especificada
+ *     tags: [BranchAuth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: Correo electrónico de la sucursal
+ *     responses:
+ *       200:
+ *         description: Proceso de verificación iniciado
+ *       400:
+ *         description: Datos inválidos
+ *       500:
+ *         description: Error interno del servidor
+ */
+router.post('/initiate-email-verification', 
+    sanitizeBody, 
+    branchAuthController.initiateEmailVerification
+);
+
 /**
  * @swagger
  * /api/branch-auth/login:
