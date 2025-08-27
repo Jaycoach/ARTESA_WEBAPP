@@ -258,7 +258,8 @@ class EmailService {
    */
   async sendBranchVerificationEmail(email, token, branchName) {
       try {
-          const verificationUrl = `${process.env.FRONTEND_URL}/branch-verify-email?token=${token}`;
+          // ✅ CORRECCIÓN: URL correcta para verificación de sucursal
+          const verificationUrl = `${process.env.FRONTEND_URL}/branch-verify-email/${token}`;
           
           const mailOptions = {
               from: {
@@ -271,27 +272,38 @@ class EmailService {
                   <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
                       <h2>Verificación de Email - Sucursal ${branchName}</h2>
                       <p>Para completar el acceso a tu sucursal, verifica tu dirección de email haciendo clic en el siguiente enlace:</p>
-                      <a href="${verificationUrl}" style="background-color: #4CAF50; color: white; padding: 14px 20px; text-decoration: none; border-radius: 4px;">
-                          Verificar Email
-                      </a>
+                      <p style="text-align: center; margin: 30px 0;">
+                          <a href="${verificationUrl}" style="background-color: #4CAF50; color: white; padding: 14px 20px; text-decoration: none; border-radius: 4px;">
+                              Verificar Email
+                          </a>
+                      </p>
                       <p>Si no puedes hacer clic en el botón, copia y pega este enlace en tu navegador:</p>
-                      <p>${verificationUrl}</p>
+                      <p style="word-break: break-all;">${verificationUrl}</p>
+                      <p><strong>Importante:</strong> Después de verificar tu email, deberás completar la configuración de tu contraseña si es la primera vez que accedes.</p>
                       <p>Este enlace expirará en 24 horas.</p>
+                      <hr>
+                      <p style="color: #666; font-size: 12px;">
+                          Este es un correo automático de La Artesa. No respondas a este mensaje.
+                      </p>
                   </div>
               `
           };
 
-          const info = await this.transporter.sendMail(mailOptions);
+          const info = await this.sendMailWithLimits(mailOptions);
           logger.info('Correo de verificación de sucursal enviado exitosamente', {
               messageId: info.messageId,
-              response: info.response
+              response: info.response,
+              to: email,
+              branchName
           });
 
           return info;
       } catch (error) {
           logger.error('Error al enviar correo de verificación para sucursal:', {
               error: error.message,
-              stack: error.stack
+              stack: error.stack,
+              email,
+              branchName
           });
           throw new Error(`Error al enviar el correo de verificación: ${error.message}`);
       }

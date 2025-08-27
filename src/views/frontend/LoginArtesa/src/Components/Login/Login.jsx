@@ -147,6 +147,21 @@ const Login = () => {
         }
     }, [location.state, navigate]);
 
+    // ✅ MANEJAR ESTADO POST-VERIFICACIÓN
+    useEffect(() => {
+        if (location.state?.emailVerified && location.state?.authType === 'branch') {
+            setAuthType(AUTH_TYPES.BRANCH);
+            setValues(prev => ({ ...prev, mail: location.state.email || '' }));
+            setShowEmailVerification(false);
+            setShowBranchRegistration(true); // Mostrar directamente el registro
+            setBranchRegistrationEmail(location.state.email || '');
+            setBranchFoundMessage(location.state.message || 'Email verificado. Completa tu registro.');
+            
+            // Limpiar el state para evitar bucles
+            navigate('/login', { replace: true });
+        }
+    }, [location.state, navigate]);
+
     // Funciones de manejo de formularios
     const handleChange = (e) => {
         const { id, value } = e.target;

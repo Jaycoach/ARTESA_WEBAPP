@@ -521,16 +521,16 @@ class BranchAuthController {
 
             const branch = rows[0];
 
-            // Si no tiene contraseña configurada, debe usar el flujo de registro primero
-            if (!branch.password) {
-                logger.info('Intento de verificación en sucursal sin contraseña', {
+            // ✅ CAMBIO CRÍTICO: Permitir verificación de email SIEMPRE, incluso sin contraseña
+            // Solo verificar que el login esté habilitado
+            if (!branch.is_login_enabled) {
+                logger.warn('Intento de verificación en sucursal con login deshabilitado', {
                     branchId: branch.branch_id,
                     email
                 });
-                return res.status(400).json({
-                    success: false,
-                    message: 'Esta sucursal debe completar su registro primero',
-                    needsRegistration: true
+                return res.status(200).json({
+                    success: true,
+                    message: 'Si tu correo de sucursal está registrado, recibirás un enlace de verificación'
                 });
             }
 
@@ -566,7 +566,8 @@ class BranchAuthController {
 
                 logger.info('Correo de verificación enviado exitosamente para sucursal', {
                     branchId: branch.branch_id,
-                    email
+                    email,
+                    hasPassword: !!branch.password // Para diagnóstico
                 });
 
                 // Registrar en auditoría
@@ -577,7 +578,8 @@ class BranchAuthController {
                             action: 'BRANCH_VERIFICATION_INITIATED',
                             branchId: branch.branch_id,
                             clientId: branch.client_id,
-                            email: email
+                            email: email,
+                            hasPassword: !!branch.password
                         },
                         ipAddress: req.ip
                     },
@@ -602,7 +604,8 @@ class BranchAuthController {
                 branchId: branch.branch_id,
                 email,
                 tokenGenerated: !!verificationToken,
-                emailSent: true
+                emailSent: true,
+                hasPassword: !!branch.password
             });
 
             return res.status(200).json({
