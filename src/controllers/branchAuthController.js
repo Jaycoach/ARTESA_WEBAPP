@@ -5,8 +5,7 @@ const rateLimit = require('express-rate-limit');
 const { createContextLogger } = require('../config/logger');
 const BranchAuth = require('../models/BranchAuth');
 const crypto = require('crypto');
-const EmailService = require('../services/EmailService');
-const emailService = new EmailService();
+const emailService = require('../services/EmailService');
 const AuditService = require('../services/AuditService');
 
 const logger = createContextLogger('BranchAuthController');
