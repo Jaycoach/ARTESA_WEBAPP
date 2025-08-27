@@ -166,5 +166,29 @@ export const branchRegistrationService = {
                 error: error.response?.data?.message || 'Error validando email de sucursal'
             };
         }
+    },
+    // ✅ NUEVO: Reenviar verificación de email para sucursales
+    resendBranchEmailVerification: async (email, recaptchaToken = null) => {
+        try {
+            console.log('🔄 Reenviando verificación de email para sucursal:', email);
+            
+            const payload = { email }; // Usar 'email' consistentemente
+            if (recaptchaToken) payload.recaptchaToken = recaptchaToken;
+            
+            const response = await API.post('/branch-auth/resend-verification', payload);
+            
+            console.log('✅ Reenvío de verificación exitoso');
+            return {
+                success: true,
+                data: response.data,
+                message: response.data.message || 'Correo de verificación reenviado'
+            };
+        } catch (error) {
+            console.error('❌ Error reenviando verificación:', error);
+            return {
+                success: false,
+                error: error.response?.data?.message || 'Error reenviando verificación'
+            };
+        }
     }
 };

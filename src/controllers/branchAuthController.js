@@ -729,9 +729,9 @@ class BranchAuthController {
      * Reenviar verificación de email para sucursal
      */
     static async resendVerification(req, res) {
-        const { mail, recaptchaToken } = req.body;
+        const { email, recaptchaToken } = req.body;
 
-        if (!mail) {
+        if (!email) {
             return res.status(400).json({
                 success: false,
                 message: 'El correo electrónico es requerido'
@@ -739,12 +739,12 @@ class BranchAuthController {
         }
 
         try {
-            logger.info('Reenviando verificación para sucursal', { mail, ip: req.ip });
+            logger.info('Reenviando verificación para sucursal', { email, ip: req.ip });
 
             // Verificar si la sucursal existe
             const { rows } = await pool.query(
                 'SELECT branch_id, email_verified, is_login_enabled, branch_name, client_id FROM client_branches WHERE email_branch = $1',
-                [mail]
+                [email]
             );
 
             if (rows.length === 0) {
@@ -761,7 +761,7 @@ class BranchAuthController {
             if (!branch.is_login_enabled) {
                 logger.warn('Intento de reenvío en sucursal con login deshabilitado', {
                     branchId: branch.branch_id,
-                    mail
+                    email
                 });
                 return res.status(200).json({
                     success: true,
@@ -773,7 +773,7 @@ class BranchAuthController {
             if (branch.email_verified) {
                 logger.info('Intento de reenvío a sucursal ya verificada', {
                     branchId: branch.branch_id,
-                    mail
+                    email
                 });
 
                 return res.status(200).json({
@@ -795,14 +795,14 @@ class BranchAuthController {
             // Enviar correo de verificación
             try {
                 await EmailService.sendBranchVerificationEmail(
-                    mail, 
+                    email, 
                     verificationToken,
                     branch.branch_name
                 );
 
                 logger.info('Correo de verificación reenviado para sucursal', {
                 branchId: branch.branch_id,
-                mail
+                email
                 });
                 // Registrar en auditoría
                 await AuditService.logAuditEvent(
@@ -812,7 +812,7 @@ class BranchAuthController {
                             action: 'BRANCH_VERIFICATION_RESENT',
                             branchId: branch.branch_id,
                             clientId: branch.client_id,
-                            email: mail
+                            email: email
                         },
                         ipAddress: req.ip
                     },
@@ -824,7 +824,7 @@ class BranchAuthController {
                 logger.error('Error enviando correo de verificación para sucursal', {
                     error: emailError.message,
                     branchId: branch.branch_id,
-                    mail
+                    email
                 });
 
                 return res.status(500).json({
@@ -842,7 +842,7 @@ class BranchAuthController {
             logger.error('Error reenviando verificación para sucursal', {
                 error: error.message,
                 stack: error.stack,
-                mail
+                email
             });
 
             return res.status(500).json({

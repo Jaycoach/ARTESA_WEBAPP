@@ -222,9 +222,9 @@ router.get('/verify-email/:token', branchAuthController.verifyEmail);
  *           schema:
  *             type: object
  *             required:
- *               - mail
+ *               - email
  *             properties:
- *               mail:
+ *               email:
  *                 type: string
  *                 format: email
  *                 description: Correo electrónico de la sucursal
