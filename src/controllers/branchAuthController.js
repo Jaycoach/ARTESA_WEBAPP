@@ -521,12 +521,24 @@ class BranchAuthController {
 
             const branch = rows[0];
 
-            // ✅ CAMBIO CRÍTICO: Permitir verificación de email SIEMPRE, incluso sin contraseña
-            // Solo verificar que el login esté habilitado
-            if (!branch.is_login_enabled) {
-                logger.warn('Intento de verificación en sucursal con login deshabilitado', {
+            // ✅ CAMBIO CRÍTICO: Log detallado del estado de la sucursal
+            logger.debug('Estado detallado de la sucursal encontrada', {
+                branchId: branch.branch_id,
+                email: branch.email_branch,
+                branchName: branch.branch_name,
+                hasPassword: !!branch.password,
+                isLoginEnabled: branch.is_login_enabled,
+                emailVerified: branch.email_verified,
+                clientId: branch.client_id
+            });
+
+            // ✅ CAMBIO CRÍTICO: Permitir envío de email aunque login esté deshabilitado
+            // Solo bloquear si explícitamente está marcado como false Y ya tiene contraseña
+            if (branch.is_login_enabled === false && !!branch.password) {
+                logger.warn('Sucursal con contraseña pero login deshabilitado - posible bloqueo administrativo', {
                     branchId: branch.branch_id,
-                    email
+                    email,
+                    hasPassword: !!branch.password
                 });
                 return res.status(200).json({
                     success: true,
@@ -544,6 +556,19 @@ class BranchAuthController {
                     success: true,
                     message: 'Si tu correo de sucursal está registrado y no verificado, recibirás un enlace de verificación'
                 });
+            }
+
+            // ✅ HABILITAR LOGIN AUTOMÁTICAMENTE para sucursales sin contraseña
+            if (!branch.is_login_enabled && !branch.password) {
+                logger.info('Habilitando login automáticamente para sucursal sin contraseña', {
+                    branchId: branch.branch_id,
+                    email
+                });
+                
+                await pool.query(
+                    'UPDATE client_branches SET is_login_enabled = true WHERE branch_id = $1',
+                    [branch.branch_id]
+                );
             }
 
             // Generar nuevo token de verificación
