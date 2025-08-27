@@ -1,11 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../../../hooks/useAuth';
+import { AUTH_TYPES } from "../../../../constants/AuthTypes";
 import { FaEye, FaFilePdf, FaSearch, FaFilter } from 'react-icons/fa';
 import API from '../../../../api/config';
 
-const InvoiceList = ({ filterStatus = 'all', formatCurrency }) => {
-  const { user } = useAuth();
+const InvoiceList = ({ filterStatus = 'all', formatCurrency, authType }) => {
+  // ✅ OBTENER CONTEXTO COMPLETO
+  const { user, branch, authType: contextAuthType, isAuthenticated } = useAuth();
+  const currentAuthType = authType || contextAuthType;
+  
   const [invoices, setInvoices] = useState([]);
   const [filteredInvoices, setFilteredInvoices] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -20,44 +24,85 @@ const InvoiceList = ({ filterStatus = 'all', formatCurrency }) => {
   const [invoiceDetails, setInvoiceDetails] = useState([]);
   const [loadingDetails, setLoadingDetails] = useState(false);
 
+  // ✅ FUNCIÓN CORREGIDA CON CONTEXTO DUAL
   const fetchInvoices = useCallback(async () => {
-    if (!user || !user.id) {
-      setError('Usuario no identificado');
-      setIsLoading(false);
-      return;
+    // ✅ VALIDACIÓN ESPECÍFICA SEGÚN TIPO DE USUARIO
+    if (currentAuthType === AUTH_TYPES.BRANCH) {
+      if (!branch) {
+        setError('Datos de sucursal no disponibles');
+        setIsLoading(false);
+        return;
+      }
+    } else {
+      if (!user || !user.id) {
+        setError('Usuario no identificado');
+        setIsLoading(false);
+        return;
+      }
     }
 
     try {
       setIsLoading(true);
       setError(null);
 
-      const params = { userId: user.id };
-      if (filterDates.from) params.startDate = filterDates.from;
-      if (filterDates.to) params.endDate = filterDates.to;
+      let endpoint, params = {};
 
-      const response = await API.get('/orders/invoices', { params });
+      // ✅ ENDPOINTS Y PARÁMETROS ESPECÍFICOS SEGÚN TIPO
+      if (currentAuthType === AUTH_TYPES.BRANCH) {
+        endpoint = '/orders/invoices'; // Endpoint para branch
+        // ✅ Solo agregar filtros de fecha, sin userId
+        if (filterDates.from) params.startDate = filterDates.from;
+        if (filterDates.to) params.endDate = filterDates.to;
+        
+        console.log('🔄 [BRANCH] Cargando facturas:', { endpoint, params });
+      } else {
+        endpoint = '/orders/invoices'; // Endpoint para usuario
+        params.userId = user.id;
+        if (filterDates.from) params.startDate = filterDates.from;
+        if (filterDates.to) params.endDate = filterDates.to;
+        
+        console.log('🔄 [USER] Cargando facturas:', { endpoint, params });
+      }
+
+      const response = await API.get(endpoint, { params });
+      
       if (response.data.success) {
         setInvoices(response.data.data);
+        console.log(`✅ [${currentAuthType}] Facturas cargadas:`, response.data.data.length);
+      } else {
+        setInvoices([]);
+        console.warn(`⚠️ [${currentAuthType}] No se encontraron facturas`);
       }
     } catch (err) {
-      console.error('Error fetching invoices:', err);
-      setError(err.message || 'Error al cargar las facturas');
+      console.error(`❌ [${currentAuthType}] Error fetching invoices:`, err);
+      setError(err.response?.data?.message || err.message || 'Error al cargar las facturas');
     } finally {
       setIsLoading(false);
     }
-  }, [user, filterDates]);
+  }, [user, branch, currentAuthType, filterDates]);
 
+  // ✅ FUNCIÓN CORREGIDA PARA DETALLES
   const fetchInvoiceDetails = async (invoiceId) => {
     try {
       setLoadingDetails(true);
-      const response = await API.get(`/orders/invoices/${invoiceId}/details`);
+      
+      // ✅ ENDPOINT ESPECÍFICO SEGÚN TIPO
+      const endpoint = currentAuthType === AUTH_TYPES.BRANCH 
+        ? `/orders/invoices/${invoiceId}/details` // Endpoint para branch
+        : `/orders/invoices/${invoiceId}/details`; // Mismo endpoint para ambos
+      
+      console.log(`🔄 [${currentAuthType}] Obteniendo detalles:`, endpoint);
+      
+      const response = await API.get(endpoint);
+      
       if (response.data.success) {
         setInvoiceDetails(response.data.data);
+        console.log(`✅ [${currentAuthType}] Detalles obtenidos:`, response.data.data);
       } else {
         setInvoiceDetails([]);
       }
     } catch (err) {
-      console.error('Error al obtener detalles de factura:', err);
+      console.error(`❌ [${currentAuthType}] Error al obtener detalles:`, err);
       setInvoiceDetails([]);
     } finally {
       setLoadingDetails(false);
@@ -71,8 +116,10 @@ const InvoiceList = ({ filterStatus = 'all', formatCurrency }) => {
   };
 
   useEffect(() => {
-    fetchInvoices();
-  }, [fetchInvoices]);
+    if (isAuthenticated) {
+      fetchInvoices();
+    }
+  }, [fetchInvoices, isAuthenticated]);
 
   useEffect(() => {
     let result = [...invoices];
@@ -104,11 +151,22 @@ const InvoiceList = ({ filterStatus = 'all', formatCurrency }) => {
     }).format(date);
   };
 
+  // ✅ VALIDACIÓN DE AUTENTICACIÓN MEJORADA
+  if (!isAuthenticated) {
+    return (
+      <div className="bg-white p-8 rounded-lg shadow-lg text-center">
+        <h2 className="text-2xl font-bold text-red-600 mb-4">Acceso restringido</h2>
+        <p className="mb-4">Debes iniciar sesión para acceder a las facturas.</p>
+      </div>
+    );
+  }
+
   if (isLoading) {
     return (
       <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
         <div className="flex justify-center items-center h-40">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+          <span className="ml-3">Cargando facturas...</span>
         </div>
       </div>
     );
@@ -120,18 +178,26 @@ const InvoiceList = ({ filterStatus = 'all', formatCurrency }) => {
       <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md" role="alert">
         <p className="font-medium">Error al cargar las facturas</p>
         <p>{error}</p>
+        <button 
+          onClick={() => fetchInvoices()} 
+          className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+        >
+          Reintentar
+        </button>
       </div>
     );
   }
 
-  // Si no hay pedidos, mostrar mensaje
+  // Si no hay facturas, mostrar mensaje
   if (invoices.length === 0) {
     return (
       <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
-        <p className="text-gray-500 text-center p-6">No tienes Facturas registradas.</p>
+        <p className="text-gray-500 text-center p-6">
+          {currentAuthType === AUTH_TYPES.BRANCH ? 'No hay facturas registradas para esta sucursal.' : 'No tienes facturas registradas.'}
+        </p>
         <div className="flex justify-center">
           <Link
-            to="/dashboard/orders/new"
+            to={currentAuthType === AUTH_TYPES.BRANCH ? "/dashboard-branch/orders/new" : "/dashboard/orders/new"}
             className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
           >
             Realizar un nuevo pedido
@@ -153,6 +219,16 @@ const InvoiceList = ({ filterStatus = 'all', formatCurrency }) => {
 
   return (
     <div>
+      {/* Header con información del contexto */}
+      <div className="mb-4 p-3 bg-blue-50 rounded-lg">
+        <p className="text-sm text-blue-600">
+          {currentAuthType === AUTH_TYPES.BRANCH 
+            ? `Facturas de: ${branch?.branchname || 'Sucursal'}` 
+            : `Facturas de: ${user?.nombre || user?.name || 'Usuario'}`
+          }
+        </p>
+      </div>
+
       <div className="flex justify-between items-center mb-4">
         <div className="relative w-full mr-4">
           <input
@@ -177,11 +253,23 @@ const InvoiceList = ({ filterStatus = 'all', formatCurrency }) => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-medium">Desde</label>
-              <input type="date" name="from" value={filterDates.from} onChange={handleDateFilterChange} className="w-full border px-2 py-1 rounded" />
+              <input 
+                type="date" 
+                name="from" 
+                value={filterDates.from} 
+                onChange={handleDateFilterChange} 
+                className="w-full border px-2 py-1 rounded" 
+              />
             </div>
             <div>
               <label className="text-sm font-medium">Hasta</label>
-              <input type="date" name="to" value={filterDates.to} onChange={handleDateFilterChange} className="w-full border px-2 py-1 rounded" />
+              <input 
+                type="date" 
+                name="to" 
+                value={filterDates.to} 
+                onChange={handleDateFilterChange} 
+                className="w-full border px-2 py-1 rounded" 
+              />
             </div>
             <div className="sm:col-span-2 text-right">
               <button
@@ -217,21 +305,6 @@ const InvoiceList = ({ filterStatus = 'all', formatCurrency }) => {
                 <td className="px-4 py-3 whitespace-nowrap font-medium">{formatCurrency(invoice.invoice_total)}</td>
                 <td className="px-4 py-3 whitespace-nowrap">
                   <div className="flex space-x-2">
-                    {invoice.invoice_url ? (
-                      <button
-                        onClick={() => handleDownloadPDF(invoice.invoice_url)}
-                        className="text-red-500 hover:text-red-700"
-                        title="Ver PDF"
-                      >
-                        <FaFilePdf />
-                      </button>
-                    ) : (
-                      <span className="text-gray-400 text-sm">No disponible</span>
-                    )}
-                  </div>
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap">
-                  <div className="flex space-x-2">
                     <button
                       onClick={() => handleViewDetails(invoice)}
                       className="text-blue-500 hover:text-blue-700"
@@ -256,6 +329,58 @@ const InvoiceList = ({ filterStatus = 'all', formatCurrency }) => {
             ))}
           </tbody>
         </table>
+
+        {/* Paginación */}
+        {totalPages > 1 && (
+          <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
+            <div className="flex-1 flex justify-between sm:hidden">
+              <button
+                onClick={() => paginate(currentPage - 1)}
+                disabled={currentPage === 1}
+                className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+              >
+                Anterior
+              </button>
+              <button
+                onClick={() => paginate(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+              >
+                Siguiente
+              </button>
+            </div>
+            <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm text-gray-700">
+                  Mostrando <span className="font-medium">{indexOfFirstInvoice + 1}</span> a{' '}
+                  <span className="font-medium">
+                    {Math.min(indexOfLastInvoice, filteredInvoices.length)}
+                  </span>{' '}
+                  de <span className="font-medium">{filteredInvoices.length}</span> resultados
+                </p>
+              </div>
+              <div>
+                <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((number) => (
+                    <button
+                      key={number}
+                      onClick={() => paginate(number)}
+                      className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                        number === currentPage
+                          ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
+                          : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                      }`}
+                    >
+                      {number}
+                    </button>
+                  ))}
+                </nav>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal para detalles */}
         {showModal && selectedInvoice && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto">

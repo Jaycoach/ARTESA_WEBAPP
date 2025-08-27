@@ -1,27 +1,26 @@
 // components/auth/EmailVerification.jsx - VERSIÓN CORREGIDA
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { FaCheckCircle, FaExclamationTriangle, FaSpinner } from 'react-icons/fa';
 import { BsBuilding } from 'react-icons/bs';
 import { useAuth } from '../../hooks/useAuth';
+import API from '../../api/config';
 import '../../App.scss';
 
 const EmailVerification = () => {
   const { token } = useParams();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const location = useLocation();
 
   // ✅ DETECTAR TIPO DE USUARIO desde URL parameters
-  const verificationType = searchParams.get('type') || 'user'; // 'user' o 'branch'
-  const isBranchVerification = verificationType === 'branch';
-
+  const isBranchVerification = location.pathname.includes('branch-verify-email');
+  const verificationType = isBranchVerification ? 'branch' : 'user';
+  
   const [status, setStatus] = useState('loading');
   const [message, setMessage] = useState('');
-  const [userType, setUserType] = useState(verificationType);
 
   // ✅ USAR FUNCIONES DEL AUTHCONTEXT
   const { verifyBranchEmail } = useAuth();
-
   const verificationAttempted = useRef(false);
 
   useEffect(() => {
@@ -89,7 +88,8 @@ const EmailVerification = () => {
             apiMessage.includes('already verified') ||
             apiMessage.includes('verificado exitosamente') ||
             apiMessage.includes('verificación exitosa') ||
-            apiMessage.includes('cuenta activada')
+            apiMessage.includes('cuenta activada') ||
+            apiMessage.includes('sucursal activada')
           ) {
             setStatus('success');
             setMessage(apiMessage);
@@ -113,7 +113,7 @@ const EmailVerification = () => {
       timer = setTimeout(() => {
         // ✅ REDIRECCIÓN ESPECÍFICA POR TIPO
         if (isBranchVerification) {
-          navigate('/login?type=branch', {
+          navigate('/login', {
             state: { message: 'Email verificado. Ya puedes iniciar sesión como sucursal.' }
           });
         } else {
@@ -174,7 +174,7 @@ const EmailVerification = () => {
               <p className="text-gray-600">{message}</p>
               <div className="mt-4 flex flex-col space-y-2">
                 <button
-                  onClick={() => navigate(`/resend-verification?type=${userType}`)}
+                  onClick={() => navigate(`/resend-verification`)}
                   className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition"
                 >
                   Reenviar correo de verificación

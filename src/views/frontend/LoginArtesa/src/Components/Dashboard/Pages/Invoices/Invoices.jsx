@@ -4,9 +4,10 @@ import { useAuth } from '../../../../hooks/useAuth';
 import InvoiceList from './InvoiceList';
 import InvoiceDetail from './InvoiceDetail';
 import Notification from '../../../../Components/ui/Notification';
+import { AUTH_TYPES } from "../../../../constants/AuthTypes";
 
 const Invoices = () => {
-  const { user, isAuthenticated } = useAuth();
+  const { user, branch, authType, isAuthenticated } = useAuth();
   const { invoiceId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -74,7 +75,9 @@ const Invoices = () => {
       {activeView === 'list' && (
         <>
           <div className="mb-6">
-            <h1 className="text-2xl font-bold text-gray-800 mb-4">Mis Facturas</h1>
+            <h1 className="text-2xl font-bold text-gray-800 mb-4">
+              {authType === AUTH_TYPES.BRANCH ? 'Facturas de Sucursal' : 'Mis Facturas'}
+            </h1>
             
             <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
               <h2 className="text-lg font-semibold mb-3">Filtrar por estado</h2>
@@ -133,16 +136,21 @@ const Invoices = () => {
             </div>
           </div>
           
-          <InvoiceList filterStatus={selectedFilter} formatCurrency={formatColombianCurrency} />
+          <InvoiceList
+            filterStatus={selectedFilter}
+            formatCurrency={formatColombianCurrency}
+            authType={authType}
+          />
         </>
       )}
       
       {activeView === 'detail' && invoiceId && (
-        <InvoiceDetail 
-          invoiceId={invoiceId} 
-          onBack={() => navigate('/dashboard/invoices')}
+        <InvoiceDetail
+          invoiceId={invoiceId}
+          onBack={() => navigate(authType === AUTH_TYPES.BRANCH ? '/dashboard-branch/invoices' : '/dashboard/invoices')}
           onDownloadSuccess={() => showNotification('Factura descargada exitosamente', 'success')}
           formatCurrency={formatColombianCurrency}
+          authType={authType}
         />
       )}
     </div>

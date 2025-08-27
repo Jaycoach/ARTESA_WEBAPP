@@ -106,6 +106,16 @@ const router = createBrowserRouter([
     ),
   },
   {
+    path: '/branch-verify-email/:token',
+    element: (
+      <Suspense fallback={<LoadingScreen />}>
+        <ErrorBoundary>
+          <EmailVerification />
+        </ErrorBoundary>
+      </Suspense>
+    ),
+  },
+  {
     path: '/resend-verification',
     element: (
       <Suspense fallback={<LoadingScreen />}>

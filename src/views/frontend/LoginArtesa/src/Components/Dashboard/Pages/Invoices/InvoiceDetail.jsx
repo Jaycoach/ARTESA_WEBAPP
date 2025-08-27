@@ -1,26 +1,39 @@
 import React, { useState, useEffect } from 'react';
 import { FaArrowLeft, FaFilePdf, FaFileExcel, FaFileInvoiceDollar } from 'react-icons/fa';
 import API from '../../../../api/config';
+import { useAuth } from '../../../../hooks/useAuth';
+import { AUTH_TYPES } from "../../../../constants/AuthTypes";
 import InvoiceStatusBadge from './InvoiceStatusBadge';
 
-const InvoiceDetail = ({ invoiceId, onBack, onDownloadSuccess }) => {
+const InvoiceDetail = ({ invoiceId, onBack, onDownloadSuccess, formatCurrency, authType }) => {
+  const { authType: contextAuthType } = useAuth();
   const [invoice, setInvoice] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const currentAuthType = authType || contextAuthType;
 
   useEffect(() => {
     const fetchInvoiceDetails = async () => {
       try {
         setIsLoading(true);
-        const response = await API.get(`/invoices/${invoiceId}`);
-        
+
+        // ✅ ENDPOINT ESPECÍFICO SEGÚN TIPO DE USUARIO
+        const endpoint = currentAuthType === AUTH_TYPES.BRANCH
+          ? `/orders/invoices/${invoiceId}` // Endpoint para branch
+          : `/invoices/${invoiceId}`;       // Endpoint para usuario normal
+
+        console.log(`🔄 [${currentAuthType}] Obteniendo detalle de factura:`, endpoint);
+
+        const response = await API.get(endpoint);
+
         if (response.data.success) {
           setInvoice(response.data.data);
+          console.log(`✅ [${currentAuthType}] Detalle de factura obtenido:`, response.data.data);
         } else {
           setError('No se pudo cargar la información de la factura');
         }
       } catch (err) {
-        console.error('Error fetching invoice details:', err);
+        console.error(`❌ [${currentAuthType}] Error fetching invoice details:`, err);
         setError(err.message || 'Error al cargar los detalles de la factura');
       } finally {
         setIsLoading(false);
@@ -30,14 +43,20 @@ const InvoiceDetail = ({ invoiceId, onBack, onDownloadSuccess }) => {
     if (invoiceId) {
       fetchInvoiceDetails();
     }
-  }, [invoiceId]);
+  }, [invoiceId, currentAuthType]);
 
   const handleDownloadPDF = async () => {
     try {
-      const response = await API.get(`/invoices/${invoiceId}/pdf`, {
+      const endpoint = currentAuthType === AUTH_TYPES.BRANCH
+        ? `/orders/invoices/${invoiceId}/pdf` // Endpoint para branch
+        : `/invoices/${invoiceId}/pdf`;       // Endpoint para usuario normal
+
+      console.log(`🔄 [${currentAuthType}] Descargando PDF:`, endpoint);
+
+      const response = await API.get(endpoint, {
         responseType: 'blob'
       });
-      
+
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
@@ -45,22 +64,30 @@ const InvoiceDetail = ({ invoiceId, onBack, onDownloadSuccess }) => {
       document.body.appendChild(link);
       link.click();
       link.remove();
-      
+
+      console.log(`✅ [${currentAuthType}] PDF descargado exitosamente`);
+
       if (onDownloadSuccess) {
         onDownloadSuccess();
       }
     } catch (error) {
-      console.error('Error downloading invoice:', error);
+      console.error(`❌ [${currentAuthType}] Error downloading PDF:`, error);
       alert('Error al descargar la factura');
     }
   };
 
   const handleDownloadExcel = async () => {
     try {
-      const response = await API.get(`/invoices/${invoiceId}/excel`, {
+      const endpoint = currentAuthType === AUTH_TYPES.BRANCH
+        ? `/orders/invoices/${invoiceId}/excel` // Endpoint para branch
+        : `/invoices/${invoiceId}/excel`;       // Endpoint para usuario normal
+
+      console.log(`🔄 [${currentAuthType}] Descargando Excel:`, endpoint);
+
+      const response = await API.get(endpoint, {
         responseType: 'blob'
       });
-      
+
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
@@ -68,14 +95,34 @@ const InvoiceDetail = ({ invoiceId, onBack, onDownloadSuccess }) => {
       document.body.appendChild(link);
       link.click();
       link.remove();
-      
+
+      console.log(`✅ [${currentAuthType}] Excel descargado exitosamente`);
+
       if (onDownloadSuccess) {
         onDownloadSuccess();
       }
     } catch (error) {
-      console.error('Error downloading invoice as Excel:', error);
+      console.error(`❌ [${currentAuthType}] Error downloading Excel:`, error);
       alert('Error al descargar la factura en formato Excel');
     }
+  };
+
+  const formatCurrencyValue = (amount) => {
+    // Si viene como prop, usarlo
+    if (formatCurrency) {
+      return formatCurrency(amount);
+    }
+
+    // Si no viene como prop, usar función por defecto
+    if (!amount) return "$0";
+
+    const formatter = new Intl.NumberFormat('es-CO', {
+      style: 'currency',
+      currency: 'COP',
+      minimumFractionDigits: 0
+    });
+
+    return formatter.format(amount);
   };
 
   const formatDate = (dateString) => {
@@ -88,6 +135,7 @@ const InvoiceDetail = ({ invoiceId, onBack, onDownloadSuccess }) => {
       day: '2-digit' 
     }).format(date);
   };
+  
 
   if (isLoading) {
     return (
@@ -223,8 +271,8 @@ const InvoiceDetail = ({ invoiceId, onBack, onDownloadSuccess }) => {
                     <td className="px-4 py-3 whitespace-nowrap">{item.item_code}</td>
                     <td className="px-4 py-3">{item.description}</td>
                     <td className="px-4 py-3 text-right whitespace-nowrap">{item.quantity}</td>
-                    <td className="px-4 py-3 text-right whitespace-nowrap">{formatCurrency(item.unit_price)}</td>
-                    <td className="px-4 py-3 text-right whitespace-nowrap">{formatCurrency(item.subtotal)}</td>
+                    <td className="px-4 py-3 text-right whitespace-nowrap">{formatCurrencyValue(item.unit_price)}</td>
+                    <td className="px-4 py-3 text-right whitespace-nowrap">{formatCurrencyValue(item.subtotal)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -252,7 +300,7 @@ const InvoiceDetail = ({ invoiceId, onBack, onDownloadSuccess }) => {
               )}
               <div className="flex justify-between py-2 border-t border-gray-200 mt-2">
                 <span className="text-lg font-bold">Total:</span>
-                <span className="text-lg font-bold">{formatCurrency(invoice.total_amount)}</span>
+                <span className="text-lg font-bold">{formatCurrencyValue(invoice.total_amount)}</span>
               </div>
             </div>
           </div>
