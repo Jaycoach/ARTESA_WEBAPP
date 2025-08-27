@@ -521,18 +521,6 @@ class BranchAuthController {
 
             const branch = rows[0];
 
-            // Verificar que la sucursal tenga login habilitado
-            if (!branch.is_login_enabled) {
-                logger.warn('Intento de verificación en sucursal con login deshabilitado', {
-                    branchId: branch.branch_id,
-                    email
-                });
-                return res.status(200).json({
-                    success: true,
-                    message: 'Si tu correo de sucursal está registrado, recibirás un enlace de verificación'
-                });
-            }
-
             // Si no tiene contraseña configurada, debe usar el flujo de registro primero
             if (!branch.password) {
                 logger.info('Intento de verificación en sucursal sin contraseña', {
