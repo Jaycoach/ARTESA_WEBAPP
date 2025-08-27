@@ -805,22 +805,69 @@ const AuthContext = createContext(null);
         }
     }, [state.authType, clearStorage]);
 
-    // Resto de funciones (register, resetPassword, etc.)...
     const checkBranchRegistration = useCallback(async (email) => {
         dispatch({ type: TYPES.SET_BRANCH_VERIFYING, payload: true });
         try {
-            const result = await branchRegistrationService.checkRegistrationStatus(email);
-            if (!result.success) {
-                throw new Error(result.error);
+            console.log('🔄 Verificando estado de sucursal:', email);
+            
+            // USAR EL SERVICIO CORREGIDO
+            const response = await API.post('/branch-auth/check-registration', { email });
+            
+            if (response.data && response.data.data) {
+                const branchData = response.data.data;
+                
+                console.log('✅ Estado de sucursal obtenido:', branchData);
+                dispatch({ type: TYPES.SET_BRANCH_VERIFICATION_STATUS, payload: branchData });
+                
+                return {
+                    success: true,
+                    data: branchData
+                };
+            } else {
+                throw new Error('No se encontró información de la sucursal');
             }
-
-            dispatch({ type: TYPES.SET_BRANCH_VERIFICATION_STATUS, payload: result.data });
-            return result.data;
         } catch (err) {
-            dispatch({ type: TYPES.SET_ERROR, payload: err.message });
-            throw err;
+            console.error('❌ Error verificando sucursal:', err);
+            const errorMessage = err.response?.data?.message || err.message || 'Error verificando estado de sucursal';
+            dispatch({ type: TYPES.SET_ERROR, payload: errorMessage });
+            
+            return {
+                success: false,
+                error: errorMessage
+            };
         } finally {
             dispatch({ type: TYPES.SET_BRANCH_VERIFYING, payload: false });
+        }
+    }, []);
+
+    // ✅ NUEVO: Función para iniciar verificación de email
+    const initiateBranchEmailVerification = useCallback(async (email, recaptchaToken = null) => {
+        dispatch({ type: TYPES.SET_LOADING, payload: true });
+        try {
+            console.log('📧 Iniciando verificación de email para:', email);
+            
+            const payload = { email };
+            if (recaptchaToken) payload.recaptchaToken = recaptchaToken;
+            
+            const response = await API.post('/branch-auth/initiate-email-verification', payload);
+            
+            console.log('✅ Verificación de email iniciada');
+            return {
+                success: true,
+                data: response.data,
+                message: response.data.message || 'Correo de verificación enviado'
+            };
+        } catch (err) {
+            console.error('❌ Error iniciando verificación:', err);
+            const errorMessage = err.response?.data?.message || err.message || 'Error enviando correo de verificación';
+            dispatch({ type: TYPES.SET_ERROR, payload: errorMessage });
+            
+            return {
+                success: false,
+                error: errorMessage
+            };
+        } finally {
+            dispatch({ type: TYPES.SET_LOADING, payload: false });
         }
     }, []);
 
@@ -850,49 +897,107 @@ const AuthContext = createContext(null);
 
     const validateBranchEmail = useCallback(async (email) => {
         try {
-            const result = await branchRegistrationService.validateBranchEmail(email);
-            return result;
+            console.log('🔄 Validando email de sucursal:', email);
+            const response = await API.post('/branch-registration/check-email', { email });
+
+            const { success, data } = response.data;
+
+            console.log('✅ Email validado exitosamente');
+            return {
+                success: true,
+                isValid: success,
+                branchInfo: data
+            };
         } catch (err) {
-            console.error('❌ Error validating branch email:', err);
-            return { success: false, error: err.message };
+            console.error('❌ Error validando email:', err);
+
+            if (err.response?.status === 400) {
+                const errorMessage = err.response.data?.message || '';
+
+                if (errorMessage.includes('ya tiene credenciales configuradas')) {
+                    return {
+                        success: true,
+                        isValid: true,
+                        branchInfo: {
+                            needsRegistration: false,
+                            hasPassword: true,
+                            branch_name: '',
+                            is_login_enabled: true,
+                            ...err.response.data
+                        }
+                    };
+                }
+
+                return {
+                    success: false,
+                    error: errorMessage
+                };
+            }
+
+            return {
+                success: false,
+                error: err.response?.data?.message || 'Error validando email de sucursal'
+            };
         }
     }, []);
 
     const verifyBranchEmail = useCallback(async (token) => {
         dispatch({ type: TYPES.SET_LOADING, payload: true });
         try {
-            const result = await branchRegistrationService.verifyBranchEmail(token);
-
-            if (!result.success) {
-                dispatch({ type: TYPES.SET_ERROR, payload: result.error });
-                return result;
+            console.log('🔄 Verificando token de email:', token);
+            
+            const response = await API.get(`/branch-auth/verify-email/${token}`);
+            
+            if (!response.data || response.data.success === false) {
+                throw new Error(response.data?.message || 'Error verificando email de sucursal');
             }
 
             console.log('✅ Verificación de email de sucursal completada');
-            return result;
+            return {
+                success: true,
+                data: response.data
+            };
         } catch (err) {
-            const errorMessage = err.message || 'Error verificando email de sucursal';
+            console.error('❌ Error verificando email:', err);
+            const errorMessage = err.response?.data?.message || err.message || 'Error verificando email de sucursal';
             dispatch({ type: TYPES.SET_ERROR, payload: errorMessage });
-            return { success: false, error: errorMessage };
+            
+            return { 
+                success: false, 
+                error: errorMessage 
+            };
         } finally {
             dispatch({ type: TYPES.SET_LOADING, payload: false });
         }
     }, []);
 
+    //cambios
+    // ✅ CORREGIDO: Función para reenviar verificación
     const resendBranchVerification = useCallback(async (email, recaptchaToken = null) => {
         dispatch({ type: TYPES.SET_LOADING, payload: true });
         try {
-            const result = await branchRegistrationService.resendBranchVerification(email, recaptchaToken);
-
-            if (!result.success) {
-                dispatch({ type: TYPES.SET_ERROR, payload: result.error });
-            }
-
-            return result;
+            console.log('🔄 Reenviando verificación de email para:', email);
+            
+            const payload = { email }; // CORRECCIÓN: usar 'email' no 'mail'
+            if (recaptchaToken) payload.recaptchaToken = recaptchaToken;
+            
+            const response = await API.post('/branch-auth/resend-verification', payload);
+            
+            console.log('✅ Verificación reenviada exitosamente');
+            return {
+                success: true,
+                data: response.data,
+                message: response.data.message || 'Correo de verificación reenviado'
+            };
         } catch (err) {
-            const errorMessage = err.message || 'Error reenviando verificación';
+            console.error('❌ Error reenviando verificación:', err);
+            const errorMessage = err.response?.data?.message || err.message || 'Error reenviando verificación';
             dispatch({ type: TYPES.SET_ERROR, payload: errorMessage });
-            return { success: false, error: errorMessage };
+            
+            return {
+                success: false,
+                error: errorMessage
+            };
         } finally {
             dispatch({ type: TYPES.SET_LOADING, payload: false });
         }
@@ -1069,6 +1174,8 @@ const AuthContext = createContext(null);
         resendBranchVerification,
         requestBranchPasswordReset,
         resetBranchPassword,
+        initiateBranchEmailVerification,
+
 
         // Estados adicionales para compatibilidad
         isBranchVerifying: state.isBranchVerifying,
@@ -1097,7 +1204,8 @@ const AuthContext = createContext(null);
         verifyBranchEmail,
         resendBranchVerification,
         requestBranchPasswordReset,
-        resetBranchPassword
+        resetBranchPassword,
+        initiateBranchEmailVerification
     ]);
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

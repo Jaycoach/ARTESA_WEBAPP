@@ -10,6 +10,7 @@ import AuthTypeSelector from "./AuthTypeSelector";
 import { AUTH_TYPES } from "../../constants/AuthTypes";
 import BranchRegistrationForm from "./BranchRegistrationForm";
 import API from "../../api/config";
+import BranchVerificationFlow from './BranchVerificationFlow';
 
 // Import Assets
 import img from "../../LoginsAssets/principal_img.gif";
@@ -26,19 +27,20 @@ const Login = () => {
 
     // Hook unificado de autenticación con funciones de sucursales
     const {
-        isAuthenticated,
-        authType: currentAuthType,
-        login,
-        clearError,
-        isLoading: authLoading,
-        error: authError,
-        requestPasswordReset,
-        requestBranchPasswordReset,
-        checkBranchRegistration,
-        registerBranch,
-        isBranchVerifying,
-        validateBranchEmail  // Reutilizada para verificación previa
-    } = useAuth();
+    isAuthenticated,
+    authType: currentAuthType,
+    login,
+    clearError,
+    isLoading: authLoading,
+    error: authError,
+    requestPasswordReset,
+    requestBranchPasswordReset,
+    checkBranchRegistration,
+    registerBranch,
+    isBranchVerifying,
+    validateBranchEmail,
+    initiateBranchEmailVerification
+} = useAuth();
 
     const { generateRecaptchaToken, loading: recaptchaLoading, error: recaptchaError } = useRecaptcha();
 
@@ -78,6 +80,9 @@ const Login = () => {
     // Estados para verificación previa de email
     const [showEmailVerification, setShowEmailVerification] = useState(false);
     const [showPasswordField, setShowPasswordField] = useState(false);
+    // Nuevo estado para el flujo de verificación
+    const [showVerificationFlow, setShowVerificationFlow] = useState(false);
+    const [verificationFlowStep, setVerificationFlowStep] = useState('check');
 
     useEffect(() => {
         if (authType === AUTH_TYPES.BRANCH) {
@@ -367,15 +372,6 @@ const Login = () => {
         clearAllErrors();
         console.log('🔄 Volviendo a verificación de email');
     };
-
-    const handleSendEmailVerification = () => {
-        const emailToVerify = pendingVerificationEmail || values.mail;
-        console.log('📧 Navegando a reenvío de verificación para:', emailToVerify);
-        navigate('/resend-verification?type=branch', {
-            state: { email: emailToVerify }
-        });
-    };
-
     // Función de login principal
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -505,6 +501,83 @@ const Login = () => {
 
         // Prioridad 3: Mensaje genérico
         return 'Error desconocido en el servidor';
+    };
+
+    // Nueva función para manejar el envío automático de verificación
+    const handleSendEmailVerification = async () => {
+        try {
+            console.log('📧 Enviando correo de verificación automáticamente a:', values.mail);
+            
+            const recaptchaToken = await generateRecaptchaToken('branch_initiate_verification');
+            if (!recaptchaToken) {
+                setGeneralError('Error en verificación de seguridad');
+                return;
+            }
+            
+            const result = await initiateBranchEmailVerification(values.mail, recaptchaToken);
+            
+            if (result.success) {
+                setBranchFoundMessage(
+                    `✅ Se ha enviado un correo de verificación a ${values.mail}. ` +
+                    `Revisa tu bandeja de entrada y haz clic en el enlace para verificar tu cuenta de sucursal.`
+                );
+                
+                // Ocultar verificación de email y mostrar mensaje
+                setShowEmailVerification(false);
+                setShowPasswordField(false);
+                
+                console.log('✅ Correo de verificación enviado exitosamente');
+            } else {
+                throw new Error(result.error || 'Error enviando correo de verificación');
+            }
+            
+        } catch (error) {
+            console.error('❌ Error enviando correo de verificación:', error);
+            setGeneralError('Error enviando correo de verificación. Inténtalo nuevamente.');
+        }
+    };
+
+    // Manejar completación del flujo de verificación
+    const handleVerificationFlowComplete = (nextStep, branchData) => {
+        console.log('🔄 Flujo de verificación completado:', nextStep, branchData);
+        
+        setShowVerificationFlow(false);
+        setBranchInfo(branchData);
+        
+        switch (nextStep) {
+            case 'needs-password':
+                // Sucursal verificada pero necesita contraseña
+                setShowBranchRegistration(true);
+                setBranchRegistrationEmail(values.mail);
+                setBranchFoundMessage(
+                    `Tu sucursal ${branchData.branch_name} está verificada pero necesita configurar una contraseña.`
+                );
+                break;
+                
+            case 'ready-login':
+                // Todo listo para login normal
+                setShowEmailVerification(false);
+                setShowPasswordField(true);
+                setBranchFoundMessage(
+                    `¡Perfecto! Tu sucursal ${branchData.branch_name} está lista. Ingresa tu contraseña.`
+                );
+                break;
+                
+            default:
+                console.warn('Paso desconocido en flujo de verificación:', nextStep);
+                break;
+        }
+    };
+
+    // Volver al flujo de verificación desde otros pasos
+    const handleBackToVerificationFlow = () => {
+        setShowEmailVerification(false);
+        setShowPasswordField(false);
+        setShowBranchRegistration(false);
+        setShowVerificationFlow(true);
+        setVerificationFlowStep('check');
+        setGeneralError('');
+        setBranchFoundMessage('');
     };
 
     const handleCancelRegistration = () => {
