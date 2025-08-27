@@ -472,12 +472,6 @@ class BranchAuthController {
         try {
             logger.info('Iniciando verificación de email para sucursal', { email, ip: req.ip });
 
-            logger.debug('Configuración de EmailService', {
-                hasEmailService: !!emailService,
-                emailServiceType: typeof emailService,
-                emailServiceMethods: emailService ? Object.getOwnPropertyNames(Object.getPrototypeOf(emailService)) : []
-            });
-
             if (!email) {
                 return res.status(400).json({
                     success: false,
@@ -532,8 +526,23 @@ class BranchAuthController {
                 clientId: branch.client_id
             });
 
-            // ✅ CAMBIO CRÍTICO: Permitir envío de email aunque login esté deshabilitado
-            // Solo bloquear si explícitamente está marcado como false Y ya tiene contraseña
+            // ✅ SOLUCIÓN: Habilitar login automáticamente para sucursales sin contraseña
+            if (!branch.is_login_enabled && !branch.password) {
+                logger.info('Habilitando login automáticamente para sucursal sin contraseña', {
+                    branchId: branch.branch_id,
+                    email
+                });
+                
+                await pool.query(
+                    'UPDATE client_branches SET is_login_enabled = true WHERE branch_id = $1',
+                    [branch.branch_id]
+                );
+                
+                // Actualizar el objeto branch para reflejar el cambio
+                branch.is_login_enabled = true;
+            }
+
+            // ✅ NUEVA LÓGICA: Solo bloquear si login está explícitamente deshabilitado Y ya tiene contraseña
             if (branch.is_login_enabled === false && !!branch.password) {
                 logger.warn('Sucursal con contraseña pero login deshabilitado - posible bloqueo administrativo', {
                     branchId: branch.branch_id,
@@ -558,19 +567,6 @@ class BranchAuthController {
                 });
             }
 
-            // ✅ HABILITAR LOGIN AUTOMÁTICAMENTE para sucursales sin contraseña
-            if (!branch.is_login_enabled && !branch.password) {
-                logger.info('Habilitando login automáticamente para sucursal sin contraseña', {
-                    branchId: branch.branch_id,
-                    email
-                });
-                
-                await pool.query(
-                    'UPDATE client_branches SET is_login_enabled = true WHERE branch_id = $1',
-                    [branch.branch_id]
-                );
-            }
-
             // Generar nuevo token de verificación
             const verificationToken = crypto.randomBytes(32).toString('hex');
             const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 horas
@@ -592,7 +588,8 @@ class BranchAuthController {
                 logger.info('Correo de verificación enviado exitosamente para sucursal', {
                     branchId: branch.branch_id,
                     email,
-                    hasPassword: !!branch.password // Para diagnóstico
+                    hasPassword: !!branch.password,
+                    tokenGenerated: !!verificationToken
                 });
 
                 // Registrar en auditoría

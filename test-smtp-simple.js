@@ -5,7 +5,7 @@ const nodemailer = require('nodemailer');
 async function testSMTP() {
     console.log('🔍 Probando configuración SMTP básica...\n');
     
-    const transporter = nodemailer.createTransporter({
+    const transporter = nodemailer.createTransport({ // ✅ Cambio: createTransport (sin "er")
         host: process.env.SMTP_HOST,
         port: parseInt(process.env.SMTP_PORT),
         secure: false,
