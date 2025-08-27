@@ -6,6 +6,7 @@ const { createContextLogger } = require('../config/logger');
 const BranchAuth = require('../models/BranchAuth');
 const crypto = require('crypto');
 const EmailService = require('../services/EmailService');
+const emailService = new EmailService();
 const AuditService = require('../services/AuditService');
 
 const logger = createContextLogger('BranchAuthController');
@@ -458,13 +459,39 @@ class BranchAuthController {
     static async initiateEmailVerification(req, res) {
         const { email } = req.body;
 
+        logger.debug('Endpoint initiateEmailVerification invocado', {
+            method: req.method,
+            path: req.path,
+            originalUrl: req.originalUrl,
+            body: { email: req.body.email ? 'presente' : 'ausente' },
+            headers: {
+                contentType: req.headers['content-type'],
+                userAgent: req.headers['user-agent']
+            }
+        });
+
         try {
             logger.info('Iniciando verificación de email para sucursal', { email, ip: req.ip });
+
+            logger.debug('Configuración de EmailService', {
+                hasEmailService: !!emailService,
+                emailServiceType: typeof emailService,
+                emailServiceMethods: emailService ? Object.getOwnPropertyNames(Object.getPrototypeOf(emailService)) : []
+            });
 
             if (!email) {
                 return res.status(400).json({
                     success: false,
                     message: 'El email es requerido'
+                });
+            }
+
+            // Verificar configuración del servicio de email
+            if (!emailService) {
+                logger.error('EmailService no está configurado correctamente');
+                return res.status(500).json({
+                    success: false,
+                    message: 'Servicio de correo no disponible temporalmente'
                 });
             }
 
@@ -544,7 +571,7 @@ class BranchAuthController {
 
             // Enviar correo de verificación
             try {
-                await EmailService.sendBranchVerificationEmail(
+                await emailService.sendBranchVerificationEmail(
                     email, 
                     verificationToken,
                     branch.branch_name
@@ -583,6 +610,13 @@ class BranchAuthController {
                     message: 'Error enviando correo de verificación'
                 });
             }
+
+            logger.info('Proceso de verificación completado exitosamente', {
+                branchId: branch.branch_id,
+                email,
+                tokenGenerated: !!verificationToken,
+                emailSent: true
+            });
 
             return res.status(200).json({
                 success: true,
@@ -626,9 +660,9 @@ class BranchAuthController {
             // Buscar sucursal por token de verificación
             const { rows } = await pool.query(
                 `SELECT branch_id, email_branch, branch_name, client_id, verification_token, 
-                        verification_expires, email_verified
-                 FROM client_branches 
-                 WHERE verification_token = $1`,
+                    verification_expires, email_verified
+                FROM client_branches 
+                WHERE verification_token = $1`,
                 [token]
             );
 
@@ -743,7 +777,9 @@ class BranchAuthController {
 
             // Verificar si la sucursal existe
             const { rows } = await pool.query(
-                'SELECT branch_id, email_verified, is_login_enabled, branch_name, client_id FROM client_branches WHERE email_branch = $1',
+                `SELECT branch_id, email_verified, is_login_enabled, branch_name, 
+                    client_id, email_branch 
+                FROM client_branches WHERE email_branch = $1`,
                 [email]
             );
 
@@ -794,7 +830,7 @@ class BranchAuthController {
 
             // Enviar correo de verificación
             try {
-                await EmailService.sendBranchVerificationEmail(
+                await emailService.sendBranchVerificationEmail(
                     email, 
                     verificationToken,
                     branch.branch_name
