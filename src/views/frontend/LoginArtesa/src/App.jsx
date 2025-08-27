@@ -12,7 +12,7 @@ import { AuthProvider } from './context/AuthContext';
 // 2️⃣  Imports sincrónicos (landing)
 import Home from './Components/Home/Home';
 import OriginalHome from './Components/Home/home2';
-import ErrorBoundary from './components/ErrorBoundary';
+import ErrorBoundary from './Components/ErrorBoundary.jsx';
 import RecaptchaWrapper from './components/RecaptchaWrapper';
 
 // 3️⃣  Imports diferidos
