@@ -1,85 +1,15 @@
 // services/branchAuthService.js - CORREGIDO CON SEGURIDAD
-import axios from 'axios';
+import API from '../api/config';
 import { API_ENDPOINTS, ERROR_MESSAGES } from '../constants/AuthTypes';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-
-// Crear instancia de axios para autenticación de sucursales
-const branchAxiosInstance = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 10000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
-// *** INTERCEPTOR DE SOLICITUD SEGURO ***
-branchAxiosInstance.interceptors.request.use(
-  (config) => {
-    const branchToken = localStorage.getItem('branchAuthToken');
-    if (branchToken) {
-      config.headers.Authorization = `Bearer ${branchToken}`;
-    }
-
-    // 🛡️ SEGURIDAD: Evitar loggear datos sensibles
-    if (process.env.NODE_ENV !== 'production') {
-      const logConfig = { ...config };
-      if (logConfig.data && typeof logConfig.data === 'string') {
-        try {
-          const parsedData = JSON.parse(logConfig.data);
-          if (parsedData.password) {
-            parsedData.password = '***HIDDEN***';
-          }
-          logConfig.data = JSON.stringify(parsedData);
-        } catch (e) {
-          // Si no se puede parsear, ocultar todo el data
-          logConfig.data = '***HIDDEN***';
-        }
-      }
-      console.log('🔐 Request config (safe):', {
-        method: config.method,
-        url: config.url,
-        headers: logConfig.headers,
-        data: logConfig.data
-      });
-    }
-
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
-
-// Interceptor para manejar respuestas y errores
-branchAxiosInstance.interceptors.response.use(
-  (response) => {
-    // 🛡️ SEGURIDAD: No loggear respuesta completa que puede contener tokens
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('✅ Response received:', {
-        status: response.status,
-        url: response.config.url,
-        success: response.data?.success,
-        message: response.data?.message
-      });
-    }
-    return response;
-  },
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('branchAuthToken');
-      localStorage.removeItem('branchData');
-      window.location.href = '/login';
-    }
-    return Promise.reject(error);
-  }
-);
-
 export const branchAuthService = {
-  // Login de sucursal - VERSIÓN SEGURA Y OPTIMIZADA
+  // Login de sucursal - USANDO API PRINCIPAL
   login: async (credentials) => {
     try {
       console.log('🔄 branchAuthService: Iniciando login para:', credentials.email);
 
-      const response = await branchAxiosInstance.post(API_ENDPOINTS.BRANCH_LOGIN, {
+      // ✅ USAR LA INSTANCIA PRINCIPAL DE API
+      const response = await API.post(API_ENDPOINTS.BRANCH_LOGIN, {
         email: credentials.email,
         password: credentials.password
       });
@@ -200,12 +130,22 @@ export const branchAuthService = {
     }
   },
 
-  // Resto de funciones sin cambios pero con logging seguro...
+  // ✅ LOGOUT USANDO API PRINCIPAL
   logout: async () => {
     try {
       console.log('🔄 branchAuthService: Iniciando logout');
-      await branchAxiosInstance.post(API_ENDPOINTS.BRANCH_LOGOUT);
+      
+      // Agregar token antes de la petición
+      const branchToken = localStorage.getItem('branchAuthToken');
+      if (branchToken) {
+        API.defaults.headers.common['Authorization'] = `Bearer ${branchToken}`;
+      }
+      
+      await API.post(API_ENDPOINTS.BRANCH_LOGOUT);
 
+      // Limpiar headers después del logout
+      delete API.defaults.headers.common['Authorization'];
+      
       localStorage.removeItem('branchAuthToken');
       localStorage.removeItem('branchData');
 
@@ -222,6 +162,7 @@ export const branchAuthService = {
     }
   },
 
+  // ✅ VALIDATE TOKEN USANDO API PRINCIPAL
   validateToken: async () => {
     try {
       const token = localStorage.getItem('branchAuthToken');
@@ -231,7 +172,11 @@ export const branchAuthService = {
       }
 
       console.log('🔍 validateToken: Verificando token con servidor');
-      const response = await branchAxiosInstance.get(API_ENDPOINTS.BRANCH_PROFILE);
+      
+      // Agregar token temporalmente
+      API.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      
+      const response = await API.get(API_ENDPOINTS.BRANCH_PROFILE);
 
       const isValid = response.data && response.data.success;
       console.log('🔍 validateToken resultado:', isValid);

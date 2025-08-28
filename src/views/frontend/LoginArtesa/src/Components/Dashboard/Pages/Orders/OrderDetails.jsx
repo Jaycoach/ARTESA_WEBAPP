@@ -2,13 +2,28 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { orderService } from '../../../../services/orderService';
 import { useAuth } from '../../../../hooks/useAuth';
+import { AUTH_TYPES } from '../../../../constants/AuthTypes';
 import OrderStatusBadge from './OrderStatusBadge';
 import API from '../../../../api/config';
 import { FaFileDownload, FaFileImage, FaFilePdf, FaFile, FaEdit, FaCheck, FaExclamationTriangle } from 'react-icons/fa';
 
+const mapOrderDataForDisplay = (orderData, authType) => {
+  if (authType === AUTH_TYPES.BRANCH) {
+    // Para branch, mapear 'products' a 'details' para compatibilidad
+    return {
+      ...orderData,
+      details: orderData.products || [],
+      // Mantener ambas referencias por compatibilidad
+      products: orderData.products || []
+    };
+  }
+  // Para usuario principal, mantener estructura original
+  return orderData;
+};
+
 const OrderDetails = () => {
   const { orderId } = useParams();
-  const { user } = useAuth();
+  const { user, branch, authType, isAuthenticated } = useAuth();
   const [order, setOrder] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -17,6 +32,10 @@ const OrderDetails = () => {
   const [editRestriction, setEditRestriction] = useState('');
   const [siteSettings, setSiteSettings] = useState({ orderTimeLimit: '18:00' });
   const navigate = useNavigate();
+
+  const getRoutePrefix = () => {
+  return authType === AUTH_TYPES.BRANCH ? '/dashboard-branch' : '/dashboard';
+};
 
   // Obtener configuración del sitio al cargar
   useEffect(() => {
@@ -42,7 +61,11 @@ const OrderDetails = () => {
         return;
       }
 
-      if (!user || !user.id) {
+      // ✅ VALIDACIÓN DUAL DE USUARIO/BRANCH
+      const currentUserId = authType === AUTH_TYPES.BRANCH ? branch?.branch_id : user?.id;
+      const currentUserData = authType === AUTH_TYPES.BRANCH ? branch : user;
+
+      if (!currentUserId || !currentUserData) {
         setError('Usuario no identificado');
         setIsLoading(false);
         return;
@@ -56,13 +79,44 @@ const OrderDetails = () => {
           throw new Error('ID de pedido inválido');
         }
 
-        const result = await orderService.getOrderById(orderId);
+        let result;
+
+        // ✅ USAR ENDPOINT ESPECÍFICO SEGÚN CONTEXTO
+        if (authType === AUTH_TYPES.BRANCH) {
+          console.log('🏢 [BRANCH] Obteniendo detalles de orden:', orderId);
+          // Para branch, usar endpoint específico
+          try {
+            const response = await API.get(`/branch-orders/${orderId}`);
+            if (response.data && response.data.success) {
+              result = {
+                success: true,
+                data: mapOrderDataForDisplay(response.data.data, authType)
+              };
+            } else {
+              throw new Error('No se pudo obtener los detalles del pedido');
+            }
+          } catch (error) {
+            console.error('❌ [BRANCH] Error obteniendo detalles:', error);
+            throw error;
+          }
+        } else {
+          console.log('👤 [USER] Obteniendo detalles de orden:', orderId);
+          // Para usuario principal, usar orderService original
+          result = await orderService.getOrderById(orderId);
+          if (result && result.success) {
+            result.data = mapOrderDataForDisplay(result.data, authType);
+          }
+        }
 
         if (result && result.success) {
           setOrder(result.data);
 
-          // Verificar si el pedido pertenece al usuario actual
-          if (result.data.user_id === user.id) {
+          // ✅ VERIFICACIÓN DE PERMISOS SEGÚN CONTEXTO
+          const canUserEdit = authType === AUTH_TYPES.BRANCH
+            ? result.data.branch_id === currentUserId
+            : result.data.user_id === currentUserId;
+
+          if (canUserEdit) {
             // Verificar si el pedido puede ser editado
             const editCheck = await orderService.canEditOrder(
               orderId,
@@ -74,11 +128,13 @@ const OrderDetails = () => {
               setEditRestriction(editCheck.reason);
             }
           }
+
+          console.log(`✅ [${authType.toUpperCase()}] Detalles de orden cargados exitosamente`);
         } else {
           throw new Error('No se pudo obtener los detalles del pedido');
         }
       } catch (err) {
-        console.error('Error fetching order details:', err);
+        console.error(`❌ [${authType}] Error fetching order details:`, err);
         setError(err.message || 'Error al cargar los detalles del pedido');
       } finally {
         setIsLoading(false);
@@ -86,7 +142,7 @@ const OrderDetails = () => {
     };
 
     fetchOrderDetails();
-  }, [orderId, user, siteSettings.orderTimeLimit]);
+  }, [orderId, user, branch, authType, siteSettings.orderTimeLimit]);
 
 
   // Añadir order statuses
@@ -161,9 +217,12 @@ const OrderDetails = () => {
           <p className="font-medium">Error</p>
           <p>{error}</p>
           <button
-            onClick={() => navigate('/dashboard/orders')}
-            className="mt-4 inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+            onClick={() => navigate(`${getRoutePrefix()}/orders`)}
+            className="flex items-center text-gray-600 hover:text-gray-900"
           >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
             Volver a pedidos
           </button>
         </div>
@@ -179,8 +238,8 @@ const OrderDetails = () => {
           <p className="font-medium">Pedido no encontrado</p>
           <p>No se encontró el pedido solicitado.</p>
           <button
-            onClick={() => navigate('/dashboard/orders')}
-            className="mt-4 inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-yellow-600 hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500"
+            onClick={() => navigate(`${getRoutePrefix()}/orders`)}
+            className="mt-4 inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
           >
             Volver a pedidos
           </button>
@@ -194,26 +253,25 @@ const OrderDetails = () => {
       <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
         <div className="flex justify-between items-center mb-6">
           <button
-            onClick={() => navigate('/dashboard/orders')}
-            className="flex items-center text-gray-600 hover:text-gray-900"
+            onClick={() => navigate(`${getRoutePrefix()}/orders`)}
+            className="mt-4 inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-yellow-600 hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
             Volver a pedidos
           </button>
 
           <div className="flex space-x-4">
             {canEdit ? (
               <button
-                onClick={() => navigate(`/dashboard/orders/${orderId}/edit`)}
+                onClick={() => navigate(`${getRoutePrefix()}/orders/${orderId}/edit`)}
                 className="flex items-center text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-md"
               >
                 <FaEdit className="mr-2" />
                 Editar pedido
               </button>
             ) : (
-              order.user_id === user.id && editRestriction && (
+              // ✅ ACTUALIZAR VALIDACIÓN DE PERMISOS
+              ((authType === AUTH_TYPES.BRANCH && order.branch_id === branch?.branch_id) ||
+                (authType === AUTH_TYPES.USER && order.user_id === user?.id)) && editRestriction && (
                 <div className="flex items-center text-gray-500 bg-gray-100 px-3 py-2 rounded-md" title={editRestriction}>
                   <FaExclamationTriangle className="mr-2 text-yellow-500" />
                   No se puede editar
@@ -240,7 +298,12 @@ const OrderDetails = () => {
               Fecha: <span className="font-medium text-gray-700">{formatDate(order.order_date)}</span>
             </span>
             <span className="text-gray-500 mr-4">
-              Cliente: <span className="font-medium text-gray-700">{order.user_name || user.nombre || user.name || user.email || 'Cliente'}</span>
+              Cliente: <span className="font-medium text-gray-700">
+                {authType === AUTH_TYPES.BRANCH
+                  ? (order.user_name || order.user_email || 'Cliente')
+                  : (order.user_name || user.nombre || user.name || user.email || 'Cliente')
+                }
+              </span>
             </span>
             <span className="flex items-center">
               Estado: <span className="ml-2">
@@ -378,25 +441,28 @@ const OrderDetails = () => {
         </div>
 
         {/* Mostrar ayuda para edición si es necesario */}
-        {!canEdit && order.user_id === user.id && (
-          <div className="mt-6 bg-yellow-50 rounded-lg p-4 border border-yellow-200">
-            <div className="flex items-start">
-              <div className="flex-shrink-0">
-                <FaExclamationTriangle className="h-5 w-5 text-yellow-400" />
-              </div>
-              <div className="ml-3">
-                <h3 className="text-sm font-medium text-yellow-800">Información sobre edición de pedidos</h3>
-                <div className="mt-2 text-sm text-yellow-700">
-                  <p>
-                    {editRestriction || `No se puede editar este pedido después de las ${siteSettings.orderTimeLimit}.`}
-                    <br />
-                    Si necesitas modificar tu pedido, contacta con soporte.
-                  </p>
+        {!canEdit && (
+          ((authType === AUTH_TYPES.BRANCH && order.branch_id === branch?.branch_id) ||
+            (authType === AUTH_TYPES.USER && order.user_id === user?.id))
+        ) && (
+            <div className="mt-6 bg-yellow-50 rounded-lg p-4 border border-yellow-200">
+              <div className="flex items-start">
+                <div className="flex-shrink-0">
+                  <FaExclamationTriangle className="h-5 w-5 text-yellow-400" />
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-yellow-800">Información sobre edición de pedidos</h3>
+                  <div className="mt-2 text-sm text-yellow-700">
+                    <p>
+                      {editRestriction || `No se puede editar este pedido después de las ${siteSettings.orderTimeLimit}.`}
+                      <br />
+                      Si necesitas modificar tu pedido, contacta con soporte.
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
       </div>
     </div>
   );

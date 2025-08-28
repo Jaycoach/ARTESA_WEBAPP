@@ -199,15 +199,67 @@ const Dashboard = () => {
         userName: user?.nombre || user?.name
       });
 
-      // Endpoints para usuario principal
+      // ✅ ENDPOINTS ESPECÍFICOS PARA USUARIO PRINCIPAL
       const userEndpoints = {
         orders: `/orders/user/${userId}`,
         products: '/products',
         invoices: `/orders/invoices?userId=${userId}`
       };
 
-      // Lógica similar para usuario principal...
-      // (manteniendo la lógica existente)
+      console.log('📡 [USER] Endpoints a consultar:', userEndpoints);
+
+      const results = {
+        totalOrders: 0,
+        totalProducts: 0,
+        totalInvoices: 0
+      };
+
+      // ✅ PETICIÓN DE ÓRDENES USUARIO
+      try {
+        console.log('🔄 [USER] Consultando órdenes del usuario...');
+        const ordersResponse = await API.get(userEndpoints.orders);
+        console.log('✅ [USER] Órdenes obtenidas:', ordersResponse.data);
+
+        const ordersData = ordersResponse.data?.data || ordersResponse.data || [];
+        results.totalOrders = Array.isArray(ordersData) ? ordersData.length : 0;
+        setUserOrders(Array.isArray(ordersData) ? ordersData : []);
+
+        console.log(`📊 [USER] Total de órdenes: ${results.totalOrders}`);
+      } catch (error) {
+        console.warn('⚠️ [USER] Error obteniendo órdenes:', error.message);
+      }
+
+      // ✅ PETICIÓN DE PRODUCTOS USUARIO
+      try {
+        console.log('🔄 [USER] Consultando catálogo de productos...');
+        const productsResponse = await API.get(userEndpoints.products);
+        console.log('✅ [USER] Productos obtenidos:', productsResponse.data);
+
+        const productsData = productsResponse.data?.data || productsResponse.data || [];
+        results.totalProducts = Array.isArray(productsData) ? productsData.length : 0;
+
+        console.log(`📊 [USER] Total de productos: ${results.totalProducts}`);
+      } catch (error) {
+        console.warn('⚠️ [USER] Error obteniendo productos:', error.message);
+      }
+
+      // ✅ PETICIÓN DE FACTURAS USUARIO
+      try {
+        console.log('🔄 [USER] Consultando facturas del usuario...');
+        const invoicesResponse = await API.get(userEndpoints.invoices);
+        console.log('✅ [USER] Facturas obtenidas:', invoicesResponse.data);
+
+        const invoicesData = invoicesResponse.data?.data || invoicesResponse.data || [];
+        results.totalInvoices = Array.isArray(invoicesData) ? invoicesData.length : 0;
+
+        console.log(`📊 [USER] Total de facturas: ${results.totalInvoices}`);
+      } catch (error) {
+        console.warn('⚠️ [USER] Error obteniendo facturas:', error.message);
+      }
+
+      // ✅ ACTUALIZAR ESTADÍSTICAS
+      setStats(results);
+      console.log('✅ [USER] Estadísticas finales cargadas:', results);
     };
 
     fetchStats();

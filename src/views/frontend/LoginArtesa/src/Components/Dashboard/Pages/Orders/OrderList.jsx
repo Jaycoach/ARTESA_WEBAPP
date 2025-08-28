@@ -7,6 +7,29 @@ import OrderStatusBadge from './OrderStatusBadge';
 import { FaEdit, FaEye, FaExclamationTriangle, FaTrashAlt, FaFilter, FaUserCheck, FaUserClock, FaUserTimes } from 'react-icons/fa';
 import API from '../../../../api/config';
 
+const getOrderProducts = (order, authType) => {
+  // Para usuarios BRANCH, los productos pueden estar en 'products' o 'orderDetails'
+  if (authType === 'branch') {
+    return order.products || order.orderDetails || [];
+  }
+  // Para usuarios USER, están en 'orderDetails'
+  return order.orderDetails || [];
+};
+
+const getProductName = (product) => {
+  // Priorizar product_name, luego product_description como fallback
+  return product.product_name || product.product_description || 'Producto desconocido';
+};
+
+const getProductQuantity = (product) => {
+  // Asegurar que quantity sea un número
+  return parseInt(product.quantity || 0);
+};
+
+const getRoutePrefix = (authType) => {
+  return authType === 'branch' ? '/dashboard-branch' : '/dashboard';
+};
+
 const OrderList = ({ canCreateValidation, onCreateOrderClick }) => {
   const { user, branch, authType, isAuthenticated } = useAuth();
   const { userStatus, error: userError, refresh: refreshUserStatus } = useUserActivation(); // NUEVO
@@ -97,7 +120,6 @@ const OrderList = ({ canCreateValidation, onCreateOrderClick }) => {
     );
   };
 
-  // useEffects existentes (mantener iguales)
   useEffect(() => {
     const fetchSettingsAndStatuses = async () => {
       try {
@@ -199,13 +221,26 @@ const OrderList = ({ canCreateValidation, onCreateOrderClick }) => {
       const ordersWithDetails = await Promise.all(
         active.map(async (order) => {
           try {
-            // Usar orderService adaptado que detecta contexto automáticamente
             const orderResult = await orderService.getOrderById(order.order_id);
             if (orderResult.success) {
-              return {
-                ...order,
-                orderDetails: orderResult.data.details || []
-              };
+              const orderData = orderResult.data;
+
+              // ✅ MAPEAR DATOS SEGÚN EL CONTEXTO
+              if (authType === 'branch') {
+                // Para branch, asegurar que los productos estén disponibles
+                return {
+                  ...order,
+                  orderDetails: orderData.products || orderData.details || [], // Mapear products a orderDetails para compatibilidad
+                  products: orderData.products || [], // Mantener referencia original
+                  status_name: orderData.status_name // Campo adicional de branch
+                };
+              } else {
+                // Para user principal, usar estructura original
+                return {
+                  ...order,
+                  orderDetails: orderData.details || []
+                };
+              }
             }
             return order;
           } catch (error) {
@@ -460,23 +495,30 @@ const OrderList = ({ canCreateValidation, onCreateOrderClick }) => {
 
                 <div className="mb-3">
                   <span className="text-gray-500 block mb-1">Productos:</span>
-                  {order.orderDetails ? (
-                    <div className="space-y-1">
-                      {order.orderDetails.map((detail, index) => (
-                        <div key={index} className="flex justify-between text-xs">
-                          <span className="text-gray-800 font-medium truncate max-w-[70%]">{detail.product_name}</span>
-                          <span className="text-blue-600">{detail.quantity} {detail.quantity === 1 ? 'unidad' : 'unidades'}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <span>No hay productos</span>
-                  )}
+                  {(() => {
+                    const products = getOrderProducts(order, authType);
+                    return products && products.length > 0 ? (
+                      <div className="space-y-1">
+                        {products.map((product, index) => (
+                          <div key={index} className="flex justify-between text-xs">
+                            <span className="text-gray-800 font-medium truncate max-w-[70%]">
+                              {getProductName(product)}
+                            </span>
+                            <span className="text-blue-600">
+                              {getProductQuantity(product)} {getProductQuantity(product) === 1 ? 'unidad' : 'unidades'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <span>No hay productos</span>
+                    );
+                  })()}
                 </div>
 
                 <div className="flex flex-wrap gap-2 mt-2">
                   <Link
-                    to={`/dashboard/orders/${order.order_id}`}
+                    to={`${getRoutePrefix(authType)}/orders/${order.order_id}`}
                     className="bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 text-indigo-600 rounded flex items-center text-xs flex-grow justify-center"
                   >
                     <FaEye className="mr-1" />
@@ -485,7 +527,7 @@ const OrderList = ({ canCreateValidation, onCreateOrderClick }) => {
 
                   {editableOrders[order.order_id] ? (
                     <Link
-                      to={`/dashboard/orders/${order.order_id}/edit`}
+                      to={`${getRoutePrefix(authType)}/orders/${order.order_id}/edit`}
                       className="bg-blue-50 hover:bg-blue-100 px-3 py-1.5 text-blue-600 rounded flex items-center text-xs flex-grow justify-center"
                     >
                       <FaEdit className="mr-1" />
@@ -535,7 +577,7 @@ const OrderList = ({ canCreateValidation, onCreateOrderClick }) => {
                 {currentOrders.map((order) => (
                   <tr key={order.order_id} className="hover:bg-gray-50">
                     <td className="px-3 py-4 border-b text-sm text-blue-600 font-bold text-center">
-                      <Link to={`/dashboard/orders/${order.order_id}`}>#{order.order_id}</Link>
+                      <Link to={`${getRoutePrefix(authType)}/orders/${order.order_id}`}>#{order.order_id}</Link>
                     </td>
 
                     {isAdmin && (
@@ -551,34 +593,40 @@ const OrderList = ({ canCreateValidation, onCreateOrderClick }) => {
                       {formatDate(order.delivery_date)}
                     </td>
                     <td className="px-3 py-4 border-b text-sm">
-                      {order.orderDetails ? (
-                        <div className="space-y-1">
-                          {order.orderDetails.map((detail, index) => (
-                            <div
-                              key={index}
-                              className="text-gray-800 font-medium text-xs overflow-hidden text-ellipsis block max-w-full"
-                              title={detail.product_name}
-                            >
-                              {detail.product_name}
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <span>No hay productos</span>
-                      )}
+                      {(() => {
+                        const products = getOrderProducts(order, authType);
+                        return products && products.length > 0 ? (
+                          <div className="space-y-1">
+                            {products.map((product, index) => (
+                              <div
+                                key={index}
+                                className="text-gray-800 font-medium text-xs overflow-hidden text-ellipsis block max-w-full"
+                                title={getProductName(product)}
+                              >
+                                {getProductName(product)}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <span>No hay productos</span>
+                        );
+                      })()}
                     </td>
                     <td className="px-3 py-4 border-b text-sm">
-                      {order.orderDetails ? (
-                        <div className="space-y-1">
-                          {order.orderDetails.map((detail, index) => (
-                            <div key={index} className="text-blue-600 text-center">
-                              {detail.quantity}
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="text-center block">No hay cantidades</span>
-                      )}
+                      {(() => {
+                        const products = getOrderProducts(order, authType);
+                        return products && products.length > 0 ? (
+                          <div className="space-y-1">
+                            {products.map((product, index) => (
+                              <div key={index} className="text-blue-600 text-center">
+                                {getProductQuantity(product)}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-center block">No hay cantidades</span>
+                        );
+                      })()}
                     </td>
                     <td className="px-3 py-4 border-b text-sm text-gray-900 text-right font-semibold">
                       {formatColombianCurrency(order.total_amount)}
@@ -589,7 +637,7 @@ const OrderList = ({ canCreateValidation, onCreateOrderClick }) => {
                     <td className="px-3 py-4 border-b text-sm font-medium text-center">
                       <div className="flex justify-center items-center space-x-1 lg:space-x-2">
                         <Link
-                          to={`/dashboard/orders/${order.order_id}`}
+                          to={`${getRoutePrefix(authType)}/orders/${order.order_id}`}
                           className="bg-indigo-50 hover:bg-indigo-100 px-2 lg:px-3 py-1 text-indigo-600 rounded flex items-center text-xs"
                         >
                           <FaEye className="mr-1" />
@@ -598,7 +646,7 @@ const OrderList = ({ canCreateValidation, onCreateOrderClick }) => {
 
                         {editableOrders[order.order_id] ? (
                           <Link
-                            to={`/dashboard/orders/${order.order_id}/edit`}
+                            to={`${getRoutePrefix(authType)}/orders/${order.order_id}/edit`}
                             className="bg-blue-50 hover:bg-blue-100 px-2 lg:px-3 py-1 text-blue-600 rounded flex items-center text-xs"
                           >
                             <FaEdit className="mr-1" />
