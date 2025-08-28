@@ -75,13 +75,13 @@ class TokenRevocation {
       
       const query = `
         INSERT INTO revoked_tokens (token_hash, user_id, revoked_at, expires_at, revocation_reason, revoke_all_before)
-        VALUES ($1, $2, NOW(), NOW() + INTERVAL '30 days', $3, NOW() + INTERVAL '1 seconds')
+        VALUES ($1, $2, NOW(), NOW() + INTERVAL '30 days', $3, NOW() - INTERVAL '5 seconds')
         ON CONFLICT (token_hash) 
         DO UPDATE SET 
           revoked_at = NOW(),
           expires_at = NOW() + INTERVAL '30 days',
           revocation_reason = $3,
-          revoke_all_before = NOW() - INTERVAL '1 second'
+          revoke_all_before = NOW() - INTERVAL '5 seconds'
       `;
       
       const tokenHash = `all_tokens_${userId}_${Date.now()}`;
