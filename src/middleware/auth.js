@@ -169,12 +169,16 @@ const verifyToken = async (req, res, next) => {
     // Extraer el token
     const token = authHeader.split(' ')[1];
 
+    // ✅ CAMBIO: Verificar el token ANTES de verificar revocación
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
     // Verificar si el token está revocado
     const isRevoked = await TokenRevocation.isTokenRevoked(token);
     if (isRevoked) {
       logger.warn('Intento de uso de token revocado', {
         ip: req.ip,
-        userAgent: req.headers['user-agent']
+        userAgent: req.headers['user-agent'],
+        userId: decoded.id
       });
       
       return res.status(401).json({
@@ -184,28 +188,31 @@ const verifyToken = async (req, res, next) => {
       });
     }
 
-    // Verificar el token con el mismo secreto usado en la generación
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-    // Verificar si hay una revocación global de tokens para este usuario
+    // ✅ CAMBIO CRÍTICO: Verificar revocación global con timestamp más preciso
     const query = `
-    SELECT 1 FROM revoked_tokens 
-    WHERE user_id = $1 
-    AND token_hash = 'all_tokens' 
-    AND revoke_all_before > $2
-    AND expires_at > NOW()
-    LIMIT 1
-  `;
+      SELECT 1 FROM revoked_tokens 
+      WHERE user_id = $1 
+      AND (token_hash = 'all_tokens' OR token_hash LIKE 'all_tokens_%')
+      AND revoke_all_before > $2
+      AND expires_at > NOW()
+      ORDER BY revoked_at DESC
+      LIMIT 1
+    `;
+    
+    // ✅ Usar el iat del token con margen de seguridad
+    const tokenIssuedAt = new Date((decoded.iat - 15) * 1000); // 15 segundos de margen
     
     const { rows } = await require('../config/db').query(query, [
       decoded.id, 
-      new Date((decoded.iat + 2) * 1000) // Agregar 1 segundo para evitar conflictos de timing
+      tokenIssuedAt
     ]);
     
     if (rows.length > 0) {
       logger.warn('Intento de uso de token después de revocación global', {
         userId: decoded.id,
-        ip: req.ip
+        ip: req.ip,
+        tokenIat: tokenIssuedAt,
+        decodedIat: decoded.iat
       });
       
       return res.status(401).json({

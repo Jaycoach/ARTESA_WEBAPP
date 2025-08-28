@@ -68,25 +68,28 @@ class TokenRevocation {
    * @param {string} reason - Razón de la revocación
    * @returns {Promise<boolean>} - true si se revocaron exitosamente
    */
-  static async revokeAllUserTokens(userId, reason = 'security_measure', currentToken = null) {
+  static async revokeAllUserTokens(userId, reason = 'security_measure') {
     try {
-      // Modificar la consulta para actualizar si ya existe
-      const query = `
-      INSERT INTO revoked_tokens (token_hash, user_id, revoked_at, expires_at, revocation_reason, revoke_all_before)
-      VALUES ('all_tokens', $1, NOW(), NOW() + INTERVAL '30 days', $2, NOW() - INTERVAL '1 second')
-      ON CONFLICT (token_hash) 
-      DO UPDATE SET 
-        revoked_at = NOW(),
-        expires_at = NOW() + INTERVAL '30 days',
-        revocation_reason = $2,
-        revoke_all_before = NOW() - INTERVAL '1 second'
-    `;
+      // ✅ CAMBIO CRÍTICO: Usar timestamp más preciso y con margen de seguridad
+      const revokeBeforeTime = new Date(Date.now() - 10000); // 10 segundos en el pasado
       
-      await pool.query(query, [userId, reason]);
+      const query = `
+        INSERT INTO revoked_tokens (token_hash, user_id, revoked_at, expires_at, revocation_reason, revoke_all_before)
+        VALUES ('all_tokens_' || $1 || '_' || extract(epoch from now()), $1, NOW(), NOW() + INTERVAL '30 days', $2, $3)
+        ON CONFLICT (token_hash) 
+        DO UPDATE SET 
+          revoked_at = NOW(),
+          expires_at = NOW() + INTERVAL '30 days',
+          revocation_reason = $2,
+          revoke_all_before = $3
+      `;
+      
+      await pool.query(query, [userId, reason, revokeBeforeTime]);
       
       logger.info('Todos los tokens del usuario revocados', { 
         userId,
-        reason
+        reason,
+        revokeBeforeTime
       });
       
       return true;

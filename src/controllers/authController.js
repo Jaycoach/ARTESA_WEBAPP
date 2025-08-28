@@ -185,40 +185,44 @@ static incrementLoginAttempts(mail) {
           // Obtener el nombre del rol
           const roles = await Roles.getRoles();
           const roleName = Object.keys(roles).find(key => roles[key] === user.rol_id) || 'UNKNOWN';
-      
+  
           // Crear payload del token
           const payload = {
             id: user.id,
             mail: user.mail,
             name: user.name,
             rol_id: user.rol_id,
-            role: roleName
+            role: roleName,
+            iat: Math.floor(Date.now() / 1000) // ✅ Timestamp actual preciso
           };
-      
+  
           // Calcular tiempo de expiración
           const expiresIn = '24h';
           const expiresInSeconds = 24 * 60 * 60; // 24 horas en segundos
           const expiresAt = new Date(Date.now() + expiresInSeconds * 1000);
-      
-          // Generar el token
+  
+          // ✅ CAMBIO CRÍTICO: Revocar tokens ANTES de generar el nuevo
+          logger.debug('Revocando tokens anteriores del usuario', { userId: user.id });
+          await TokenRevocation.revokeAllUserTokens(user.id, 'new_login');
+
+          // ✅ Pausa para evitar conflictos de timing
+          await new Promise(resolve => setTimeout(resolve, 200));
+
+          // Generar el nuevo token DESPUÉS de revocar los anteriores
           const token = jwt.sign(
             payload,
             process.env.JWT_SECRET,
             { expiresIn }
           );
-      
+  
           logger.info('Token generado exitosamente', { 
             userId: user.id,
             mail: user.mail,
             role: roleName,
-            expiresAt
+            expiresAt,
+            tokenIat: payload.iat
           });
-      
-          // Revocar todos los tokens anteriores del usuario para seguridad
-          logger.debug('Revocando tokens anteriores del usuario', { userId: user.id });
-          // Registrar token activo en la base de datos        
-          await TokenRevocation.revokeAllUserTokens(user.id, 'new_login', token);
-      
+
           return token;
         } catch (error) {
           logger.error('Error al generar token', {
@@ -494,9 +498,9 @@ static incrementLoginAttempts(mail) {
                     req
                 );
     
-                // Revocar tokens anteriores del usuario
-                await TokenRevocation.revokeAllUserTokens(user.id, 'new_login');
-    
+                // ✅ REMOVER: No revocar tokens aquí ya que se hace en generateToken
+                // await TokenRevocation.revokeAllUserTokens(user.id, 'new_login');
+
                 logger.info('Login exitoso', {
                     userId: user.id,
                     mail: user.mail,
