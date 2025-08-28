@@ -208,23 +208,26 @@ class AuthController {
             const expiresInSeconds = 24 * 60 * 60; // 24 horas en segundos
             const expiresAt = new Date(Date.now() + expiresInSeconds * 1000);
 
-            // ✅ SOLUCIÓN: Generar token ANTES de revocar para evitar conflictos de timing
+            // Revocar tokens ANTES de generar el nuevo
+            logger.debug('Revocando tokens anteriores del usuario', { userId: user.id });
+            await TokenRevocation.revokeAllUserTokens(user.id, 'new_login');
+
+            // Esperar 1 segundo para evitar conflictos de timestamp
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            // Generar token DESPUÉS de revocar
             const token = jwt.sign(
                 payload,
                 process.env.JWT_SECRET,
                 { expiresIn }
             );
 
-            logger.info('Token generado exitosamente (antes de revocar tokens anteriores)', { 
+            logger.info('Token generado exitosamente (después de revocar tokens anteriores)', { 
                 userId: user.id,
                 mail: user.mail,
                 role: roleName,
                 tokenIat: payload.iat
             });
-
-            // ✅ Revocar tokens DESPUÉS de generar el nuevo
-            logger.debug('Revocando tokens anteriores del usuario', { userId: user.id });
-            await TokenRevocation.revokeAllUserTokens(user.id, 'new_login');
             return token;
         } catch (error) {
             logger.error('Error al generar token', {

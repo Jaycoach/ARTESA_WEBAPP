@@ -217,7 +217,7 @@ const verifyToken = async (req, res, next) => {
         timestamp: new Date().toISOString()
       });
       
-      if (tokenIssuedAt <= revokeAllBefore) { 
+      if (tokenIssuedAt < revokeAllBefore) { 
         logger.warn('Token anterior a revocación global detectado', {
           userId: decoded.id,
           ip: req.ip,
