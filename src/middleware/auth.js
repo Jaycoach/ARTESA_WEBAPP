@@ -213,7 +213,7 @@ const verifyToken = async (req, res, next) => {
         tokenIatSeconds: decoded.iat,
         currentTime: new Date().toISOString(),
         timeDifferenceMs: revokeAllBefore.getTime() - tokenIssuedAt.getTime(),
-        isRevoked: tokenIssuedAt <= revokeAllBefore,
+        isRevoked: tokenIssuedAt < revokeAllBefore,
         timestamp: new Date().toISOString()
       });
       
