@@ -206,14 +206,18 @@ const verifyToken = async (req, res, next) => {
       const tokenIssuedAt = new Date(decoded.iat * 1000);
       
       logger.debug('Verificación de revocación global', {
+        context: 'AuthMiddleware',
         userId: decoded.id,
         tokenIssuedAt: tokenIssuedAt.toISOString(),
         revokeAllBefore: revokeAllBefore.toISOString(),
         tokenIatSeconds: decoded.iat,
-        isRevoked: tokenIssuedAt <= revokeAllBefore
+        currentTime: new Date().toISOString(),
+        timeDifferenceMs: revokeAllBefore.getTime() - tokenIssuedAt.getTime(),
+        isRevoked: tokenIssuedAt <= revokeAllBefore,
+        timestamp: new Date().toISOString()
       });
       
-      if (tokenIssuedAt <= revokeAllBefore) {
+      if (tokenIssuedAt <= revokeAllBefore) { 
         logger.warn('Token anterior a revocación global detectado', {
           userId: decoded.id,
           ip: req.ip,
