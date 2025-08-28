@@ -199,7 +199,7 @@ const verifyToken = async (req, res, next) => {
     
     const { rows } = await require('../config/db').query(query, [
       decoded.id, 
-      new Date(decoded.iat * 1000) // La fecha de emisión del token en formato JavaScript
+      new Date((decoded.iat + 2) * 1000) // Agregar 1 segundo para evitar conflictos de timing
     ]);
     
     if (rows.length > 0) {
