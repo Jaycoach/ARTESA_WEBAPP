@@ -188,38 +188,45 @@ const verifyToken = async (req, res, next) => {
       });
     }
 
-    // ✅ CAMBIO CRÍTICO: Verificar revocación global con timestamp más preciso
+    // ✅ SOLUCIÓN: Verificación mejorada de revocación global
     const query = `
-      SELECT 1 FROM revoked_tokens 
+      SELECT revoke_all_before, revoked_at
+      FROM revoked_tokens 
       WHERE user_id = $1 
       AND (token_hash = 'all_tokens' OR token_hash LIKE 'all_tokens_%')
-      AND revoke_all_before > $2
       AND expires_at > NOW()
       ORDER BY revoked_at DESC
       LIMIT 1
     `;
-    
-    // ✅ Usar el iat del token con margen de seguridad
-    const tokenIssuedAt = new Date((decoded.iat - 15) * 1000); // 15 segundos de margen
-    
-    const { rows } = await require('../config/db').query(query, [
-      decoded.id, 
-      tokenIssuedAt
-    ]);
-    
+
+    const { rows } = await require('../config/db').query(query, [decoded.id]);
+
     if (rows.length > 0) {
-      logger.warn('Intento de uso de token después de revocación global', {
+      const revokeAllBefore = new Date(rows[0].revoke_all_before);
+      const tokenIssuedAt = new Date(decoded.iat * 1000);
+      
+      logger.debug('Verificación de revocación global', {
         userId: decoded.id,
-        ip: req.ip,
-        tokenIat: tokenIssuedAt,
-        decodedIat: decoded.iat
+        tokenIssuedAt: tokenIssuedAt.toISOString(),
+        revokeAllBefore: revokeAllBefore.toISOString(),
+        tokenIatSeconds: decoded.iat,
+        isRevoked: tokenIssuedAt <= revokeAllBefore
       });
       
-      return res.status(401).json({
-        status: 'error',
-        message: 'La sesión ha expirado debido a un cambio de seguridad. Por favor, inicie sesión nuevamente.',
-        code: 'TOKEN_GLOBALLY_REVOKED'
-      });
+      if (tokenIssuedAt <= revokeAllBefore) {
+        logger.warn('Token anterior a revocación global detectado', {
+          userId: decoded.id,
+          ip: req.ip,
+          tokenIssuedAt: tokenIssuedAt.toISOString(),
+          revokeAllBefore: revokeAllBefore.toISOString()
+        });
+        
+        return res.status(401).json({
+          status: 'error',
+          message: 'La sesión ha expirado debido a un cambio de seguridad. Por favor, inicie sesión nuevamente.',
+          code: 'TOKEN_GLOBALLY_REVOKED'
+        });
+      }
     }
     
     // Agregar información del usuario al request

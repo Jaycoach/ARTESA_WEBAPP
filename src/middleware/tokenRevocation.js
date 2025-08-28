@@ -71,7 +71,7 @@ class TokenRevocation {
   static async revokeAllUserTokens(userId, reason = 'security_measure') {
     try {
       // ✅ CAMBIO CRÍTICO: Usar timestamp más preciso y con margen de seguridad
-      const revokeBeforeTime = new Date(Date.now() - 10000); // 10 segundos en el pasado
+      const revokeBeforeTime = new Date(); // Tiempo actual exacto
       
       const query = `
         INSERT INTO revoked_tokens (token_hash, user_id, revoked_at, expires_at, revocation_reason, revoke_all_before)

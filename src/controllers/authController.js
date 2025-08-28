@@ -159,80 +159,87 @@ class AuthController {
     }
 
     // Método mejorado para incrementar intentos de login
-static incrementLoginAttempts(mail) {
-    const currentAttempts = this.loginAttempts.get(mail) || { 
-        count: 0, 
-        timestamp: Date.now() 
-    };
+    static incrementLoginAttempts(mail) {
+        const currentAttempts = this.loginAttempts.get(mail) || { 
+            count: 0, 
+            timestamp: Date.now() 
+        };
 
-    // Incrementar el contador
-    currentAttempts.count++;
-    currentAttempts.timestamp = Date.now();
-    this.loginAttempts.set(mail, currentAttempts);
+        // Incrementar el contador
+        currentAttempts.count++;
+        currentAttempts.timestamp = Date.now();
+        this.loginAttempts.set(mail, currentAttempts);
 
-    logger.warn('Incremento de intentos de login', { 
-        mail,
-        attemptCount: currentAttempts.count,
-        timestamp: new Date(currentAttempts.timestamp)
-    });
+        logger.warn('Incremento de intentos de login', { 
+            mail,
+            attemptCount: currentAttempts.count,
+            timestamp: new Date(currentAttempts.timestamp)
+        });
 
-    return currentAttempts;
-}
+        return currentAttempts;
+    }
 
     // Método para generar token JWT
     static async generateToken(user) {
         try {
-          // Obtener el nombre del rol
-          const roles = await Roles.getRoles();
-          const roleName = Object.keys(roles).find(key => roles[key] === user.rol_id) || 'UNKNOWN';
-  
-          // Crear payload del token
-          const payload = {
-            id: user.id,
-            mail: user.mail,
-            name: user.name,
-            rol_id: user.rol_id,
-            role: roleName,
-            iat: Math.floor(Date.now() / 1000) // ✅ Timestamp actual preciso
-          };
-  
-          // Calcular tiempo de expiración
-          const expiresIn = '24h';
-          const expiresInSeconds = 24 * 60 * 60; // 24 horas en segundos
-          const expiresAt = new Date(Date.now() + expiresInSeconds * 1000);
-  
-          // ✅ CAMBIO CRÍTICO: Revocar tokens ANTES de generar el nuevo
-          logger.debug('Revocando tokens anteriores del usuario', { userId: user.id });
-          await TokenRevocation.revokeAllUserTokens(user.id, 'new_login');
+            // Obtener el nombre del rol
+            const roles = await Roles.getRoles();
+            const roleName = Object.keys(roles).find(key => roles[key] === user.rol_id) || 'UNKNOWN';
 
-          // ✅ Pausa para evitar conflictos de timing
-          await new Promise(resolve => setTimeout(resolve, 200));
+            // Crear payload del token
+            const payload = {
+                id: user.id,
+                mail: user.mail,
+                name: user.name,
+                rol_id: user.rol_id,
+                role: roleName,
+                iat: Math.floor(Date.now() / 1000) // ✅ Timestamp actual preciso
+            };
 
-          // Generar el nuevo token DESPUÉS de revocar los anteriores
-          const token = jwt.sign(
-            payload,
-            process.env.JWT_SECRET,
-            { expiresIn }
-          );
-  
-          logger.info('Token generado exitosamente', { 
-            userId: user.id,
-            mail: user.mail,
-            role: roleName,
-            expiresAt,
-            tokenIat: payload.iat
-          });
+            // ✅ SOLUCIÓN: Verificar que el timestamp sea válido
+            logger.debug('Generando token con timestamp', {
+                userId: user.id,
+                iat: payload.iat,
+                iatDate: new Date(payload.iat * 1000).toISOString()
+            });
 
-          return token;
+            // Calcular tiempo de expiración
+            const expiresIn = '24h';
+            const expiresInSeconds = 24 * 60 * 60; // 24 horas en segundos
+            const expiresAt = new Date(Date.now() + expiresInSeconds * 1000);
+
+            // ✅ CAMBIO CRÍTICO: Revocar tokens ANTES de generar el nuevo
+            logger.debug('Revocando tokens anteriores del usuario', { userId: user.id });
+            await TokenRevocation.revokeAllUserTokens(user.id, 'new_login');
+
+            // ✅ Pausa para evitar conflictos de timing
+            await new Promise(resolve => setTimeout(resolve, 200));
+
+            // Generar el nuevo token DESPUÉS de revocar los anteriores
+            const token = jwt.sign(
+                payload,
+                process.env.JWT_SECRET,
+                { expiresIn }
+            );
+
+            logger.info('Token generado exitosamente', { 
+                userId: user.id,
+                mail: user.mail,
+                role: roleName,
+                expiresAt,
+                tokenIat: payload.iat
+            });
+
+            return token;
         } catch (error) {
-          logger.error('Error al generar token', {
-            error: error.message,
-            stack: error.stack,
-            userId: user.id
-          });
-          throw new Error('Error al generar token de autenticación');
+            logger.error('Error al generar token', {
+                error: error.message,
+                stack: error.stack,
+                userId: user.id
+            });
+            throw new Error('Error al generar token de autenticación');
         }
-      }     
+    }     
 
     /**
      * @swagger
@@ -367,19 +374,19 @@ static incrementLoginAttempts(mail) {
     
             // 3. Buscar usuario y verificar estado
             const query = `
-            SELECT 
-                u.id,
-                u.name,
-                u.mail,
-                u.password,
-                u.rol_id,
-                u.is_active,
-                COALESCE(u.email_verified, true) as email_verified,
-                r.nombre as role_name
-            FROM users u
-            JOIN roles r ON u.rol_id = r.id
-            WHERE u.mail = $1
-        `;
+                SELECT 
+                    u.id,
+                    u.name,
+                    u.mail,
+                    u.password,
+                    u.rol_id,
+                    u.is_active,
+                    COALESCE(u.email_verified, true) as email_verified,
+                    r.nombre as role_name
+                FROM users u
+                JOIN roles r ON u.rol_id = r.id
+                WHERE u.mail = $1
+            `;
             
             const result = await pool.query(query, [mail]);
     
@@ -424,12 +431,11 @@ static incrementLoginAttempts(mail) {
                 });
             }
 
-            // Verificar si el correo está verificado (advertencia, no bloqueo)
             // Verificar si el correo está verificado (si existe el campo)
             if (user.hasOwnProperty('email_verified') && !user.email_verified) {
                 logger.warn('Intento de login con correo no verificado', {
-                mail,
-                userId: user.id
+                    mail,
+                    userId: user.id
                 });
                 
                 await this.logLoginAttempt(
@@ -441,9 +447,9 @@ static incrementLoginAttempts(mail) {
                 );
                 
                 return res.status(401).json({
-                success: false,
-                message: 'Por favor verifica tu correo electrónico antes de iniciar sesión',
-                needsVerification: true
+                    success: false,
+                    message: 'Por favor verifica tu correo electrónico antes de iniciar sesión',
+                    needsVerification: true
                 });
             }
 
@@ -513,20 +519,20 @@ static incrementLoginAttempts(mail) {
                     success: true,
                     message: 'Login exitoso',
                     data: {
-                      token,
-                      expiresIn: expiresInSeconds,
-                      user: {
-                        id: user.id,
-                        name: user.name,
-                        mail: user.mail,
-                        is_active: user.is_active,
-                        role: {
-                          id: user.rol_id,
-                          name: user.role_name
+                        token,
+                        expiresIn: expiresInSeconds,
+                        user: {
+                            id: user.id,
+                            name: user.name,
+                            mail: user.mail,
+                            is_active: user.is_active,
+                            role: {
+                                id: user.rol_id,
+                                name: user.role_name
+                            }
                         }
-                      }
                     }
-                  });
+                });
     
             } catch (compareError) {
                 logger.error('Error en la comparación de contraseñas', {
@@ -677,21 +683,21 @@ static incrementLoginAttempts(mail) {
 
             // Enviar correo de verificación
             try {
-            const verificationUrl = `${process.env.FRONTEND_URL}/verify-email/${verificationToken}`;
-            
-            await EmailService.sendVerificationEmail(mail, verificationToken, verificationUrl);
-            
-            logger.info('Correo de verificación enviado', {
-                userId,
-                mail
-            });
+                const verificationUrl = `${process.env.FRONTEND_URL}/verify-email/${verificationToken}`;
+                
+                await EmailService.sendVerificationEmail(mail, verificationToken, verificationUrl);
+                
+                logger.info('Correo de verificación enviado', {
+                    userId,
+                    mail
+                });
             } catch (emailError) {
-            logger.error('Error al enviar correo de verificación', {
-                error: emailError.message,
-                userId,
-                mail
-            });
-            // No hacemos rollback aquí, el usuario se ha creado correctamente
+                logger.error('Error al enviar correo de verificación', {
+                    error: emailError.message,
+                    userId,
+                    mail
+                });
+                // No hacemos rollback aquí, el usuario se ha creado correctamente
             }
 
             // 5. Obtener el nombre del rol
@@ -976,7 +982,7 @@ static incrementLoginAttempts(mail) {
             error: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
         }
-    };
+    }
 
     // Método para verificar token JWT
     static async verifyToken(token) {
@@ -998,32 +1004,33 @@ static incrementLoginAttempts(mail) {
             throw new Error('Token inválido o expirado');
         }
     }
-    //Añadir método para manejo de tokens al reiniciar el servidor
+
+    // Añadir método para manejo de tokens al reiniciar el servidor
     // Esta función se llamaría en el arranque de la aplicación
     static async handleServerRestart() {
         try {
-        logger.info('Verificando tokens en reinicio del servidor');
-        
-        // Invalidar todos los tokens anteriores al reinicio
-        const query = `
-            INSERT INTO revoked_tokens (token_hash, user_id, revoked_at, expires_at, revocation_reason)
-            VALUES ('server_restart', NULL, NOW(), NOW() + INTERVAL '30 days', 'server_restart')
-        `;
-        
-        await pool.query(query);
-        
-        logger.info('Todos los tokens anteriores al reinicio del servidor han sido invalidados');
-        
-        // Limpiar tokens revocados expirados
-        await TokenRevocation.cleanupExpiredTokens();
-        
-        return true;
+            logger.info('Verificando tokens en reinicio del servidor');
+            
+            // Invalidar todos los tokens anteriores al reinicio
+            const query = `
+                INSERT INTO revoked_tokens (token_hash, user_id, revoked_at, expires_at, revocation_reason)
+                VALUES ('server_restart', NULL, NOW(), NOW() + INTERVAL '30 days', 'server_restart')
+            `;
+            
+            await pool.query(query);
+            
+            logger.info('Todos los tokens anteriores al reinicio del servidor han sido invalidados');
+            
+            // Limpiar tokens revocados expirados
+            await TokenRevocation.cleanupExpiredTokens();
+            
+            return true;
         } catch (error) {
-        logger.error('Error al manejar reinicio del servidor para tokens', {
-            error: error.message,
-            stack: error.stack
-        });
-        return false;
+            logger.error('Error al manejar reinicio del servidor para tokens', {
+                error: error.message,
+                stack: error.stack
+            });
+            return false;
         }
     }
 }
