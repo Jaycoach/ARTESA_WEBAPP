@@ -213,22 +213,155 @@ router.post('/client/:userId/simulate-sync',
 
 /**
  * @swagger
- * /api/client-sync/sync-institutional:
- *   post:
- *     summary: Iniciar sincronización de clientes institucionales
- *     description: Sincroniza clientes del grupo Institucional desde SAP B1 con sus sucursales
+ * /api/client-sync/sap-diagnosis:
+ *   get:
+ *     summary: Diagnóstico de conexión SAP
+ *     description: Verifica el estado de la configuración y conexión SAP
  *     tags: [ClientSync]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Sincronización iniciada exitosamente
+ *         description: Diagnóstico completado
  *       401:
  *         description: No autorizado
  *       403:
  *         description: No tiene permisos suficientes
  *       500:
  *         description: Error interno del servidor
+ */
+router.get('/sap-diagnosis', 
+  checkRole([1]), // Solo administradores
+  clientSyncController.sapDiagnosis
+);
+
+/**
+ * @swagger
+ * /api/client-sync/sync-institutional:
+ *   post:
+ *     summary: Sincronizar clientes institucionales del grupo SAP
+ *     description: |
+ *       Sincroniza clientes del grupo Institucional desde SAP Business One con sus sucursales.
+ *       
+ *       **Configuración requerida:**
+ *       - Variable de entorno `SAP_INSTITUTIONAL_GROUP_CODE` (por defecto: 120)
+ *       - Credenciales SAP válidas configuradas en el servidor
+ *       
+ *       **Proceso:**
+ *       1. Consulta clientes del grupo institucional en SAP con filtro: `GroupCode eq 120 and CardType eq 'C'`
+ *       2. Para cada cliente encontrado:
+ *          - Si no existe: crea usuario y perfil de cliente
+ *          - Si existe: actualiza información del cliente
+ *          - Sincroniza las sucursales del cliente
+ *       
+ *       **Ejemplo de respuesta exitosa:**
+ *       ```json
+ *       {
+ *         "success": true,
+ *         "message": "Sincronización de clientes institucionales completada exitosamente",
+ *         "data": {
+ *           "total": 5,
+ *           "created": 2,
+ *           "updated": 3,
+ *           "errors": 0,
+ *           "branches": {
+ *             "total": 10,
+ *             "created": 4,
+ *             "updated": 6,
+ *             "errors": 0
+ *           }
+ *         }
+ *       }
+ *       ```
+ *     tags: [ClientSync]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Sincronización completada exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Sincronización de clientes institucionales completada exitosamente"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     total:
+ *                       type: integer
+ *                       description: Total de clientes procesados
+ *                     created:
+ *                       type: integer
+ *                       description: Clientes nuevos creados
+ *                     updated:
+ *                       type: integer
+ *                       description: Clientes existentes actualizados
+ *                     errors:
+ *                       type: integer
+ *                       description: Errores durante el procesamiento
+ *                     branches:
+ *                       type: object
+ *                       properties:
+ *                         total:
+ *                           type: integer
+ *                           description: Total de sucursales procesadas
+ *                         created:
+ *                           type: integer
+ *                           description: Sucursales nuevas creadas
+ *                         updated:
+ *                           type: integer
+ *                           description: Sucursales existentes actualizadas
+ *                         errors:
+ *                           type: integer
+ *                           description: Errores en sucursales
+ *       401:
+ *         description: No autorizado - Token JWT inválido o faltante
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Token no válido"
+ *       403:
+ *         description: No tiene permisos suficientes - Requiere rol de administrador
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Acceso denegado"
+ *       500:
+ *         description: Error interno del servidor
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Error al sincronizar clientes institucionales"
+ *                 error:
+ *                   type: string
+ *                   example: "Error de autenticación con SAP B1: Invalid company user"
  */
 router.post('/sync-institutional', 
   checkRole([1]), // Solo administradores

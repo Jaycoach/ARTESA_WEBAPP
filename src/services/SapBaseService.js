@@ -89,13 +89,40 @@ class SapBaseService {
     const maxRetries = 3;
     let lastError = null;
 
+    // Validar configuración antes de intentar autenticación
+    if (!this.baseUrl || !this.username || !this.password || !this.companyDB) {
+      const missingConfig = [];
+      if (!this.baseUrl) missingConfig.push('SAP_SERVICE_LAYER_URL');
+      if (!this.username) missingConfig.push('SAP_USERNAME');
+      if (!this.password) missingConfig.push('SAP_PASSWORD');
+      if (!this.companyDB) missingConfig.push('SAP_COMPANY_DB');
+      
+      this.logger.error('Configuración SAP incompleta', {
+        missingVariables: missingConfig,
+        availableConfig: {
+          baseUrl: !!this.baseUrl,
+          username: !!this.username,
+          password: !!this.password,
+          companyDB: !!this.companyDB
+        }
+      });
+      
+      throw new Error(`Configuración SAP incompleta. Variables faltantes: ${missingConfig.join(', ')}`);
+    }
+
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         this.logger.debug(`Intentando login con SAP (intento ${attempt}/${maxRetries})`, {
           baseUrl: this.baseUrl,
           companyDB: this.companyDB,
           username: this.username,
-          sslVerification: false
+          sslVerification: false,
+          configValidation: {
+            hasBaseUrl: !!this.baseUrl,
+            hasUsername: !!this.username,
+            hasPassword: !!this.password,
+            hasCompanyDB: !!this.companyDB
+          }
         });
 
         const loginData = {

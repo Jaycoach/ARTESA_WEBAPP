@@ -726,6 +726,84 @@ class ClientSyncController {
   }
   /**
    * @swagger
+   * /api/client-sync/sap-diagnosis:
+   *   get:
+   *     summary: Diagnóstico de conexión SAP
+   *     description: Verifica el estado de la configuración y conexión SAP
+   *     tags: [ClientSync]
+   *     security:
+   *       - bearerAuth: []
+   *     responses:
+   *       200:
+   *         description: Diagnóstico completado
+   *       401:
+   *         description: No autorizado
+   *       403:
+   *         description: No tiene permisos suficientes
+   *       500:
+   *         description: Error interno del servidor
+   */
+  async sapDiagnosis(req, res) {
+    try {
+      logger.info('Iniciando diagnóstico SAP', { 
+        userId: req.user?.id
+      });
+
+      const diagnosis = {
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV,
+        sapConfiguration: {
+          baseUrl: !!process.env.SAP_SERVICE_LAYER_URL,
+          baseUrlValue: process.env.SAP_SERVICE_LAYER_URL ? 
+            process.env.SAP_SERVICE_LAYER_URL.substring(0, 30) + '...' : 'NOT_SET',
+          username: !!process.env.SAP_USERNAME,
+          usernameValue: process.env.SAP_USERNAME || 'NOT_SET',
+          password: !!process.env.SAP_PASSWORD,
+          passwordLength: process.env.SAP_PASSWORD ? process.env.SAP_PASSWORD.length : 0,
+          companyDB: !!process.env.SAP_COMPANY_DB,
+          companyDBValue: process.env.SAP_COMPANY_DB || 'NOT_SET',
+          institutionalGroupCode: process.env.SAP_INSTITUTIONAL_GROUP_CODE || '120 (default)'
+        },
+        sapServiceStatus: {
+          initialized: false,
+          authenticated: false,
+          lastError: null
+        }
+      };
+
+      // Verificar estado del servicio SAP
+      try {
+        if (!sapServiceManager.initialized) {
+          await sapServiceManager.initialize();
+        }
+        diagnosis.sapServiceStatus.initialized = sapServiceManager.initialized;
+        diagnosis.sapServiceStatus.authenticated = sapServiceManager.clientService?.isAuthenticated || false;
+      } catch (sapError) {
+        diagnosis.sapServiceStatus.lastError = sapError.message;
+      }
+
+      res.status(200).json({
+        success: true,
+        message: 'Diagnóstico SAP completado',
+        data: diagnosis
+      });
+    } catch (error) {
+      logger.error('Error en diagnóstico SAP', {
+        error: error.message,
+        stack: error.stack,
+        userId: req.user?.id
+      });
+      
+      res.status(500).json({
+        success: false,
+        message: 'Error en diagnóstico SAP',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
+
+  /**
+   * @swagger
    * /api/client-sync/sync-institutional:
    *   post:
    *     summary: Iniciar sincronización de clientes institucionales
