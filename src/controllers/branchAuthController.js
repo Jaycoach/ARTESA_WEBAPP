@@ -606,7 +606,7 @@ class BranchAuthController {
                         ipAddress: req.ip
                     },
                     null, // No hay user_id para branches
-                    branch.branch_id
+                    AuditService.SEVERITY_LEVELS.INFO // Severidad correcta
                 );
 
             } catch (emailError) {
@@ -748,7 +748,7 @@ class BranchAuthController {
                     ipAddress: req.ip
                 },
                 null, // No hay user_id para branches
-                branch.branch_id
+                AuditService.SEVERITY_LEVELS.INFO // Severidad correcta
             );
 
             return res.status(200).json({
@@ -865,7 +865,7 @@ class BranchAuthController {
                         ipAddress: req.ip
                     },
                     null, // No hay user_id para branches
-                    branch.branch_id
+                    AuditService.SEVERITY_LEVELS.INFO // Severidad correcta
                 );
 
             } catch (emailError) {
