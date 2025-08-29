@@ -901,9 +901,8 @@ const CreateOrderForm = ({ onOrderCreated }) => {
           products: orderDetails.map(products => ({
             product_id: parseInt(products.product_id || 0),
             quantity: parseInt(products.quantity || 0),
-            unit_price: parseFloat(products.unit_price || 0),
-            original_unit_price: parseFloat(products.original_price || detail.unit_price || 0),
-            price_source: products.price_source || 'price_list',
+            unit_price: parseFloat(products.price || 0),
+            original_unit_price: parseFloat(products.price || detail.unit_price || 0),
 
             // Branch como origen Y destino
             branch_id: branchInfo.branch_id,
@@ -928,12 +927,13 @@ const CreateOrderForm = ({ onOrderCreated }) => {
         });
 
       } else {
-        // 👤 PAYLOAD USUARIO PRINCIPAL (TU LÓGICA ORIGINAL INTACTA)
+        // 👤 PAYLOAD USUARIO PRINCIPAL
         orderData = {
           user_id: user.id,
           total_amount: totalAmount,
           delivery_date: deliveryDate,
           notes: orderNotes,
+          branch_address: branchAddress,
           delivery_zone: deliveryZone ? deliveryZone.key : null,
           delivery_zone_name: deliveryZone ? deliveryZone.name : null,
           municipality_dane_code: selectedBranch ? selectedBranch.municipality_code : null,
@@ -947,13 +947,8 @@ const CreateOrderForm = ({ onOrderCreated }) => {
             quantity: parseInt(detail.quantity || 0),
             branch_id: selectedBranch ? selectedBranch.value : null,
             branch_name: selectedBranch ? selectedBranch.label : '',
-            branch_address: branchAddress,
-            delivery_address: branchAddress,
-            shipping_fee: shipping,
             unit_price: parseFloat(detail.unit_price || 0),
-            municipality_dane_code: selectedBranch ? selectedBranch.municipality_code : null,
             price_source: detail.price_source || 'default',
-            original_unit_price: parseFloat(detail.original_price || detail.unit_price || 0)
           }))
         };
 
