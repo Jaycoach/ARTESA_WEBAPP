@@ -148,144 +148,159 @@ const verifyAnyToken = async (req, res, next) => {
 };
 
 const verifyToken = async (req, res, next) => {
-  try {
-    const authHeader = req.headers.authorization;
-    
-    if (!authHeader) {
-      return res.status(401).json({
-        status: 'error',
-        message: 'No se proporcionó token de acceso'
-      });
-    }
+    try {
+        const authHeader = req.headers.authorization;
+        
+        if (!authHeader) {
+            return res.status(401).json({
+                status: 'error',
+                message: 'No se proporcionó token de acceso'
+            });
+        }
 
-    // Verificar formato del token
-    if (!authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({
-        status: 'error',
-        message: 'Formato de token inválido. Use: Bearer <token>'
-      });
-    }
+        // Verificar formato del token
+        if (!authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({
+                status: 'error',
+                message: 'Formato de token inválido. Use: Bearer <token>'
+            });
+        }
 
-    // Extraer el token
-    const token = authHeader.split(' ')[1];
+        // Extraer el token
+        const token = authHeader.split(' ')[1];
 
-    // ✅ CAMBIO: Verificar el token ANTES de verificar revocación
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        // ✅ Verificar el token ANTES de verificar revocación
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // Verificar si el token está revocado
-    const isRevoked = await TokenRevocation.isTokenRevoked(token);
-    if (isRevoked) {
-      logger.warn('Intento de uso de token revocado', {
-        ip: req.ip,
-        userAgent: req.headers['user-agent'],
-        userId: decoded.id
-      });
-      
-      return res.status(401).json({
-        status: 'error',
-        message: 'La sesión ha expirado o ha sido revocada. Por favor, inicie sesión nuevamente.',
-        code: 'TOKEN_REVOKED'
-      });
-    }
+        // Verificar si el token está revocado
+        const isRevoked = await TokenRevocation.isTokenRevoked(token);
+        if (isRevoked) {
+            logger.warn('Intento de uso de token revocado', {
+                ip: req.ip,
+                userAgent: req.headers['user-agent'],
+                userId: decoded.id
+            });
+            
+            return res.status(401).json({
+                status: 'error',
+                message: 'La sesión ha expirado o ha sido revocada. Por favor, inicie sesión nuevamente.',
+                code: 'TOKEN_REVOKED'
+            });
+        }
 
-    // ✅ SOLUCIÓN: Verificación mejorada de revocación global
-    const query = `
-      SELECT revoke_all_before, revoked_at
-      FROM revoked_tokens 
-      WHERE user_id = $1 
-      AND (token_hash = 'all_tokens' OR token_hash LIKE 'all_tokens_%')
-      AND expires_at > NOW()
-      ORDER BY revoked_at DESC
-      LIMIT 1
-    `;
+        // ✅ SOLUCIÓN CRÍTICA: Verificación de revocación global con tiempo de BD
+        const query = `
+            SELECT revoke_all_before, revoked_at
+            FROM revoked_tokens 
+            WHERE user_id = $1 
+            AND (token_hash = 'all_tokens' OR token_hash LIKE 'all_tokens_%')
+            AND expires_at > NOW()
+            ORDER BY revoked_at DESC
+            LIMIT 1
+        `;
 
-    const { rows } = await require('../config/db').query(query, [decoded.id]);
+        const { rows } = await require('../config/db').query(query, [decoded.id]);
 
-    if (rows.length > 0) {
-      const revokeAllBefore = new Date(rows[0].revoke_all_before);
-      const tokenIssuedAt = new Date(decoded.iat * 1000);
-      
-      logger.debug('Verificación de revocación global', {
-        context: 'AuthMiddleware',
-        userId: decoded.id,
-        tokenIssuedAt: tokenIssuedAt.toISOString(),
-        revokeAllBefore: revokeAllBefore.toISOString(),
-        tokenIatSeconds: decoded.iat,
-        currentTime: new Date().toISOString(),
-        timeDifferenceMs: revokeAllBefore.getTime() - tokenIssuedAt.getTime(),
-        isRevoked: tokenIssuedAt < revokeAllBefore,
-        timestamp: new Date().toISOString()
-      });
-      
-      if (tokenIssuedAt < revokeAllBefore) { 
-        logger.warn('Token anterior a revocación global detectado', {
-          userId: decoded.id,
-          ip: req.ip,
-          tokenIssuedAt: tokenIssuedAt.toISOString(),
-          revokeAllBefore: revokeAllBefore.toISOString()
+        if (rows.length > 0) {
+            const revokeAllBefore = new Date(rows[0].revoke_all_before);
+            
+            // ✅ CORRECCIÓN: Usar tiempo de BD para el token
+            const tokenIssuedAtQuery = await require('../config/db').query(
+                'SELECT to_timestamp($1) AT TIME ZONE \'UTC\' as token_time',
+                [decoded.iat]
+            );
+            const tokenIssuedAt = new Date(tokenIssuedAtQuery.rows[0].token_time);
+            
+            logger.debug('Verificación de revocación global', {
+                context: 'AuthMiddleware',
+                userId: decoded.id,
+                tokenIssuedAt: tokenIssuedAt.toISOString(),
+                revokeAllBefore: revokeAllBefore.toISOString(),
+                tokenIatSeconds: decoded.iat,
+                timeDifferenceMs: revokeAllBefore.getTime() - tokenIssuedAt.getTime(),
+                isRevoked: tokenIssuedAt < revokeAllBefore,
+                timestamp: new Date().toISOString()
+            });
+            
+            // ✅ SOLUCIÓN: Solo revocar si hay una diferencia significativa (más de 5 segundos)
+            const timeDifference = revokeAllBefore.getTime() - tokenIssuedAt.getTime();
+            
+            if (timeDifference > 5000) { // 5 segundos de margen
+                logger.warn('Token anterior a revocación global detectado', {
+                    userId: decoded.id,
+                    ip: req.ip,
+                    tokenIssuedAt: tokenIssuedAt.toISOString(),
+                    revokeAllBefore: revokeAllBefore.toISOString(),
+                    timeDifferenceSeconds: Math.round(timeDifference / 1000)
+                });
+                
+                return res.status(401).json({
+                    status: 'error',
+                    message: 'La sesión ha expirado debido a un cambio de seguridad. Por favor, inicie sesión nuevamente.',
+                    code: 'TOKEN_GLOBALLY_REVOKED'
+                });
+            } else {
+                logger.debug('Token dentro del margen de tiempo aceptable', {
+                    userId: decoded.id,
+                    timeDifferenceSeconds: Math.round(timeDifference / 1000),
+                    marginSeconds: 5
+                });
+            }
+        }
+        
+        // Agregar información del usuario al request
+        req.user = {
+            id: decoded.id,
+            mail: decoded.mail,
+            name: decoded.name,
+            rol_id: decoded.rol_id
+        };
+        
+        // Almacenar el token en el objeto request para posible uso posterior
+        req.token = token;
+        req.tokenExpiry = new Date(decoded.exp * 1000);
+        
+        next();
+    } catch (error) {
+        // Manejar específicamente errores de JWT
+        if (error.name === 'TokenExpiredError') {
+            logger.info('Token expirado', {
+                error: error.message,
+                expiredAt: error.expiredAt
+            });
+            
+            return res.status(401).json({
+                status: 'error',
+                message: 'La sesión ha expirado. Por favor, inicie sesión nuevamente.',
+                code: 'TOKEN_EXPIRED'
+            });
+        }
+        
+        if (error.name === 'JsonWebTokenError') {
+            logger.warn('Token JWT inválido', {
+                error: error.message,
+                ip: req.ip
+            });
+            
+            return res.status(401).json({
+                status: 'error',
+                message: 'Token inválido. Por favor, inicie sesión nuevamente.',
+                code: 'INVALID_TOKEN'
+            });
+        }
+        
+        logger.error('Error de verificación de token:', {
+            error: error.message,
+            stack: error.stack,
+            name: error.name
         });
         
         return res.status(401).json({
-          status: 'error',
-          message: 'La sesión ha expirado debido a un cambio de seguridad. Por favor, inicie sesión nuevamente.',
-          code: 'TOKEN_GLOBALLY_REVOKED'
+            status: 'error',
+            message: 'Error de autenticación',
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
-      }
     }
-    
-    // Agregar información del usuario al request
-    req.user = {
-      id: decoded.id,
-      mail: decoded.mail,
-      name: decoded.name,
-      rol_id: decoded.rol_id
-    };
-    
-    // Almacenar el token en el objeto request para posible uso posterior
-    req.token = token;
-    req.tokenExpiry = new Date(decoded.exp * 1000);
-    
-    next();
-  } catch (error) {
-    // Manejar específicamente errores de JWT
-    if (error.name === 'TokenExpiredError') {
-      logger.info('Token expirado', {
-        error: error.message,
-        expiredAt: error.expiredAt
-      });
-      
-      return res.status(401).json({
-        status: 'error',
-        message: 'La sesión ha expirado. Por favor, inicie sesión nuevamente.',
-        code: 'TOKEN_EXPIRED'
-      });
-    }
-    
-    if (error.name === 'JsonWebTokenError') {
-      logger.warn('Token JWT inválido', {
-        error: error.message,
-        ip: req.ip
-      });
-      
-      return res.status(401).json({
-        status: 'error',
-        message: 'Token inválido. Por favor, inicie sesión nuevamente.',
-        code: 'INVALID_TOKEN'
-      });
-    }
-    
-    logger.error('Error de verificación de token:', {
-      error: error.message,
-      stack: error.stack,
-      name: error.name
-    });
-    
-    return res.status(401).json({
-      status: 'error',
-      message: 'Error de autenticación',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  }
 };
 
 const checkRole = (allowedRoles) => {

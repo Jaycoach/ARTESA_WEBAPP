@@ -186,6 +186,10 @@ class AuthController {
             const roles = await Roles.getRoles();
             const roleName = Object.keys(roles).find(key => roles[key] === user.rol_id) || 'UNKNOWN';
 
+            // ✅ SOLUCIÓN CRÍTICA: Usar tiempo de la base de datos
+            const { rows: timeRows } = await pool.query('SELECT EXTRACT(EPOCH FROM NOW()) as current_timestamp');
+            const dbTimestamp = Math.floor(timeRows[0].current_timestamp);
+
             // Crear payload del token
             const payload = {
                 id: user.id,
@@ -193,11 +197,10 @@ class AuthController {
                 name: user.name,
                 rol_id: user.rol_id,
                 role: roleName,
-                iat: Math.floor(Date.now() / 1000) // ✅ Timestamp actual preciso
+                iat: dbTimestamp // ✅ Usar timestamp de la BD
             };
 
-            // ✅ SOLUCIÓN: Verificar que el timestamp sea válido
-            logger.debug('Generando token con timestamp', {
+            logger.debug('Generando token con timestamp de BD', {
                 userId: user.id,
                 iat: payload.iat,
                 iatDate: new Date(payload.iat * 1000).toISOString()
@@ -208,26 +211,29 @@ class AuthController {
             const expiresInSeconds = 24 * 60 * 60; // 24 horas en segundos
             const expiresAt = new Date(Date.now() + expiresInSeconds * 1000);
 
-            // Revocar tokens ANTES de generar el nuevo
+            // ✅ CAMBIO: Revocar tokens ANTES de generar el nuevo
             logger.debug('Revocando tokens anteriores del usuario', { userId: user.id });
             await TokenRevocation.revokeAllUserTokens(user.id, 'new_login');
 
-            // Esperar 1 segundo para evitar conflictos de timestamp
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            // ✅ REDUCIR la pausa a 500ms
+            await new Promise(resolve => setTimeout(resolve, 500));
 
-            // Generar token DESPUÉS de revocar
+            // Generar el nuevo token DESPUÉS de revocar los anteriores
             const token = jwt.sign(
                 payload,
                 process.env.JWT_SECRET,
                 { expiresIn }
             );
 
-            logger.info('Token generado exitosamente (después de revocar tokens anteriores)', { 
+            logger.info('Token generado exitosamente', { 
                 userId: user.id,
                 mail: user.mail,
                 role: roleName,
-                tokenIat: payload.iat
+                expiresAt,
+                tokenIat: payload.iat,
+                tokenIatDate: new Date(payload.iat * 1000).toISOString()
             });
+
             return token;
         } catch (error) {
             logger.error('Error al generar token', {
