@@ -1,5 +1,6 @@
 require('dotenv').config();
 const axios = require('axios');
+const https = require('https');
 const { createContextLogger } = require('../config/logger');
 
 /**
@@ -17,11 +18,28 @@ class SapBaseService {
     this.companyDB = process.env.SAP_COMPANY_DB;
     this.initialized = false;
     this.lastSyncTime = null;
-    this.httpsAgent = new (require('https').Agent)({
-      rejectUnauthorized: false,
+    this.httpsAgent = new https.Agent({
+      rejectUnauthorized: false, // Solo para certificados auto-firmados en staging
       keepAlive: true,
-      timeout: 30000, // 30 segundos
-      maxSockets: 10  // Límite de conexiones simultáneas
+      maxSockets: 10
+    });
+    
+    // Configuración base de axios
+    this.axiosConfig = {
+      timeout: 30000,
+      httpsAgent: this.httpsAgent,
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'User-Agent': 'Artesa-API/1.0'
+      }
+    };
+
+    this.logger.info('SapBaseService inicializado', {
+      baseUrl: this.baseUrl,
+      username: this.username,
+      companyDB: this.companyDB,
+      sslVerification: false // Documentar que SSL está deshabilitado
     });
   }
 
@@ -68,109 +86,87 @@ class SapBaseService {
    * @returns {Promise<string>} Session ID
    */
   async login() {
-    try {
-      this.logger.debug('Iniciando autenticación con SAP B1 Service Layer');
+    const maxRetries = 3;
+    let lastError = null;
 
-      // Verificar que las credenciales estén configuradas
-      if (!this.baseUrl || !this.username || !this.password || !this.companyDB) {
-        const errorMsg = 'Configuración incompleta para la conexión con SAP B1';
-        this.logger.error(errorMsg, {
-          baseUrlConfigured: !!this.baseUrl,
-          usernameConfigured: !!this.username,
-          passwordConfigured: !!this.password,
-          companyDBConfigured: !!this.companyDB
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        this.logger.debug(`Intentando login con SAP (intento ${attempt}/${maxRetries})`, {
+          baseUrl: this.baseUrl,
+          companyDB: this.companyDB,
+          username: this.username,
+          sslVerification: false
         });
-        throw new Error(errorMsg);
-      }
 
-      this.logger.debug('Intentando conexión con SAP B1', {
-        baseUrl: this.baseUrl,
-        username: this.username,
-        companyDB: this.companyDB
-      });
+        const loginData = {
+          CompanyDB: this.companyDB,
+          UserName: this.username,
+          Password: this.password
+        };
 
-      // Crear una instancia de axios con el agente HTTPS
-      // Configuración mejorada para axios con timeouts y reintentos
-      const axiosInstance = axios.create({
-        httpsAgent: this.httpsAgent,
-        timeout: 10000, // 10 segundos de timeout
-        headers: {
-          'Content-Type': 'application/json'
+        // ✅ USAR: Configuración con SSL deshabilitado
+        const response = await axios.post(
+          `${this.baseUrl}/Login`,
+          loginData,
+          {
+            ...this.axiosConfig,
+            timeout: 15000
+          }
+        );
+
+        if (response.data && response.data.SessionId) {
+          this.sessionId = response.data.SessionId;
+          this.sessionTimeout = response.data.SessionTimeout;
+          this.isAuthenticated = true;
+          
+          this.logger.info('Autenticación exitosa con SAP B1', {
+            sessionId: this.sessionId?.substring(0, 8) + '...',
+            sessionTimeout: this.sessionTimeout,
+            companyDB: this.companyDB
+          });
+          
+          return true;
+        } else {
+          throw new Error('Respuesta de login inválida de SAP');
         }
-      });
 
-      // Agregar manejo de reintento
-      let retries = 0;
-      const maxRetries = 3;
-      let response;
-
-      while (retries < maxRetries) {
-        try {
-          this.logger.debug(`Intentando login con SAP (intento ${retries + 1}/${maxRetries})`, {
+      } catch (error) {
+        lastError = error;
+        
+        this.logger.error('Error en autenticación con SAP B1', {
+          error: error.message,
+          responseStatus: error.response?.status,
+          responseData: error.response?.data,
+          code: error.code,
+          attempt: attempt,
+          configUsed: {
             baseUrl: this.baseUrl,
             companyDB: this.companyDB,
-            username: this.username
-          });
-          
-          response = await axiosInstance.post(`${this.baseUrl}/Login`, {
-            CompanyDB: this.companyDB,
-            UserName: this.username,
-            Password: this.password
-          });
-          
-          // Si la solicitud es exitosa, salir del bucle
-          break;
-        } catch (retryError) {
-          retries++;
-          
-          // Si hemos agotado los reintentos, lanzar el error
-          if (retries >= maxRetries) {
-            this.logger.error(`Autenticación fallida después de ${maxRetries} intentos`, {
-              error: retryError.message,
-              code: retryError.code || 'UNKNOWN'
-            });
-            throw retryError;
+            username: this.username,
+            hasPassword: !!this.password,
+            sslVerification: false
           }
-          
-          // Esperar antes de reintentar (backoff exponencial)
-          const delay = 1000 * Math.pow(2, retries);
+        });
+
+        if (attempt < maxRetries) {
+          const delay = Math.pow(2, attempt) * 1000;
           this.logger.warn(`Reintentando conexión en ${delay}ms`, {
-            attempt: retries,
+            attempt,
             maxRetries,
-            error: retryError.message
+            error: error.message
           });
-          
           await new Promise(resolve => setTimeout(resolve, delay));
         }
       }
-
-      if (response.status === 200) {
-        // Extraer sessionId de las cookies
-        const cookies = response.headers['set-cookie'];
-        if (cookies && cookies.length > 0) {
-          // Formato típico: B1SESSION=1234567890; path=/; HttpOnly
-          const sessionCookie = cookies.find(cookie => cookie.startsWith('B1SESSION='));
-          if (sessionCookie) {
-            this.sessionId = sessionCookie.split(';')[0].split('=')[1];
-            this.logger.info('Autenticación exitosa con SAP B1', {
-              sessionId: this.sessionId ? `${this.sessionId.substring(0, 5)}...` : undefined
-            });
-            return this.sessionId;
-          }
-        }
-        throw new Error('No se pudo extraer la sesión de la respuesta');
-      } else {
-        throw new Error(`Error de autenticación: ${response.status} ${response.statusText}`);
-      }
-    } catch (error) {
-      this.logger.error('Error en autenticación con SAP B1', {
-        error: error.message,
-        stack: error.stack,
-        responseStatus: error.response?.status,
-        responseData: error.response?.data
-      });
-      throw new Error(`Error de autenticación con SAP B1: ${error.message}`);
     }
+
+    this.logger.error('Autenticación fallida después de todos los intentos', {
+      maxRetries,
+      lastError: lastError?.message,
+      code: lastError?.code
+    });
+
+    throw new Error(`Error de autenticación con SAP B1: ${lastError?.message}`);
   }
 
   /**
@@ -264,9 +260,11 @@ class SapBaseService {
    * @returns {Promise<void>}
    */
   async ensureAuthentication() {
-    if (!this.sessionId) {
+    if (!this.isAuthenticated || !this.sessionId) {
+      this.logger.debug('No hay sesión activa, iniciando autenticación');
       await this.login();
     }
+    return true;
   }
 
   /**
