@@ -384,136 +384,121 @@ class Product {
    */
   static async getAll(options = {}) {
     try {
-        let query;
-        let queryParams = [];
-        
-        // SOLO manejar productos con lista de precios específica
-        if (options.userPriceListCode) {
-            query = `
-              SELECT 
-                p.product_id,
-                p.name,
-                p.description,
-                p.price_list1,
-                p.price_list2,
-                p.price_list3,
-                p.stock,
-                p.barcode,
-                p.image_url,
-                p.sap_code,
-                p.sap_group,
-                p.created_at,
-                p.updated_at,
-                p.sap_last_sync,
-                p.sap_sync_pending,
-                p.is_active,
-                COALESCE(pl.price, 
-                  CASE 
-                    WHEN $1 = '1' THEN p.price_list1
-                    WHEN $1 = '2' THEN p.price_list2
-                    WHEN $1 = '3' THEN p.price_list3
-                    ELSE p.price_list1
-                  END
-                ) as effective_price,
-                pl.price as custom_price,
-                pl.price_list_code,
-                pl.price_list_name
-              FROM products p
-              LEFT JOIN price_lists pl ON p.sap_code = pl.product_code 
-                AND pl.price_list_code = $1
-                AND pl.is_active = true
-              WHERE p.is_active = true 
-                AND p.sap_code IS NOT NULL
-              ORDER BY p.name;
-            `;
-            
-            // Asegurar que se envíe como string
-            queryParams = [String(options.userPriceListCode)];
-            
-            console.log('🔍 DEBUG: Query SQL construida:', {
-                userPriceListCode: options.userPriceListCode,
-                userPriceListCodeType: typeof options.userPriceListCode,
-                queryParams,
-                queryParamsTypes: queryParams.map(p => typeof p)
-            });
-        } else {
-        // Si no hay userPriceListCode, usar consulta básica con price_list1
-        console.log('⚠️ WARNING: Product.getAll sin userPriceListCode, usando price_list1');
-        
+      let query;
+      let queryParams = [];
+      
+      // SOLO manejar productos con lista de precios específica
+      if (options.userPriceListCode) {
         query = `
-            SELECT 
-                p.product_id,
-                p.name,
-                p.description,
-                p.price_list1,
-                p.price_list2,
-                p.price_list3,
-                p.stock,
-                p.barcode,
-                p.image_url,
-                p.sap_code,
-                p.sap_group,
-                p.created_at,
-                p.updated_at,
-                p.sap_last_sync,
-                p.sap_sync_pending,
-                p.is_active,
-                p.price_list1 as effective_price,
-                NULL as custom_price,
-                NULL as price_list_code,
-                NULL as price_list_name
-            FROM products p
-            WHERE p.is_active = true 
-                AND p.price_list1 > 0
-            ORDER BY p.name;
+          SELECT 
+            p.product_id,
+            p.name,
+            p.description,
+            p.price_list1,
+            p.price_list2,
+            p.price_list3,
+            p.stock,
+            p.barcode,
+            p.image_url,
+            p.sap_code,
+            p.sap_group,
+            p.created_at,
+            p.updated_at,
+            p.sap_last_sync,
+            p.sap_sync_pending,
+            p.is_active,
+            COALESCE(pl.price, 
+              CASE 
+                WHEN $1 = '1' THEN p.price_list1
+                WHEN $1 = '2' THEN p.price_list2
+                WHEN $1 = '3' THEN p.price_list3
+                ELSE p.price_list1
+              END
+            ) as effective_price,
+            pl.price as custom_price,
+            pl.price_list_code,
+            pl.price_list_name
+          FROM products p
+          LEFT JOIN price_lists pl ON p.sap_code = pl.product_code 
+            AND pl.price_list_code = $1
+            AND pl.is_active = true
+          WHERE p.is_active = true 
+            AND p.sap_code IS NOT NULL
+          ORDER BY p.name;
+        `;
+        queryParams = [String(options.userPriceListCode)];
+      } else {
+        // Query básica sin price_list específica
+        query = `
+          SELECT 
+            p.product_id,
+            p.name,
+            p.description,
+            p.price_list1,
+            p.price_list2,
+            p.price_list3,
+            p.stock,
+            p.barcode,
+            p.image_url,
+            p.sap_code,
+            p.sap_group,
+            p.created_at,
+            p.updated_at,
+            p.sap_last_sync,
+            p.sap_sync_pending,
+            p.is_active,
+            p.price_list1 as effective_price,
+            NULL as custom_price,
+            NULL as price_list_code,
+            NULL as price_list_name
+          FROM products p
+          WHERE p.is_active = true 
+            AND p.price_list1 > 0
+          ORDER BY p.name;
         `;
         queryParams = [];
-    }
+      }
+      
+      const { rows } = await pool.query(query, queryParams);
+      
+      // Enriquecer con imágenes
+      if (rows.length > 0) {
+        const sapCodes = rows.filter(p => p.sap_code).map(p => p.sap_code);
         
-        const { rows } = await pool.query(query, queryParams);
-        
-        // Enriquecimiento con imágenes existente...
-        if (rows.length > 0) {
-            // Extraer los códigos SAP de los productos
-            const sapCodes = rows.filter(p => p.sap_code).map(p => p.sap_code);
-            
-            if (sapCodes.length > 0) {
-                // Formato de la cláusula IN para consulta paramétrica
-                const placeholders = sapCodes.map((_, i) => `$${i + 1}`).join(',');
-                const imageQuery = `SELECT sap_code, image_url FROM product_images WHERE sap_code IN (${placeholders})`;
-                
-                const imageResult = await pool.query(imageQuery, sapCodes);
-                
-                // Crear un mapa para rápido acceso: { sapCode -> imageUrl }
-                const imageMap = {};
-                imageResult.rows.forEach(img => {
-                    imageMap[img.sap_code] = img.image_url;
-                });
-                
-                // Actualizar las imágenes de los productos
-                rows.forEach(product => {
-                    if (product.sap_code && imageMap[product.sap_code]) {
-                        product.image_url = imageMap[product.sap_code];
-                    }
-                });
+        if (sapCodes.length > 0) {
+          const placeholders = sapCodes.map((_, i) => `$${i + 1}`).join(',');
+          const imageQuery = `SELECT sap_code, image_url FROM product_images WHERE sap_code IN (${placeholders})`;
+          
+          const imageResult = await pool.query(imageQuery, sapCodes);
+          
+          const imageMap = {};
+          imageResult.rows.forEach(img => {
+            imageMap[img.sap_code] = img.image_url;
+          });
+          
+          rows.forEach(product => {
+            if (product.sap_code && imageMap[product.sap_code]) {
+              product.image_url = imageMap[product.sap_code];
             }
+          });
         }
-        
-        logger.debug('Productos obtenidos con lista de precios', {
-            count: rows.length,
-            userPriceListCode: options.userPriceListCode
-        });
-        
-        return rows;
+      }
+      
+      logger.debug('Productos obtenidos', {
+        count: rows.length,
+        userPriceListCode: options.userPriceListCode
+      });
+      
+      return rows;
     } catch (error) {
-        logger.error('Error al obtener productos con lista de precios', { 
-            error: error.message,
-            options,
-            stack: error.stack
-        });
-        throw error;
+      logger.error('Error al obtener productos', { 
+        error: error.message,
+        options,
+        stack: error.stack
+      });
+      throw error;
     }
-}
+  }
   
   /**
    * Actualiza un producto

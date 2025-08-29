@@ -2,7 +2,7 @@
 const SapBaseService = require('./SapBaseService');
 const PriceList = require('../models/PriceList');
 const { createContextLogger } = require('../config/logger');
-
+const pool = require('../config/db');
 const logger = createContextLogger('SapPriceListService');
 
 /**
@@ -286,6 +286,21 @@ class SapPriceListService extends SapBaseService {
         itemsDeactivated: 0
       };
 
+      // FILTRO CRÍTICO: Obtener SOLO los códigos SAP de productos que existen en la API
+      const existingProductsQuery = 'SELECT DISTINCT sap_code FROM products WHERE sap_code IS NOT NULL AND is_active = true';
+      const { rows: existingProducts } = await pool.query(existingProductsQuery);
+      const validSapCodes = new Set(existingProducts.map(p => p.sap_code));
+
+      logger.info('Filtrado por productos existentes', {
+        priceListNo: sapPriceListNo,
+        totalProductsInAPI: validSapCodes.size
+      });
+
+      if (validSapCodes.size === 0) {
+        logger.warn('No hay productos en la API para sincronizar precios', { priceListNo: sapPriceListNo });
+        return stats;
+      }
+
       // Procesar items en lotes
       while (hasMoreItems && (!maxItems || totalProcessed < maxItems)) {
         const remainingItems = maxItems ? maxItems - totalProcessed : batchSize;
@@ -307,8 +322,17 @@ class SapPriceListService extends SapBaseService {
           break;
         }
 
-        // Procesar cada item del lote
-        for (const item of itemsWithPrices) {
+        // FILTRAR SOLO items que existen en nuestra API
+        const filteredItems = itemsWithPrices.filter(item => validSapCodes.has(item.itemCode));
+
+        logger.debug('Items filtrados por existencia en API', {
+          total: itemsWithPrices.length,
+          filtered: filteredItems.length,
+          priceList: sapPriceListNo
+        });
+
+        // Procesar cada item filtrado del lote
+        for (const item of filteredItems) {
           try {
             for (const priceData of item.prices) {
               const priceListData = {
