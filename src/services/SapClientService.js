@@ -672,7 +672,8 @@ class SapClientService extends SapBaseService {
                   });
                   
                   // Usar valores por defecto si no se encuentra la lista
-                  const defaultPriceListCode = 'ESTANDAR';
+                  // Cambiar de 'ESTANDAR' a '1' para que coincida con las listas reales
+                  const defaultPriceListCode = '1';
                   const defaultPriceListNumber = 1;
                   
                   if (defaultPriceListCode !== profile.price_list_code) {
@@ -693,7 +694,8 @@ class SapClientService extends SapBaseService {
                 });
                 
                 // En caso de error, usar valores por defecto
-                const fallbackCode = 'ESTANDAR';
+                // Cambiar de 'ESTANDAR' a '1' para que coincida con las listas reales
+                const fallbackCode = '1';
                 const fallbackNumber = 1;
                 
                 if (fallbackCode !== profile.price_list_code) {

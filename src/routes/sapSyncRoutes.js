@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const sapSyncController = require('../controllers/sapSyncController');
+const { syncPriceListMapping } = require('../controllers/sapPriceListMappingController');
 const { verifyToken, checkRole } = require('../middleware/auth');
 const { sanitizeParams } = require('../middleware/security');
 
@@ -229,4 +230,29 @@ router.post('/sync/group/:groupCode',
   checkRole([1]), // Solo administradores
   sapSyncController.syncProductsByGroup
 );
+
+/**
+ * @swagger
+ * /api/sap/sync/price-list-mapping:
+ *   post:
+ *     summary: Sincronizar mapeo dinámico de listas de precios
+ *     description: Actualiza el mapeo de listas de precios de clientes basado en datos de SAP
+ *     tags: [SAP]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Mapeo sincronizado exitosamente
+ *       401:
+ *         description: No autorizado
+ *       403:
+ *         description: No tiene permisos suficientes
+ *       500:
+ *         description: Error interno del servidor
+ */
+router.post('/sync/price-list-mapping', 
+  checkRole([1]), // Solo administradores
+  syncPriceListMapping
+);
+
 module.exports = router;

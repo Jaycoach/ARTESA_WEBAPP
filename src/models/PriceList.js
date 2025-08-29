@@ -156,6 +156,7 @@ class PriceList {
           pl.sap_last_sync,
           pl.created_at,
           pl.updated_at,
+          p.product_id,
           p.name as local_product_name,
           p.description as local_product_description
         FROM price_lists pl
@@ -216,6 +217,7 @@ class PriceList {
       const query = `
         SELECT 
           pl.*,
+          p.product_id,
           p.name as local_product_name,
           p.description as local_product_description
         FROM price_lists pl
@@ -467,6 +469,7 @@ class PriceList {
           pl.sap_last_sync,
           pl.created_at,
           pl.updated_at,
+          p.product_id,
           p.name as local_product_name,
           p.description as local_product_description
         FROM price_lists pl
