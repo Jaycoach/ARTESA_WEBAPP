@@ -697,9 +697,13 @@ const Products = () => {
         fileType: imageFile.type
       });
 
-      const uploadResponse = await UploadAPI.uploadImage(imageFile, {
-        productId: productId,
-        uploadType: 'product-image'
+      const formData = new FormData();
+      formData.append('image', imageFile);
+
+      const uploadResponse = await API.post(`/products/${productId}/images/main`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        }
       });
 
       console.log('✅ Upload exitoso:', uploadResponse.data);

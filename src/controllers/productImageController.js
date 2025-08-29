@@ -222,7 +222,7 @@ class ProductImageController {
       }
       
       // Verificar que el producto existe
-      const product = await Product.getById(productId);
+      const product = await Product.findById(productId);
       if (!product) {
         return res.status(404).json({
           success: false,
@@ -403,7 +403,7 @@ class ProductImageController {
       });
       
       // Verificar que el producto existe
-      const product = await Product.getById(productId);
+      const product = await Product.findById(productId);
       if (!product) {
         return res.status(404).json({
           success: false,
@@ -591,7 +591,7 @@ class ProductImageController {
       const { productId } = req.params;
       
       // Verificar que el producto existe
-      const product = await Product.getById(productId);
+      const product = await Product.findById(productId);
       if (!product) {
         return res.status(404).json({
           success: false,
@@ -709,7 +709,7 @@ class ProductImageController {
       }
       
       // Verificar que el producto existe
-      const product = await Product.getById(productId);
+      const product = await Product.findById(productId);
       if (!product) {
         return res.status(404).json({
           success: false,

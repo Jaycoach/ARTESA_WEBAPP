@@ -60,14 +60,27 @@ const ImageUploadModal = ({ product, onUpload, onCancel }) => {
     try {
       console.log(`🖼️ Iniciando upload para producto ${product?.product_id}`);
       
-      // Llamar a la función onUpload del componente padre
-      await onUpload(selectedFile);
+      const formData = new FormData();
+      formData.append('image', selectedFile);
       
-      console.log('✅ Upload completado exitosamente');
+      const response = await API.post(`/products/${product.product_id}/images/main`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        }
+      });
+      
+      if (response.data.success) {
+        console.log('✅ Upload completado exitosamente');
+        await onUpload(response.data.data);
+        resetFileSelection();
+      } else {
+        throw new Error(response.data.message || 'Error desconocido');
+      }
       
     } catch (error) {
       console.error('❌ Error en upload:', error);
-      setError(error.message || 'Error al subir la imagen');
+      const errorMessage = error.response?.data?.message || error.message || 'Error al subir la imagen';
+      setError(errorMessage);
     } finally {
       setUploading(false);
     }

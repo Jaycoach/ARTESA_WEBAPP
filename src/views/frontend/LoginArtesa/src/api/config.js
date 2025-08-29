@@ -395,7 +395,7 @@ export const ProductsAPI = {
   delete: (id) => API.delete(`/products/${id}`),
   updateImage: (id, imageFile) => {
     const formData = createFormDataRequest({}, { image: imageFile });
-    return API.put(`/products/${id}/image`, formData);
+    return API.post(`/products/${id}/images/main`, formData);
   },
   search: (searchTerm) => {
     const cacheKey = getCacheKey('GET', 'products/search', { searchTerm });
@@ -405,7 +405,27 @@ export const ProductsAPI = {
     const promise = API.get(`/products?search=${encodeURIComponent(searchTerm)}`);
     return setCachedRequest(cacheKey, promise);
   },
-  getPendingSync: () => API.get('/products/sap/pending')
+  getPendingSync: () => API.get('/products/sap/pending'),
+  
+  // ✅ MÉTODOS DE IMÁGENES CORREGIDOS - MOVIDOS DENTRO DEL OBJETO
+  uploadImage: (productId, imageType, imageFile) => {
+    const formData = new FormData();
+    formData.append('image', imageFile);
+    return API.post(`/products/${productId}/images/${imageType}`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      }
+    });
+  },
+  getImage: (productId, imageType) => {
+    return API.get(`/products/images/${productId}/${imageType}`);
+  },
+  deleteImage: (productId, imageType) => {
+    return API.delete(`/products/images/${productId}/${imageType}`);
+  },
+  listImages: (productId) => {
+    return API.get(`/products/${productId}/images`);
+  }
 };
 
 export const UploadAPI = {
