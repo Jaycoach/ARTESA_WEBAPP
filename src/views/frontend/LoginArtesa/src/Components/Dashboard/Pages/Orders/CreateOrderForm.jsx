@@ -902,7 +902,6 @@ const CreateOrderForm = ({ onOrderCreated }) => {
             product_id: parseInt(products.product_id || 0),
             quantity: parseInt(products.quantity || 0),
             unit_price: parseFloat(products.price || 0),
-            original_unit_price: parseFloat(products.price || detail.unit_price || 0),
 
             // Branch como origen Y destino
             branch_id: branchInfo.branch_id,
