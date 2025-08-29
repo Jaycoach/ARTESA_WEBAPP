@@ -38,23 +38,24 @@ class AuthValidators {
   static #passwordSchema = createPasswordSchema();
 
   static validateEmail(req, res, next) {
-    const { mail } = req.body;
+    const { email, mail } = req.body;
+    const mailField = email || mail;
 
-    if (!mail) {
+    if (!mailField) {
       return res.status(400).json({
         success: false,
         message: 'El correo electrónico es requerido'
       });
     }
 
-    if (!validator.isEmail(mail)) {
+    if (!validator.isEmail(mailField)) {
       return res.status(400).json({
         success: false,
         message: 'El formato del correo electrónico no es válido'
       });
     }
 
-    req.body.mail = validator.normalizeEmail(mail.toLowerCase());
+    req.body.mail = validator.normalizeEmail(mailField.toLowerCase());
     next();
   }
 
@@ -102,10 +103,12 @@ class AuthValidators {
 
   // Función para validar los datos de login
   static validateLoginData = (req, res, next) => {
-    const { mail, password } = req.body;
 
     // Validar que se proporcionaron ambos campos
-    if (!mail || !password) {
+    const { email, mail, password } = req.body;
+    const mailField = email || mail;
+
+    if (!mailField || !password) {
       return res.status(400).json({
         success: false,
         message: 'El correo electrónico y la contraseña son requeridos'

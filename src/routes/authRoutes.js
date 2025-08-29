@@ -35,7 +35,7 @@ router.use(securityHeaders);
  *               - mail
  *               - password
  *             properties:
- *               mail:
+ *               email:
  *                 type: string
  *                 format: email
  *                 description: Correo electrónico del usuario
@@ -166,7 +166,7 @@ router.post(
  *                 minLength: 2
  *                 maxLength: 50
  *                 example: John Doe
- *               mail:
+ *               email:
  *                 type: string
  *                 format: email
  *                 description: Correo electrónico del usuario (debe ser único)
@@ -327,7 +327,7 @@ router.get(
  *             required:
  *               - mail
  *             properties:
- *               mail:
+ *               email:
  *                 type: string
  *                 format: email
  *                 description: Correo electrónico del usuario

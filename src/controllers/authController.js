@@ -276,8 +276,9 @@ class AuthController {
      */
     static async login(req, res) {
         try {
-            const { mail, password } = req.body;
-            logger.debug('Iniciando proceso de login', { mail });
+            const { email, mail, password } = req.body;
+            const mailField = email || mail;
+            logger.debug('Iniciando proceso de login', { mail: mailField });
 
             // Validar reCAPTCHA solo si está configurado
             if (process.env.RECAPTCHA_ENABLED === 'true' && process.env.NODE_ENV !== 'development') {
@@ -295,7 +296,7 @@ class AuthController {
                     const recaptchaResponse = req.body.recaptchaToken || req.body['g-recaptcha-response'] || req.body.captchaToken;
                     
                     if (!recaptchaResponse) {
-                        logger.warn('Intento de login sin token reCAPTCHA', { mail, ip: req.ip });
+                        logger.warn('Intento de login sin token reCAPTCHA', { mail: mailField, ip: req.ip });
                         return res.status(400).json({
                             success: false,
                             message: 'Por favor, complete la verificación de seguridad'
@@ -306,7 +307,7 @@ class AuthController {
                     
                     if (!recaptchaValid) {
                         logger.warn('Verificación reCAPTCHA fallida en login', {
-                            mail,
+                            mail: mailField,
                             ip: req.ip
                         });
                         
@@ -324,13 +325,13 @@ class AuthController {
                     });
                 }
             } else if (process.env.NODE_ENV === 'development') {
-                logger.debug('Saltando verificación de reCAPTCHA en desarrollo', { mail });
+                logger.debug('Saltando verificación de reCAPTCHA en desarrollo', { mail: mailField });
             }
     
             // 1. Verificación inicial de credenciales
-            if (!mail || !password) {
+            if (!mailField || !password) {
                 logger.warn('Intento de login sin credenciales completas', {
-                    mail: mail || 'No proporcionado',
+                    mail: mailField || 'No proporcionado',
                     hasPassword: !!password
                 });
                 return res.status(400).json({
@@ -342,7 +343,7 @@ class AuthController {
             // 2. Verificar intentos de login ANTES de incrementar el contador
             try {
                 // Obtener los intentos actuales sin incrementar
-                const currentAttempts = this.loginAttempts.get(mail) || { 
+                const currentAttempts = this.loginAttempts.get(mailField) || { 
                     count: 0, 
                     timestamp: Date.now() 
                 };
@@ -355,7 +356,7 @@ class AuthController {
                             (this.LOCKOUT_TIME - timeElapsed) / 1000
                         );
                         logger.warn('Cuenta bloqueada por múltiples intentos', {
-                            mail,
+                            mail: mailField,
                             remainingTime
                         });
                         return res.status(429).json({
@@ -366,12 +367,12 @@ class AuthController {
                     }
                     // Si ha pasado el tiempo de bloqueo, resetear el contador
                     currentAttempts.count = 0;
-                    this.loginAttempts.set(mail, currentAttempts);
+                    this.loginAttempts.set(mailField, currentAttempts);
                 }
             } catch (error) {
                 logger.error('Error al verificar intentos de login', {
                     error: error.message,
-                    mail
+                    mail: mailField
                 });
                 // Continuamos con el proceso de login en caso de error
             }
@@ -392,12 +393,12 @@ class AuthController {
                 WHERE u.mail = $1
             `;
             
-            const result = await pool.query(query, [mail]);
-    
+            const result = await pool.query(query, [mailField]);
+
             if (result.rows.length === 0) {
                 // IMPORTANTE: incrementar intentos solo en caso de fallo
-                this.incrementLoginAttempts(mail);
-                
+                this.incrementLoginAttempts(mailField);
+
                 await this.logLoginAttempt(
                     null, 
                     req.ip, 
@@ -416,7 +417,7 @@ class AuthController {
             // Verificar si el usuario está activo
             if (!user.is_active) {
                 logger.warn('Intento de login con usuario inactivo', {
-                    mail,
+                    mail: mailField,
                     userId: user.id
                 });
                 
@@ -438,7 +439,7 @@ class AuthController {
             // Verificar si el correo está verificado (si existe el campo)
             if (user.hasOwnProperty('email_verified') && !user.email_verified) {
                 logger.warn('Intento de login con correo no verificado', {
-                    mail,
+                    mail: mailField,
                     userId: user.id
                 });
                 
@@ -462,7 +463,7 @@ class AuthController {
                 if (!user.password) {
                     logger.error('Hash de contraseña no encontrado', { 
                         userId: user.id,
-                        mail 
+                        mail: mailField
                     });
                     return res.status(500).json({
                         success: false,
@@ -478,7 +479,7 @@ class AuthController {
     
                 if (!isValidPassword) {
                     // IMPORTANTE: incrementar intentos solo en caso de fallo
-                    this.incrementLoginAttempts(mail);
+                    this.incrementLoginAttempts(mailField);
                     
                     await this.logLoginAttempt(
                         user.id, 
@@ -495,8 +496,8 @@ class AuthController {
     
                 // 5. Autenticación exitosa - RESETEAR el contador de intentos
                 // Eliminar los intentos fallidos para este correo
-                this.loginAttempts.delete(mail);
-                logger.debug('Intentos de login reseteados tras autenticación exitosa', { mail });
+                this.loginAttempts.delete(mailField);
+                logger.debug('Intentos de login reseteados tras autenticación exitosa', { mail: mailField });
                 
                 const token = await this.generateToken(user);
     

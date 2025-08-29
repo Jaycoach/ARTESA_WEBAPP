@@ -45,7 +45,7 @@
  *     LoginRequest:
  *       type: object
  *       required:
- *         - mail
+ *         - email
  *         - password
  *       properties:
  *         mail:
