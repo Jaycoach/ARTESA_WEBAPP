@@ -390,41 +390,41 @@ class Product {
         // SOLO manejar productos con lista de precios específica
         if (options.userPriceListCode) {
             query = `
-                SELECT DISTINCT 
-                    p.product_id,
-                    p.name,
-                    p.description,
-                    p.price_list1,
-                    p.price_list2,
-                    p.price_list3,
-                    p.stock,
-                    p.barcode,
-                    p.image_url,
-                    p.sap_code,
-                    p.sap_group,
-                    p.created_at,
-                    p.updated_at,
-                    p.sap_last_sync,
-                    p.sap_sync_pending,
-                    p.is_active,
-                    pl.price as custom_price,
-                    pl.price_list_code,
-                    pl.price_list_name,
-                    CASE 
-                        WHEN pl.price IS NOT NULL AND pl.price > 0 THEN pl.price
-                        ELSE p.price_list1
-                    END as effective_price
-                FROM products p
-                LEFT JOIN price_lists pl ON p.sap_code = pl.product_code 
-                    AND pl.price_list_code = $1
-                    AND pl.is_active = true
-                WHERE p.is_active = true 
-                    AND (
-                        (pl.price IS NOT NULL AND pl.price > 0) 
-                        OR 
-                        (pl.price IS NULL AND p.price_list1 > 0)
-                    )
-                ORDER BY p.name;
+              SELECT 
+                p.product_id,
+                p.name,
+                p.description,
+                p.price_list1,
+                p.price_list2,
+                p.price_list3,
+                p.stock,
+                p.barcode,
+                p.image_url,
+                p.sap_code,
+                p.sap_group,
+                p.created_at,
+                p.updated_at,
+                p.sap_last_sync,
+                p.sap_sync_pending,
+                p.is_active,
+                COALESCE(pl.price, 
+                  CASE 
+                    WHEN $1 = '1' THEN p.price_list1
+                    WHEN $1 = '2' THEN p.price_list2
+                    WHEN $1 = '3' THEN p.price_list3
+                    ELSE p.price_list1
+                  END
+                ) as effective_price,
+                pl.price as custom_price,
+                pl.price_list_code,
+                pl.price_list_name
+              FROM products p
+              LEFT JOIN price_lists pl ON p.sap_code = pl.product_code 
+                AND pl.price_list_code = $1
+                AND pl.is_active = true
+              WHERE p.is_active = true 
+                AND p.sap_code IS NOT NULL
+              ORDER BY p.name;
             `;
             
             // Asegurar que se envíe como string

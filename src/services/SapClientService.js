@@ -636,6 +636,25 @@ class SapClientService extends SapBaseService {
               changesDetected.push('country');
             }
 
+            // Actualizar PriceListNum si existe
+            if (sapClient.PriceListNum !== undefined && sapClient.PriceListNum !== profile.price_list) {
+              updates.price_list = sapClient.PriceListNum;
+              changesDetected.push(`price_list: ${profile.price_list} → ${sapClient.PriceListNum}`);
+              hasUpdates = true;
+              stats.priceListUpdates = (stats.priceListUpdates || 0) + 1;
+            }
+
+            // Mapear PriceListNum a price_list_code
+            if (sapClient.PriceListNum) {
+              const newPriceListCode = sapClient.PriceListNum.toString();
+              
+              if (newPriceListCode !== profile.price_list_code) {
+                updates.price_list_code = newPriceListCode;
+                changesDetected.push(`price_list_code: ${profile.price_list_code} → ${newPriceListCode}`);
+                hasUpdates = true;
+              }
+            }
+
             // Capturar PriceListNum desde SAP y mapearlo al price_list_code
             if (sapClient.PriceListNum !== undefined && sapClient.PriceListNum !== null) {
               try {

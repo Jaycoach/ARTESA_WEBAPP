@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const sapSyncController = require('../controllers/sapSyncController');
 const { syncPriceListMapping } = require('../controllers/sapPriceListMappingController');
+const { testSapData } = require('../controllers/testSapDataController');
 const { verifyToken, checkRole } = require('../middleware/auth');
 const { sanitizeParams } = require('../middleware/security');
 
@@ -253,6 +254,28 @@ router.post('/sync/group/:groupCode',
 router.post('/sync/price-list-mapping', 
   checkRole([1]), // Solo administradores
   syncPriceListMapping
+);
+
+/**
+ * @swagger
+ * /api/sap/test-data:
+ *   get:
+ *     summary: Probar datos específicos de SAP (temporal)
+ *     description: Endpoint temporal para verificar datos de BusinessPartners, PriceLists e Items
+ *     tags: [SAP]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Datos de prueba obtenidos exitosamente
+ *       401:
+ *         description: No autorizado
+ *       500:
+ *         description: Error interno del servidor
+ */
+router.get('/test-data', 
+  checkRole([1]), // Solo administradores
+  testSapData
 );
 
 module.exports = router;
