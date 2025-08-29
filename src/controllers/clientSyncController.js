@@ -1799,4 +1799,5 @@ module.exports = {
   syncCIClients: clientSyncController.syncCIClients.bind(clientSyncController),
   validateSpecificClientBranches: clientSyncController.validateSpecificClientBranches.bind(clientSyncController),
   debugClientStatus: clientSyncController.debugClientStatus.bind(clientSyncController),
+  sapDiagnosis: clientSyncController.sapDiagnosis.bind(clientSyncController),
 };
