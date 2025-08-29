@@ -242,7 +242,6 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       </div>
     );
   };
-
   /*useEffect(() => {
     if (!canAccessForm) return;
 
@@ -401,7 +400,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
           const priceValue = parseFloat(plProduct.price) || 0;
 
           return {
-            product_id: plProduct.price_list_id || (index + 1), // Usar price_list_id como ID único
+            product_id: plProduct.product_id || (index + 1),
             name: plProduct.local_product_name || plProduct.product_name,
             description: plProduct.local_product_description || plProduct.product_name,
             sap_code: plProduct.product_code,
