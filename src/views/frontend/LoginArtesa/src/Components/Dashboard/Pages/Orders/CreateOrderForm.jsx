@@ -901,7 +901,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
           products: orderDetails.map(products => ({
             product_id: parseInt(products.product_id || 0),
             quantity: parseInt(products.quantity || 0),
-            unit_price: parseFloat(products.price || 0),
+            unit_price: parseFloat(products.unit_price || 0),
 
             // Branch como origen Y destino
             branch_id: branchInfo.branch_id,

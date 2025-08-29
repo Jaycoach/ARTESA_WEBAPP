@@ -115,6 +115,38 @@ class BranchOrderController {
         });
       }
 
+      // Validar cada producto individualmente
+      for (let i = 0; i < products.length; i++) {
+        const product = products[i];
+        if (!product.product_id) {
+          return res.status(400).json({
+            success: false,
+            message: `Producto ${i + 1}: ID de producto requerido`
+          });
+        }
+        if (!product.quantity || parseInt(product.quantity) <= 0) {
+          return res.status(400).json({
+            success: false,
+            message: `Producto ${i + 1}: Cantidad debe ser mayor a 0`
+          });
+        }
+        if (!product.unit_price || parseFloat(product.unit_price) <= 0) {
+          return res.status(400).json({
+            success: false,
+            message: `Producto ${i + 1}: Precio unitario debe ser mayor a 0`
+          });
+        }
+      }
+
+      logger.debug('Productos validados correctamente', {
+        productCount: products.length,
+        products: products.map(p => ({
+          product_id: p.product_id,
+          quantity: p.quantity,
+          unit_price: p.unit_price
+        }))
+      });
+
       // Validar fecha de entrega
       if (delivery_date) {
         const deliveryDate = new Date(delivery_date);

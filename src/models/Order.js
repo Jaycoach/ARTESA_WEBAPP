@@ -257,18 +257,38 @@ static async create(orderData) {
     throw new Error('Debe especificar al menos un producto');
   }
 
+  // Validar cada producto
+  products.forEach((product, index) => {
+    if (!product.product_id) {
+      throw new Error(`Producto ${index + 1}: ID de producto requerido`);
+    }
+    if (!product.quantity || parseInt(product.quantity) <= 0) {
+      throw new Error(`Producto ${index + 1}: Cantidad debe ser mayor a 0`);
+    }
+    if (!product.unit_price || parseFloat(product.unit_price) <= 0) {
+      throw new Error(`Producto ${index + 1}: Precio unitario debe ser mayor a 0`);
+    }
+  });
+
   // Calcular el total de los productos
   let totalAmount = 0;
   const details = products.map(product => {
-    const lineTotal = parseFloat(product.unit_price || 0) * parseInt(product.quantity || 0);
+    const quantity = parseInt(product.quantity);
+    const unitPrice = parseFloat(product.unit_price);
+    const lineTotal = unitPrice * quantity;
     totalAmount += lineTotal;
     
     return {
       product_id: product.product_id,
-      quantity: parseInt(product.quantity),
-      unit_price: parseFloat(product.unit_price || 0)
+      quantity: quantity,
+      unit_price: unitPrice
     };
   });
+
+  // Validar que el total sea positivo
+  if (totalAmount <= 0) {
+    throw new Error('El total de la orden debe ser mayor a 0');
+  }
 
   // Crear la orden usando el método existente
   const result = await this.createOrder(
