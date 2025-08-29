@@ -72,6 +72,7 @@ const ensureDirectoryExists = (dirPath) => {
 ensureDirectoryExists(path.join(__dirname, 'tmp'));
 ensureDirectoryExists(path.join(__dirname, 'uploads'));
 ensureDirectoryExists(path.join(__dirname, 'uploads/client-profiles'));
+ensureDirectoryExists(path.join(__dirname, 'uploads/product-images'));
 ensureDirectoryExists(path.join(__dirname, 'logs'));
 
 // =========================================================================
@@ -418,6 +419,7 @@ const adminRoutes = require('./src/routes/adminRoutes');
 const clientBranchRoutes = require('./src/routes/clientBranchRoutes');
 const branchDashboardRoutes = require('./src/routes/branchDashboardRoutes');
 const branchOrderRoutes = require('./src/routes/branchOrderRoutes');
+const productImageRoutes = require('./src/routes/productImageRoutes');
 
 // =========================================================================
 // RUTAS DE LA API
@@ -460,6 +462,7 @@ app.use(`${API_PREFIX}/images`, require('./src/routes/imageProxyRoutes'));
 // Aplicamos fileUpload sólo a las rutas específicas que lo necesitan
 app.use(`${API_PREFIX}/upload`, fileUpload(fileUploadOptions), uploadRoutes);
 app.use(`${API_PREFIX}/client-profiles`, fileUpload(fileUploadOptions), clientProfileRoutes);
+app.use(API_PREFIX, fileUpload(fileUploadOptions), productImageRoutes);
 
 // Rutas que no necesitan fileUpload
 app.use(`${API_PREFIX}/password`, passwordResetRoutes);

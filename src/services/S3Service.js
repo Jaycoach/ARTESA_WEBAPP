@@ -648,6 +648,60 @@ class S3Service {
   }
 
   /**
+   * Obtiene metadatos de un archivo
+   * @param {string} key - Clave del archivo
+   * @returns {Promise<Object>} Metadatos del archivo
+   */
+  async getObjectMetadata(key) {
+    try {
+      key = this.normalizeKey(key);
+      
+      if (this.localMode) {
+        const filePath = path.join(process.cwd(), 'uploads', key);
+        if (!fs.existsSync(filePath)) {
+          throw new Error('Archivo no encontrado en sistema local');
+        }
+        
+        const stats = fs.statSync(filePath);
+        const ext = path.extname(key).toLowerCase();
+        
+        // Determinar tipo de contenido basado en extensión
+        const mimeTypes = {
+          '.pdf': 'application/pdf',
+          '.jpg': 'image/jpeg',
+          '.jpeg': 'image/jpeg',
+          '.png': 'image/png',
+          '.gif': 'image/gif',
+          '.webp': 'image/webp',
+          '.doc': 'application/msword',
+          '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          '.xls': 'application/vnd.ms-excel',
+          '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          '.txt': 'text/plain'
+        };
+        
+        return {
+          ContentType: mimeTypes[ext] || 'application/octet-stream',
+          ContentLength: stats.size,
+          LastModified: stats.mtime,
+          Metadata: {}
+        };
+      } else {
+        const params = {
+          Bucket: this.bucketName,
+          Key: key
+        };
+
+        const result = await this.s3.send(new HeadObjectCommand(params));
+        return result;
+      }
+    } catch (error) {
+      logger.error('Error al obtener metadatos del archivo', { error: error.message, key });
+      throw error;
+    }
+  }
+
+  /**
  * Verifica si un archivo es una imagen válida
  * @param {Object} file - Objeto de archivo (express-fileupload)
  * @returns {boolean} - true si es una imagen válida
