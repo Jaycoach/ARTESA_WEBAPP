@@ -435,14 +435,22 @@ class BranchOrderController {
 
       res.status(200).json({
         success: true,
+        count: products.length,
         data: {
           products: products.map(product => ({
             ...product,
+            // Asegurar que product_id esté disponible
+            product_id: product.product_id,
             price_list1: parseFloat(product.price_list1),
             price_list2: parseFloat(product.price_list2),
             price_list3: parseFloat(product.price_list3),
             inherited_price: parseFloat(product.inherited_price),
             custom_price: product.custom_price ? parseFloat(product.custom_price) : null,
+            // Agregar campos adicionales para compatibilidad con price-lists
+            product_code: product.sap_code,
+            product_name: product.name,
+            local_product_name: product.name,
+            local_product_description: product.description,
             price_inheritance: {
               source: product.custom_price ? 'custom' : 'inherited',
               inherited_from: product.inherited_from,
