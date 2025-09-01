@@ -8,7 +8,7 @@ const rateLimitConfig = {
     standardHeaders: true,
     legacyHeaders: false,
     // Detectar ambiente de desarrollo
-    max: process.env.NODE_ENV === 'development' ? 1000 : 100, // Mucho más permisivo en desarrollo
+    max: process.env.NODE_ENV === 'development' ? 1000 : 800, // Mucho más permisivo en desarrollo
     handler: (req, res) => {
         logger.warn('Rate limit excedido', {
             ip: req.ip,
@@ -24,14 +24,14 @@ const rateLimitConfig = {
 // Rate limiter específico para APIs sensibles
 const sensitiveApiLimiter = rateLimit({
     ...rateLimitConfig,
-    max: process.env.NODE_ENV === 'development' ? 500 : 50, // Más permisivo en desarrollo
+    max: process.env.NODE_ENV === 'development' ? 500 : 400, // Más permisivo en desarrollo
     message: 'Límite de solicitudes excedido para operaciones sensibles'
 });
 
 // Rate limiter para APIs estándar
 const standardApiLimiter = rateLimit({
     ...rateLimitConfig,
-    max: process.env.NODE_ENV === 'development' ? 1000 : 100, // Más permisivo en desarrollo
+    max: process.env.NODE_ENV === 'development' ? 1000 : 800, // Más permisivo en desarrollo
 });
 
 // Headers de seguridad mejorados

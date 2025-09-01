@@ -392,7 +392,8 @@ if (process.env.NODE_ENV === 'production') {
 const excludedFromRateLimit = [
   `${API_PREFIX}/admin`,
   `${API_PREFIX}/orders`,
-  `${API_PREFIX}/products`
+  `${API_PREFIX}/products`,
+  `${API_PREFIX}/branch-auth/check-registration`
 ];
 // Middleware que solo aplica rate limiting si la ruta no está excluida
 app.use((req, res, next) => {
