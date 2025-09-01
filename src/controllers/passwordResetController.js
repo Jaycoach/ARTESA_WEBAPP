@@ -4,6 +4,7 @@ const userModel = require('../models/userModel');
 const PasswordReset = require('../models/PasswordReset');
 const { createContextLogger } = require('../config/logger');
 const EmailService = require('../services/EmailService');
+const { validateRecaptcha } = require('../utils/recaptchaValidator');
 
 // Crear una instancia del logger con contexto
 const logger = createContextLogger('PasswordResetController');
@@ -189,8 +190,62 @@ class PasswordResetController {
         ip: req.ip,
         userAgent: req.headers['user-agent']
       });
+
+      // Validación de reCAPTCHA (agregar en el método resetPassword)
+      if (process.env.RECAPTCHA_ENABLED === 'true' && process.env.NODE_ENV !== 'development') {
+        const userAgent = req.get('User-Agent') || '';
+        const isApiRequest = userAgent.includes('curl') || 
+                userAgent.includes('PostmanRuntime') || 
+                userAgent.includes('insomnia') || 
+                userAgent.includes('Thunder Client') ||
+                req.get('X-Requested-With') === 'swagger' ||
+                process.env.NODE_ENV === 'staging' ||
+                process.env.RECAPTCHA_BYPASS === 'true';
+        
+        if (!isApiRequest) {
+          const recaptchaResponse = req.body.recaptchaToken || req.body['g-recaptcha-response'] || req.body.captchaToken;
+          
+          if (!recaptchaResponse) {
+            logger.warn('Intento de reset de contraseña sin token reCAPTCHA', { 
+              tokenFragment: req.body.token ? req.body.token.substring(0, 10) + '...' : 'No token',
+              ip: req.ip 
+            });
+            return res.status(400).json({
+              success: false,
+              errorCode: 'MISSING_RECAPTCHA',
+              message: 'Por favor, complete la verificación de seguridad'
+            });
+          }
+          
+          const recaptchaValid = await validateRecaptcha(recaptchaResponse, req);
+          
+          if (!recaptchaValid) {
+            logger.warn('Verificación reCAPTCHA fallida en reset de contraseña', {
+              tokenFragment: req.body.token ? req.body.token.substring(0, 10) + '...' : 'No token',
+              ip: req.ip
+            });
+            
+            return res.status(400).json({
+              success: false,
+              errorCode: 'RECAPTCHA_FAILED',
+              message: 'Verificación de seguridad fallida. Por favor, intenta nuevamente.'
+            });
+          }
+        } else {
+          logger.debug('Saltando verificación de reCAPTCHA para solicitud API directa en reset', { 
+            tokenFragment: req.body.token ? req.body.token.substring(0, 10) + '...' : 'No token',
+            userAgent: userAgent,
+            environment: process.env.NODE_ENV
+          });
+        }
+      } else if (process.env.NODE_ENV === 'development') {
+        logger.debug('Saltando verificación de reCAPTCHA en desarrollo para reset', {
+          tokenFragment: req.body.token ? req.body.token.substring(0, 10) + '...' : 'No token'
+        });
+      }
   
-      const { token, newPassword } = req.body;
+      const { token, password, newPassword, recaptchaToken } = req.body;
+      const finalPassword = newPassword || password; // Aceptar ambos nombres de campo
   
       // Validación inicial con códigos de error específicos
       if (!token) {
@@ -202,18 +257,20 @@ class PasswordResetController {
         });
       }
   
-      if (!newPassword) {
+      if (!finalPassword) {
         logger.warn('Solicitud de reset sin nueva contraseña', { 
           tokenFragment: token.substring(0, 10) + '...',
-          ip: req.ip 
+          ip: req.ip,
+          bodyKeys: Object.keys(req.body),
+          hasPassword: !!password,
+          hasNewPassword: !!finalPassword
         });
         return res.status(400).json({
           success: false,
           errorCode: 'MISSING_PASSWORD',
           message: 'La nueva contraseña es requerida'
         });
-      }
-  
+      }  
       // Verificación del token
       const resetRequest = await PasswordReset.findByToken(token);
       if (!resetRequest) {
@@ -253,7 +310,7 @@ class PasswordResetController {
       // Verificar que la nueva contraseña no sea igual a la actual
       if (currentUser.password) {
         try {
-          const isSamePassword = await bcrypt.compare(newPassword, currentUser.password);
+          const isSamePassword = await bcrypt.compare(finalPassword, currentUser.password);
           
           if (isSamePassword) {
             logger.warn('Intento de usar la misma contraseña', { userId });
@@ -268,7 +325,7 @@ class PasswordResetController {
             userId,
             error: compareError.message,
             passwordLength: currentUser.password ? currentUser.password.length : 0,
-            newPasswordLength: newPassword.length
+            finalPasswordLength: finalPassword.length
           });
           
           // Si hay error, continuamos con el proceso pero lo registramos
@@ -278,7 +335,7 @@ class PasswordResetController {
       // Generar hash de la nueva contraseña
       let hashedPassword;
       try {
-        hashedPassword = await bcrypt.hash(newPassword, 10);
+        hashedPassword = await bcrypt.hash(finalPassword, 10);
         
         logger.debug('Contraseña hasheada correctamente', {
           userId,
@@ -288,7 +345,7 @@ class PasswordResetController {
         logger.error('Error al hashear la contraseña', {
           userId,
           error: hashError.message,
-          newPasswordLength: newPassword.length
+          finalPasswordLength: finalPassword.length
         });
         
         return res.status(500).json({
