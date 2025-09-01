@@ -1,175 +1,66 @@
-import React, { useState, useEffect } from 'react';
-import { FiImage } from 'react-icons/fi';
+import React from 'react';
+import useProductImage from '../../../../../hooks/useProductImage';
 
-// Función para limpiar URLs con entidades HTML
-function cleanImageUrl(rawUrl) {
-  if (!rawUrl || typeof rawUrl !== 'string') return null;
-  
-  let cleanUrl = rawUrl;
-  
-  try {
-    // Decodificar múltiples niveles de entidades HTML
-    cleanUrl = cleanUrl.replace(/&amp;amp;amp;/g, '&amp;amp;');
-    cleanUrl = cleanUrl.replace(/&amp;amp;/g, '&amp;');
-    cleanUrl = cleanUrl.replace(/&amp;#x2F;/g, '/');
-    cleanUrl = cleanUrl.replace(/&amp;#47;/g, '/');
-    cleanUrl = cleanUrl.replace(/&amp;#x3A;/g, ':');
-    cleanUrl = cleanUrl.replace(/&amp;#58;/g, ':');
-    cleanUrl = cleanUrl.replace(/&amp;lt;/g, '<');
-    cleanUrl = cleanUrl.replace(/&amp;gt;/g, '>');
-    cleanUrl = cleanUrl.replace(/&amp;quot;/g, '"');
-    cleanUrl = cleanUrl.replace(/&amp;#39;/g, "'");
-    
-    // Usar DOMParser para casos complejos
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(`<!doctype html><body>${cleanUrl}</body>`, 'text/html');
-    cleanUrl = doc.body.textContent || cleanUrl;
-  } catch (e) {
-    console.warn('⚠️ Error al limpiar URL, usando original');
-  }
-  
-  cleanUrl = cleanUrl.trim();
-  
-  try {
-    new URL(cleanUrl);
-    return cleanUrl;
-  } catch (e) {
-    console.error('❌ URL inválida después de limpiar:', cleanUrl);
-    return null;
-  }
-}
-
-const ProductImage = ({ 
-  src, 
-  alt, 
-  productId, 
-  className = "h-12 w-12",
-  showPlaceholder = true,
-  onImageLoad = null,
-  onImageError = null 
+const ProductImage = ({
+  src,
+  alt,
+  productId,
+  className = "",
+  imageType = "thumbnail" // ✅ CAMBIADO: 'main' → 'thumbnail'
 }) => {
-  const [imageLoaded, setImageLoaded] = useState(false);
-  const [imageError, setImageError] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  
-  const imageUrl = cleanImageUrl(src);
+  // ✅ USAR HOOK CON THUMBNAIL
+  const { imageUrl: apiImageUrl, loading, error } = useProductImage(productId, imageType);
 
-  // Reset estados cuando cambia la URL
-  useEffect(() => {
-    setImageLoaded(false);
-    setImageError(false);
-    setIsLoading(true);
-  }, [imageUrl]);
+  console.log('🔍 ProductImage Debug:', {
+    productId,
+    imageType,
+    useNewEndpoint: true,
+    srcProp: src,
+    apiImageUrl,
+    loading,
+    error
+  });
 
-  const handleLoad = (e) => {
-    if (import.meta.env.DEV) {
-      console.log('✅ Imagen cargada correctamente:', {
-        url: e.target.src,
-        productId,
-        timestamp: new Date().toISOString()
-      });
-    }
-    
-    setImageLoaded(true);
-    setImageError(false);
-    setIsLoading(false);
-    
-    if (onImageLoad) {
-      onImageLoad(e);
-    }
-  };
+  // ✅ PRIORIDAD: API thumbnail > src prop > placeholder
+  const finalImageUrl = apiImageUrl || src;
 
-  const handleError = (e) => {
-    if (import.meta.env.DEV) {
-      console.error('❌ Error al cargar imagen:', {
-        url: e.target.src,
-        productId,
-        timestamp: new Date().toISOString()
-      });
-      
-      // Debugging avanzado
-      fetch(e.target.src, { method: 'HEAD' })
-        .then(response => {
-          console.log('🔍 Detalles del error de carga:', {
-            errorType: response.ok ? 'RenderError' : 'NotFound',
-            status: response.status,
-            url: e.target.src,
-            productId,
-            isS3Url: e.target.src.includes('s3.amazonaws.com'),
-            protocol: e.target.src.startsWith('https') ? 'HTTPS' : 'HTTP'
-          });
-        })
-        .catch(err => {
-          console.log('🔍 Error de red al verificar imagen:', {
-            errorType: 'NetworkError',
-            message: err.message,
-            url: e.target.src,
-            productId
-          });
-        });
-    }
-    
-    setImageLoaded(false);
-    setImageError(true);
-    setIsLoading(false);
-    
-    if (onImageError) {
-      onImageError(e);
-    }
-  };
-
-  // Log de intento de carga
-  useEffect(() => {
-    if (imageUrl && import.meta.env.DEV) {
-      console.log('🔍 Intentando cargar imagen:', {
-        url: imageUrl,
-        productId,
-        isS3Url: imageUrl.includes('s3.amazonaws.com'),
-        urlLength: imageUrl.length,
-        protocol: imageUrl.startsWith('https') ? 'HTTPS' : 'HTTP'
-      });
-    }
-  }, [imageUrl, productId]);
-
-  // Si no hay URL válida
-  if (!imageUrl) {
-    return showPlaceholder ? (
-      <div className={`${className} rounded-md bg-gray-100 flex items-center justify-center border border-gray-200`}>
-        <FiImage className="w-4 h-4 text-gray-400" />
+  if (loading) {
+    return (
+      <div className={`bg-gray-100 animate-pulse flex items-center justify-center ${className}`}>
+        <svg className="w-8 h-8 text-gray-300" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
+        </svg>
       </div>
-    ) : null;
+    );
+  }
+
+  if (!finalImageUrl || error) {
+    return (
+      <div className={`bg-gray-100 flex items-center justify-center ${className}`}>
+        <svg className="w-8 h-8 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
+        </svg>
+      </div>
+    );
   }
 
   return (
-    <div className={`relative ${className}`}>
-      {/* Imagen principal */}
-      <img
-        src={imageUrl}
-        alt={alt}
-        className={`${className} rounded-md object-cover border border-gray-200 transition-opacity duration-300 ${
-          imageLoaded ? 'opacity-100' : 'opacity-0'
-        }`}
-        onLoad={handleLoad}
-        onError={handleError}
-        style={{ 
-          display: imageError ? 'none' : 'block'
-        }}
-      />
-      
-      {/* Loading spinner */}
-      {isLoading && !imageError && (
-        <div className={`${className} rounded-md bg-gray-100 flex items-center justify-center border border-gray-200 absolute inset-0`}>
-          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-400"></div>
-        </div>
-      )}
-      
-      {/* Placeholder de error */}
-      {imageError && showPlaceholder && (
-        <div className={`${className} rounded-md bg-gray-100 flex items-center justify-center border border-gray-200 absolute inset-0`}>
-          <FiImage className="w-4 h-4 text-gray-400" />
-        </div>
-      )}
-    </div>
+    <img
+      src={finalImageUrl}
+      alt={alt}
+      className={`object-cover ${className}`}
+      onError={(e) => {
+        console.log(`❌ Error cargando imagen: ${finalImageUrl}`);
+        e.target.style.display = 'none';
+        e.target.parentNode.innerHTML = `
+          <div class="bg-gray-100 flex items-center justify-center ${className}">
+            <svg class="w-8 h-8 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd" />
+            </svg>
+          </div>
+        `;
+      }}
+    />
   );
 };
 

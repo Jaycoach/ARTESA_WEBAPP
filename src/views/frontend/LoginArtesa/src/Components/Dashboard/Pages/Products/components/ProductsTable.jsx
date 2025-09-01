@@ -2,6 +2,7 @@
 import React from 'react';
 import { FiEye, FiEdit, FiTrash2, FiPlus, FiMinus, FiImage, FiUpload } from 'react-icons/fi';
 import Button from '../../../../../Components/ui/Button';
+import ProductImage from './ProductImage';
 
 const ProductsTable = ({
   products,
@@ -82,22 +83,22 @@ const ProductsTable = ({
               {/* **MEJORA: Columna de imagen mejorada** */}
               <td className="px-6 py-4">
                 <div className="flex items-center space-x-2">
-                  {product.image_url ? (
-                    <img 
-                      src={product.image_url} 
-                      alt={product.name}
-                      className="h-12 w-12 rounded-md object-cover border border-gray-200"
-                      onError={(e) => {
-                        e.target.style.display = 'none';
-                        e.target.nextSibling.style.display = 'flex';
-                      }}
-                    />
-                  ) : (
-                    <div className="h-12 w-12 rounded-md bg-gray-100 flex items-center justify-center border border-gray-200">
-                      <FiImage size={16} className="text-gray-400" />
-                    </div>
-                  )}
-                  
+                  {/* ✅ USAR NUEVO ENDPOINT CON productId */}
+                  <ProductImage
+                    src={product.image_url || product.image}  // Fallback
+                    alt={product.name}
+                    productId={product.product_id}
+                    imageType="main"
+                    className="h-12 w-12"
+                    useNewEndpoint={true}  // ✅ HABILITAR NUEVO ENDPOINT
+                    onImageLoad={(e) => {
+                      console.log(`✅ Imagen cargada en tabla para producto ${product.product_id}`);
+                    }}
+                    onImageError={(e) => {
+                      console.error(`❌ Error cargando imagen en tabla para producto ${product.product_id}`);
+                    }}
+                  />
+
                   {adminMode && (
                     <button
                       onClick={() => onUploadImage(product)}

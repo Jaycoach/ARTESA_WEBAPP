@@ -11,6 +11,52 @@ import OrderFileUpload from './OrderFileUpload';
 import Notification from '../../../../Components/ui/Notification';
 import { useNavigate } from 'react-router-dom';
 import usePriceList from '../../../../hooks/usePriceList';
+import useProductImage from '../../../../hooks/useProductImage';
+
+const ProductImageSmall = ({ productId, alt, className = "w-8 h-8" }) => {
+  const { imageUrl, loading, error } = useProductImage(productId, 'thumbnail');
+
+  if (loading) {
+    return (
+      <div className={`bg-gray-100 animate-pulse flex items-center justify-center rounded-md border border-gray-200 ${className}`}>
+        <svg className="w-3 h-3 text-gray-300" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
+        </svg>
+      </div>
+    );
+  }
+
+  if (!imageUrl || error) {
+    return (
+      <div className={`bg-gray-100 flex items-center justify-center rounded-md border border-gray-200 ${className}`}>
+        <svg className="w-3 h-3 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
+        </svg>
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={imageUrl}
+      alt={alt}
+      className={`object-cover rounded-md border border-gray-200 ${className}`}
+      onError={(e) => {
+        e.target.style.display = 'none';
+        const parent = e.target.parentNode;
+        if (parent) {
+          parent.innerHTML = `
+            <div class="w-8 h-8 bg-gray-100 flex items-center justify-center rounded-md border border-gray-200">
+              <svg class="w-3 h-3 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd" />
+              </svg>
+            </div>
+          `;
+        }
+      }}
+    />
+  );
+};
 
 const CreateOrderForm = ({ onOrderCreated }) => {
   const { user, branch, authType, isAuthenticated } = useAuth();
@@ -333,7 +379,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       setLoadingProducts(true);
 
       try {
-        // ✅ DETERMINAR CÓDIGO DE LISTA DE PRECIOS
+        // DETERMINAR CÓDIGO DE LISTA DE PRECIOS
         let priceListCode = '1';
 
         if (authType === AUTH_TYPES.BRANCH) {
@@ -350,7 +396,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
 
         console.log(`🎯 Usando lista de precios: ${priceListCode}`);
 
-        // ✅ CARGAR TODOS LOS PRODUCTOS CON PAGINACIÓN COMPLETA
+        // CARGAR TODOS LOS PRODUCTOS CON PAGINACIÓN COMPLETA
         let allProducts = [];
         let currentPage = 1;
         let totalPages = 1;
@@ -373,7 +419,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
             const pageProducts = response.data.data;
             allProducts = [...allProducts, ...pageProducts];
 
-            // ✅ ACTUALIZAR INFORMACIÓN DE PAGINACIÓN
+            // ACTUALIZAR INFORMACIÓN DE PAGINACIÓN
             if (response.data.pagination) {
               totalPages = response.data.pagination.totalPages;
               totalProductCount = response.data.pagination.totalCount;
@@ -385,7 +431,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
             throw new Error(response.data.message || 'Error en respuesta del API');
           }
 
-          // ✅ SEGURIDAD: Evitar bucle infinito
+          // SEGURIDAD: Evitar bucle infinito
           if (currentPage > 20) {
             console.warn('⚠️ Límite de seguridad alcanzado (20 páginas)');
             break;
@@ -395,7 +441,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
 
         console.log(`🎉 CARGA COMPLETA: ${allProducts.length} productos cargados de ${totalProductCount} disponibles`);
 
-        // ✅ MAPEO DE TODOS LOS PRODUCTOS
+        // MAPEO DE TODOS LOS PRODUCTOS
         const mappedProducts = allProducts.map((plProduct, index) => {
           const priceValue = parseFloat(plProduct.price) || 0;
 
@@ -406,13 +452,13 @@ const CreateOrderForm = ({ onOrderCreated }) => {
             sap_code: plProduct.product_code,
             code: plProduct.product_code,
 
-            // ✅ PRECIOS
+            // PRECIOS
             price: priceValue,
             price_list1: priceValue,
             effective_price: priceValue,
             unit_price: priceValue,
 
-            // ✅ INFORMACIÓN ADICIONAL
+            // INFORMACIÓN ADICIONAL
             price_list_code: plProduct.price_list_code,
             price_list_name: plProduct.price_list_name,
             currency: plProduct.currency || 'COP',
@@ -428,12 +474,12 @@ const CreateOrderForm = ({ onOrderCreated }) => {
             updated_at: plProduct.updated_at,
             sap_last_sync: plProduct.sap_last_sync,
 
-            // ✅ DATOS ORIGINALES
+            // DATOS ORIGINALES
             _original: plProduct
           };
         });
 
-        // ✅ FILTRAR PRODUCTOS CON PRECIOS VÁLIDOS
+        // FILTRAR PRODUCTOS CON PRECIOS VÁLIDOS
         const validProducts = mappedProducts.filter(product => {
           const price = parseFloat(product.price);
           return price > 0;
@@ -852,37 +898,37 @@ const CreateOrderForm = ({ onOrderCreated }) => {
           user_cardcode_sap: branchInfo.user_cardcode_sap
         });
 
-        // ✅ VALIDAR QUE TODOS LOS DATOS CRÍTICOS ESTÉN PRESENTES
+        // VALIDAR QUE TODOS LOS DATOS CRÍTICOS ESTÉN PRESENTES
         if (!branchInfo.user_id) {
           console.error('❌ ERROR CRÍTICO: user_id no encontrado en branchData:', branchInfo);
           throw new Error('Datos de usuario incompletos. Por favor, cierra sesión e inicia sesión nuevamente.');
         }
 
         orderData = {
-          // ✅ IDENTIFICACIÓN COMPLETA (BRANCH + USER)
+          // IDENTIFICACIÓN COMPLETA (BRANCH + USER)
           branch_id: branchInfo.branch_id,
           client_id: branchInfo.client_id,
           user_id: branchInfo.user_id, // ← USAR EL user_id REAL DEL CONTEXTO
           order_type: 'BRANCH_ORDER',
 
-          // ✅ INFORMACIÓN FINANCIERA
+          // INFORMACIÓN FINANCIERA
           total_amount: totalAmount,
           subtotal_amount: subtotal,
           iva_amount: ivaTotal,
           shipping_amount: shipping || 0,
 
-          // ✅ INFORMACIÓN DE ENTREGA
+          // INFORMACIÓN DE ENTREGA
           delivery_date: deliveryDate,
           notes: orderNotes,
           delivery_zone: deliveryZone ? deliveryZone.key : null,
           delivery_zone_name: deliveryZone ? deliveryZone.name : branchInfo.city,
           municipality_dane_code: branchInfo.municipality_code,
 
-          // ✅ LISTA DE PRECIOS
+          // LISTA DE PRECIOS
           price_list_code: priceListInfo.price_list_code || '1',
           has_custom_pricing: !!(priceListInfo.price_list_code && priceListInfo.price_list_code !== '1'),
 
-          // ✅ INFORMACIÓN COMPLETA DE BRANCH
+          // INFORMACIÓN COMPLETA DE BRANCH
           branch_name: branchInfo.branch_name || branchInfo.branchname,
           branch_address: branchInfo.address,
           branch_email: branchInfo.email_branch || branchInfo.email,
@@ -891,13 +937,13 @@ const CreateOrderForm = ({ onOrderCreated }) => {
           nit_number: branchInfo.nit_number,
           ship_to_code: branchInfo.ship_to_code,
 
-          // ✅ INFORMACIÓN DEL USUARIO PRINCIPAL ASOCIADO
+          // INFORMACIÓN DEL USUARIO PRINCIPAL ASOCIADO
           user_name: branchInfo.user_name,
           user_email: branchInfo.user_email,
           user_cardcode_sap: branchInfo.user_cardcode_sap,
           user_cardtype_sap: branchInfo.user_cardtype_sap,
 
-          // ✅ DETALLES DE PRODUCTOS
+          // DETALLES DE PRODUCTOS
           products: orderDetails.map(products => ({
             product_id: parseInt(products.product_id || 0),
             quantity: parseInt(products.quantity || 0),
@@ -1047,7 +1093,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       const selectedProduct = products.find(p => p.product_id === parseInt(option.value));
 
       if (selectedProduct) {
-        // ✅ LÓGICA SIMPLIFICADA - usar directamente el precio del producto
+        // LÓGICA SIMPLIFICADA - usar directamente el precio del producto
         const productPrice = parseFloat(selectedProduct.price || selectedProduct.effective_price || selectedProduct.price_list1 || 0);
 
         newDetails[index].unit_price = productPrice;
@@ -1069,14 +1115,14 @@ const CreateOrderForm = ({ onOrderCreated }) => {
   };
 
   const formatOptionLabel = ({ value, label, image, price }) => (
-    <div className="flex items-center">
-      {image ? (
-        <img src={image} alt={label} className="w-8 h-8 mr-3 rounded-md object-cover border border-gray-200" />
-      ) : (
-        <div className="w-8 h-8 mr-3 rounded-md bg-gray-100 flex items-center justify-center text-xs text-gray-400 border border-gray-200">Img</div>
-      )}
-      <div>
-        <div className="font-medium text-sm text-gray-800">{label}</div>
+    <div className="flex items-center py-1">
+      <ProductImageSmall
+        productId={value}
+        alt={label}
+        className="w-8 h-8 mr-3"
+      />
+      <div className="flex-1">
+        <div className="font-medium text-sm text-gray-800 leading-tight">{label}</div>
         {price && <div className="text-xs text-gray-500">{formatCurrencyCOP(price)}</div>}
       </div>
     </div>
@@ -1393,14 +1439,13 @@ const CreateOrderForm = ({ onOrderCreated }) => {
                 return (
                   <tr key={index}>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      {selectedProduct?.image_url ? (
-                        <div className="w-16 h-16">
-                          <img
-                            src={selectedProduct.image_url}
-                            alt={selectedProduct.name}
-                            className="object-cover w-full h-full rounded-md border border-gray-300"
-                          />
-                        </div>
+                      {/* ✅ VERIFICACIÓN MÁS ROBUSTA */}
+                      {detail.product_id && parseInt(detail.product_id) > 0 ? (
+                        <ProductImageSmall
+                          productId={parseInt(detail.product_id)}
+                          alt={selectedProduct?.name || 'Producto'}
+                          className="w-16 h-16"
+                        />
                       ) : (
                         <div className="w-16 h-16 flex items-center justify-center bg-gray-100 rounded-md border border-gray-300">
                           <span className="text-gray-500 text-xs">Sin imagen</span>

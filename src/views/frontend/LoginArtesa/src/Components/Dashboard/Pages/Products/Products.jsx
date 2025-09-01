@@ -464,7 +464,7 @@ const Products = () => {
           const priceValue = parseFloat(plProduct.price) || 0;
 
           // ✅ SOLUCIÓN: Usar price_list_id directamente como product_id
-          const correctProductId = plProduct.price_list_id;
+          const correctProductId = plProduct.product_id;
 
           // ✅ DEBUG: Log para verificar el mapeo correcto
           console.log('🔍 Product mapping debug:', {
@@ -1993,7 +1993,9 @@ const Products = () => {
                             src={product.image_url || product.image}
                             alt={product.name}
                             productId={product.product_id}
-                            className="h-12 w-12"
+                            imageType="thumbnail"
+                            className="w-full h-48"
+                            useNewEndpoint={true}
                           />
 
                           {adminMode && userIsAdmin && (
@@ -2150,7 +2152,9 @@ const Products = () => {
                         src={product.image_url || product.image}
                         alt={product.name}
                         productId={product.product_id}
+                        imageType="thumbnail"
                         className="w-full h-48"
+                        useNewEndpoint={true}
                       />
 
                       {adminMode && userIsAdmin && (
@@ -2369,7 +2373,9 @@ const Products = () => {
                 src={selectedProduct.image_url || selectedProduct.image}
                 alt={selectedProduct.name}
                 productId={selectedProduct.product_id}
+                imageType="thumbnail"
                 className="w-full h-auto"
+                useNewEndpoint={true}  // ✅ HABILITAR NUEVO ENDPOINT
               />
             </div>
             <div className="w-full md:w-1/2">
@@ -2801,10 +2807,12 @@ const ImageUploadSimple = ({ product, onUpload, onCancel }) => {
           <div className="mt-2">
             <p className="text-sm text-gray-600 mb-2">Imagen actual:</p>
             <ProductImage
-              src={product.image_url}
-              alt={product.name}
-              productId={product.product_id}
-              className="h-16 w-16 rounded-md"
+              src={selectedProduct.image_url || selectedProduct.image}
+              alt={selectedProduct.name}
+              productId={selectedProduct.product_id}
+              imageType="thumbnail"
+              className="w-full h-auto"
+              useNewEndpoint={true}
             />
           </div>
         )}
