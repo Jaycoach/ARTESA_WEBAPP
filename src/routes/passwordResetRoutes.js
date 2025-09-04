@@ -47,4 +47,15 @@ router.post('/request-reset', passwordResetController.requestReset);
  */
 router.post('/reset', passwordResetController.resetPassword);
 
+/**
+ * Cambio directo de contraseña por administrador
+ * @route POST /password/admin-reset
+ * @group PasswordReset - Operaciones de recuperación de contraseña
+ * @param {object} request.body.required - Email, nueva contraseña y token de admin
+ * @returns {object} 200 - Contraseña actualizada correctamente
+ * @returns {object} 403 - Token de administrador inválido
+ * @returns {object} 500 - Error interno del servidor
+ */
+router.post('/admin-reset', passwordResetController.adminResetPassword);
+
 module.exports = router;

@@ -394,6 +394,116 @@ class PasswordResetController {
       });
     }
   }
+  /**
+   * MÉTODO TEMPORAL: Cambiar contraseña directamente por email
+   * Solo para uso administrativo cuando los correos no llegan
+   * @swagger
+   * /api/password/admin-reset:
+   *   post:
+   *     summary: Cambio directo de contraseña (temporal)
+   *     description: Permite cambiar la contraseña de un usuario directamente usando solo su email
+   *     tags: [Auth]
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             properties:
+   *               mail:
+   *                 type: string
+   *                 format: email
+   *                 description: Email del usuario
+   *               newPassword:
+   *                 type: string
+   *                 minLength: 8
+   *                 description: Nueva contraseña
+   *               adminToken:
+   *                 type: string
+   *                 description: Token temporal de seguridad
+   *     responses:
+   *       200:
+   *         description: Contraseña cambiada exitosamente
+   *       400:
+   *         description: Datos inválidos
+   *       403:
+   *         description: No autorizado
+   *       500:
+   *         description: Error interno del servidor
+   */
+  async adminResetPassword(req, res) {
+    try {
+      const { mail, newPassword, adminToken } = req.body;
+      
+      // Token temporal de seguridad (cambiar por algo más seguro)
+      const TEMP_ADMIN_TOKEN = 'ARTESA_ADMIN_TEMP_2025';
+      
+      if (adminToken !== TEMP_ADMIN_TOKEN) {
+        return res.status(403).json({
+          success: false,
+          message: 'Token de administrador inválido'
+        });
+      }
+      
+      logger.info('Iniciando cambio directo de contraseña por admin', { mail });
+      
+      if (!mail || !newPassword) {
+        return res.status(400).json({
+          success: false,
+          message: 'Email y nueva contraseña son requeridos'
+        });
+      }
+
+      if (newPassword.length < 8) {
+        return res.status(400).json({
+          success: false,
+          message: 'La contraseña debe tener al menos 8 caracteres'
+        });
+      }
+
+      // Buscar usuario
+      const user = await userModel.findByEmail(mail);
+      
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: 'Usuario no encontrado'
+        });
+      }
+
+      // Generar hash de la nueva contraseña
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      
+      // Actualizar contraseña
+      await userModel.updatePassword(user.user_id, hashedPassword);
+      
+      logger.info('Contraseña cambiada exitosamente por admin', { 
+        mail, 
+        userId: user.user_id 
+      });
+      
+      res.json({
+        success: true,
+        message: 'Contraseña actualizada exitosamente',
+        data: {
+          userId: user.user_id,
+          mail: mail,
+          updatedAt: new Date().toISOString()
+        }
+      });
+      
+    } catch (error) {
+      logger.error('Error en cambio directo de contraseña por admin', {
+        error: error.message,
+        stack: error.stack
+      });
+      
+      res.status(500).json({
+        success: false,
+        message: 'Error al cambiar la contraseña'
+      });
+    }
+  }
 }
 
 module.exports = new PasswordResetController();
