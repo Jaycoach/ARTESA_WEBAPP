@@ -55,7 +55,8 @@ class AuthValidators {
       });
     }
 
-    req.body.mail = validator.normalizeEmail(mailField.toLowerCase());
+    // Solo convertir a minúsculas SIN normalizar el email para preservar los puntos
+    req.body.mail = mailField.toLowerCase().trim();
     next();
   }
 
