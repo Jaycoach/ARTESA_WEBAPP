@@ -165,7 +165,7 @@ router.get('/products/:productId/images',
  */
 router.delete('/products/images/:productId/:imageType',
   verifyToken,
-  checkRole([1]), // Solo administradores
+  checkRole([1, 3]), // Administradores y admins funcionales
   sanitizeParams,
   productImageController.deleteProductImage
 );

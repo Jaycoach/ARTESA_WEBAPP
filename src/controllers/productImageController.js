@@ -230,8 +230,8 @@ class ProductImageController {
         });
       }
       
-      // Verificar permisos (solo administradores pueden subir imágenes)
-      if (req.user.rol_id !== 1) {
+      // Verificar permisos (administradores y admins funcionales pueden subir imágenes)
+      if (req.user.rol_id !== 1 && req.user.rol_id !== 3) {
         return res.status(403).json({
           success: false,
           message: 'No tiene permisos para subir imágenes de productos'
