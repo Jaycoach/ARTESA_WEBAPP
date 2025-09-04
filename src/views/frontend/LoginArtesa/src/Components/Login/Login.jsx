@@ -146,8 +146,6 @@ const Login = () => {
             navigate(location.pathname, { replace: true, state: {} });
         }
     }, [location.state, navigate]);
-
-    // ✅ MANEJAR ESTADO POST-VERIFICACIÓN
     useEffect(() => {
         if (location.state?.emailVerified && location.state?.authType === 'branch') {
             setAuthType(AUTH_TYPES.BRANCH);
@@ -210,8 +208,6 @@ const Login = () => {
         setBranchFoundMessage('');
         if (clearError) clearError();
         clearAllErrors();
-
-        // ✅ AÑADIR ESTAS LÍNEAS
         setShowEmailVerificationBanner(false);
         setPendingVerificationEmail('');
 
@@ -234,30 +230,20 @@ const Login = () => {
             }
 
             console.log('🔄 Registrando sucursal:', registrationData.email);
-
-            // ✅ SOLO REGISTRAR - NO HACER LOGIN AUTOMÁTICO
             const registrationResult = await registerBranch(registrationData, recaptchaToken);
 
             if (registrationResult && registrationResult.success !== false) {
                 console.log('✅ Registro de sucursal completado exitosamente');
-
-                // ✅ LIMPIAR FORMULARIO
                 setShowBranchRegistration(false);
                 setBranchRegistrationEmail('');
                 setGeneralError('');
-
-                // ✅ MOSTRAR MENSAJE DE VERIFICACIÓN PENDIENTE
                 setBranchFoundMessage(
                     `¡Registro completado! Se ha enviado un correo de verificación a ${registrationData.email}. ` +
                     `Revisa tu bandeja de entrada y haz clic en el enlace para activar tu cuenta de sucursal.`
                 );
-
-                // ✅ VOLVER AL ESTADO INICIAL
                 setShowEmailVerification(false);
                 setShowPasswordField(false);
                 setValues({ mail: '', password: '' }); // Limpiar campos
-
-                // ✅ LIMPIAR MENSAJE DESPUÉS DE 15 SEGUNDOS
                 setTimeout(() => {
                     setBranchFoundMessage('');
                     setShowEmailVerification(true);
@@ -301,7 +287,6 @@ const Login = () => {
             const result = await checkBranchRegistration(values.mail);
 
             if (result) {
-                // ✅ CORRECCIÓN: Acceder correctamente a los datos
                 const branchInfo = result.data || result;
 
                 console.log('🔍 branchInfo procesado:', {
@@ -309,8 +294,6 @@ const Login = () => {
                     email_verified: branchInfo.email_verified,
                     needsEmailVerification: branchInfo.needsEmailVerification
                 });
-
-                // ✅ PASO 1: VERIFICAR EMAIL PRIMERO
                 if (branchInfo.needsEmailVerification === true || branchInfo.email_verified === false) {
                     console.log(`⚠️ Sucursal "${branchInfo.branch_name}" necesita verificación de email`);
 
@@ -324,11 +307,8 @@ const Login = () => {
                     setShowPasswordField(false);
                     return;
                 }
-
-                // ✅ PASO 2: Verificar si necesita completar registro
                 if (branchInfo.needsRegistration === true && branchInfo.hasPassword === false) {
                     console.log(`✅ Sucursal "${branchInfo.branch_name}" encontrada - Requiere registro completo`);
-
                     setBranchFoundMessage(`Sucursal "${branchInfo.branch_name}" encontrada. Completa el registro para continuar.`);
                     setBranchRegistrationEmail(values.mail);
                     setShowBranchRegistration(true);
@@ -337,11 +317,8 @@ const Login = () => {
                     setGeneralError('');
                     return;
                 }
-
-                // ✅ PASO 3: Sucursal lista para login
                 else if (branchInfo.needsRegistration === false && branchInfo.hasPassword === true && branchInfo.email_verified === true) {
                     console.log(`✅ Sucursal "${branchInfo.branch_name}" ya registrada - Solicitando contraseña`);
-
                     setBranchFoundMessage(`Sucursal "${branchInfo.branch_name}" encontrada. Ingresa tu contraseña para continuar.`);
                     setShowPasswordField(true);
                     setShowEmailVerification(false);
@@ -349,8 +326,6 @@ const Login = () => {
                     setGeneralError('');
                     return;
                 }
-
-                // ✅ PASO 4: Estado realmente inconsistente
                 else {
                     console.error('Estado inconsistente de sucursal:', branchInfo);
                     setGeneralError(`Estado inconsistente de la sucursal "${branchInfo.branch_name}". Contacta soporte técnico.`);
@@ -477,7 +452,6 @@ const Login = () => {
                 authType
             });
 
-            // ✅ DETECTAR ERROR DE EMAIL NO VERIFICADO
             if (authType === AUTH_TYPES.BRANCH && error.response?.status === 403) {
                 const errorMsg = error.response?.data?.message || error.message || '';
 
@@ -490,7 +464,6 @@ const Login = () => {
                     setPendingVerificationEmail(values.mail);
                     setGeneralError('Debes verificar tu correo electrónico antes de iniciar sesión.');
 
-                    // ✅ NAVEGACIÓN AUTOMÁTICA OPCIONAL (descomenta si prefieres navegación directa)
                     // handleSendEmailVerification();
                     return;
                 }
@@ -613,17 +586,12 @@ const Login = () => {
         try {
             console.log('🔍 Verificando tipo de cuenta para:', email);
 
-            // ✅ PASO 1: Verificar si el email es de una sucursal
             const checkResponse = await API.post('/branch-auth/check-registration', { email });
 
             if (checkResponse.data?.success && checkResponse.data?.data) {
                 const branchInfo = checkResponse.data.data;
-
-                // ✅ PASO 2: Si encontramos datos de branch y el email coincide
                 if (branchInfo.email_branch && branchInfo.email_branch.toLowerCase() === email.toLowerCase()) {
                     console.log('🏢 Email detectado como BRANCH:', branchInfo.branch_name);
-
-                    // ✅ USAR ENDPOINT DE BRANCH
                     const resetResponse = await API.post('/branch-password/request-reset', {
                         email,
                         recaptchaToken
@@ -638,7 +606,6 @@ const Login = () => {
                 }
             }
 
-            // ✅ PASO 3: Si no es branch, usar endpoint de usuario principal
             console.log('👤 Email detectado como USUARIO PRINCIPAL');
             const resetResponse = await API.post('/password/request-reset', {
                 mail: email, // ← Nota: el endpoint de user usa 'mail'
@@ -654,7 +621,6 @@ const Login = () => {
         } catch (error) {
             console.error('❌ Error en determineAccountTypeAndReset:', error);
 
-            // ✅ PASO 4: Fallback a usuario principal en caso de error
             try {
                 console.log('🔄 Fallback a endpoint de usuario principal');
                 const fallbackResponse = await API.post('/password/request-reset', {
@@ -682,45 +648,46 @@ const Login = () => {
         setResetMessage("");
         setGeneralError("");
         if (clearError) clearError();
-
         if (!resetEmail.trim() || !/\S+@\S+\.\S+/.test(resetEmail)) {
-            setGeneralError("Ingrese un correo electrónico válido");
+            setGeneralError("Por favor, ingrese un correo electrónico válido");
             return;
         }
 
         setLoading(true);
 
         try {
-            // ✅ GENERAR TOKEN RECAPTCHA
             const recaptchaToken = await generateRecaptchaToken('password_reset');
             if (!recaptchaToken) {
-                setGeneralError(recaptchaError || 'Error en verificación de seguridad');
+                setGeneralError('Error en verificación de seguridad. Por favor, intente nuevamente.');
                 return;
             }
-
-            // ✅ USAR FUNCIÓN DE AUTO-DETECCIÓN
             const result = await determineAccountTypeAndReset(resetEmail, recaptchaToken);
+            const GENERIC_SUCCESS_MESSAGE = "Si su correo electrónico está registrado en nuestro sistema, recibirá un enlace de recuperación en breve. Por favor, revise su bandeja de entrada y carpeta de spam.";
 
-            if (result.success) {
-                // ✅ MENSAJE DIFERENCIADO POR TIPO
-                let messageText = '';
-                if (result.type === 'branch') {
-                    messageText = `Correo de recuperación enviado a la sucursal "${result.branchName}". Revisa tu bandeja de entrada.`;
-                } else {
-                    messageText = result.fallback
-                        ? "Correo de recuperación enviado. Revisa tu bandeja de entrada."
-                        : "Correo de recuperación enviado. Revisa tu bandeja de entrada.";
-                }
-
-                setResetMessage(messageText);
-                console.log(`✅ Reset request ${result.type.toUpperCase()} enviado exitosamente`);
-            } else {
-                setGeneralError(result.error || 'Error procesando la solicitud');
+            setResetMessage(GENERIC_SUCCESS_MESSAGE);
+            if (process.env.NODE_ENV === 'development') {
+                console.log(`🔍 [DEV] Reset request processed:`, {
+                    email: resetEmail,
+                    success: result.success,
+                    type: result.type || 'unknown',
+                    timestamp: new Date().toISOString(),
+                    // NO exponer información sensible incluso en desarrollo
+                    hashedEmail: btoa(resetEmail).substring(0, 10) + '***'
+                });
             }
+            console.log(`📊 Password reset request processed for domain: ${resetEmail.split('@')[1]}`);
 
         } catch (error) {
-            console.error('❌ Error en handleResetPassword:', error);
-            setGeneralError('No se pudo procesar la solicitud. Intenta nuevamente.');
+            console.error('🚨 [Security] Password reset error:', {
+                timestamp: new Date().toISOString(),
+                domain: resetEmail.split('@')[1], // Solo el dominio, no el email completo
+                error: error.message,
+                // NO incluir stack trace en producción
+                ...(process.env.NODE_ENV === 'development' && { stack: error.stack })
+            });
+            setGeneralError('Ocurrió un error procesando su solicitud. Por favor, intente nuevamente más tarde o contacte al soporte técnico.');
+            // setResetMessage(GENERIC_SUCCESS_MESSAGE);
+
         } finally {
             setLoading(false);
         }
