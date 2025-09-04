@@ -65,8 +65,8 @@ const saveProductImage = async (file, productId, imageType) => {
     
     // Determinar el modo de almacenamiento
     if (process.env.STORAGE_MODE === 's3') {
-      // Subir a S3
-      const key = `products/${productId}/images/${uniqueFilename}`;
+      // Subir a S3 usando la nueva estructura
+      const key = `images/${uniqueFilename}`;
       const imageUrl = await S3Service.uploadFile(
         fileToSave.data,
         key,
@@ -459,6 +459,7 @@ class ProductImageController {
               }
             });
           }
+          
         }
         
         // Para almacenamiento local o URL directa
@@ -475,7 +476,32 @@ class ProductImageController {
       // Si se requiere descarga/visualización directa
       if (process.env.STORAGE_MODE === 's3') {
         const key = S3Service.extractKeyFromUrl(imageUrl);
-        if (!key) {
+        
+        // Si no se pudo extraer la clave con el método estándar,
+        // intentar con la estructura antigua para compatibilidad
+        let finalKey = key;
+        if (!finalKey && imageUrl.includes('products/') && imageUrl.includes('/images/')) {
+          try {
+            const urlObj = new URL(imageUrl);
+            const pathname = urlObj.pathname;
+            const parts = pathname.split('/');
+            const filename = parts[parts.length - 1];
+            if (filename) {
+              finalKey = `images/${filename}`;
+              logger.info('Convertido de estructura antigua a nueva', { 
+                originalUrl: imageUrl.substring(0, 100),
+                newKey: finalKey 
+              });
+            }
+          } catch (conversionError) {
+            logger.warn('Error al convertir estructura de URL', { 
+              error: conversionError.message,
+              url: imageUrl.substring(0, 100)
+            });
+          }
+        }
+
+        if (!finalKey) {
           logger.warn('No se pudo determinar la clave S3 de la imagen', { imageUrl });
           return res.status(404).json({
             success: false,
@@ -484,9 +510,9 @@ class ProductImageController {
         }
         
         // Verificar que el archivo existe
-        const exists = await S3Service.fileExists(key);
+        const exists = await S3Service.fileExists(finalKey);
         if (!exists) {
-          logger.warn('Imagen no encontrada en S3', { key, productId, imageType });
+          logger.warn('Imagen no encontrada en S3', { key: finalKey, productId, imageType });
           return res.status(404).json({
             success: false,
             message: 'Imagen no encontrada'
@@ -494,11 +520,11 @@ class ProductImageController {
         }
 
         // Obtener metadatos para el content-type
-        const metadata = await S3Service.getObjectMetadata(key);
+        const metadata = await S3Service.getObjectMetadata(finalKey);
         const contentType = metadata.ContentType || 'image/jpeg';
         
         // Generar URL firmada y redirigir
-        const signedUrl = await S3Service.getSignedUrl('getObject', key, 3600);
+        const signedUrl = await S3Service.getSignedUrl('getObject', finalKey, 3600);
         
         // Para visualización en el frontend, redirigir a la URL firmada
         return res.redirect(signedUrl);
@@ -608,7 +634,22 @@ class ProductImageController {
       // Imagen principal del producto
       if (product.image_url) {
         if (process.env.STORAGE_MODE === 's3') {
-          const key = S3Service.extractKeyFromUrl(product.image_url);
+          let key = S3Service.extractKeyFromUrl(product.image_url);
+          
+          // Compatibilidad con estructura antigua
+          if (!key && product.image_url.includes('products/') && product.image_url.includes('/images/')) {
+            try {
+              const urlObj = new URL(product.image_url);
+              const parts = urlObj.pathname.split('/');
+              const filename = parts[parts.length - 1];
+              if (filename) {
+                key = `images/${filename}`;
+              }
+            } catch (error) {
+              logger.warn('Error al convertir URL antigua en listProductImages', { error: error.message });
+            }
+          }
+          
           if (key) {
             const exists = await S3Service.fileExists(key);
             if (exists) {

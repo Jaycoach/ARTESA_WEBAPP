@@ -804,7 +804,20 @@ async uploadBannerImage(file, customName) {
         // Caso 2: URL firmada formato: bucket.s3.region.amazonaws.com
         if (url.includes(`${this.bucketName}.s3.${this.region}.amazonaws.com`) || 
             url.includes(`${this.bucketName}.s3.amazonaws.com`)) {
-          const key = urlObj.pathname.substring(1); // Quitar la barra inicial
+          let key = urlObj.pathname.substring(1); // Quitar la barra inicial
+          
+          // Caso especial: Compatibilidad con estructura antigua de productos
+          // Si la clave extraída empieza con 'products/', usar solo el nombre del archivo
+          if (key && key.startsWith('products/') && key.includes('/images/')) {
+            const parts = key.split('/');
+            const filename = parts[parts.length - 1]; // Obtener solo el nombre del archivo
+            logger.info('Convirtiendo estructura antigua a nueva en extractKeyFromUrl', {
+              oldKey: key,
+              newKey: `images/${filename}`
+            });
+            return `images/${filename}`;
+          }
+          
           return key;
         }
         
