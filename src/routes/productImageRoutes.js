@@ -108,7 +108,7 @@ const { sanitizeParams } = require('../middleware/security');
  */
 router.post('/products/:productId/images/:imageType',
   verifyToken,
-  checkRole([1]), // Solo administradores
+  checkRole([1, 3]), // Administradores y admins funcionales
   sanitizeParams,
   productImageController.uploadProductImage
 );

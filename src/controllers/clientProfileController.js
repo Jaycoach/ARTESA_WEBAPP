@@ -1949,8 +1949,8 @@ async getFile(req, res) {
         });
       }
       
-      // Validar que el usuario tenga permiso
-      if (req.user.id !== parseInt(userId) && req.user.rol_id !== 1) {
+      // Validar que el usuario tenga permiso (admins y admins funcionales)
+      if (req.user.id !== parseInt(userId) && req.user.rol_id !== 1 && req.user.rol_id !== 3) {
         return res.status(403).json({
           success: false,
           message: 'No tiene permiso para acceder a este documento'
@@ -2120,8 +2120,8 @@ async getFile(req, res) {
         });
       }
       
-      // Validar que el usuario tenga permiso
-      if (req.user.id !== parseInt(userId) && req.user.rol_id !== 1) {
+      // Validar que el usuario tenga permiso (admins y admins funcionales)
+      if (req.user.id !== parseInt(userId) && req.user.rol_id !== 1 && req.user.rol_id !== 3) {
         return res.status(403).json({
           success: false,
           message: 'No tiene permiso para acceder a este documento'
@@ -2324,8 +2324,8 @@ async getFile(req, res) {
         });
       }
       
-      // Validar que el usuario tenga permiso
-      if (req.user.id !== parseInt(userId) && req.user.rol_id !== 1) {
+      // Validar que el usuario tenga permiso (admins y admins funcionales)
+      if (req.user.id !== parseInt(userId) && req.user.rol_id !== 1 && req.user.rol_id !== 3) {
         return res.status(403).json({
           success: false,
           message: 'No tiene permiso para acceder a este perfil'
@@ -2444,8 +2444,8 @@ async getFile(req, res) {
         });
       }
       
-      // Validar que el usuario tenga permiso
-      if (req.user.id !== parseInt(userId) && req.user.rol_id !== 1) {
+      // Validar que el usuario tenga permiso (admins y admins funcionales)
+      if (req.user.id !== parseInt(userId) && req.user.rol_id !== 1 && req.user.rol_id !== 3) {
         return res.status(403).json({
           success: false,
           message: 'No tiene permiso para modificar este perfil'
