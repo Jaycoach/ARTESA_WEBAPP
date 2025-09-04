@@ -131,7 +131,7 @@ router.get('/products/:productId',
  */
 router.post('/products', 
   verifyToken, 
-  checkRole([1]), // Solo administradores 
+  checkRole([1, 3]), // Solo administradores 
   productController.createProduct
 );
 
@@ -151,7 +151,7 @@ router.post('/products',
  */
 router.put('/products/:productId', 
   verifyToken, 
-  checkRole([1]), 
+  checkRole([1, 3]), 
   productController.updateProduct
 );
 
@@ -171,7 +171,7 @@ router.put('/products/:productId',
  */
 router.put('/products/:productId/image', 
   verifyToken, 
-  checkRole([1]), 
+  checkRole([1, 3]), 
   productController.updateProductImage
 );
 
@@ -189,7 +189,7 @@ router.put('/products/:productId/image',
  */
 router.delete('/products/:productId', 
   verifyToken, 
-  checkRole([1]), 
+  checkRole([1, 3]), 
   productController.deleteProduct
 );
 
