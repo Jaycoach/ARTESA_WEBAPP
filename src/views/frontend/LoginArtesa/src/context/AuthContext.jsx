@@ -13,6 +13,53 @@ import { AUTH_TYPES, ERROR_MESSAGES } from '../constants/AuthTypes';
 import { isDevelopment } from '../utils/environment';
 
 // ============================================================================
+// UTILIDADES DE EMAIL
+// ============================================================================
+
+const emailUtils = {
+    // ✅ NUEVA: Función para preservar formato correcto del email
+    sanitizeEmail: (email) => {
+        if (!email || typeof email !== 'string') return email;
+
+        // Preservar caracteres válidos del email: letras, números, puntos, guiones, arroba
+        const sanitized = email.toLowerCase().trim();
+
+        // Validar formato básico sin alterar el contenido
+        const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+
+        if (!emailRegex.test(sanitized)) {
+            console.warn('⚠️ [EmailUtils] Email con formato inválido:', email);
+        }
+
+        console.log('✅ [EmailUtils] Email sanitizado:', {
+            original: email,
+            sanitized: sanitized,
+            length: sanitized.length
+        });
+
+        return sanitized;
+    },
+
+    // ✅ NUEVA: Validar que el email mantenga su formato original
+    validateEmailIntegrity: (originalEmail, processedEmail) => {
+        const original = originalEmail?.toLowerCase().trim();
+        const processed = processedEmail?.toLowerCase().trim();
+
+        if (original !== processed) {
+            console.error('🚨 [EmailUtils] EMAIL CORRUPTION DETECTED:', {
+                original: original,
+                processed: processed,
+                originalLength: original?.length,
+                processedLength: processed?.length
+            });
+            return false;
+        }
+
+        return true;
+    }
+};
+
+// ============================================================================
 // SERVICIOS Y CONFIGURACIÓN
 // ============================================================================
 
@@ -259,7 +306,7 @@ const AuthContext = createContext(null);
 // ============================================================================
 // PROVIDER PRINCIPAL
 // ============================================================================
-    function AuthProvider({ children }) {
+function AuthProvider({ children }) {
     const [state, dispatch] = useReducer(reducer, initialState);
 
     const useAuthOptimizer = () => {
@@ -328,6 +375,28 @@ const AuthContext = createContext(null);
     const normalizeUserData = useCallback((userData) => {
         if (!userData) return userData;
 
+        // Preservar email original ANTES de cualquier procesamiento
+        const originalEmail = userData.email || userData.mail;
+
+        console.log('🔄 [NormalizeUser] Procesando usuario:', {
+            originalEmail: originalEmail,
+            hasEmail: !!userData.email,
+            hasMail: !!userData.mail,
+            userDataKeys: Object.keys(userData)
+        });
+
+        // Sanitizar email sin alterar su estructura
+        if (originalEmail) {
+            const sanitizedEmail = emailUtils.sanitizeEmail(originalEmail);
+
+            // Asegurar que ambos campos tengan el mismo valor correcto
+            userData.email = sanitizedEmail;
+            userData.mail = sanitizedEmail;
+
+            // VERIFICACIÓN: Confirmar integridad
+            emailUtils.validateEmailIntegrity(originalEmail, sanitizedEmail);
+        }
+
         // Normalizar is_active
         userData.is_active = userData.is_active !== undefined
             ? (typeof userData.is_active === 'string'
@@ -344,6 +413,13 @@ const AuthContext = createContext(null);
             }
         }
 
+        console.log('✅ [NormalizeUser] Usuario normalizado:', {
+            finalEmail: userData.email,
+            finalMail: userData.mail,
+            role: userData.role,
+            is_active: userData.is_active
+        });
+
         return userData;
     }, []);
 
@@ -357,6 +433,14 @@ const AuthContext = createContext(null);
 
         try {
             console.log('🔄 [AuthContext] Cargando perfil de cliente para usuario:', userId);
+
+            // ✅ CRÍTICO: Verificar que tenemos token antes de hacer la llamada
+            const currentToken = localStorage.getItem('token') || API.defaults.headers.common.Authorization;
+
+            if (!currentToken) {
+                console.warn('⚠️ [AuthContext] No hay token disponible para cargar perfil');
+                return null;
+            }
 
             const response = await API.get(`/client-profiles/user/${userId}`);
 
@@ -384,7 +468,7 @@ const AuthContext = createContext(null);
 
             return null;
         } catch (error) {
-            console.log('⚠️ [AuthContext] Usuario sin perfil de cliente registrado:', error.message);
+            console.log('⚠️ [AuthContext] Usuario sin perfil de cliente registrado o sin autorización:', error.message);
             return null;
         }
     }, []);
@@ -628,28 +712,32 @@ const AuthContext = createContext(null);
         enrichUserWithProfile]);
 
     // ========================================================================
-    // LOGIN CORREGIDO
+    // LOGIN
     // ========================================================================
 
     const login = useCallback(async (credentials, authType = AUTH_TYPES.USER) => {
         dispatch({ type: TYPES.SET_LOADING, payload: true });
         dispatch({ type: TYPES.CLEAR_ERROR });
+        let sanitizedInputEmail = '';
 
         try {
+            const inputEmail = credentials.email || credentials.mail;
+            sanitizedInputEmail = emailUtils.sanitizeEmail(inputEmail);
+
             console.log('🔄 Iniciando login:', {
                 authType,
-                email: credentials.email || credentials.mail,
+                originalEmail: inputEmail,
+                sanitizedEmail: sanitizedInputEmail,
                 hasPassword: !!credentials.password
             });
 
             if (authType === AUTH_TYPES.BRANCH) {
-                // ✅ LOGIN DE SUCURSAL CORREGIDO
                 const normalizedCredentials = {
-                    email: credentials.email || credentials.mail,
+                    email: sanitizedInputEmail,
                     password: credentials.password
                 };
 
-                console.log('🔄 Llamando a branchAuthService.login...');
+                console.log('🔄 Branch login - Email enviado:', normalizedCredentials.email);
                 const branchResult = await branchAuthService.login(normalizedCredentials);
 
                 console.log('📡 Resultado de branchAuthService:', {
@@ -657,7 +745,7 @@ const AuthContext = createContext(null);
                     hasToken: !!branchResult?.token,
                     hasBranchData: !!branchResult?.branchData,
                     branchName: branchResult?.branchData?.branchname,
-                    email: branchResult?.branchData?.email
+                    emailReceived: branchResult?.branchData?.email
                 });
 
                 if (!branchResult || !branchResult.success) {
@@ -669,16 +757,17 @@ const AuthContext = createContext(null);
                 if (!token || !branchData) {
                     throw new Error('Datos incompletos recibidos del servicio de autenticación');
                 }
+                if (branchData.email) {
+                    emailUtils.validateEmailIntegrity(sanitizedInputEmail, branchData.email);
+                }
 
                 console.log('✅ Branch login successful:', {
                     branch_id: branchData.branch_id,
-                    email: branchData.email,
+                    emailSent: sanitizedInputEmail,
+                    emailReceived: branchData.email,
                     branchname: branchData.branchname,
-                    company_name: branchData.company_name,
                     tokenLength: token.length
                 });
-
-                // Verificar que los datos se guardaron correctamente
                 const savedToken = localStorage.getItem('branchAuthToken');
                 const savedData = localStorage.getItem('branchData');
 
@@ -688,15 +777,13 @@ const AuthContext = createContext(null);
                     localStorage.setItem('branchData', JSON.stringify(branchData));
                 }
 
-                // ✅ CRÍTICO: Configurar header de autorización
                 API.defaults.headers.common.Authorization = `Bearer ${token}`;
 
-                // ✅ CORRECTO: Actualizar estado con 'branch'
                 dispatch({
                     type: TYPES.LOGIN_SUCCESS,
                     payload: {
                         authType: AUTH_TYPES.BRANCH,
-                        branch: branchData, // ✅ CORRECTO: 'branch', no 'branchData'
+                        branch: branchData,
                         token: token,
                     },
                 });
@@ -704,13 +791,12 @@ const AuthContext = createContext(null);
                 return { success: true, data: branchData };
 
             } else {
-                // LOGIN DE USUARIO PRINCIPAL
                 const normalizedCredentials = {
-                    mail: credentials.mail || credentials.email,
+                    mail: sanitizedInputEmail,
                     password: credentials.password
                 };
 
-                console.log('🔄 Llamando a API de usuario principal para:', normalizedCredentials.mail);
+                console.log('🔄 User login - Email enviado al backend:', normalizedCredentials.mail);
                 const response = await API.post('/auth/login', normalizedCredentials);
                 const data = response.data;
 
@@ -719,9 +805,17 @@ const AuthContext = createContext(null);
                 }
 
                 const { token, user: userObject } = data.data;
-                let normalizedUser = normalizeUserData(userObject);
 
-                // ✅ NUEVO: Intentar enriquecer con clientProfile después del login
+                console.log('📡 Respuesta del backend - Usuario recibido:', {
+                    emailSent: sanitizedInputEmail,
+                    userEmailReceived: userObject.email,
+                    userMailReceived: userObject.mail,
+                    userId: userObject.id
+                });
+
+                let normalizedUser = normalizeUserData(userObject);
+                const receivedEmail = normalizedUser.email || normalizedUser.mail;
+                emailUtils.validateEmailIntegrity(sanitizedInputEmail, receivedEmail);
                 normalizedUser = await enrichUserWithProfile(normalizedUser);
 
                 localStorage.setItem("token", token);
@@ -737,7 +831,12 @@ const AuthContext = createContext(null);
                     },
                 });
 
-                console.log('✅ User login successful:', normalizedUser.email || normalizedUser.mail);
+                console.log('✅ User login successful:', {
+                    emailSent: sanitizedInputEmail,
+                    finalEmail: normalizedUser.email || normalizedUser.mail,
+                    userId: normalizedUser.id
+                });
+
                 return { success: true };
             }
 
@@ -745,10 +844,9 @@ const AuthContext = createContext(null);
             console.error('🚨 Error en login:', {
                 message: err.message,
                 status: err.response?.status,
-                authType
+                authType,
+                emailUsed: sanitizedInputEmail
             });
-
-            // Limpiar solo los datos del tipo de auth que falló
             if (authType === AUTH_TYPES.BRANCH) {
                 localStorage.removeItem('branchAuthToken');
                 localStorage.removeItem('branchData');

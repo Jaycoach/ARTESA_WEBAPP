@@ -1453,16 +1453,6 @@ const Products = () => {
 
   // **COMPONENTE PARA MOSTRAR PRECIOS**
   const PriceDisplay = ({ product, showOriginalPrice = false, adminMode = false }) => {
-    const renderCustomPriceBadge = () => {
-      if (!product.has_custom_price) return null;
-
-      return (
-        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 ml-2">
-          Precio Personalizado
-        </span>
-      );
-    };
-
     const renderPriceUnavailable = () => (
       <div className="text-red-600 font-medium">
         <span>Precio no disponible</span>
@@ -1475,6 +1465,25 @@ const Products = () => {
     if (!product.price_list1 || product.price_list1 <= 0) {
       return renderPriceUnavailable();
     }
+
+    if (authType === AUTH_TYPES.BRANCH) {
+      return (
+        <div className="price-display">
+          <div className="font-bold text-lg text-indigo-600">
+            {formatCurrency(product.price_list1)}
+          </div>
+        </div>
+      );
+    }
+    const renderCustomPriceBadge = () => {
+      if (!product.has_custom_price) return null;
+
+      return (
+        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 ml-2">
+          Precio Personalizado
+        </span>
+      );
+    };
 
     return (
       <div className="price-display">
@@ -1959,7 +1968,9 @@ const Products = () => {
                 <thead className="bg-gray-50">
                   <tr>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Producto</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Imagen</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24 sm:w-28 md:w-32 lg:w-36">
+                        Imagen
+                      </th>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Precio</th>
                     {!adminMode && (
                       <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cantidad</th>
@@ -1994,7 +2005,10 @@ const Products = () => {
                             alt={product.name}
                             productId={product.product_id}
                             imageType="thumbnail"
-                            className="w-full h-48"
+                            size="md"
+                            aspectRatio="square"
+                            containerClassName="rounded-lg shadow-sm"
+                            className="hover:scale-105"
                             useNewEndpoint={true}
                           />
 
@@ -2153,7 +2167,10 @@ const Products = () => {
                         alt={product.name}
                         productId={product.product_id}
                         imageType="thumbnail"
-                        className="w-full h-48"
+                        size="full"
+                        aspectRatio="4/3"
+                        containerClassName="rounded-t-lg"
+                        className="hover:scale-110 group-hover:scale-110"
                         useNewEndpoint={true}
                       />
 
@@ -2369,14 +2386,19 @@ const Products = () => {
         {selectedProduct && (
           <div className="flex flex-col md:flex-row gap-6">
             <div className="w-full md:w-1/2">
-              <ProductImage
-                src={selectedProduct.image_url || selectedProduct.image}
-                alt={selectedProduct.name}
-                productId={selectedProduct.product_id}
-                imageType="thumbnail"
-                className="w-full h-auto"
-                useNewEndpoint={true}  // ✅ HABILITAR NUEVO ENDPOINT
-              />
+              <div className="max-w-md mx-auto">
+                <ProductImage
+                  src={selectedProduct.image_url || selectedProduct.image}
+                  alt={selectedProduct.name}
+                  productId={selectedProduct.product_id}
+                  imageType="thumbnail"
+                  size="xl"
+                  aspectRatio="square"
+                  containerClassName="rounded-lg shadow-lg"
+                  className="hover:scale-105"
+                  useNewEndpoint={true}
+                />
+              </div>
             </div>
             <div className="w-full md:w-1/2">
               <h2 className="text-2xl font-bold mb-2 text-gray-900">{selectedProduct.name}</h2>
@@ -2807,11 +2829,13 @@ const ImageUploadSimple = ({ product, onUpload, onCancel }) => {
           <div className="mt-2">
             <p className="text-sm text-gray-600 mb-2">Imagen actual:</p>
             <ProductImage
-              src={selectedProduct.image_url || selectedProduct.image}
-              alt={selectedProduct.name}
-              productId={selectedProduct.product_id}
+              src={product?.image_url || product?.image}
+              alt={product?.name}
+              productId={product?.product_id}
               imageType="thumbnail"
-              className="w-full h-auto"
+              size="lg"
+              aspectRatio="square"
+              containerClassName="rounded-lg shadow-md max-w-xs mx-auto"
               useNewEndpoint={true}
             />
           </div>
