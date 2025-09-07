@@ -535,6 +535,45 @@ class SapClientService extends SapBaseService {
       stats.total = rows.length;
       
       this.logger.info(`Encontrados ${rows.length} perfiles para sincronizar con SAP`);
+
+      // NUEVA LÓGICA: También sincronizar clientes CI que no estén en la BD
+      try {
+        this.logger.info('Verificando clientes CI adicionales desde SAP...');
+        const sapCIClients = await this.getClientsByCardCodePrefix();
+        
+        let newClientsCreated = 0;
+        for (const sapClient of sapCIClients) {
+          // Verificar si ya existe en la BD
+          const existsQuery = `
+            SELECT client_id FROM client_profiles 
+            WHERE cardcode_sap = $1
+          `;
+          const { rows: existsRows } = await pool.query(existsQuery, [sapClient.CardCode]);
+          
+          if (existsRows.length === 0) {
+            // Cliente CI encontrado en SAP pero no en BD, crear
+            try {
+              await this.createCIClientFromSAP(sapClient);
+              newClientsCreated++;
+              stats.total++;
+            } catch (createError) {
+              this.logger.error('Error al crear cliente CI desde SAP', {
+                cardCode: sapClient.CardCode,
+                error: createError.message
+              });
+              stats.errors++;
+            }
+          }
+        }
+        
+        if (newClientsCreated > 0) {
+          this.logger.info(`Se crearon ${newClientsCreated} nuevos clientes CI desde SAP`);
+        }
+      } catch (ciError) {
+        this.logger.warn('Error al verificar clientes CI adicionales', {
+          error: ciError.message
+        });
+      }
       
       // Para cada perfil, verificar y actualizar datos desde SAP
       for (const profile of rows) {
@@ -584,6 +623,7 @@ class SapClientService extends SapBaseService {
             // Recolectar todos los cambios desde SAP
             const updates = {};
             const changesDetected = [];
+            let hasUpdates = false;
             
             // Verificar y actualizar campos principales
             if (sapClient.CardCode && sapClient.CardCode !== profile.cardcode_sap) {
@@ -1386,164 +1426,214 @@ class SapClientService extends SapBaseService {
       stats.total = sapClients.length;
 
       for (const sapClient of sapClients) {
-        const client = await pool.connect();
-        
         try {
-          await client.query('BEGIN');
+          // Procesar FederalTaxID para extraer NIT y dígito de verificación
+          const taxInfo = this.processFederalTaxID(sapClient.FederalTaxID);
           
           // Verificar si ya existe el cliente por CardCode
           const existingClientQuery = `
-            SELECT cp.*, u.is_active 
-            FROM client_profiles cp 
-            LEFT JOIN users u ON cp.user_id = u.id 
+            SELECT cp.client_id, cp.user_id, u.is_active, u.password
+            FROM client_profiles cp
+            JOIN users u ON cp.user_id = u.id
             WHERE cp.cardcode_sap = $1
           `;
-          const { rows: existingClients } = await client.query(existingClientQuery, [sapClient.CardCode]);
-
-          // Verificar también por NIT para evitar duplicados
-          const nitCheckQuery = `
-            SELECT cp.client_id, cp.cardcode_sap, u.name 
-            FROM client_profiles cp 
-            LEFT JOIN users u ON cp.user_id = u.id 
-            WHERE cp.nit_number = $1 AND cp.verification_digit = $2
-          `;
-
-          let nitNumber = null;
-          let verificationDigit = null;
-          if (sapClient.FederalTaxID) {
-            const nitParts = sapClient.FederalTaxID.split('-');
-            if (nitParts.length === 2) {
-              nitNumber = nitParts[0];
-              verificationDigit = parseInt(nitParts[1]);
+          
+          const { rows } = await pool.query(existingClientQuery, [sapClient.CardCode]);
+          
+          if (rows.length === 0) {
+            // Cliente no existe, crear usuario y perfil
+            const client = await pool.connect();
+            
+            try {
+              await client.query('BEGIN');
               
-              const { rows: nitConflicts } = await client.query(nitCheckQuery, [nitNumber, verificationDigit]);
-              if (nitConflicts.length > 0) {
-                this.logger.warn('Cliente con mismo NIT ya existe, saltando creación', { 
-                  cardCode: sapClient.CardCode,
-                  existingClientId: nitConflicts[0].client_id,
-                  existingCardCode: nitConflicts[0].cardcode_sap
+              // Validar que tenga email válido
+              if (!sapClient.EmailAddress || sapClient.EmailAddress.trim() === '') {
+                this.logger.warn('Cliente CI sin email válido, saltando sincronización', { 
+                  cardCode: sapClient.CardCode 
                 });
                 stats.skipped++;
                 continue;
               }
+              
+              // 1. Crear usuario activo con contraseña temporal
+              const userInsertQuery = `
+                INSERT INTO users (name, mail, password, rol_id, is_active, created_at, updated_at)
+                VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                RETURNING id
+              `;
+              
+              const username = sapClient.CardName || sapClient.CardCode;
+              const email = sapClient.EmailAddress.trim();
+              const tempPasswordHash = '$2b$10$ZxUFAqOVXfZ9QBjFqX2h.eQGfgNAm3HPAZ9Aa8Th5lqeJ4hCmhXMK'; // "password123"
+              const roleId = 2; // Role USER
+              const isActive = true; // Activo pero necesitará resetear contraseña
+              
+              const { rows: [newUser] } = await client.query(userInsertQuery, [
+                username, email, tempPasswordHash, roleId, isActive
+              ]);
+              
+              // 2. Crear perfil de cliente completo
+              const profileInsertQuery = `
+                INSERT INTO client_profiles (
+                  user_id, 
+                  cardcode_sap,
+                  clientprofilecode_sap,
+                  company_name, 
+                  contact_name,
+                  contact_phone, 
+                  contact_email, 
+                  address,
+                  city,
+                  country,
+                  tax_id,
+                  nit_number,
+                  verification_digit,
+                  cardtype_sap,
+                  price_list_code,
+                  sap_lead_synced
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+                RETURNING client_id
+              `;
+              
+              const { rows: [newProfile] } = await client.query(profileInsertQuery, [
+                newUser.id,                               // user_id
+                sapClient.CardCode,                       // cardcode_sap
+                sapClient.CardCode,                       // clientprofilecode_sap
+                sapClient.CardName,                       // company_name
+                sapClient.ContactPerson || sapClient.CardName, // contact_name
+                sapClient.Phone1 || '',                   // contact_phone
+                sapClient.EmailAddress || '',             // contact_email
+                sapClient.Address || '',                  // address
+                sapClient.City || '',                     // city
+                sapClient.Country || 'Colombia',          // country
+                sapClient.FederalTaxID || '',            // tax_id
+                taxInfo.nit_number || '',                // nit_number
+                taxInfo.verification_digit || null,      // verification_digit
+                'C',                                     // cardtype_sap (Customer)
+                sapClient.PriceListNum || null,          // price_list_code
+                true                                     // sap_lead_synced
+              ]);
+              
+              // 3. Crear entrada en password_resets para que el usuario pueda activar su cuenta
+              const resetToken = require('crypto').randomBytes(32).toString('hex');
+              const resetExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 horas
+              
+              await client.query(
+                `INSERT INTO password_resets (user_id, token, expires_at, is_used, created_at)
+                VALUES ($1, $2, $3, false, CURRENT_TIMESTAMP)`,
+                [newUser.id, resetToken, resetExpiry]
+              );
+              
+              await client.query('COMMIT');
+              stats.created++;
+              
+              this.logger.info('Cliente CI creado exitosamente', {
+                cardCode: sapClient.CardCode,
+                userId: newUser.id,
+                clientId: newProfile.client_id,
+                email: email,
+                hasResetToken: true
+              });
+              
+            } catch (txError) {
+              await client.query('ROLLBACK');
+              throw txError;
+            } finally {
+              client.release();
             }
-          }
-          
-          if (existingClients.length > 0) {
-            // Cliente ya existe, actualizar datos si es necesario
-            const updateQuery = `
+            
+          } else {
+            // Cliente ya existe, actualizar información
+            const existingClient = rows[0];
+            
+            // Actualizar perfil del cliente con datos de SAP
+            const updateProfileQuery = `
               UPDATE client_profiles 
               SET 
                 company_name = $1,
-                contact_phone = $2,
-                contact_email = $3,
-                address = $4,
+                contact_name = $2,
+                contact_phone = $3,
+                contact_email = $4,
+                address = $5,
+                city = $6,
+                country = $7,
+                tax_id = $8,
+                nit_number = $9,
+                verification_digit = $10,
+                cardtype_sap = $11,
+                price_list_code = $12,
+                sap_lead_synced = true,
                 updated_at = CURRENT_TIMESTAMP
-              WHERE cardcode_sap = $5
+              WHERE client_id = $13
             `;
             
-            await client.query(updateQuery, [
-              sapClient.CardName,
-              sapClient.Phone1,
-              sapClient.EmailAddress,
-              sapClient.Address,
-              sapClient.CardCode
+            await pool.query(updateProfileQuery, [
+              sapClient.CardName,                       // company_name
+              sapClient.ContactPerson || sapClient.CardName, // contact_name
+              sapClient.Phone1 || '',                   // contact_phone
+              sapClient.EmailAddress || '',             // contact_email
+              sapClient.Address || '',                  // address
+              sapClient.City || '',                     // city
+              sapClient.Country || 'Colombia',          // country
+              sapClient.FederalTaxID || '',            // tax_id
+              taxInfo.nit_number || '',                // nit_number
+              taxInfo.verification_digit || null,      // verification_digit
+              'C',                                     // cardtype_sap (Customer)
+              sapClient.PriceListNum || null,          // price_list_code
+              existingClient.client_id                 // WHERE client_id
             ]);
             
-            stats.updated++;
-            this.logger.debug('Cliente actualizado', { cardCode: sapClient.CardCode });
-          } else {
-            // Cliente nuevo, crear usuario inactivo y perfil
-            
-            // 1. Crear usuario inactivo
-            const userInsertQuery = `
-              INSERT INTO users (name, mail, password, rol_id, is_active, created_at, updated_at)
-              VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-              RETURNING id
-            `;
-            
-            // Generar username único basado en CardCode
-            const username = sapClient.CardName || sapClient.CardCode;
-            // Email temporal o usar el de SAP si existe
-            // Validar que tenga email válido, si no, saltear este cliente
-            if (!sapClient.EmailAddress || sapClient.EmailAddress.trim() === '') {
-              this.logger.warn('Cliente CI sin email válido, saltando sincronización', { 
-                cardCode: sapClient.CardCode 
-              });
-              stats.skipped++;
-              continue;
+            // Actualizar email del usuario si es diferente
+            if (sapClient.EmailAddress && sapClient.EmailAddress.trim() !== '') {
+              await pool.query(
+                `UPDATE users SET mail = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+                [sapClient.EmailAddress.trim(), existingClient.user_id]
+              );
             }
-            const email = sapClient.EmailAddress;
-            // Hash temporal para activación posterior
-            const tempPassword = '$2b$10$temporary.hash.for.inactive.user'; // Hash temporal
-            const roleId = 2; // Role USER
-            const isActive = true; // ACTIVO - solo se inactiva por razones de seguridad
             
-            const { rows: [newUser] } = await client.query(userInsertQuery, [
-              username, email, tempPassword, roleId, isActive
-            ]);
+            // Si el usuario no tiene una contraseña válida o necesita reset, crear token
+            const needsPasswordReset = !existingClient.password || 
+                                      existingClient.password === '$2b$10$temporary.hash.for.inactive.user' ||
+                                      existingClient.password.includes('temporary');
             
-            // 2. Crear perfil de cliente
-            const profileInsertQuery = `
-              INSERT INTO client_profiles (
-                user_id, 
-                cardcode_sap,
-                clientprofilecode_sap,
-                company_name, 
-                contact_phone, 
-                contact_email, 
-                address,
-                nit_number,
-                verification_digit
-              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-              RETURNING client_id
-            `;
-            
-            // Extraer NIT del FederalTaxID si existe
-            let nitNumber = null;
-            let verificationDigit = null;
-            if (sapClient.FederalTaxID) {
-              const nitParts = sapClient.FederalTaxID.split('-');
-              if (nitParts.length === 2) {
-                nitNumber = nitParts[0];
-                verificationDigit = parseInt(nitParts[1]);
+            if (needsPasswordReset) {
+              // Verificar si ya tiene un token de reset activo
+              const existingReset = await pool.query(
+                `SELECT id FROM password_resets 
+                WHERE user_id = $1 AND is_used = false AND expires_at > CURRENT_TIMESTAMP`,
+                [existingClient.user_id]
+              );
+              
+              if (existingReset.rows.length === 0) {
+                const resetToken = require('crypto').randomBytes(32).toString('hex');
+                const resetExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 horas
+                
+                await pool.query(
+                  `INSERT INTO password_resets (user_id, token, expires_at, is_used, created_at)
+                  VALUES ($1, $2, $3, false, CURRENT_TIMESTAMP)`,
+                  [existingClient.user_id, resetToken, resetExpiry]
+                );
               }
             }
             
-            const { rows: [newProfile] } = await client.query(profileInsertQuery, [
-              newUser.id,
-              sapClient.CardCode,
-              sapClient.CardCode,
-              sapClient.CardName,
-              sapClient.Phone1,
-              sapClient.EmailAddress,
-              sapClient.Address,
-              nitNumber,
-              verificationDigit
-            ]);
+            stats.updated++;
             
-            // 3. Sincronizar sucursales - siempre al menos una
-            await this.syncClientBranchesForCI(sapClient.CardCode, newProfile.client_id);
-                        
-                        stats.created++;
-                        this.logger.info('Cliente creado como inactivo', { 
-                          cardCode: sapClient.CardCode,
-                          userId: newUser.id,
-                          clientId: newProfile.client_id
-                        });
-                      }
+            this.logger.info('Cliente CI actualizado exitosamente', {
+              cardCode: sapClient.CardCode,
+              userId: existingClient.user_id,
+              clientId: existingClient.client_id,
+              updated: true
+            });
+          }
           
-          await client.query('COMMIT');
-          
-        } catch (error) {
-          await client.query('ROLLBACK');
+        } catch (clientError) {
           stats.errors++;
-          this.logger.error('Error al procesar cliente individual', {
+          this.logger.error('Error al procesar cliente CI', {
             cardCode: sapClient.CardCode,
-            error: error.message
+            error: clientError.message,
+            stack: clientError.stack
           });
-        } finally {
-          client.release();
         }
       }
       
@@ -2824,6 +2914,112 @@ class SapClientService extends SapBaseService {
       return fallbackMap;
     }
   }
+  /**
+   * Procesa el FederalTaxID para extraer NIT y dígito de verificación
+   * @param {string} federalTaxID - ID fiscal de SAP
+   * @returns {Object} Objeto con nit_number y verification_digit
+   */
+  processFederalTaxID(federalTaxID) {
+    if (!federalTaxID) {
+      return { nit_number: null, verification_digit: null };
+    }
+    
+    const parts = federalTaxID.split('-');
+    if (parts.length === 2) {
+      return {
+        nit_number: parts[0].trim(),
+        verification_digit: parseInt(parts[1].trim()) || null
+      };
+    }
+    
+    // Si no tiene guion, asumir que todo es el NIT
+    return {
+      nit_number: federalTaxID.trim(),
+      verification_digit: null
+    };
+  }
+  /**
+   * Crea un cliente CI desde datos de SAP
+   * @param {Object} sapClient - Datos del cliente desde SAP
+   * @returns {Promise<void>}
+   */
+  async createCIClientFromSAP(sapClient) {
+    const taxInfo = this.processFederalTaxID(sapClient.FederalTaxID);
+    
+    // Validar email
+    if (!sapClient.EmailAddress || sapClient.EmailAddress.trim() === '') {
+      this.logger.warn('Cliente CI sin email válido, saltando creación', { 
+        cardCode: sapClient.CardCode 
+      });
+      return;
+    }
+    
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      
+      // Crear usuario
+      const userInsertQuery = `
+        INSERT INTO users (name, mail, password, rol_id, is_active, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        RETURNING id
+      `;
+      
+      const username = sapClient.CardName || sapClient.CardCode;
+      const email = sapClient.EmailAddress.trim();
+      const tempPasswordHash = '$2b$10$ZxUFAqOVXfZ9QBjFqX2h.eQGfgNAm3HPAZ9Aa8Th5lqeJ4hCmhXMK';
+      const roleId = 2;
+      const isActive = true;
+      
+      const { rows: [newUser] } = await client.query(userInsertQuery, [
+        username, email, tempPasswordHash, roleId, isActive
+      ]);
+      
+      // Crear perfil
+      const profileInsertQuery = `
+        INSERT INTO client_profiles (
+          user_id, cardcode_sap, clientprofilecode_sap, company_name, 
+          contact_name, contact_phone, contact_email, address, city, country,
+          tax_id, nit_number, verification_digit, cardtype_sap, 
+          price_list_code, sap_lead_synced
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+        RETURNING client_id
+      `;
+      
+      await client.query(profileInsertQuery, [
+        newUser.id, sapClient.CardCode, sapClient.CardCode, sapClient.CardName,
+        sapClient.ContactPerson || sapClient.CardName, sapClient.Phone1 || '',
+        sapClient.EmailAddress, sapClient.Address || '', sapClient.City || '',
+        sapClient.Country || 'Colombia', sapClient.FederalTaxID || '',
+        taxInfo.nit_number || '', taxInfo.verification_digit || null, 'C',
+        sapClient.PriceListNum || null, true
+      ]);
+      
+      // Crear token de reset
+      const resetToken = require('crypto').randomBytes(32).toString('hex');
+      const resetExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      
+    await client.query(
+      `INSERT INTO password_resets (user_id, token, expires_at, is_used, created_at)
+       VALUES ($1, $2, $3, false, CURRENT_TIMESTAMP)`,
+      [newUser.id, resetToken, resetExpiry]
+    );
+    
+    await client.query('COMMIT');
+    
+    this.logger.info('Cliente CI creado desde SAP en sincronización completa', {
+      cardCode: sapClient.CardCode,
+      userId: newUser.id,
+      email: email
+    });
+    
+  } catch (txError) {
+    await client.query('ROLLBACK');
+    throw txError;
+  } finally {
+    client.release();
+  }
+}
 }
 
 // Exportar instancia única (singleton)

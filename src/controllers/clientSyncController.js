@@ -421,12 +421,12 @@ class ClientSyncController {
       });
     }
   }
-  /**
+/*
  * @swagger
  * /api/client-sync/sync-all:
  *   post:
- *     summary: Iniciar sincronización manual completa con SAP
- *     description: Actualiza todos los perfiles de clientes con la información más reciente de SAP. Esta operación se ejecuta automáticamente a las 3 AM todos los días, pero puede ser iniciada manualmente.
+ *     summary: Sincronización completa de clientes CI con SAP
+ *     description: Sincroniza todos los clientes cuyo CardCode inicia con "CI" desde SAP, creando usuarios con tokens de recuperación de contraseña y actualizando perfiles completos. Esta es la sincronización principal que se ejecuta automáticamente.
  *     tags: [ClientSync]
  *     security:
  *       - bearerAuth: []
@@ -854,48 +854,7 @@ class ClientSyncController {
         error: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
-  }
-  /**
-   * Sincroniza todos los clientes cuyo CardCode comience con "CI"
-   * @async
-   * @param {object} req - Objeto de solicitud Express
-   * @param {object} res - Objeto de respuesta Express
-   */
-  async syncCIClients(req, res) {
-    try {
-      logger.info('Iniciando sincronización de clientes con CardCode CI', { 
-        userId: req.user?.id
-      });
-
-      // Verificar que el servicio esté inicializado
-      if (!sapServiceManager.initialized) {
-        logger.debug('Inicializando servicio de SAP antes de sincronización');
-        await sapServiceManager.initialize();
-      }
-
-      // Ejecutar sincronización de clientes CI
-      const results = await sapServiceManager.clientService.syncCIClients();
-      
-      res.status(200).json({
-        success: true,
-        message: 'Sincronización de clientes CI completada exitosamente',
-        data: results
-      });
-    } catch (error) {
-      logger.error('Error al sincronizar clientes CI', {
-        error: error.message,
-        stack: error.stack,
-        userId: req.user?.id
-      });
-      
-      res.status(500).json({
-        success: false,
-        message: 'Error al sincronizar clientes CI',
-        error: process.env.NODE_ENV === 'development' ? error.message : undefined
-      });
-    }
-  }
-
+  } 
   /**
    * Lista clientes de SAP cuyo CardCode comience con "CI" sin sincronizar
    * @async
@@ -1796,7 +1755,6 @@ module.exports = {
   syncClientBranches: clientSyncController.syncClientBranches.bind(clientSyncController),
   simulateSapSync: clientSyncController.simulateSapSync.bind(clientSyncController),
   testEmailSes: clientSyncController.testEmailSes.bind(clientSyncController),
-  syncCIClients: clientSyncController.syncCIClients.bind(clientSyncController),
   validateSpecificClientBranches: clientSyncController.validateSpecificClientBranches.bind(clientSyncController),
   debugClientStatus: clientSyncController.debugClientStatus.bind(clientSyncController),
   sapDiagnosis: clientSyncController.sapDiagnosis.bind(clientSyncController),

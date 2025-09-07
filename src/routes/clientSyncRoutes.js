@@ -369,64 +369,6 @@ router.post('/sync-institutional',
 );
 /**
  * @swagger
- * /api/client-sync/sync-ci-clients:
- *   post:
- *     summary: Sincronizar clientes con CardCode que inicia con "CI"
- *     description: Sincroniza todos los clientes de SAP cuyo CardCode comience con "CI" e inserta como usuarios inactivos que deberán usar recuperación de contraseña para activarse. Esta operación está diseñada para ejecutarse una sola vez al inicio del proyecto.
- *     tags: [ClientSync]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Sincronización completada exitosamente
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: "Sincronización de clientes CI completada exitosamente"
- *                 data:
- *                   type: object
- *                   properties:
- *                     total:
- *                       type: integer
- *                       description: Total de clientes procesados
- *                       example: 150
- *                     created:
- *                       type: integer
- *                       description: Clientes nuevos creados como inactivos
- *                       example: 140
- *                     updated:
- *                       type: integer
- *                       description: Clientes existentes actualizados
- *                       example: 10
- *                     errors:
- *                       type: integer
- *                       description: Errores durante el procesamiento
- *                       example: 0
- *                     skipped:
- *                       type: integer
- *                       description: Clientes omitidos
- *                       example: 0
- *       401:
- *         description: No autorizado
- *       403:
- *         description: No tiene permisos suficientes
- *       500:
- *         description: Error interno del servidor
- */
-router.post('/sync-ci-clients', 
-  checkRole([1]), // Solo administradores
-  clientSyncController.syncCIClients
-);
-
-/**
- * @swagger
  * /api/client-sync/list-ci-clients:
  *   get:
  *     summary: Listar clientes de SAP con CardCode que inicia con "CI"
@@ -499,20 +441,24 @@ router.get('/list-ci-clients',
  * @swagger
  * /api/client-sync/sync-all:
  *   post:
- *     summary: Iniciar sincronización manual completa con SAP
- *     description: Actualiza todos los perfiles de clientes con la información más reciente de SAP. Esta operación se ejecuta automáticamente a las 3 AM todos los días, pero puede ser iniciada manualmente.
- *     tags: [ClientSync]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Sincronización iniciada exitosamente
- *       401:
- *         description: No autorizado
- *       403:
- *         description: No tiene permisos suficientes
- *       500:
- *         description: Error interno del servidor
+ *     summary: Sincronización completa de clientes con SAP (Cron Diario)
+ *     description: |
+ *       **Sincronización principal del sistema** - Mismo proceso del cron diario a las 3 AM.
+ *       
+ *       **Funcionalidades:**
+ *       - Actualiza perfiles existentes con datos de SAP
+ *       - Crea usuarios nuevos para clientes CI encontrados en SAP
+ *       - Genera tokens de recuperación de contraseña
+ *       - Sincroniza información fiscal (NIT + dígito)
+ *       - Actualiza listas de precios y CardType
+ *       
+ *       **Proceso híbrido:**
+ *       1. Actualiza clientes existentes en BD con datos de SAP
+ *       2. Busca clientes CI adicionales en SAP no presentes en BD
+ *       3. Crea usuarios completos con tokens de activación
+ *       4. Mantiene consistencia total entre SAP y plataforma
+ *       
+ *       **Nota:** Ejecuta automáticamente a las 3 AM todos los días.
  */
 router.post('/sync-all', 
   checkRole([1]), // Solo administradores
