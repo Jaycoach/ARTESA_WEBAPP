@@ -29,6 +29,10 @@ RUN npm config set fetch-retry-maxtimeout 120000
 # Instalar dependencias como root
 RUN npm install --only=production --no-optional --no-audit
 
+# Crear directorio public y establecer permisos antes de copiar código
+RUN mkdir -p public && \
+    chown -R artesa:artesa /app
+
 # Copiar código fuente ANTES de cambiar usuario
 COPY . .
 
@@ -37,12 +41,14 @@ COPY docker/scripts/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 # Crear directorios y establecer permisos
-RUN mkdir -p uploads tmp logs && \
+RUN mkdir -p uploads tmp logs public && \
     chown -R artesa:artesa /app && \
     chown artesa:artesa /entrypoint.sh
 
-# Generar documentación Swagger como root (para evitar problemas de permisos)
+# Generar documentación Swagger como usuario artesa
+USER artesa
 RUN npm run generate-swagger
+USER root
 
 # Limpiar caché npm
 RUN npm cache clean --force

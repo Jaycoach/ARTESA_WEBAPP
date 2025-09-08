@@ -97,6 +97,10 @@ elif [ "$DEPLOY_MODE" = "partial" ] || [ "$NEEDS_PARTIAL_REBUILD" = true ]; then
     # Paso 3: Levantar contenedores
     echo "🚀 Levantando contenedores..."
     docker-compose --env-file .env.staging -f docker-compose.staging.yml up -d
+    # Verificar y corregir permisos si es necesario
+    echo "🔧 Verificando permisos de directorios..."
+    docker exec artesa-api-staging chown -R artesa:artesa /app/public || true
+    docker exec artesa-api-staging chmod 755 /app/public || true
     
 elif [ "$DEPLOY_MODE" = "full" ] || [ "$NEEDS_FULL_REBUILD" = true ]; then
     echo "🏗️  Deploy completo - Rebuild sin caché..."

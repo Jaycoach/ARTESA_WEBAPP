@@ -27,9 +27,11 @@ log "✅ Variables de entorno verificadas"
 mkdir -p /app/uploads/client-profiles
 mkdir -p /app/tmp
 mkdir -p /app/logs
+mkdir -p /app/public
 
 # Asegurar permisos correctos
-chmod 755 /app/uploads /app/tmp /app/logs
+chmod 755 /app/uploads /app/tmp /app/logs /app/public
+chown -R artesa:artesa /app/public
 
 log "📁 Directorios preparados"
 
