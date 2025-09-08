@@ -2,6 +2,7 @@ const express = require('express');
 const pool = require('../config/db');
 const Order = require('../models/Order');
 const { verifyToken, checkRole } = require('../middleware/auth');
+const fileUpload = require('express-fileupload');
 const { sanitizeBody } = require('../middleware/security');
 const { 
   createOrder, 
@@ -26,6 +27,19 @@ const {
   debugUserOrders,
   getProductPricesWithTax
 } = require('../controllers/orderController');
+
+// Configuración para express-fileupload específica para órdenes
+const fileUploadOptions = {
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  useTempFiles: true,
+  tempFileDir: './tmp/',
+  parseNested: true,
+  abortOnLimit: true,
+  responseOnLimit: 'Archivo demasiado grande. El límite es de 10MB.',
+  debug: process.env.NODE_ENV === 'development',
+  createParentPath: true,
+  safeFileNames: true
+};
 
 const router = express.Router();
 
@@ -368,6 +382,6 @@ router.post('/orders/check-invoiced',
  * @returns {object} 500 - Error interno del servidor
  */
 // Ruta para crear una orden
-router.post('/orders', verifyToken, createOrder);
+router.post('/orders', verifyToken, fileUpload(fileUploadOptions), createOrder);
 
 module.exports = router;

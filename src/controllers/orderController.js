@@ -101,14 +101,39 @@ const logger = createContextLogger('OrderController');
  */
 const createOrder = async (req, res) => {
   try {
-    const { user_id, total_amount, details, delivery_date, status_id, branch_id } = req.body;
+     // Manejar datos de multipart/form-data si están presentes
+    let requestData = req.body;
     
-    logger.debug('Iniciando creación de orden', { 
-      userId: user_id, 
-      totalAmount: total_amount, 
+    // Si el content-type es multipart/form-data, los datos pueden estar en diferentes ubicaciones
+    if (req.files || req.body.constructor === Object && Object.keys(req.body).length === 0) {
+      // Intentar parsear datos JSON desde campos de formulario
+      try {
+        if (req.body.orderData) {
+          requestData = JSON.parse(req.body.orderData);
+        } else if (req.body.data) {
+          requestData = JSON.parse(req.body.data);
+        }
+      } catch (parseError) {
+        logger.error('Error parseando datos JSON desde multipart/form-data:', parseError);
+      }
+    }
+
+    const { user_id, total_amount, details, delivery_date, status_id, branch_id } = requestData;
+    logger.debug('Iniciando creación de orden', {
+      userId: user_id,
+      totalAmount: total_amount,
       detailsCount: details?.length,
       deliveryDate: delivery_date,
       statusId: status_id
+    });
+
+    // Log adicional para debugging de multipart/form-data
+    logger.debug('Datos de request completos:', {
+      contentType: req.headers['content-type'],
+      hasFiles: !!req.files,
+      bodyKeys: Object.keys(req.body),
+      bodyData: req.body,
+      requestData: requestData
     });
 
     // Validación básica
@@ -123,6 +148,24 @@ const createOrder = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'Monto total inválido'
+      });
+    }
+
+    // Validación adicional para multipart/form-data
+    if (!requestData || Object.keys(requestData).length === 0) {
+      logger.error('Datos de orden vacíos o inválidos', {
+        originalBody: req.body,
+        contentType: req.headers['content-type'],
+        hasFiles: !!req.files
+      });
+      
+      return res.status(400).json({
+        success: false,
+        message: 'Datos de orden requeridos. Verifica que los datos se envíen correctamente.',
+        debug: process.env.NODE_ENV === 'development' ? {
+          receivedKeys: Object.keys(req.body),
+          contentType: req.headers['content-type']
+        } : undefined
       });
     }
 

@@ -91,6 +91,33 @@ export const orderService = {
         ? { 'Content-Type': 'multipart/form-data' }
         : { 'Content-Type': 'application/json' };
 
+        // ✅ CONFIGURAR DATOS SEGÚN TIPO DE CONTENIDO
+        let finalOrderData = orderData;
+        
+        // Si es multipart/form-data, asegurar que incluya orderData JSON
+        if (isMultipart && !(orderData instanceof FormData)) {
+          // Si no es FormData pero se especificó multipart, crear FormData
+          const formData = new FormData();
+          formData.append('orderData', JSON.stringify(orderData));
+          finalOrderData = formData;
+          console.log('📦 Datos convertidos a FormData con orderData JSON');
+        } else if (isMultipart && orderData instanceof FormData) {
+          // Si ya es FormData, verificar que tenga orderData
+          if (!orderData.has('orderData')) {
+            console.warn('⚠️ FormData no contiene campo orderData, agregándolo');
+            // Extraer datos del FormData existente y crear orderData JSON
+            const extractedData = {};
+            for (let [key, value] of orderData.entries()) {
+              if (key !== 'orderData') {
+                extractedData[key] = value;
+              }
+            }
+            orderData.append('orderData', JSON.stringify(extractedData));
+          }
+          finalOrderData = orderData;
+          console.log('📦 FormData verificado con orderData JSON');
+        }
+
       // ✅ LOG DETALLADO SEGÚN CONTEXTO
       if (userContext.type === 'branch') {
         console.log(`🏢 Enviando orden de SUCURSAL a ${userContext.endpoint}${isMultipart ? ' (multipart)' : ' (JSON)'}:`);
@@ -111,7 +138,7 @@ export const orderService = {
       }
 
       // ✅ ENVIAR A ENDPOINT CORRECTO
-      const response = await API.post(userContext.endpoint, orderData, {
+      const response = await API.post(userContext.endpoint, finalOrderData, {
         headers
       });
 
