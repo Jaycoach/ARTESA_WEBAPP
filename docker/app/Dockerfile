@@ -19,35 +19,39 @@ WORKDIR /app
 # Copiar archivos de dependencias primero (para cache de Docker)
 COPY package*.json ./
 
-# Instalar dependencias (incluyendo AWS SDK V3)
-RUN npm ci --only=production --no-optional --prefer-offline --no-audit
+# Configurar npm para mejor conectividad
+RUN npm config set registry https://registry.npmjs.org/
+RUN npm config set fetch-retries 5
+RUN npm config set fetch-retry-factor 2
+RUN npm config set fetch-retry-mintimeout 20000
+RUN npm config set fetch-retry-maxtimeout 120000
 
-# Crear directorios antes de cambiar de usuario
+# Instalar dependencias como root
+RUN npm install --only=production --no-optional --no-audit
+
+# Copiar código fuente ANTES de cambiar usuario
+COPY . .
+
+# Copiar y configurar script de entrada
+COPY docker/scripts/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Crear directorios y establecer permisos
 RUN mkdir -p uploads tmp logs && \
-    chown -R 1001:1001 uploads tmp logs
+    chown -R artesa:artesa /app && \
+    chown artesa:artesa /entrypoint.sh
 
-# Limpiar caché npm y cambiar permisos
-RUN npm cache clean --force && \
-    chown -R artesa:artesa /app
-
-# Cambiar a usuario no-root
-USER artesa
-
-# Copiar código fuente (excluyendo archivos innecesarios via .dockerignore)
-COPY --chown=artesa:artesa . .
-
-# Generar documentación Swagger
+# Generar documentación Swagger como root (para evitar problemas de permisos)
 RUN npm run generate-swagger
+
+# Limpiar caché npm
+RUN npm cache clean --force
+
+# Cambiar a usuario no-root AL FINAL
+USER artesa
 
 # Exponer puerto de la aplicación
 EXPOSE 3000
-
-# Copiar y configurar script de entrada
-COPY --chown=root:root docker/scripts/entrypoint.sh /entrypoint.sh
-USER root
-RUN chmod +x /entrypoint.sh && \
-    chown artesa:artesa /entrypoint.sh
-USER artesa
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
