@@ -15,7 +15,8 @@ const {
   updatePendingOrders,
   cancelOrder,
   getOrdersByDeliveryDate,
-  syncOrdersToSap,          
+  syncOrdersToSap,
+  verifyTRM,          
   updateOrderStatusFromSap, 
   sendOrderToSap,
   checkUserCanCreateOrders,
@@ -25,7 +26,7 @@ const {
   getTopSellingProducts,
   getMonthlyStats,
   debugUserOrders,
-  getProductPricesWithTax
+  getProductPricesWithTax,
 } = require('../controllers/orderController');
 
 // Configuración para express-fileupload específica para órdenes
@@ -125,6 +126,21 @@ router.post('/orders/sync-to-sap',
   verifyToken, 
   checkRole([1]), // Solo administradores
   syncOrdersToSap
+);
+
+/**
+ * Verificar estado de TRM
+ * @route GET /orders/verify-trm
+ * @group Orders - Operaciones relacionadas con órdenes
+ * @security bearerAuth
+ * @returns {object} 200 - Estado de TRM verificado
+ * @returns {object} 401 - No autorizado
+ * @returns {object} 500 - Error interno del servidor
+ */
+router.get('/orders/verify-trm', 
+  verifyToken, 
+  checkRole([1]), // Solo administradores
+  verifyTRM
 );
 
 /**

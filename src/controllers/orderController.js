@@ -1569,6 +1569,71 @@ const syncOrdersToSap = async (req, res) => {
 
 /**
  * @swagger
+ * /api/orders/verify-trm:
+ *   get:
+ *     summary: Verificar estado de TRM para sincronización
+ *     description: Verifica si existe TRM para la fecha actual y muestra la última disponible
+ *     tags: [Orders]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Estado de TRM verificado exitosamente
+ *       401:
+ *         description: No autorizado
+ *       500:
+ *         description: Error interno del servidor
+ */
+const verifyTRM = async (req, res) => {
+  try {
+    const sapServiceManager = require('../services/SapServiceManager');
+    
+    logger.info('Verificando estado de TRM', { 
+      userId: req.user?.id 
+    });
+    
+    if (!sapServiceManager.initialized) {
+      await sapServiceManager.initialize();
+    }
+    
+    const today = new Date();
+    const result = await sapServiceManager.orderService.validateAndUpdateTRM(today);
+    
+    res.status(200).json({
+      success: true,
+      message: 'Verificación de TRM completada',
+      data: {
+        currentDate: today.toISOString().split('T')[0],
+        dayOfWeek: ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'][today.getDay()],
+        trmRate: result.rate,
+        trmDate: result.date,
+        wasUpdated: result.wasUpdated,
+        status: result.success ? 'OK' : 'ERROR',
+        error: result.error
+      }
+    });
+  } catch (error) {
+    logger.error('Error al verificar TRM', {
+      error: error.message,
+      stack: error.stack
+    });
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error al verificar TRM',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// Exportar el nuevo método al final del archivo
+module.exports = {
+  // ... otros exports existentes
+  verifyTRM
+};
+
+/**
+ * @swagger
  * /api/orders/update-status-from-sap:
  *   post:
  *     summary: Actualizar estados de órdenes desde SAP
