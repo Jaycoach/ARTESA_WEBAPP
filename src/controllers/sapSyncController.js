@@ -824,6 +824,62 @@ class SapSyncController {
       client.release();
     }
   }
+  /**
+   * @swagger
+   * /api/sap/sync/orders/schedule:
+   *   get:
+   *     summary: Obtener programación actual de sincronización de órdenes
+   *     description: Devuelve información sobre la programación de sincronización de órdenes basada en AdminSettings
+   *     tags: [SAP]
+   *     security:
+   *       - bearerAuth: []
+   *     responses:
+   *       200:
+   *         description: Información de programación obtenida
+   */
+  async getOrderSyncSchedule(req, res) {
+    try {
+      const sapServiceManager = require('../services/SapServiceManager');
+      
+      if (!sapServiceManager.initialized) {
+        await sapServiceManager.initialize();
+      }
+      
+      const AdminSettings = require('../models/AdminSettings');
+      const settings = await AdminSettings.getSettings();
+      
+      res.status(200).json({
+        success: true,
+        data: {
+          orderTimeLimit: sapServiceManager.orderService.orderTimeLimit || settings.orderTimeLimit,
+          syncSchedule: sapServiceManager.orderService.syncSchedule,
+          nextSyncTime: this.calculateNextSyncTime(sapServiceManager.orderService.syncSchedule),
+          description: 'Las órdenes se sincronizan 48 horas antes de su fecha de entrega, después de la hora límite configurada'
+        }
+      });
+    } catch (error) {
+      logger.error('Error al obtener programación de sincronización de órdenes', {
+        error: error.message,
+        stack: error.stack
+      });
+      
+      res.status(500).json({
+        success: false,
+        message: 'Error al obtener programación de sincronización',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
+
+  calculateNextSyncTime(cronSchedule) {
+    try {
+      const cronParser = require('cron-parser');
+      const interval = cronParser.parseExpression(cronSchedule);
+      return interval.next().toDate();
+    } catch (error) {
+      return null;
+    }
+  }
 }
 
 // Crear instancia del controlador
@@ -842,4 +898,6 @@ module.exports = {
   syncProductsByGroup: sapSyncController.syncProductsByGroup.bind(sapSyncController),
   configureGroupSync: sapSyncController.configureGroupSync.bind(sapSyncController),
   updateProductDescription: sapSyncController.updateProductDescription.bind(sapSyncController),
+  getOrderSyncSchedule: sapSyncController.getOrderSyncSchedule.bind(sapSyncController),
+  calculateNextSyncTime: sapSyncController.calculateNextSyncTime.bind(sapSyncController)
 };

@@ -226,6 +226,20 @@ class AdminController {
       // Actualizar configuración
       const updatedSettings = await AdminSettings.updateSettings(settingsToUpdate);
       
+      // Después de actualizar settings exitosamente, reconfigurar servicios SAP
+      try {
+        const sapServiceManager = require('../services/SapServiceManager');
+        if (sapServiceManager.initialized && sapServiceManager.orderService) {
+          await sapServiceManager.orderService.reconfigureSchedule({ orderTimeLimit });
+          logger.info('Servicios SAP reconfigurados con nuevos settings', { orderTimeLimit });
+        }
+      } catch (sapError) {
+        logger.warn('No se pudo reconfigurar servicios SAP con nuevos settings', {
+          error: sapError.message,
+          orderTimeLimit
+        });
+      }
+
       // Registrar en auditoría
       await AuditService.logAuditEvent(
         AuditService.AUDIT_EVENTS.DATA_ACCESSED,

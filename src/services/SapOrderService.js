@@ -9,7 +9,8 @@ const pool = require('../config/db');
 class SapOrderService extends SapBaseService {
   constructor() {
     super('SapOrderService');
-    this.syncSchedule = '0 */3 * * *'; // Cada 3 horas
+    this.syncSchedule = null; // Se configurará dinámicamente basado en AdminSettings
+    this.orderTimeLimit = null; // Caché de la hora límite
     this.syncTasks = {};
   }
 
@@ -22,6 +23,9 @@ class SapOrderService extends SapBaseService {
     try {
       // Inicializar servicio base primero
       await super.initialize();
+
+      // Configurar sincronización basada en AdminSettings
+      await this.configureScheduleFromSettings();
       
       // Vincularse al servicio de programación de órdenes para sincronizar después de cada actualización
       const orderScheduler = require('../services/OrderScheduler');
@@ -34,7 +38,7 @@ class SapOrderService extends SapBaseService {
       this.logger.info('Registrando callback para sincronización posterior a actualización automática');
       orderScheduler.registerPostUpdateCallback(this.syncOrdersToSAP.bind(this));
       
-      // Iniciar sincronización programada de órdenes
+      // Iniciar sincronización programada diaria de órdenes (verifica qué órdenes deben sincronizarse 2 días antes de entrega)
       this.scheduleSyncTask();
       
       // Añadir una segunda tarea programada para consultar órdenes entregadas
@@ -50,6 +54,54 @@ class SapOrderService extends SapBaseService {
         stack: error.stack
       });
       throw error;
+    }
+  }
+
+  /**
+   * Configura la programación de sincronización basada en AdminSettings
+   */
+  async configureScheduleFromSettings() {
+    try {
+      const AdminSettings = require('../models/AdminSettings');
+      const settings = await AdminSettings.getSettings();
+      
+      if (settings && settings.orderTimeLimit) {
+        this.orderTimeLimit = settings.orderTimeLimit;
+        
+        // Extraer horas y minutos de la hora límite (ej: "18:00")
+        const [hours, minutes] = settings.orderTimeLimit.split(':').map(Number);
+        
+        // Configurar sincronización 30 minutos después de la hora límite
+        const syncMinutes = (minutes + 30) % 60;
+        const syncHours = hours + Math.floor((minutes + 30) / 60);
+        
+        // Crear expresión cron: minutos horas * * * (diariamente)
+        this.syncSchedule = `${syncMinutes} ${syncHours} * * *`;
+        
+        this.logger.info('Programación de sincronización configurada desde AdminSettings', {
+          orderTimeLimit: settings.orderTimeLimit,
+          syncSchedule: this.syncSchedule,
+          syncTime: `${syncHours.toString().padStart(2, '0')}:${syncMinutes.toString().padStart(2, '0')}`
+        });
+      } else {
+        // Fallback por defecto
+        this.syncSchedule = '30 18 * * *'; // 6:30 PM por defecto
+        this.orderTimeLimit = '18:00';
+        
+        this.logger.warn('No se pudo obtener orderTimeLimit de AdminSettings, usando valores por defecto', {
+          defaultSyncSchedule: this.syncSchedule,
+          defaultOrderTimeLimit: this.orderTimeLimit
+        });
+      }
+    } catch (error) {
+      this.logger.error('Error al configurar programación desde AdminSettings', {
+        error: error.message,
+        stack: error.stack
+      });
+      
+      // Usar valores por defecto en caso de error
+      this.syncSchedule = '30 18 * * *';
+      this.orderTimeLimit = '18:00';
     }
   }
 
@@ -357,25 +409,52 @@ scheduleInvoiceCheckTask() {
       // Registrar inicio de sincronización
       const syncStartTime = new Date();
       
-      // Obtener órdenes pendientes de sincronizar
+      // Obtener órdenes pendientes de sincronizar 48 horas antes de la fecha de entrega
       // Se enfoca en órdenes en estado "En Producción" (3) que aún no han sido sincronizadas
-      // o que tienen menos de 3 intentos fallidos
+      // y cuya fecha de entrega sea dentro de 2 días (48 horas)
+      // La sincronización se ejecuta después de la hora límite configurada en AdminSettings
       const query = `
-      SELECT o.order_id, COALESCE(o.sap_sync_attempts, 0) as sap_sync_attempts, o.sap_sync_error
-      FROM orders o
-      JOIN users u ON o.user_id = u.id
-      JOIN client_profiles cp ON u.id = cp.user_id
-      WHERE (o.sap_synced = false OR o.sap_synced IS NULL)
-      AND o.status_id = 3  -- En Producción
-      AND cp.cardcode_sap IS NOT NULL
-      AND COALESCE(o.sap_sync_attempts, 0) < 3 -- Limitar intentos
-      ORDER BY o.created_at ASC
+        SELECT o.order_id, COALESCE(o.sap_sync_attempts, 0) as sap_sync_attempts, o.sap_sync_error, o.delivery_date
+        FROM orders o
+        JOIN users u ON o.user_id = u.id
+        JOIN client_profiles cp ON u.id = cp.user_id
+        WHERE (o.sap_synced = false OR o.sap_synced IS NULL)
+        AND o.status_id = 3  -- En Producción
+        AND cp.cardcode_sap IS NOT NULL
+        AND COALESCE(o.sap_sync_attempts, 0) < 3 -- Limitar intentos
+        AND o.delivery_date IS NOT NULL  -- Solo órdenes con fecha de entrega definida
+        AND DATE(o.delivery_date) = DATE(CURRENT_DATE + INTERVAL '2 days')  -- Solo órdenes que se entregan en 2 días
+        ORDER BY o.created_at ASC
       `;
       
       const { rows } = await pool.query(query);
       stats.total = rows.length;
       
       this.logger.info(`Encontradas ${rows.length} órdenes para sincronizar`);
+
+      const targetDeliveryDate = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+      this.logger.info(`Encontradas ${rows.length} órdenes para sincronizar`, {
+        targetDeliveryDate,
+        orderTimeLimit: this.orderTimeLimit,
+        syncSchedule: this.syncSchedule
+      });
+
+      if (rows.length > 0) {
+        this.logger.info('Sincronizando órdenes que se entregan en 2 días', {
+          deliveryDate: targetDeliveryDate,
+          ordersToSync: rows.map(r => ({
+            orderId: r.order_id,
+            deliveryDate: r.delivery_date,
+            syncAttempts: r.sap_sync_attempts
+          }))
+        });
+      } else {
+        this.logger.info('No hay órdenes para sincronizar hoy', {
+          targetDeliveryDate,
+          note: 'Solo se sincronizan órdenes 2 días antes de su fecha de entrega'
+        });
+      }
       
       // Para cada orden, intentar crearla en SAP
       for (const orderRow of rows) {
@@ -473,7 +552,7 @@ scheduleInvoiceCheckTask() {
           
           // Si el estado ha cambiado, actualizar en la base de datos
           if (webAppStatusId !== order.status_id) {
-            await client.query(
+            await pool.query(
               'UPDATE orders SET status_id = $1, updated_at = CURRENT_TIMESTAMP, sap_last_sync = CURRENT_TIMESTAMP WHERE order_id = $2',
               [webAppStatusId, order.order_id]
             );
@@ -481,8 +560,8 @@ scheduleInvoiceCheckTask() {
             stats.updated++;
             this.logger.info('Estado de orden actualizado desde SAP', {
               orderId: order.order_id,
-              oldStatus: order.status,
-              newStatus: webAppStatus,
+              oldStatus: order.status_id,
+              newStatus: webAppStatusId,
               sapStatus: sapStatus.status
             });
           } else {
@@ -1057,6 +1136,43 @@ scheduleInvoiceCheckTask() {
         stack: error.stack
       });
       throw error;
+    }
+  }
+  /**
+   * Reconfigura la programación cuando cambian los settings
+   * @param {Object} newSettings - Nuevos settings de admin
+   */
+  async reconfigureSchedule(newSettings) {
+    try {
+      if (newSettings && newSettings.orderTimeLimit && newSettings.orderTimeLimit !== this.orderTimeLimit) {
+        this.logger.info('Reconfigurando programación de sincronización por cambio en AdminSettings', {
+          oldOrderTimeLimit: this.orderTimeLimit,
+          newOrderTimeLimit: newSettings.orderTimeLimit,
+          oldSchedule: this.syncSchedule
+        });
+        
+        // Detener tareas existentes
+        if (this.syncTasks.orderSync) {
+          this.syncTasks.orderSync.stop();
+          this.syncTasks.orderSync = null;
+        }
+        
+        // Reconfigurar con nuevos settings
+        await this.configureScheduleFromSettings();
+        
+        // Reiniciar programación
+        this.scheduleSyncTask();
+        
+        this.logger.info('Programación de sincronización reconfigurada exitosamente', {
+          newOrderTimeLimit: this.orderTimeLimit,
+          newSchedule: this.syncSchedule
+        });
+      }
+    } catch (error) {
+      this.logger.error('Error al reconfigurar programación de sincronización', {
+        error: error.message,
+        stack: error.stack
+      });
     }
   }
 }

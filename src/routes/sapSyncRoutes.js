@@ -278,4 +278,15 @@ router.get('/test-data',
   testSapData
 );
 
+/**
+ * Obtener programación de sincronización de órdenes
+ * @route GET /sap/sync/orders/schedule
+ * @group SAP - Sincronización con SAP B1
+ * @security bearerAuth
+ */
+router.get('/sync/orders/schedule', 
+  checkRole([1]), // Solo administradores
+  sapSyncController.getOrderSyncSchedule
+);
+
 module.exports = router;
