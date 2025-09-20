@@ -920,6 +920,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
           // INFORMACIÓN DE ENTREGA
           delivery_date: deliveryDate,
           notes: orderNotes,
+          comments: orderNotes,
           delivery_zone: deliveryZone ? deliveryZone.key : null,
           delivery_zone_name: deliveryZone ? deliveryZone.name : branchInfo.city,
           municipality_dane_code: branchInfo.municipality_code,
@@ -978,6 +979,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
           total_amount: totalAmount,
           delivery_date: deliveryDate,
           notes: orderNotes,
+          comments: orderNotes,
           branch_address: branchAddress,
           delivery_zone: deliveryZone ? deliveryZone.key : null,
           delivery_zone_name: deliveryZone ? deliveryZone.name : null,

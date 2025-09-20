@@ -60,7 +60,7 @@ class Order {
    * @returns {Promise<OrderResponse>} - Información de la orden creada
    * @throws {Error} Si no hay detalles o ocurre un error en la transacción
    */
-  static async createOrder(user_id, total_amount, details, delivery_date = null, status_id = 1, branch_id = null) {
+  static async createOrder(user_id, total_amount, details, delivery_date = null, status_id = 1, branch_id = null, comments = null) {
     if (!details || details.length === 0) {
       logger.warn('Intento de crear orden sin detalles', { user_id });
       throw new Error("No se puede insertar una orden sin detalles.");
@@ -169,8 +169,8 @@ class Order {
 
       // Crear la orden principal con valores calculados
       const orderQuery = `
-        INSERT INTO orders (user_id, total_amount, subtotal, tax_amount, delivery_date, status_id, branch_id)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        INSERT INTO orders (user_id, total_amount, subtotal, tax_amount, delivery_date, status_id, branch_id, comments)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         RETURNING order_id;
       `;
 
@@ -181,7 +181,8 @@ class Order {
         calculatedTax, 
         delivery_date, 
         status_id, 
-        branch_id
+        branch_id,
+        comments
       ]);
       const order_id = orderResult.rows[0].order_id;
 
@@ -252,6 +253,15 @@ static async create(orderData) {
     products = []
   } = orderData;
 
+  // Actualizar el query de inserción para incluir comments
+  const insertQuery = `
+    INSERT INTO Orders (user_id, branch_id, delivery_date, comments, subtotal, tax_amount, total_amount, status_id, order_date)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, 1, CURRENT_TIMESTAMP)
+    RETURNING order_id;
+  `;
+
+  const insertParams = [user_id, branch_id, delivery_date, comments, subtotal, tax_amount, total_amount];
+
   // Validar productos
   if (!products || products.length === 0) {
     throw new Error('Debe especificar al menos un producto');
@@ -297,7 +307,8 @@ static async create(orderData) {
     details,
     delivery_date,
     1, // status_id por defecto (Abierto)
-    branch_id
+    branch_id,
+    comments
   );
 
   // Obtener la orden completa con detalles

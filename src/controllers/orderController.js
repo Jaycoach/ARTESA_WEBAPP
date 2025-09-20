@@ -118,7 +118,7 @@ const createOrder = async (req, res) => {
       }
     }
 
-    const { user_id, total_amount, details, delivery_date, status_id, branch_id } = requestData;
+    const { user_id, total_amount, details, delivery_date, status_id, branch_id, comments } = requestData;
     logger.debug('Iniciando creación de orden', {
       userId: user_id,
       totalAmount: total_amount,
@@ -343,7 +343,8 @@ const createOrder = async (req, res) => {
       details, 
       parsedDeliveryDate,
       initialStatus,
-      branch_id
+      branch_id,
+      comments
     );
     
     logger.info('Orden creada exitosamente', {
