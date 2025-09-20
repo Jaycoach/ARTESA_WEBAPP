@@ -230,7 +230,7 @@ scheduleInvoiceCheckTask() {
       }
   
       const orderData = orderResult.rows[0];
-      
+
       // Verificar que el cliente tenga código SAP
       if (!orderData.cardcode_sap) {
         throw new Error('Cliente no tiene código SAP asociado');
@@ -244,7 +244,7 @@ scheduleInvoiceCheckTask() {
          WHERE od.order_id = $1`,
         [order.order_id]
       );
-  
+    
       if (orderItemsResult.rows.length === 0) {
         throw new Error('La orden no tiene productos');
       }
@@ -274,7 +274,7 @@ scheduleInvoiceCheckTask() {
         if (branchResult.rows.length > 0) {
           shipToCode = branchResult.rows[0].ship_to_code;
           
-          logger.debug('Sucursal encontrada para orden SAP', {
+          this.logger.debug('Sucursal encontrada para orden SAP', {
             orderId: order.order_id,
             branchId: orderData.branch_id,
             shipToCode
@@ -313,7 +313,7 @@ scheduleInvoiceCheckTask() {
       // Añadir ShipToCode si existe
       if (shipToCode) {
         sapOrder.ShipToCode = shipToCode;
-        logger.debug('ShipToCode añadido a orden SAP', {
+        this.logger.debug('ShipToCode añadido a orden SAP', {
           orderId: order.order_id,
           shipToCode
         });

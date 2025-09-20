@@ -1626,12 +1626,6 @@ const verifyTRM = async (req, res) => {
   }
 };
 
-// Exportar el nuevo método al final del archivo
-module.exports = {
-  // ... otros exports existentes
-  verifyTRM
-};
-
 /**
  * @swagger
  * /api/orders/update-status-from-sap:
@@ -2686,7 +2680,8 @@ module.exports = {
   updatePendingOrders,
   cancelOrder,
   getOrdersByDeliveryDate,
-  syncOrdersToSap,          
+  syncOrdersToSap,  
+  verifyTRM,         
   updateOrderStatusFromSap, 
   sendOrderToSap,
   checkUserCanCreateOrders,
