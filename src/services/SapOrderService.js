@@ -1204,67 +1204,110 @@ scheduleInvoiceCheckTask() {
         dayOfWeek: checkDate.getDay()
       });
 
-      // Verificar si hay TRM para la fecha de sincronización
-      const trmQuery = `ExchangeRates?$filter=Date eq '${dateStr}' and Currency eq 'USD'`;
-      const trmResponse = await this.request('GET', trmQuery);
-      
       let currentTRM = null;
       let wasUpdated = false;
       
-      if (trmResponse && trmResponse.value && trmResponse.value.length > 0) {
-        currentTRM = trmResponse.value[0];
-        this.logger.debug('TRM encontrada para la fecha', {
+      try {
+        // Usar SBOBobService_GetCurrencyRate que funciona correctamente
+        const rateResponse = await this.request('POST', 'SBOBobService_GetCurrencyRate', {
+          Currency: 'USD',
+          Date: dateStr
+        });
+        
+        // SAP retorna el valor directamente como número
+        if (rateResponse && rateResponse > 0) {
+          currentTRM = {
+            Rate: rateResponse,
+            Date: dateStr
+          };
+          this.logger.debug('TRM encontrada para la fecha', {
+            date: dateStr,
+            rate: rateResponse
+          });
+          return {
+            success: true,
+            rate: currentTRM.Rate,
+            date: currentTRM.Date,
+            wasUpdated: false
+          };
+        }
+      } catch (rateError) {
+        // Si no hay tasa para la fecha actual (común en fines de semana)
+        this.logger.info('TRM no encontrada para la fecha actual, buscando TRM anterior', {
           date: dateStr,
-          rate: currentTRM.Rate
-        });
-      } else {
-        // No hay TRM para la fecha actual, buscar la última TRM registrada
-        this.logger.info('TRM no encontrada para la fecha, buscando última TRM registrada', {
-          date: dateStr
+          error: rateError.message || 'Sin TRM para esta fecha'
         });
         
-        // Obtener la última TRM registrada
-        const lastTRMQuery = `ExchangeRates?$filter=Currency eq 'USD'&$orderby=Date desc&$top=1`;
-        const lastTRMResponse = await this.request('GET', lastTRMQuery);
+        // Buscar TRM de días anteriores (hasta 7 días atrás)
+        let foundRate = false;
+        let lastValidRate = null;
         
-        if (!lastTRMResponse || !lastTRMResponse.value || lastTRMResponse.value.length === 0) {
-          throw new Error('No se encontró ninguna TRM registrada en el sistema');
+        for (let i = 1; i <= 7; i++) {
+          const previousDate = new Date(checkDate);
+          previousDate.setDate(previousDate.getDate() - i);
+          const prevDateStr = previousDate.toISOString().split('T')[0];
+          
+          try {
+            const prevRateResponse = await this.request('POST', 'SBOBobService_GetCurrencyRate', {
+              Currency: 'USD',
+              Date: prevDateStr
+            });
+            
+            if (prevRateResponse && prevRateResponse > 0) {
+              lastValidRate = {
+                Rate: prevRateResponse,
+                Date: prevDateStr
+              };
+              
+              this.logger.info('TRM encontrada en fecha anterior', {
+                originalDate: dateStr,
+                trmDate: prevDateStr,
+                rate: prevRateResponse,
+                daysBack: i
+              });
+              
+              // Intentar actualizar la TRM para la fecha actual usando SetCurrencyRate
+              try {
+                await this.request('POST', 'SBOBobService_SetCurrencyRate', {
+                  Currency: 'USD',
+                  Rate: prevRateResponse,
+                  RateDate: dateStr
+                });
+                
+                wasUpdated = true;
+                currentTRM = {
+                  Rate: prevRateResponse,
+                  Date: dateStr
+                };
+                
+                this.logger.info('TRM actualizada exitosamente para la fecha actual', {
+                  date: dateStr,
+                  rate: prevRateResponse,
+                  basedOnDate: prevDateStr
+                });
+              } catch (updateError) {
+                // Si no se puede actualizar, usar la tasa encontrada
+                this.logger.warn('No se pudo actualizar TRM en SAP, usando tasa anterior', {
+                  error: updateError.message,
+                  usingDate: prevDateStr,
+                  rate: prevRateResponse
+                });
+                currentTRM = lastValidRate;
+              }
+              
+              foundRate = true;
+              break;
+            }
+          } catch (prevError) {
+            this.logger.debug(`No hay TRM para ${prevDateStr}, continuando búsqueda`);
+            continue;
+          }
         }
         
-        const lastTRM = lastTRMResponse.value[0];
-        this.logger.info('Usando última TRM registrada', {
-          lastDate: lastTRM.Date,
-          rate: lastTRM.Rate,
-          currentDate: dateStr
-        });
-        
-        // Crear nueva entrada de TRM con la tasa de la última registrada
-        try {
-          const newTRM = {
-            Date: dateStr,
-            Currency: 'USD',
-            Rate: lastTRM.Rate
-          };
-          
-          const createResponse = await this.request('POST', 'ExchangeRates', newTRM);
-          
-          if (createResponse) {
-            currentTRM = createResponse;
-            wasUpdated = true;
-            this.logger.info('TRM actualizada exitosamente', {
-              date: dateStr,
-              rate: newTRM.Rate,
-              basedOnDate: lastTRM.Date
-            });
-          }
-        } catch (createError) {
-          // Si falla la creación, usar la última TRM disponible
-          this.logger.warn('No se pudo crear nueva entrada de TRM, usando última disponible', {
-            error: createError.message,
-            lastDate: lastTRM.Date,
-            rate: lastTRM.Rate
-          });
-          currentTRM = lastTRM;
+        if (!foundRate) {
+          // Si no encontramos ninguna tasa en los últimos 7 días, error crítico
+          this.logger.error('No se encontró TRM en los últimos 7 días');
+          throw new Error('No se encontró TRM válida en los últimos 7 días');
         }
       }
       
@@ -1281,7 +1324,7 @@ scheduleInvoiceCheckTask() {
         stack: error.stack
       });
       
-      // En caso de error, intentar continuar con la sincronización
+      // En caso de error crítico, no interrumpir el flujo pero registrar
       return {
         success: false,
         error: error.message
