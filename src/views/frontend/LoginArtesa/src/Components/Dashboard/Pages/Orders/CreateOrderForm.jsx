@@ -11,11 +11,27 @@ import OrderFileUpload from './OrderFileUpload';
 import Notification from '../../../../Components/ui/Notification';
 import { useNavigate } from 'react-router-dom';
 import usePriceList from '../../../../hooks/usePriceList';
-import useProductImage from '../../../../hooks/useProductImage';
-import { throttle } from 'lodash'; 
+import { throttle } from 'lodash';
+import useProductImage, { errorCache } from '../../../../hooks/useProductImage';
 
 const ProductImageSmall = React.memo(({ productId, alt, className = "w-8 h-8", shouldLoad = true }) => {
   const { imageUrl, loading, error } = useProductImage(productId, 'thumbnail', shouldLoad);
+
+  // Debug específico para productos problemáticos - MENOS VERBOSO
+  useEffect(() => {
+    if (productId && shouldLoad) {
+      // Solo loggear errores que no sean 404 conocidos o problemas frecuentes
+      if (error && !['Cached 404', 'Image not found', 'No image available'].includes(error)) {
+        console.log(`📸 ProductImageSmall Debug [${productId}]:`, {
+          shouldLoad,
+          loading,
+          hasImageUrl: !!imageUrl,
+          error: error || 'none',
+          imageUrl: imageUrl ? imageUrl.substring(0, 50) + '...' : 'null'
+        });
+      }
+    }
+  }, [productId, shouldLoad, loading, imageUrl, error]);
 
   // Estado placeholder para productos sin shouldLoad
   if (!shouldLoad) {
@@ -39,8 +55,13 @@ const ProductImageSmall = React.memo(({ productId, alt, className = "w-8 h-8", s
     );
   }
 
-  // Estado de error o sin imagen
+  // Estado de error o sin imagen - MEJORADO
   if (!imageUrl || error) {
+    // Silenciar logs excesivos para productos conocidos sin imagen
+    if (error && error !== 'Cached 404' && error !== 'Image not found' && error !== 'No image available') {
+      console.warn(`ProductImageSmall [${productId}]: ${error}`);
+    }
+    
     return (
       <div className={`bg-gray-100 flex items-center justify-center rounded-md border border-gray-200 ${className}`}>
         <svg className="w-3 h-3 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
@@ -100,7 +121,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     throttle((productId) => {
       setVisibleOptions(prev => new Set([...prev, productId]));
     }, 100),
-    []
+    [setVisibleOptions] 
   );
 
   // Resultado de validación
@@ -127,6 +148,41 @@ const CreateOrderForm = ({ onOrderCreated }) => {
   const [loadingBranchInfo, setLoadingBranchInfo] = useState(false);
   const fetchProductsCalledRef = useRef(false);
   const fetchBranchesCalledRef = useRef(false);
+
+  const cleanupInvisibleImages = useCallback(() => {
+    setVisibleOptions(prev => {
+      // Mantener solo productos seleccionados y algunos elementos del viewport
+      const selectedIds = orderDetails
+        .map(detail => parseInt(detail.product_id))
+        .filter(id => !isNaN(id));
+      
+      const keepVisible = new Set([
+        ...selectedIds,
+        ...Array.from(prev).slice(-10) // Mantener últimos 10 visibles
+      ]);
+      
+      return keepVisible;
+    });
+  }, [orderDetails]);
+
+  // useEffect de limpieza
+  useEffect(() => {
+    // Limpiar caché cada 2 minutos en lugar de 30 segundos para mejor rendimiento
+    const cleanupInterval = setInterval(cleanupInvisibleImages, 120000); // 2 minutos
+    
+    // Limpiar cache de errores cada 10 minutos para permitir reintentos ocasionales
+    const errorCacheCleanup = setInterval(() => {
+      if (errorCache.size > 50) {
+        errorCache.clear();
+        console.log('🧹 Cache de errores de imágenes limpiado');
+      }
+    }, 600000); // 10 minutos
+
+    return () => {
+      clearInterval(cleanupInterval);
+      clearInterval(errorCacheCleanup);
+    };
+  }, [cleanupInvisibleImages]);
 
   // Cargar configuración del sitio
   useEffect(() => {
@@ -1034,10 +1090,10 @@ const CreateOrderForm = ({ onOrderCreated }) => {
           user_cardtype_sap: branchInfo.user_cardtype_sap,
 
           // DETALLES DE PRODUCTOS
-          products: orderDetails.map(products => ({
-            product_id: parseInt(products.product_id || 0),
-            quantity: parseInt(products.quantity || 0),
-            unit_price: parseFloat(products.unit_price || 0),
+         products: orderDetails.map(detail => ({
+          product_id: parseInt(detail.product_id || 0),
+          quantity: parseInt(detail.quantity || 0),
+          unit_price: parseFloat(detail.unit_price || 0),
 
             // Branch como origen Y destino
             branch_id: branchInfo.branch_id,
@@ -1171,17 +1227,25 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     }
 
     const options = products.map(product => {
-      // Buscar el precio en diferentes campos posibles, priorizando effective_price
-      const price = parseFloat(product.effective_price || product.price_list1 || product.price_list || product.price || 0);
-      
-      return {
-        value: product.product_id,
-        label: product.name,
-        image: product.image_url,
-        price: price
-      };
-    });
-    return options;
+    // CORREGIR: usar la misma lógica de fallbacks que en handleSelectChange
+    const price = parseFloat(
+      product.price || 
+      product.effective_price || 
+      product.price_list1 || 
+      product.price_list || 
+      product.unit_price || 
+      0
+    );
+    
+    return {
+      value: product.product_id,
+      label: product.name,
+      image: product.image_url,
+      price: price,
+      productData: product // Agregar referencia completa al producto
+    };
+  });
+  return options;
   }, [products]);
 
   const handleSelectChange = (index, option) => {
@@ -1194,9 +1258,21 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       setSelectedProductImages(prev => new Set([...prev, parseInt(option.value)]));
       setAllProductImages(prev => new Set([...prev, parseInt(option.value)]));
 
+      // Forzar carga inmediata de imagen para producto seleccionado CON DELAY
+      setTimeout(() => {
+        setVisibleOptions(prev => new Set([...prev, parseInt(option.value)]));
+      }, 50); // Pequeño delay para asegurar que el estado se actualice
+
       if (selectedProduct) {
-        // LÓGICA SIMPLIFICADA - usar directamente el precio del producto
-        const productPrice = parseFloat(selectedProduct.price || selectedProduct.effective_price || selectedProduct.price_list1 || 0);
+        // CORREGIR: usar la cadena completa de fallbacks de precios
+        const productPrice = parseFloat(
+          selectedProduct.price || 
+          selectedProduct.effective_price || 
+          selectedProduct.price_list1 || 
+          selectedProduct.price_list || 
+          selectedProduct.unit_price || 
+          0
+        );
 
         newDetails[index].unit_price = productPrice;
         newDetails[index].price_source = selectedProduct.price_source || 'price_list';
@@ -1205,31 +1281,52 @@ const CreateOrderForm = ({ onOrderCreated }) => {
         console.log('✅ Producto seleccionado:', {
           name: selectedProduct.name,
           price: productPrice,
-          source: selectedProduct.price_source
+          source: selectedProduct.price_source || 'price_list'
         });
       }
     } else {
+      // IMPORTANTE: Limpiar correctamente cuando se deselecciona
       if (newDetails[index].product_id) {
         setSelectedProductImages(prev => {
           const newSet = new Set(prev);
           newSet.delete(parseInt(newDetails[index].product_id));
+          // También limpiar de visibleOptions después de un delay
+          setTimeout(() => {
+            setVisibleOptions(prev => {
+              const updated = new Set(prev);
+              updated.delete(parseInt(newDetails[index].product_id));
+              return updated;
+            });
+          }, 1000);
           return newSet;
         });
       }
       newDetails[index].product_id = '';
       newDetails[index].unit_price = 0;
+      newDetails[index].price_source = '';
+      newDetails[index].original_price = 0;
     }
 
     setOrderDetails(newDetails);
   };
 
-  const formatOptionLabel = ({ value, label, image, price }) => (
+  const formatOptionLabel = ({ value, label, image, price }) => {
+  // Determinar si debe cargar imagen basado en cache de errores
+  const hasErrorCached = errorCache && errorCache.has(`${value}-thumbnail`);
+  const shouldLoadImage = (
+    visibleOptions.has(value) || 
+    selectedProductImages.has(value) || 
+    allProductImages.has(value) ||
+    productOptionsForSelect.findIndex(opt => opt.value === value) < 5
+  ) && !hasErrorCached;
+
+  return (
     <div className="flex items-center py-1" data-product-id={value}>
       <ProductImageSmall
         productId={value}
         alt={label}
         className="w-8 h-8 mr-3"
-        shouldLoad={visibleOptions.has(value) || selectedProductImages.has(value) || allProductImages.has(value)}
+        shouldLoad={shouldLoadImage}
       />
       <div className="flex-1">
         <div className="font-medium text-sm text-gray-800 leading-tight">{label}</div>
@@ -1237,6 +1334,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       </div>
     </div>
   );
+};
 
   const formatCurrencyCOP = (value) => {
     const numValue = parseFloat(value);
@@ -1259,6 +1357,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
   };
 
   // Componente customizado para manejar la lista del Select con lazy loading
+  // Componente customizado para manejar la lista del Select con scroll limitado y lazy loading optimizado
   const MenuList = useCallback((props) => {
     const { children, ...otherProps } = props;
     const observer = useRef(null);
@@ -1267,40 +1366,41 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     useEffect(() => {
       if (!listRef.current) return;
 
-      // Cargar opciones iniciales inmediatamente
-      const initialOptions = listRef.current.querySelectorAll('[data-product-id]');
-      const firstBatch = Array.from(initialOptions).slice(0, 15);
-      firstBatch.forEach(option => {
-        const productId = option.getAttribute('data-product-id');
-        if (productId) {
-          throttledSetVisibleOptions(parseInt(productId));
-        }
-      });
-
-      // Crear observer solo una vez
-      if (!observer.current) {
-        observer.current = new IntersectionObserver(
-          (entries) => {
-            entries.forEach((entry) => {
-              if (entry.isIntersecting) {
-                const productId = entry.target.getAttribute('data-product-id');
-                if (productId) {
-                  setVisibleOptions(prev => new Set([...prev, parseInt(productId)]));
-                }
-              }
-            });
-          },
-          {
-            root: listRef.current,
-            rootMargin: '200px',
-            threshold: 0.1
-          }
-        );
+      if (observer.current) {
+        observer.current.disconnect();
       }
 
-      // Observar todas las opciones
-      const options = listRef.current.querySelectorAll('[data-product-id]');
-      options.forEach(option => observer.current.observe(option));
+      observer.current = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              const productId = entry.target.getAttribute('data-product-id');
+              if (productId && !isNaN(productId)) {
+                const numProductId = parseInt(productId);
+                // Debounce más agresivo para evitar sobrecarga
+                setTimeout(() => {
+                  throttledSetVisibleOptions(numProductId);
+                }, 200);
+              }
+            }
+          });
+        },
+        {
+          root: listRef.current,
+          rootMargin: '50px', // Aumentar margen para mejor precarga
+          threshold: 0.1
+        }
+      );
+
+      // Delay para asegurar que el DOM esté listo
+      setTimeout(() => {
+        const options = listRef.current?.querySelectorAll('[data-product-id]');
+        options?.forEach(option => {
+          if (observer.current) {
+            observer.current.observe(option);
+          }
+        });
+      }, 100);
 
       return () => {
         if (observer.current) {
@@ -1308,14 +1408,22 @@ const CreateOrderForm = ({ onOrderCreated }) => {
           observer.current = null;
         }
       };
-    }, []); // Sin dependencias para evitar re-renders
+    }, []);
 
     return (
-      <div ref={listRef} {...otherProps}>
+      <div 
+        ref={listRef} 
+        {...otherProps}
+        style={{
+          maxHeight: '200px',
+          overflowY: 'auto',
+          ...otherProps.style
+        }}
+      >
         {children}
       </div>
     );
-  }, []);
+  }, [throttledSetVisibleOptions]);
 
   // Verificación de estado de carga
   if (isValidating) {
@@ -1661,7 +1769,14 @@ const CreateOrderForm = ({ onOrderCreated }) => {
                             ...base,
                             zIndex: 9999,
                             width: '300px',
-                            minWidth: '300px'
+                            minWidth: '300px',
+                            maxHeight: '240px', // NUEVO: Limitar altura total del menú
+                          }),
+                          menuList: (base) => ({  // NUEVO: Estilos específicos para la lista
+                            ...base,
+                            maxHeight: '200px',   // Altura interna del scroll
+                            overflowY: 'auto',    // Scroll vertical
+                            padding: '4px 0',     // Padding mínimo
                           }),
                           menuPortal: (base) => ({
                             ...base,

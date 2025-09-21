@@ -13,9 +13,9 @@ const useProductImage = (productId, imageType = 'thumbnail',  shouldLoad = true)
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Cleanup automático para productos que ya no están en uso
   useEffect(() => {
     const fetchImage = async () => {
-      
       if (!productId || !shouldLoad) {
         setImageUrl(null);
         setLoading(false);
@@ -23,7 +23,7 @@ const useProductImage = (productId, imageType = 'thumbnail',  shouldLoad = true)
         return;
       }
 
-      // Verificar cache de errores
+      // Verificar cache de errores primero
       const cacheKey = `${productId}-${imageType}`;
       if (errorCache.has(cacheKey)) {
         setImageUrl(null);
@@ -35,18 +35,24 @@ const useProductImage = (productId, imageType = 'thumbnail',  shouldLoad = true)
       // Verificar cache de éxito
       const successKey = `${productId}-${imageType}`;
       if (successCache.has(successKey)) {
-        setImageUrl(successCache.get(successKey));
-        setLoading(false);
-        setError(null);
-        return;
+        const cachedUrl = successCache.get(successKey);
+        // Validar que la URL cached sigue siendo válida
+        if (cachedUrl && typeof cachedUrl === 'string' && cachedUrl.startsWith('http')) {
+          setImageUrl(cachedUrl);
+          setLoading(false);
+          setError(null);
+          return;
+        } else {
+          // Limpiar cache inválido
+          successCache.delete(successKey);
+        }
       }
 
       // Verificar si ya hay una petición en curso
       const pendingKey = `${productId}-${imageType}`;
       if (pendingRequests.has(pendingKey)) {
-        const pendingPromise = pendingRequests.get(pendingKey);
         try {
-          const result = await pendingPromise;
+          const result = await pendingRequests.get(pendingKey);
           setImageUrl(result);
           setLoading(false);
           setError(null);
@@ -67,43 +73,56 @@ const useProductImage = (productId, imageType = 'thumbnail',  shouldLoad = true)
         pendingRequests.set(pendingKey, requestPromise);
 
         const response = await requestPromise;
-
-        // Limpiar la petición pendiente
         pendingRequests.delete(pendingKey);
 
-        /*console.log('✅ URL de imagen obtenida exitosamente:', {
-          productId,
-          originalUrl: response.data.data.imageUrl, 
-          fullUrl: response.data.data.imageUrl,
-          imageType: response.data.data.imageType
-        });*/
+        if (response.data && response.data.success) {
+          let finalImageUrl = null;
+          
+          // Prioridad de extracción de URL mejorada
+          if (response.data.data) {
+            if (typeof response.data.data === 'string' && response.data.data.startsWith('http')) {
+              finalImageUrl = response.data.data;
+            } else if (response.data.data.imageUrl) {
+              finalImageUrl = response.data.data.imageUrl;
+            }
+          } else if (response.data.imageUrl) {
+            finalImageUrl = response.data.imageUrl;
+          }
 
-        // ✅ USAR DIRECTAMENTE imageUrl DE LA RESPUESTA
-        if (response.data.success && response.data.data.imageUrl) {
-          setImageUrl(response.data.data.imageUrl);
-          console.log(`🎯 IMAGEN CARGADA EXITOSAMENTE - Producto ${productId}:`, response.data.data.imageUrl); // TEMPORAL
-          successCache.set(successKey, response.data.data.imageUrl); // Guardar en cache de éxito
+          if (finalImageUrl) {
+            try {
+              new URL(finalImageUrl);
+              setImageUrl(finalImageUrl);
+              successCache.set(successKey, finalImageUrl);
+              setError(null);
+            } catch (urlError) {
+              console.warn(`URL inválida recibida para producto ${productId}:`, finalImageUrl);
+              setImageUrl(null);
+              setError('URL inválida');
+            }
+          } else {
+            console.warn(`No se encontró URL de imagen válida para producto ${productId}`, response.data);
+            setImageUrl(null);
+            setError('No image URL found');
+          }
         } else {
+          console.warn(`No se encontró URL de imagen válida para producto ${productId}`, response.data);
+          // Marcar como sin imagen pero no como error para evitar reintentos
+          errorCache.add(`${productId}-${imageType}`);
           setImageUrl(null);
-          console.log(`⚠️ RESPUESTA SIN IMAGEN - Producto ${productId}:`, response.data); // TEMPORAL
+          setError('No image available');
         }
 
       } catch (error) {
-        // Limpiar la petición pendiente en caso de error
         pendingRequests.delete(pendingKey);
-        console.log(`❌ Error obteniendo imagen para producto ${productId}:`, {
-          error: error.message,
-          status: error.response?.status,
-          productId,
-          imageType
-        });
-
-        // Si es 404 o timeout, agregar al cache de errores
-        if (error.response?.status === 404 || error.message?.includes('timeout')) {
+        
+        // Solo cachear errores 404
+        if (error.response?.status === 404) {
           errorCache.add(`${productId}-${imageType}`);
+          console.log(`📸 Cache 404 agregado para producto ${productId} (${imageType})`);
         }
 
-        setError(error.message);
+        setError(error.response?.status === 404 ? 'Image not found' : error.message);
         setImageUrl(null);
       } finally {
         setLoading(false);
@@ -117,3 +136,4 @@ const useProductImage = (productId, imageType = 'thumbnail',  shouldLoad = true)
 };
 
 export default useProductImage;
+export { errorCache };
