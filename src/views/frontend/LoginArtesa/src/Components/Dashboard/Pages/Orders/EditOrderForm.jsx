@@ -26,6 +26,7 @@ const EditOrderForm = ({ onOrderUpdated }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notification, setNotification] = useState({ show: false, message: '', type: '' });
   const [loading, setLoading] = useState(true);
+  const [loadingProducts, setLoadingProducts] = useState(false);
   const [siteSettings, setSiteSettings] = useState({ orderTimeLimit: '18:00' });
   const [canEdit, setCanEdit] = useState(true);
   const [editNotAllowedReason, setEditNotAllowedReason] = useState('');
@@ -187,44 +188,136 @@ const EditOrderForm = ({ onOrderUpdated }) => {
     // ✅ SOLO EJECUTAR PARA USUARIOS PRINCIPALES
     if (authType !== AUTH_TYPES.BRANCH) {
       const fetchProducts = async () => {
+        console.log('🚀 Iniciando fetchProducts - CARGANDO TODOS LOS PRODUCTOS:', {
+          authType,
+          timestamp: new Date().toISOString()
+        });
+        setLoadingProducts(true);
+
         try {
-          console.log('🔄 Cargando productos para usuario principal...');
-          
-          // ✅ USAR EL MISMO ENDPOINT QUE USA CREATEORDERFORM
-          let response;
-          
-          // Obtener productos disponibles para el usuario
-          if (user?.id) {
-            response = await API.get(`/products/user/${user.id}`);
-          } else {
-            // Fallback al endpoint general
-            response = await API.get('/products');
-          }
-          
-          if (response.data.success) {
-            const productsData = response.data.data || [];
-            console.log('✅ Productos cargados:', productsData.length);
-            setProducts(productsData);
-          } else {
-            throw new Error('No se pudieron cargar los productos');
-          }
-        } catch (error) {
-          console.error('Error fetching products:', error);
-          
-          // ✅ FALLBACK: Intentar endpoint alternativo
-          try {
-            const fallbackResponse = await API.get('/products');
-            if (fallbackResponse.data.success) {
-              setProducts(fallbackResponse.data.data || []);
-              console.log('✅ Productos cargados con endpoint fallback');
-            } else {
-              throw new Error('Error en endpoint fallback');
+          // DETERMINAR CÓDIGO DE LISTA DE PRECIOS (igual que CreateOrderForm)
+          let priceListCode = '1';
+
+          // ✅ CORREGIR: Para usuarios principales, obtener su price_list_code
+          if (authType === AUTH_TYPES.USER && user?.id) {
+            try {
+              console.log('👤 Obteniendo price_list_code para usuario PRINCIPAL...');
+              const userResponse = await API.get('/auth/profile');
+              if (userResponse.data.success && userResponse.data.data.price_list_code) {
+                priceListCode = userResponse.data.data.price_list_code;
+              }
+            } catch (error) {
+              console.warn('⚠️ Error obteniendo price_list_code de usuario, usando fallback:', error.message);
             }
-          } catch (fallbackError) {
-            console.error('Error en fallback:', fallbackError);
-            showNotification('Error al cargar productos. Contacte al administrador.', 'error');
-            setProducts([]);
           }
+
+          console.log(`🎯 Usando lista de precios: ${priceListCode}`);
+
+          // CARGAR TODOS LOS PRODUCTOS CON PAGINACIÓN COMPLETA (igual que CreateOrderForm)
+          let allProducts = [];
+          let currentPage = 1;
+          let totalPages = 1;
+          let totalProductCount = 0;
+
+          do {
+            const params = new URLSearchParams({
+              page: currentPage.toString(),
+              limit: '50',
+              orderBy: 'product_code',
+              orderDirection: 'ASC'
+            });
+
+            const endpoint = `/price-lists/${priceListCode}/products?${params.toString()}`;
+            console.log(`📡 Cargando página ${currentPage}/${totalPages}:`, endpoint);
+
+            const response = await API.get(endpoint);
+
+            if (response.data.success && Array.isArray(response.data.data)) {
+              const pageProducts = response.data.data;
+              allProducts = [...allProducts, ...pageProducts];
+
+              // ACTUALIZAR INFORMACIÓN DE PAGINACIÓN
+              if (response.data.pagination) {
+                totalPages = response.data.pagination.totalPages;
+                totalProductCount = response.data.pagination.totalCount;
+                console.log(`✅ Página ${currentPage}/${totalPages} cargada: ${pageProducts.length} productos (Total: ${allProducts.length}/${totalProductCount})`);
+              }
+
+              currentPage++;
+            } else {
+              throw new Error(response.data.message || 'Error en respuesta del API');
+            }
+
+            // SEGURIDAD: Evitar bucle infinito
+            if (currentPage > 20) {
+              console.warn('⚠️ Límite de seguridad alcanzado (20 páginas)');
+              break;
+            }
+
+          } while (currentPage <= totalPages);
+
+          console.log(`🎉 CARGA COMPLETA: ${allProducts.length} productos cargados de ${totalProductCount} disponibles`);
+
+          // MAPEO DE TODOS LOS PRODUCTOS (igual que CreateOrderForm)
+          const mappedProducts = allProducts.map((plProduct, index) => {
+            const priceValue = parseFloat(plProduct.price) || 0;
+
+            return {
+              product_id: plProduct.product_id || (index + 1),
+              name: plProduct.local_product_name || plProduct.product_name,
+              description: plProduct.local_product_description || plProduct.product_name,
+              sap_code: plProduct.product_code,
+              code: plProduct.product_code,
+
+              // PRECIOS
+              price: priceValue,
+              price_list1: priceValue,
+              effective_price: priceValue,
+              unit_price: priceValue,
+
+              // INFORMACIÓN ADICIONAL
+              price_list_code: plProduct.price_list_code,
+              price_list_name: plProduct.price_list_name,
+              currency: plProduct.currency || 'COP',
+              image_url: null,
+              has_custom_price: true,
+              custom_price_info: {
+                price: priceValue,
+                currency: plProduct.currency || 'COP',
+                updated_at: plProduct.updated_at
+              },
+              price_source: 'price_list',
+              has_impuesto_saludable: false,
+              updated_at: plProduct.updated_at,
+              sap_last_sync: plProduct.sap_last_sync,
+
+              // DATOS ORIGINALES
+              _original: plProduct
+            };
+          });
+
+          // FILTRAR PRODUCTOS CON PRECIOS VÁLIDOS
+          const validProducts = mappedProducts.filter(product => {
+            const price = parseFloat(product.price);
+            return price > 0;
+          });
+
+          setProducts(validProducts);
+
+          if (validProducts.length === 0) {
+            showNotification('No se encontraron productos con precios válidos para tu lista de precios', 'warning');
+          } else {
+            console.log(`✅ Productos listos para edición: ${validProducts.length} productos cargados`);
+          }
+
+          console.log(`✅ PRODUCTOS FINALES CARGADOS: ${validProducts.length} productos válidos con precios > 0`);
+
+        } catch (error) {
+          console.error('❌ Error cargando productos para edición:', error);
+          showNotification('Error al cargar productos: ' + error.message, 'error');
+          setProducts([]);
+        } finally {
+          setLoadingProducts(false);
         }
       };
 
@@ -232,7 +325,7 @@ const EditOrderForm = ({ onOrderUpdated }) => {
     } else {
       console.log('🏢 [BRANCH] Omitiendo carga de productos - no necesarios para cancelación');
     }
-  }, [authType]);
+  }, [authType, user?.id]);
 
   useEffect(() => {
     // ✅ MAPEAR DATOS SEGÚN CONTEXTO
@@ -253,23 +346,32 @@ const EditOrderForm = ({ onOrderUpdated }) => {
         // ✅ Para Usuario Principal: usar 'details' como antes
         if (order.details && order.details.length > 0) {
           console.log('👤 [USER] Mapeando productos desde field "details":', order.details);
-          setOrderDetails(order.details.map(detail => ({
+          const mappedDetails = order.details.map(detail => ({
             product_id: detail.product_id.toString(),
             quantity: detail.quantity,
-            unit_price: detail.unit_price,
+            unit_price: parseFloat(detail.unit_price) || 0,
             name: detail.product_name || detail.name || 'Producto sin nombre'
-          })));
+          }));
+          setOrderDetails(mappedDetails);
+          
+          console.log('✅ [USER] Detalles mapeados:', mappedDetails);
+          
         } else if (order.orderDetails && order.orderDetails.length > 0) {
           // ✅ FALLBACK: Si viene como orderDetails
           console.log('👤 [USER] Mapeando productos desde field "orderDetails":', order.orderDetails);
-          setOrderDetails(order.orderDetails.map(detail => ({
+          const mappedOrderDetails = order.orderDetails.map(detail => ({
             product_id: detail.product_id.toString(),
             quantity: detail.quantity,
-            unit_price: detail.unit_price,
+            unit_price: parseFloat(detail.unit_price) || 0,
             name: detail.product_name || detail.name || 'Producto sin nombre'
-          })));
+          }));
+          setOrderDetails(mappedOrderDetails);
+          
+          console.log('✅ [USER] OrderDetails mapeados:', mappedOrderDetails);
+          
         } else {
-          console.warn('👤 [USER] No se encontraron detalles del pedido');
+          console.warn('👤 [USER] No se encontraron detalles del pedido en campos: details, orderDetails');
+          console.log('👤 [USER] Estructura completa del pedido:', order);
           setOrderDetails([]);
         }
       }
@@ -277,16 +379,29 @@ const EditOrderForm = ({ onOrderUpdated }) => {
   }, [order, authType]);
 
   useEffect(() => {
-    // ✅ ACTUALIZAR PRECIOS SOLO SI ES NECESARIO
+    // ✅ ACTUALIZAR PRECIOS SOLO SI ES NECESARIO Y HAY PRODUCTOS CARGADOS
     if (authType !== AUTH_TYPES.BRANCH && products.length > 0 && orderDetails.length > 0) {
+      console.log('🔄 Verificando necesidad de actualizar precios...', {
+        productsCount: products.length,
+        orderDetailsCount: orderDetails.length,
+        sampleProduct: products[0],
+        sampleOrderDetail: orderDetails[0]
+      });
+
       let needsUpdate = false;
       
       const updatedDetails = orderDetails.map(detail => {
-        const product = products.find(p => p.product_id.toString() === detail.product_id);
+        const product = products.find(p => p.product_id.toString() === detail.product_id.toString());
+        
         if (product) {
-          // Solo actualizar si el precio actual está en 0 o es muy diferente
           const currentPrice = parseFloat(detail.unit_price) || 0;
-          const productPrice = parseFloat(product.price_list1) || 0;
+          const productPrice = parseFloat(product.price || product.price_list1 || product.effective_price || 0);
+          
+          console.log(`📊 Comparando precios para producto ${product.name}:`, {
+            currentPrice,
+            productPrice,
+            needsUpdate: currentPrice === 0 || Math.abs(currentPrice - productPrice) > 0.01
+          });
           
           if (currentPrice === 0 || Math.abs(currentPrice - productPrice) > 0.01) {
             needsUpdate = true;
@@ -296,16 +411,21 @@ const EditOrderForm = ({ onOrderUpdated }) => {
               name: product.name || detail.name
             };
           }
+        } else {
+          console.warn(`⚠️ Producto no encontrado en catálogo:`, detail.product_id);
         }
+        
         return detail;
       });
       
       if (needsUpdate) {
         console.log('🔄 Actualizando precios de productos:', updatedDetails);
         setOrderDetails(updatedDetails);
+      } else {
+        console.log('✅ No es necesario actualizar precios');
       }
     }
-  }, [products, authType]); // ✅ REMOVER orderDetails.length de dependencies
+  }, [products, authType]); // Solo depende de products y authType
 
   const handleAddProduct = () => {
     setOrderDetails([...orderDetails, { product_id: '', quantity: 1, unit_price: 0 }]);
@@ -322,8 +442,9 @@ const EditOrderForm = ({ onOrderUpdated }) => {
       console.log('🏢 [BRANCH] Cancelando orden:', orderId);
 
       // Endpoint específico para branch orders o estándar con status 6
-      const response = await API.patch(`/branch-orders/${orderId}`, {
-        status: 6 // Estado "Cancelado"
+      const response = await API.put(`/branch-orders/${orderId}/status`, {
+        status_id: 6, // ← Cambiar 'status' por 'status_id'
+        note: 'Cancelado desde sucursal'
       });
 
       if (response.data && response.data.success) {
@@ -367,10 +488,18 @@ const EditOrderForm = ({ onOrderUpdated }) => {
     if (field === 'product_id') {
       const selectedProduct = products.find(p => p.product_id === parseInt(value));
       if (selectedProduct) {
+        // ✅ USAR EL PRECIO CORRECTO DE LA NUEVA ESTRUCTURA
+        const productPrice = parseFloat(
+          selectedProduct.price || 
+          selectedProduct.price_list1 || 
+          selectedProduct.effective_price || 
+          0
+        );
+        
         newDetails[index] = {
           ...newDetails[index],
           product_id: value,
-          unit_price: selectedProduct.price_list1,
+          unit_price: productPrice, // ← CAMBIAR ESTA LÍNEA
           name: selectedProduct.name
         };
       } else {
@@ -430,17 +559,34 @@ const EditOrderForm = ({ onOrderUpdated }) => {
       }
 
       // ✅ VALIDAR QUE TODOS LOS PRODUCTOS TENGAN DATOS VÁLIDOS
-      const invalidProducts = orderDetails.filter(detail => 
-        !detail.product_id || 
-        !detail.quantity || 
-        detail.quantity <= 0 || 
-        !detail.unit_price || 
-        detail.unit_price <= 0
-      );
+      const invalidProducts = orderDetails.filter(detail => {
+        const productId = detail.product_id;
+        const quantity = parseFloat(detail.quantity) || 0;
+        const unitPrice = parseFloat(detail.unit_price) || 0;
+        
+        // Verificar que el producto existe en la lista
+        const productExists = products.find(p => p.product_id.toString() === productId.toString());
+        
+        return !productId || 
+              !productExists ||
+              quantity <= 0 || 
+              unitPrice <= 0;
+      });
 
       if (invalidProducts.length > 0) {
         console.error('❌ Productos con datos inválidos:', invalidProducts);
-        throw new Error('Todos los productos deben tener ID, cantidad y precio válidos');
+        console.error('❌ Productos disponibles:', products.map(p => ({ id: p.product_id, name: p.name, price: p.price_list1 })));
+        
+        const detailedErrors = invalidProducts.map(product => {
+          const issues = [];
+          if (!product.product_id) issues.push('Sin ID de producto');
+          if (!products.find(p => p.product_id.toString() === product.product_id.toString())) issues.push('Producto no encontrado en catálogo');
+          if (parseFloat(product.quantity) <= 0) issues.push('Cantidad inválida');
+          if (parseFloat(product.unit_price) <= 0) issues.push('Precio inválido');
+          return `Producto ${product.product_id || 'sin ID'}: ${issues.join(', ')}`;
+        });
+        
+        throw new Error(`Hay productos con problemas:\n${detailedErrors.join('\n')}`);
       }
 
       // ✅ CALCULAR TOTALES
@@ -531,6 +677,18 @@ const EditOrderForm = ({ onOrderUpdated }) => {
           >
             Volver a detalles
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Si están cargando productos, mostrar indicador
+  if (loadingProducts) {
+    return (
+      <div className="w-full p-6 bg-white rounded-lg border border-gray-200 shadow-sm">
+        <div className="flex justify-center items-center h-40">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+          <p className="ml-4 text-gray-600">Cargando productos...</p>
         </div>
       </div>
     );
