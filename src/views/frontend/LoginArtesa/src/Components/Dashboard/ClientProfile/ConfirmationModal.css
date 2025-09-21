@@ -95,58 +95,14 @@
   color: white;
 }
 .confirmation-modal-footer .confirmation-btn.success-btn:hover {
-  color: #f44f1d;
+  color: rgb(243.5322580645, 79.1612903226, 29.4677419355);
 }
 .confirmation-modal-footer .confirmation-btn.error-btn {
   background-color: #d32f2f;
   color: white;
 }
 .confirmation-modal-footer .confirmation-btn.error-btn:hover {
-  color: #f44f1d;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes slideIn {
-  from {
-    opacity: 0;
-    transform: translateX(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-.animate-fadeIn {
-  animation: fadeIn 0.3s ease-out;
-}
-
-.animate-slideIn {
-  animation: slideIn 0.4s ease-out;
-}
-
-// Mejoras visuales
-.form-input:focus {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
-}
-
-// Responsive mejoras
-@media (max-width: 768px) {
-  .client-profile-container {
-    margin: 1rem;
-    max-height: 90vh;
-  }
+  color: rgb(243.5322580645, 79.1612903226, 29.4677419355);
 }
 
 /* Responsive */

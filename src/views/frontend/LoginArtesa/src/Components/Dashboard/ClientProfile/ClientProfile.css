@@ -1,78 +1,96 @@
-/* src/components/ClientProfile/ClientProfile.css */
-
-/* Estilos específicos para inputs del formulario de perfil */
-.client-profile-input {
-  @apply w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors;
-  color: #111827 !important; /* gray-900 */
-  background-color: #ffffff !important; /* white */
+@charset "UTF-8";
+/* Solución para visibilidad de texto en inputs */
+.fixed.inset-0 {
+  /* Forzar colores específicos para todos los inputs */
+  /* Forzar color en labels */
+  /* Forzar color en textos de error */
+  /* Forzar color en textos de éxito */
+  /* Específico para campos de solo lectura */
+  /* Asegurar que el texto en select options sea visible */
+}
+.fixed.inset-0 input[type=text],
+.fixed.inset-0 input[type=email],
+.fixed.inset-0 input[type=tel],
+.fixed.inset-0 input[type=number],
+.fixed.inset-0 select,
+.fixed.inset-0 textarea {
+  color: #1f2937 !important; /* Gris oscuro visible */
+  background-color: #ffffff !important; /* Fondo blanco */
+}
+.fixed.inset-0 input[type=text]:disabled,
+.fixed.inset-0 input[type=email]:disabled,
+.fixed.inset-0 input[type=tel]:disabled,
+.fixed.inset-0 input[type=number]:disabled,
+.fixed.inset-0 select:disabled,
+.fixed.inset-0 textarea:disabled {
+  color: #6b7280 !important; /* Gris medio para disabled */
+  background-color: #f9fafb !important; /* Fondo gris claro para disabled */
+}
+.fixed.inset-0 input[type=text]:focus,
+.fixed.inset-0 input[type=email]:focus,
+.fixed.inset-0 input[type=tel]:focus,
+.fixed.inset-0 input[type=number]:focus,
+.fixed.inset-0 select:focus,
+.fixed.inset-0 textarea:focus {
+  color: #1f2937 !important; /* Mantener color oscuro en focus */
+  background-color: #ffffff !important;
+}
+.fixed.inset-0 input[type=text]::-moz-placeholder, .fixed.inset-0 input[type=email]::-moz-placeholder, .fixed.inset-0 input[type=tel]::-moz-placeholder, .fixed.inset-0 input[type=number]::-moz-placeholder, .fixed.inset-0 select::-moz-placeholder, .fixed.inset-0 textarea::-moz-placeholder {
+  color: #9ca3af !important; /* Gris claro para placeholder */
+}
+.fixed.inset-0 input[type=text]::placeholder,
+.fixed.inset-0 input[type=email]::placeholder,
+.fixed.inset-0 input[type=tel]::placeholder,
+.fixed.inset-0 input[type=number]::placeholder,
+.fixed.inset-0 select::placeholder,
+.fixed.inset-0 textarea::placeholder {
+  color: #9ca3af !important; /* Gris claro para placeholder */
+}
+.fixed.inset-0 label {
+  color: #374151 !important;
+}
+.fixed.inset-0 .text-red-500 {
+  color: #ef4444 !important;
+}
+.fixed.inset-0 .text-green-500,
+.fixed.inset-0 .text-green-600,
+.fixed.inset-0 .text-green-700 {
+  color: #22c55e !important;
+}
+.fixed.inset-0 input[readonly] {
+  color: #1f2937 !important;
+  background-color: #f9fafb !important;
+}
+.fixed.inset-0 select option {
+  color: #1f2937 !important;
+  background-color: #ffffff !important;
 }
 
-.client-profile-input::placeholder {
-  color: #6B7280 !important; /* gray-500 */
-  opacity: 1;
+/* Solución específica para el modal de ClientProfile */
+.bg-white.rounded-xl.shadow-2xl {
+  /* Forzar estilos específicos dentro del modal */
+}
+.bg-white.rounded-xl.shadow-2xl input,
+.bg-white.rounded-xl.shadow-2xl select,
+.bg-white.rounded-xl.shadow-2xl textarea {
+  color: #1f2937 !important;
+}
+.bg-white.rounded-xl.shadow-2xl input:focus,
+.bg-white.rounded-xl.shadow-2xl select:focus,
+.bg-white.rounded-xl.shadow-2xl textarea:focus {
+  color: #1f2937 !important;
 }
 
-.client-profile-input:disabled {
-  background-color: #F3F4F6 !important; /* gray-100 */
-  color: #6B7280 !important; /* gray-500 */
-  cursor: not-allowed;
+/* Solución de emergencia - aplicar a todos los inputs del componente */
+[class*=ClientProfile] input,
+[class*=ClientProfile] select,
+[class*=ClientProfile] textarea {
+  color: #1f2937 !important;
+  background-color: #ffffff !important;
 }
-
-.client-profile-input:focus {
-  outline: none;
-  border-color: #3B82F6; /* blue-500 */
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-}
-
-.client-profile-input.error {
-  border-color: #EF4444 !important; /* red-500 */
-}
-
-/* Estilos para select */
-.client-profile-select {
-  @apply w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors;
-  color: #111827 !important; /* gray-900 */
-  background-color: #ffffff !important; /* white */
-}
-
-.client-profile-select:disabled {
-  background-color: #F3F4F6 !important; /* gray-100 */
-  color: #6B7280 !important; /* gray-500 */
-  cursor: not-allowed;
-}
-
-.client-profile-select option {
-  color: #111827 !important; /* gray-900 */
-  background-color: #ffffff !important; /* white */
-}
-
-.client-profile-select option:first-child {
-  color: #6B7280 !important; /* gray-500 para placeholder */
-}
-
-/* Estilos para labels */
-.client-profile-label {
-  color: #374151 !important; /* gray-700 */
-  font-weight: 500;
-  font-size: 0.875rem;
-  margin-bottom: 0.5rem;
-  display: block;
-}
-
-/* Estilos para mensajes de error */
-.client-profile-error {
-  color: #DC2626 !important; /* red-600 */
-  font-size: 0.875rem;
-  margin-top: 0.25rem;
-}
-
-/* Asegurar que el texto se vea bien en modo oscuro también */
-.dark .client-profile-input {
-  background-color: #1F2937 !important; /* gray-800 */
-  color: #F9FAFB !important; /* gray-50 */
-  border-color: #4B5563 !important; /* gray-600 */
-}
-
-.dark .client-profile-input::placeholder {
-  color: #9CA3AF !important; /* gray-400 */
-}
+[class*=ClientProfile] input:disabled,
+[class*=ClientProfile] select:disabled,
+[class*=ClientProfile] textarea:disabled {
+  color: #6b7280 !important;
+  background-color: #f9fafb !important;
+}/*# sourceMappingURL=ClientProfile.css.map */

@@ -12,11 +12,12 @@ import Notification from '../../../../Components/ui/Notification';
 import { useNavigate } from 'react-router-dom';
 import usePriceList from '../../../../hooks/usePriceList';
 import useProductImage from '../../../../hooks/useProductImage';
+import { throttle } from 'lodash'; 
 
-// Buscar el componente ProductImageSmall y reemplazarlo por:
-const ProductImageSmall = React.memo(({ productId, alt, className = "w-8 h-8", shouldLoad = false }) => {
+const ProductImageSmall = React.memo(({ productId, alt, className = "w-8 h-8", shouldLoad = true }) => {
   const { imageUrl, loading, error } = useProductImage(productId, 'thumbnail', shouldLoad);
 
+  // Estado placeholder para productos sin shouldLoad
   if (!shouldLoad) {
     return (
       <div className={`bg-gray-100 flex items-center justify-center rounded-md border border-gray-200 ${className}`}>
@@ -27,6 +28,7 @@ const ProductImageSmall = React.memo(({ productId, alt, className = "w-8 h-8", s
     );
   }
 
+  // Estado de carga
   if (loading) {
     return (
       <div className={`bg-gray-100 animate-pulse flex items-center justify-center rounded-md border border-gray-200 ${className}`}>
@@ -37,6 +39,7 @@ const ProductImageSmall = React.memo(({ productId, alt, className = "w-8 h-8", s
     );
   }
 
+  // Estado de error o sin imagen
   if (!imageUrl || error) {
     return (
       <div className={`bg-gray-100 flex items-center justify-center rounded-md border border-gray-200 ${className}`}>
@@ -47,17 +50,19 @@ const ProductImageSmall = React.memo(({ productId, alt, className = "w-8 h-8", s
     );
   }
 
+  // Estado exitoso con imagen
   return (
     <img
       src={imageUrl}
       alt={alt}
       className={`object-cover rounded-md border border-gray-200 ${className}`}
       onError={(e) => {
+        // Ocultar imagen rota y mostrar placeholder
         e.target.style.display = 'none';
         const parent = e.target.parentNode;
-        if (parent) {
+        if (parent && !parent.querySelector('.fallback-placeholder')) {
           parent.innerHTML = `
-            <div class="w-8 h-8 bg-gray-100 flex items-center justify-center rounded-md border border-gray-200">
+            <div class="fallback-placeholder ${className.replace('w-', 'w-').replace('h-', 'h-')} bg-gray-100 flex items-center justify-center rounded-md border border-gray-200">
               <svg class="w-3 h-3 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
                 <path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd" />
               </svg>
@@ -85,6 +90,18 @@ const CreateOrderForm = ({ onOrderCreated }) => {
   // Estados de validación simplificados basados en useUserActivation
   const isValidating = userStatus.loading;
   const canAccessForm = userStatus.canCreateOrders && !userStatus.loading && isAuthenticated;
+
+  // Estados para manejo de imágenes visibles
+  const [visibleOptions, setVisibleOptions] = useState(new Set());
+  const [selectedProductImages, setSelectedProductImages] = useState(new Set()); // NUEVO
+  const [allProductImages, setAllProductImages] = useState(new Set());
+  const menuListRef = useRef(null);
+  const throttledSetVisibleOptions = useCallback(
+    throttle((productId) => {
+      setVisibleOptions(prev => new Set([...prev, productId]));
+    }, 100),
+    []
+  );
 
   // Resultado de validación
   const validationResult = {
@@ -1173,6 +1190,10 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       newDetails[index].product_id = option.value;
       const selectedProduct = products.find(p => p.product_id === parseInt(option.value));
 
+      // AGREGAR A PRODUCTOS SELECCIONADOS PARA CARGAR IMAGEN
+      setSelectedProductImages(prev => new Set([...prev, parseInt(option.value)]));
+      setAllProductImages(prev => new Set([...prev, parseInt(option.value)]));
+
       if (selectedProduct) {
         // LÓGICA SIMPLIFICADA - usar directamente el precio del producto
         const productPrice = parseFloat(selectedProduct.price || selectedProduct.effective_price || selectedProduct.price_list1 || 0);
@@ -1188,6 +1209,13 @@ const CreateOrderForm = ({ onOrderCreated }) => {
         });
       }
     } else {
+      if (newDetails[index].product_id) {
+        setSelectedProductImages(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(parseInt(newDetails[index].product_id));
+          return newSet;
+        });
+      }
       newDetails[index].product_id = '';
       newDetails[index].unit_price = 0;
     }
@@ -1196,11 +1224,12 @@ const CreateOrderForm = ({ onOrderCreated }) => {
   };
 
   const formatOptionLabel = ({ value, label, image, price }) => (
-    <div className="flex items-center py-1">
+    <div className="flex items-center py-1" data-product-id={value}>
       <ProductImageSmall
         productId={value}
         alt={label}
         className="w-8 h-8 mr-3"
+        shouldLoad={visibleOptions.has(value) || selectedProductImages.has(value) || allProductImages.has(value)}
       />
       <div className="flex-1">
         <div className="font-medium text-sm text-gray-800 leading-tight">{label}</div>
@@ -1228,6 +1257,65 @@ const CreateOrderForm = ({ onOrderCreated }) => {
 
     return `$ ${formattedMillions}'${formattedThousands}`;
   };
+
+  // Componente customizado para manejar la lista del Select con lazy loading
+  const MenuList = useCallback((props) => {
+    const { children, ...otherProps } = props;
+    const observer = useRef(null);
+    const listRef = useRef(null);
+
+    useEffect(() => {
+      if (!listRef.current) return;
+
+      // Cargar opciones iniciales inmediatamente
+      const initialOptions = listRef.current.querySelectorAll('[data-product-id]');
+      const firstBatch = Array.from(initialOptions).slice(0, 15);
+      firstBatch.forEach(option => {
+        const productId = option.getAttribute('data-product-id');
+        if (productId) {
+          throttledSetVisibleOptions(parseInt(productId));
+        }
+      });
+
+      // Crear observer solo una vez
+      if (!observer.current) {
+        observer.current = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((entry) => {
+              if (entry.isIntersecting) {
+                const productId = entry.target.getAttribute('data-product-id');
+                if (productId) {
+                  setVisibleOptions(prev => new Set([...prev, parseInt(productId)]));
+                }
+              }
+            });
+          },
+          {
+            root: listRef.current,
+            rootMargin: '200px',
+            threshold: 0.1
+          }
+        );
+      }
+
+      // Observar todas las opciones
+      const options = listRef.current.querySelectorAll('[data-product-id]');
+      options.forEach(option => observer.current.observe(option));
+
+      return () => {
+        if (observer.current) {
+          observer.current.disconnect();
+          observer.current = null;
+        }
+      };
+    }, []); // Sin dependencias para evitar re-renders
+
+    return (
+      <div ref={listRef} {...otherProps}>
+        {children}
+      </div>
+    );
+  }, []);
 
   // Verificación de estado de carga
   if (isValidating) {
@@ -1520,13 +1608,12 @@ const CreateOrderForm = ({ onOrderCreated }) => {
                 return (
                   <tr key={index}>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      {/* ✅ VERIFICACIÓN MÁS ROBUSTA */}
                       {detail.product_id && parseInt(detail.product_id) > 0 ? (
                         <ProductImageSmall
                           productId={parseInt(detail.product_id)}
                           alt={selectedProduct?.name || 'Producto'}
                           className="w-16 h-16"
-                          shouldLoad={true} 
+                          shouldLoad={true}
                         />
                       ) : (
                         <div className="w-16 h-16 flex items-center justify-center bg-gray-100 rounded-md border border-gray-300">
@@ -1552,6 +1639,9 @@ const CreateOrderForm = ({ onOrderCreated }) => {
                         noOptionsMessage={() => 'No se encontraron productos'}
                         loadingMessage={() => 'Cargando productos...'}
                         isLoading={products.length === 0}
+                        components={{
+                          MenuList: MenuList
+                        }}
                         styles={{
                           control: (base) => ({
                             ...base,
