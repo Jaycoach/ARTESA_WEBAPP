@@ -801,6 +801,37 @@ const updateOrder = async (req, res) => {
       }
     }
 
+    // Manejar comentarios de actualización
+    let finalComments = updateData.comments || updateData.notes || '';
+
+    if (finalComments && finalComments.trim()) {
+      // Obtener comentarios existentes
+      const currentOrder = await Order.getOrderWithDetails(orderId);
+      const existingComments = currentOrder.comments || '';
+      
+      // Crear entrada de actualización con usuario y fecha
+      const updateEntry = `Orden Actualizada por ${user.name || user.email}: ${new Date().toLocaleString('es-ES', { timeZone: 'America/Bogota' })} - ${finalComments}`;
+      
+      // Concatenar con comentarios existentes
+      const newComments = existingComments 
+        ? `${existingComments}\n\n${updateEntry}`
+        : updateEntry;
+        
+      updateData.comments = newComments;
+    } else if (updateData.delivery_date || updateData.details) {
+      // Si no hay comentario pero sí hay cambios importantes, agregar entrada básica
+      const updateEntry = `Orden Actualizada por ${user.name || user.email}: ${new Date().toLocaleString('es-ES', { timeZone: 'America/Bogota' })}`;
+      
+      const currentOrder = await Order.getOrderWithDetails(orderId);
+      const existingComments = currentOrder.comments || '';
+      
+      const newComments = existingComments 
+        ? `${existingComments}\n\n${updateEntry}`
+        : updateEntry;
+        
+      updateData.comments = newComments;
+    }
+
     // Actualizar la orden
     const updatedOrder = await Order.updateOrder(orderId, updateData);
     

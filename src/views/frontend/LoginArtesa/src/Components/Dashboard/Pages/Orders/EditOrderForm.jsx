@@ -1023,16 +1023,19 @@ const EditOrderForm = ({ onOrderUpdated }) => {
           <div className="space-y-4 mt-6 border-t pt-6">
             <div>
               <label htmlFor="orderNotes" className="block text-sm font-medium text-gray-700 mb-1">
-                Notas adicionales
+                Comentarios de actualización
               </label>
               <textarea
                 id="orderNotes"
                 rows="3"
                 value={orderNotes}
                 onChange={(e) => setOrderNotes(e.target.value)}
-                placeholder="Instrucciones especiales, detalles de entrega, etc."
+                placeholder="Describe los cambios realizados en este pedido..."
                 className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
               ></textarea>
+              <p className="text-xs text-gray-500 mt-1">
+                Este comentario se agregará al historial de actualizaciones del pedido
+              </p>
             </div>
 
             <div>

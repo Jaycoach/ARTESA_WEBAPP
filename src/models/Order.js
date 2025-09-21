@@ -389,6 +389,7 @@ static async create(orderData) {
             o.delivered_quantity, o.total_quantity,
             o.invoice_doc_entry, o.invoice_doc_num,
             o.invoice_date, o.invoice_total, o.invoice_url,
+            o.comments,
             cb.ship_to_code, cb.branch_name, cb.address as branch_address,
             cb.city as branch_city, cb.phone as branch_phone
       FROM Orders o
@@ -545,9 +546,9 @@ static async create(orderData) {
         paramIndex++;
       }
       
-      if (updateData.total_amount !== undefined) {
-        updateFields.push(`total_amount = $${paramIndex}`);
-        queryParams.push(updateData.total_amount);
+      if (updateData.comments !== undefined) {
+        updateFields.push(`comments = $${paramIndex}`);
+        queryParams.push(updateData.comments);
         paramIndex++;
       }
       

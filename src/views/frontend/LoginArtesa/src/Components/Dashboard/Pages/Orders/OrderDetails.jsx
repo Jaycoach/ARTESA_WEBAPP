@@ -410,6 +410,16 @@ const OrderDetails = () => {
                 <dt className="text-sm font-medium text-gray-500">Dirección de envío</dt>
                 <dd className="mt-1 text-sm text-gray-900">{order.shipping_address || 'No especificada'}</dd>
               </div>
+              {order.comments && (
+                <div className="sm:col-span-2">
+                  <dt className="text-sm font-medium text-gray-500">Historial de actualizaciones</dt>
+                  <dd className="mt-1 text-sm text-gray-900">
+                    <div className="bg-gray-50 p-3 rounded-md max-h-40 overflow-y-auto">
+                      <p className="whitespace-pre-line">{order.comments}</p>
+                    </div>
+                  </dd>
+                </div>
+              )}
               {order.file_url && (
                 <div className="sm:col-span-2">
                   <dt className="text-sm font-medium text-gray-500">Archivo adjunto</dt>

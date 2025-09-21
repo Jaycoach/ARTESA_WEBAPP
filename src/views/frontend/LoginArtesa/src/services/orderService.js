@@ -171,6 +171,11 @@ export const orderService = {
       if (!userContext) {
         throw new Error('No se pudo determinar el contexto de usuario');
       }
+  
+      // Asegurar que los comentarios se incluyan en los datos
+      if (orderData.notes) {
+        orderData.comments = orderData.notes;
+      }
 
       const headers = isMultipart
         ? { 'Content-Type': 'multipart/form-data' }

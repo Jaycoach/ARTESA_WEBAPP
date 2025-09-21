@@ -576,13 +576,35 @@ class BranchOrderController {
         });
       }
 
+      // Manejar comentarios para branch
+      const updateFields = [];
+      const queryParams = [];
+      let paramIndex = 1;
+
+      if (note) {
+        const branchInfo = `${req.branch.branch_name || 'Sucursal'} (${req.branch.user_id})`;
+        const updateEntry = `Estado actualizado por ${branchInfo}: ${new Date().toLocaleString('es-ES', { timeZone: 'America/Bogota' })} - ${note}`;
+        
+        // Obtener comentarios existentes
+        const existingComments = order.comments || '';
+        const updateComments = existingComments 
+          ? `${existingComments}\n\n${updateEntry}`
+          : updateEntry;
+          
+        updateFields.push(`comments = $${paramIndex}`);
+        queryParams.push(updateComments);
+        paramIndex++;
+      }
+
       // Actualizar el estado
       const updateQuery = `
         UPDATE orders 
-        SET status_id = $1, updated_at = CURRENT_TIMESTAMP
-        WHERE order_id = $2
+        SET status_id = $${paramIndex}${updateFields.length > 0 ? ', ' + updateFields.join(', ') : ''}, updated_at = CURRENT_TIMESTAMP
+        WHERE order_id = $${paramIndex + 1}
         RETURNING *
       `;
+
+      queryParams.push(status_id, orderId);
 
       const { rows: updatedRows } = await pool.query(updateQuery, [status_id, orderId]);
 
