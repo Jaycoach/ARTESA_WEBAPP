@@ -59,7 +59,7 @@ const ProductImageSmall = ({ productId, alt, className = "w-8 h-8" }) => {
 };
 
 const CreateOrderForm = ({ onOrderCreated }) => {
-  const { user, branch, authType, isAuthenticated } = useAuth();
+  const { user, branch, authType, isAuthenticated, refreshAuth } = useAuth();
   const {
     userPriceListCode,
     priceCache,
@@ -890,13 +890,74 @@ const CreateOrderForm = ({ onOrderCreated }) => {
         const branchInfo = JSON.parse(branchDataStorage);
         const priceListInfo = priceListStorage ? JSON.parse(priceListStorage) : {};
 
+        // ✅ VALIDACIÓN EXTRA: Verificar contexto antes de proceder
+        if (!branchInfo || !branchInfo.user_id || !branchInfo.client_id) {
+          console.error('❌ CONTEXTO INVÁLIDO - Forzando recarga de datos...', {
+            hasBranchInfo: !!branchInfo,
+            hasUserId: !!branchInfo?.user_id,
+            hasClientId: !!branchInfo?.client_id
+          });
+          
+          // Intentar recargar el contexto
+          try {
+            const profileResponse = await API.get('/branch-auth/profile');
+            if (profileResponse.data.success && profileResponse.data.data) {
+              const updatedBranchInfo = {
+                ...profileResponse.data.data,
+                type: 'branch'
+              };
+              
+              // Actualizar localStorage
+              localStorage.setItem('branchData', JSON.stringify(updatedBranchInfo));
+              
+              console.log('✅ Contexto recargado exitosamente');
+              
+              // Usar los datos actualizados
+              Object.assign(branchInfo, updatedBranchInfo);
+            } else {
+              throw new Error('No se pudieron recargar los datos');
+            }
+          } catch (refreshError) {
+            console.error('❌ Error recargando contexto:', refreshError);
+            throw new Error('Datos de usuario incompletos. Por favor, cierra sesión e inicia sesión nuevamente.');
+          }
+        }
+
         console.log('🏢 Datos completos de Branch disponibles:', {
           branch_id: branchInfo.branch_id,
-          user_id: branchInfo.user_id, // ← DEBE ESTAR PRESENTE
+          user_id: branchInfo.user_id,
           client_id: branchInfo.client_id,
           user_name: branchInfo.user_name,
           user_cardcode_sap: branchInfo.user_cardcode_sap
         });
+
+        // VALIDAR QUE TODOS LOS DATOS CRÍTICOS ESTÉN PRESENTES
+        if (!branchInfo.user_id || !branchInfo.client_id || !branchInfo.branch_id) {
+          console.error('❌ ERROR CRÍTICO: Datos faltantes en branchData:', {
+            hasUserId: !!branchInfo.user_id,
+            hasClientId: !!branchInfo.client_id,
+            hasBranchId: !!branchInfo.branch_id,
+            fullBranchInfo: branchInfo
+          });
+          
+          // Intentar una última recarga antes de fallar
+          if (refreshAuth && typeof refreshAuth === 'function') {
+            console.log('🔄 Intentando refresh de autenticación...');
+            const refreshSuccess = await refreshAuth();
+            if (refreshSuccess) {
+              const updatedBranchData = JSON.parse(localStorage.getItem('branchData') || '{}');
+              if (updatedBranchData.user_id && updatedBranchData.client_id) {
+                Object.assign(branchInfo, updatedBranchData);
+                console.log('✅ Datos actualizados después del refresh');
+              }
+            }
+          }
+          
+          // Verificar una vez más después del intento de refresh
+          if (!branchInfo.user_id || !branchInfo.client_id || !branchInfo.branch_id) {
+            throw new Error('Datos de usuario incompletos. Por favor, cierra sesión e inicia sesión nuevamente.');
+          }
+        }
 
         // VALIDAR QUE TODOS LOS DATOS CRÍTICOS ESTÉN PRESENTES
         if (!branchInfo.user_id) {

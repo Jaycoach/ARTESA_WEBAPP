@@ -2409,6 +2409,60 @@ class SapClientService extends SapBaseService {
           const query = 'SELECT branch_id FROM client_branches WHERE client_id = $1 AND ship_to_code = $2';
           const { rows } = await pool.query(query, [clientId, normalizedBranch.AddressName]);
           
+          if (rows.length > 0) {
+            // ✅ NUEVA FUNCIONALIDAD: Verificar cambio de correo del encargado
+            const existingBranch = rows[0];
+            const currentEmailQuery = 'SELECT email_branch, manager_name, email_verified FROM client_branches WHERE branch_id = $1';
+            const { rows: emailRows } = await pool.query(currentEmailQuery, [existingBranch.branch_id]);
+            
+            if (emailRows.length > 0) {
+              const currentEmail = emailRows[0].email_branch;
+              const currentManager = emailRows[0].manager_name;
+              const newEmail = normalizedBranch.U_HBT_CORREO;
+              const newManager = normalizedBranch.U_HBT_ENCARGADO;
+              
+              // Verificar si hay cambio en el correo del encargado
+              if (currentEmail && newEmail && currentEmail !== newEmail) {
+                this.logger.info('Detectado cambio de correo del encargado - Reseteando estado de sucursal', {
+                  clientId,
+                  branchId: existingBranch.branch_id,
+                  oldEmail: currentEmail,
+                  newEmail: newEmail,
+                  oldManager: currentManager,
+                  newManager: newManager
+                });
+                
+                // Resetear sucursal al estado inicial (requiere nueva verificación de correo)
+                await pool.query(
+                  `UPDATE client_branches 
+                  SET email_branch = $1,
+                      manager_name = $2,
+                      email_verified = false,
+                      password = NULL,
+                      is_login_enabled = false,
+                      verification_token = NULL,
+                      token_expires_at = NULL,
+                      last_verification_sent = NULL,
+                      verification_attempts = 0,
+                      updated_at = CURRENT_TIMESTAMP
+                  WHERE branch_id = $3`,
+                  [newEmail, newManager, existingBranch.branch_id]
+                );
+                
+                // Limpiar tokens activos de esta sucursal
+                await pool.query('DELETE FROM active_branch_tokens WHERE branch_id = $1', [existingBranch.branch_id]);
+                
+                stats.updated++;
+                this.logger.info('Sucursal reseteada por cambio de correo - requiere nueva verificación', {
+                  branchId: existingBranch.branch_id,
+                  newEmail: newEmail
+                });
+                
+                continue; // Continuar con la siguiente sucursal
+              }
+            }
+          }
+
           if (rows.length === 0 || forceUpdate) {
             if (rows.length === 0) {
               // Crear nueva sucursal

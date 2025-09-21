@@ -1665,62 +1665,113 @@ class ClientSyncController {
         const query = 'SELECT branch_id FROM client_branches WHERE client_id = $1 AND ship_to_code = $2';
         const { rows } = await pool.query(query, [clientId, normalizedBranch.AddressName]);
         
-        if (rows.length === 0 || forceUpdate) {
-          if (rows.length === 0) {
-            // Crear nueva sucursal
-            await pool.query(
-              `INSERT INTO client_branches 
-              (client_id, ship_to_code, branch_name, address, city, state, country, zip_code, phone, contact_person, is_default, municipality_code, mail, email_branch, manager_name)
-              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
-              [
-                clientId,
-                normalizedBranch.AddressName,
-                normalizedBranch.AddressName,
-                normalizedBranch.Street,
-                normalizedBranch.City,
-                normalizedBranch.State,
-                normalizedBranch.Country,
-                normalizedBranch.ZipCode,
-                '',
-                '',
-                normalizedBranch.AddressName === 'PRINCIPAL' || branches.length === 1,
-                normalizedBranch.U_HBT_MunMed,
-                null,
-                normalizedBranch.U_HBT_CORREO,
-                normalizedBranch.U_HBT_ENCARGADO
-              ]
-            );
-            
-            stats.created++;
-            
-            logger.info('Sucursal creada desde SAP', {
+        if (rows.length === 0) {
+          // Crear nueva sucursal
+          await pool.query(
+            `INSERT INTO client_branches 
+            (client_id, ship_to_code, branch_name, address, city, state, country, zip_code, phone, contact_person, is_default, municipality_code, mail, email_branch, manager_name)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+            [
               clientId,
-              shipToCode: normalizedBranch.AddressName,
-              hasEmail: !!normalizedBranch.U_HBT_CORREO
-            });
-          } else if (forceUpdate) {
-            // Actualizar sucursal existente
-            await pool.query(
-              `UPDATE client_branches 
-              SET branch_name = $1, address = $2, city = $3, state = $4, country = $5, 
-                  zip_code = $6, municipality_code = $7, email_branch = $8, manager_name = $9,
-                  updated_at = CURRENT_TIMESTAMP
-              WHERE branch_id = $10`,
-              [
-                normalizedBranch.AddressName,
-                normalizedBranch.Street,
-                normalizedBranch.City,
-                normalizedBranch.State,
-                normalizedBranch.Country,
-                normalizedBranch.ZipCode,
-                normalizedBranch.U_HBT_MunMed,
-                normalizedBranch.U_HBT_CORREO,
-                normalizedBranch.U_HBT_ENCARGADO,
-                rows[0].branch_id
-              ]
-            );
+              normalizedBranch.AddressName,
+              normalizedBranch.AddressName,
+              normalizedBranch.Street,
+              normalizedBranch.City,
+              normalizedBranch.State,
+              normalizedBranch.Country,
+              normalizedBranch.ZipCode,
+              '',
+              '',
+              normalizedBranch.AddressName === 'PRINCIPAL' || branches.length === 1,
+              normalizedBranch.U_HBT_MunMed,
+              null,
+              normalizedBranch.U_HBT_CORREO,
+              normalizedBranch.U_HBT_ENCARGADO
+            ]
+          );
+          stats.created++;
+        } else {
+          // ✅ NUEVA LÓGICA: Verificar cambio de correo antes de actualizar
+          const existingBranch = rows[0];
+          const emailCheckQuery = 'SELECT email_branch, manager_name FROM client_branches WHERE branch_id = $1';
+          const { rows: emailCheck } = await pool.query(emailCheckQuery, [existingBranch.branch_id]);
+          
+          if (emailCheck.length > 0) {
+            const currentEmail = emailCheck[0].email_branch;
+            const newEmail = normalizedBranch.U_HBT_CORREO;
             
-            stats.updated++;
+            if (currentEmail && newEmail && currentEmail !== newEmail) {
+              // Hay cambio de correo - resetear sucursal
+              await pool.query(
+                `UPDATE client_branches 
+                 SET email_branch = $1,
+                     manager_name = $2,
+                     email_verified = false,
+                     password = NULL,
+                     is_login_enabled = false,
+                     verification_token = NULL,
+                     token_expires_at = NULL,
+                     address = $3,
+                     city = $4,
+                     state = $5,
+                     country = $6,
+                     zip_code = $7,
+                     municipality_code = $8,
+                     updated_at = CURRENT_TIMESTAMP
+                 WHERE branch_id = $9`,
+                [
+                  newEmail,
+                  normalizedBranch.U_HBT_ENCARGADO,
+                  normalizedBranch.Street,
+                  normalizedBranch.City,
+                  normalizedBranch.State,
+                  normalizedBranch.Country,
+                  normalizedBranch.ZipCode,
+                  normalizedBranch.U_HBT_MunMed,
+                  existingBranch.branch_id
+                ]
+              );
+              
+              // Eliminar tokens activos
+              await pool.query('DELETE FROM active_branch_tokens WHERE branch_id = $1', [existingBranch.branch_id]);
+              
+              logger.info('Sucursal reseteada por cambio de correo en sincronización', {
+                branchId: existingBranch.branch_id,
+                oldEmail: currentEmail,
+                newEmail: newEmail
+              });
+              
+              stats.updated++;
+            } else if (forceUpdate) {
+              // Actualización normal sin cambio de correo
+              await pool.query(
+                `UPDATE client_branches 
+                  SET branch_name = $1, 
+                      address = $2, 
+                      city = $3, 
+                      state = $4, 
+                      country = $5, 
+                      zip_code = $6,
+                      municipality_code = $7,
+                      email_branch = $8,
+                      manager_name = $9,
+                      updated_at = CURRENT_TIMESTAMP
+                  WHERE branch_id = $10`,
+                [
+                  normalizedBranch.AddressName,
+                  normalizedBranch.Street,
+                  normalizedBranch.City,
+                  normalizedBranch.State,
+                  normalizedBranch.Country,
+                  normalizedBranch.ZipCode,
+                  normalizedBranch.U_HBT_MunMed,
+                  normalizedBranch.U_HBT_CORREO,
+                  normalizedBranch.U_HBT_ENCARGADO,
+                  existingBranch.branch_id
+                ]
+              );
+              stats.updated++;
+            }
           }
         }
       } catch (branchError) {

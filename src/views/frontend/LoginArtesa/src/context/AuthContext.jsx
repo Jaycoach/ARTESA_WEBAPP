@@ -567,99 +567,109 @@ function AuthProvider({ children }) {
 
                             console.log('🔄 Sesión de sucursal encontrada, enriqueciendo datos...');
 
-                            // ✅ NUEVO: Enriquecer con datos completos del perfil
-                            try {
-                                // Configurar temporalmente el header para la llamada
+                            // ✅ VALIDACIÓN MEJORADA: Verificar datos críticos de la sucursal
+                            if (!parsedBranchData.branch_id || !parsedBranchData.user_id || !parsedBranchData.client_id) {
+                                console.warn('⚠️ Datos de sucursal incompletos, recargando desde servidor...', {
+                                    hasBranchId: !!parsedBranchData.branch_id,
+                                    hasUserId: !!parsedBranchData.user_id,
+                                    hasClientId: !!parsedBranchData.client_id
+                                });
+                                
+                                // Configurar token temporalmente para la llamada
                                 API.defaults.headers.common.Authorization = `Bearer ${branchToken}`;
-
-                                const profileResponse = await API.get('/branch-auth/profile');
-
-                                if (profileResponse.data.success) {
-                                    const completeProfileData = profileResponse.data.data;
-
-                                    // Combinar datos guardados con datos completos del perfil
-                                    const enrichedBranchData = {
-                                        ...parsedBranchData,
-                                        ...completeProfileData,
-
-                                        // ✅ CAMPOS CRÍTICOS MAPEADOS CORRECTAMENTE
-                                        branch_id: completeProfileData.branch_id || parsedBranchData.branch_id,
-                                        client_id: completeProfileData.client_id || parsedBranchData.client_id,
-                                        email: completeProfileData.email_branch || parsedBranchData.email,
-                                        branchname: completeProfileData.branch_name || parsedBranchData.branchname,
-                                        branch_name: completeProfileData.branch_name || parsedBranchData.branchname,
-
-                                        // ✅ INFORMACIÓN DE EMPRESA
-                                        company_name: completeProfileData.company_name || parsedBranchData.company_name,
-                                        nit_number: completeProfileData.nit_number || parsedBranchData.nit_number,
-                                        verification_digit: completeProfileData.verification_digit || parsedBranchData.verification_digit,
-
-                                        // ✅ UBICACIÓN COMPLETA
-                                        address: completeProfileData.address || parsedBranchData.address,
-                                        city: completeProfileData.city || parsedBranchData.city,
-                                        state: completeProfileData.state || parsedBranchData.state,
-                                        country: completeProfileData.country || parsedBranchData.country,
-                                        municipality_code: completeProfileData.municipality_code || parsedBranchData.municipality_code,
-                                        zip_code: completeProfileData.zip_code || parsedBranchData.zip_code,
-
-                                        // ✅ INFORMACIÓN DE CONTACTO
-                                        phone: completeProfileData.phone || parsedBranchData.phone,
-                                        contact_person: completeProfileData.contact_person || parsedBranchData.contact_person,
-                                        manager_name: completeProfileData.manager_name || parsedBranchData.manager_name,
-
-                                        // ✅ DATOS DEL USUARIO PRINCIPAL ASOCIADO
-                                        user_id: completeProfileData.user_id, // ← ESTE ES EL CAMPO QUE NECESITAS
-                                        user_name: completeProfileData.user_name,
-                                        user_email: completeProfileData.user_email,
-                                        user_cardcode_sap: completeProfileData.user_cardcode_sap,
-                                        user_cardtype_sap: completeProfileData.user_cardtype_sap,
-
-                                        // ✅ CONFIGURACIÓN DE SUCURSAL
-                                        ship_to_code: completeProfileData.ship_to_code,
-                                        is_default: completeProfileData.is_default,
-                                        is_login_enabled: completeProfileData.is_login_enabled,
-                                        type: completeProfileData.type,
-
-                                        // ✅ INFORMACIÓN DE SEGURIDAD Y FECHAS
-                                        last_login: completeProfileData.last_login,
-                                        failed_login_attempts: completeProfileData.failed_login_attempts,
-                                        locked_until: completeProfileData.locked_until,
-                                        created_at: completeProfileData.created_at,
-                                        updated_at: completeProfileData.updated_at,
-                                        created_at_auth: completeProfileData.created_at_auth,
-                                        updated_at_auth: completeProfileData.updated_at_auth,
-
-                                        // ✅ CAMPOS ADICIONALES
-                                        mail: completeProfileData.mail,
-                                        email_branch: completeProfileData.email_branch,
+                                
+                                // Recargar datos completos desde el servidor
+                                const freshProfileResponse = await API.get('/branch-auth/profile');
+                                if (freshProfileResponse.data.success && freshProfileResponse.data.data) {
+                                    const enrichedData = {
+                                        ...freshProfileResponse.data.data,
+                                        type: 'branch'
                                     };
-
-                                    // Actualizar localStorage con datos COMPLETOS enriquecidos
-                                    localStorage.setItem('branchData', JSON.stringify(enrichedBranchData));
-
-                                    console.log('✅ Sesión de sucursal enriquecida con TODOS los campos:', {
-                                        branch_id: enrichedBranchData.branch_id,
-                                        user_id: enrichedBranchData.user_id, // ← Verificar que esté presente
-                                        email: enrichedBranchData.email,
-                                        branch_name: enrichedBranchData.branch_name,
-                                        company_name: enrichedBranchData.company_name,
-                                        client_id: enrichedBranchData.client_id,
-                                        address: enrichedBranchData.address,
-                                        municipality_code: enrichedBranchData.municipality_code,
-                                        user_cardcode_sap: enrichedBranchData.user_cardcode_sap
+                                    
+                                    // Actualizar localStorage con datos completos
+                                    localStorage.setItem('branchData', JSON.stringify(enrichedData));
+                                    
+                                    console.log('✅ Datos de sucursal recargados exitosamente:', {
+                                        branch_id: enrichedData.branch_id,
+                                        user_id: enrichedData.user_id,
+                                        client_id: enrichedData.client_id
                                     });
+                                    
                                     dispatch({
                                         type: TYPES.LOGIN_SUCCESS,
                                         payload: {
-                                            authType: 'branch', // ✅ CRÍTICO: String literal
-                                            branch: enrichedBranchData,
+                                            authType: 'branch',
+                                            branch: enrichedData,
                                             token: branchToken,
                                         },
                                     });
+                                    API.defaults.headers.common.Authorization = `Bearer ${branchToken}`;
                                     return;
                                 } else {
-                                    console.warn('⚠️ No se pudo obtener perfil completo, usando datos básicos');
-                                    // Fallback a datos básicos
+                                    console.error('❌ No se pudieron recargar los datos de sucursal');
+                                    localStorage.removeItem('branchAuthToken');
+                                    localStorage.removeItem('branchData');
+                                }
+                            } else {
+                                // Los datos están completos, continuar con el flujo normal
+                                console.log('✅ Datos de sucursal completos encontrados');
+                                
+                                // ✅ NUEVO: Enriquecer con datos completos del perfil
+                                try {
+                                    // Configurar temporalmente el header para la llamada
+                                    API.defaults.headers.common.Authorization = `Bearer ${branchToken}`;
+
+                                    const profileResponse = await API.get('/branch-auth/profile');
+
+                                    if (profileResponse.data.success) {
+                                        const completeProfileData = profileResponse.data.data;
+
+                                        // Combinar datos guardados con datos completos del perfil
+                                        const enrichedBranchData = {
+                                            ...parsedBranchData,
+                                            ...completeProfileData,
+                                            type: 'branch'
+                                        };
+
+                                        // Actualizar localStorage con datos COMPLETOS enriquecidos
+                                        localStorage.setItem('branchData', JSON.stringify(enrichedBranchData));
+
+                                        console.log('✅ Sesión de sucursal enriquecida con TODOS los campos:', {
+                                            branch_id: enrichedBranchData.branch_id,
+                                            user_id: enrichedBranchData.user_id,
+                                            email: enrichedBranchData.email,
+                                            branch_name: enrichedBranchData.branch_name,
+                                            company_name: enrichedBranchData.company_name,
+                                            client_id: enrichedBranchData.client_id
+                                        });
+                                        dispatch({
+                                            type: TYPES.LOGIN_SUCCESS,
+                                            payload: {
+                                                authType: 'branch',
+                                                branch: enrichedBranchData,
+                                                token: branchToken,
+                                            },
+                                        });
+                                        API.defaults.headers.common.Authorization = `Bearer ${branchToken}`;
+                                        return;
+                                    } else {
+                                        console.warn('⚠️ No se pudo obtener perfil completo, usando datos básicos');
+                                        // Fallback a datos básicos
+                                        dispatch({
+                                            type: TYPES.LOGIN_SUCCESS,
+                                            payload: {
+                                                authType: 'branch',
+                                                branch: parsedBranchData,
+                                                token: branchToken,
+                                            },
+                                        });
+                                        API.defaults.headers.common.Authorization = `Bearer ${branchToken}`;
+                                        return;
+                                    }
+                                } catch (profileError) {
+                                    console.warn('⚠️ Error obteniendo perfil completo, usando datos básicos:', profileError.message);
+
+                                    // Fallback a datos básicos si falla la carga del perfil
                                     dispatch({
                                         type: TYPES.LOGIN_SUCCESS,
                                         payload: {
@@ -668,22 +678,9 @@ function AuthProvider({ children }) {
                                             token: branchToken,
                                         },
                                     });
+                                    API.defaults.headers.common.Authorization = `Bearer ${branchToken}`;
                                     return;
                                 }
-                            } catch (profileError) {
-                                console.warn('⚠️ Error obteniendo perfil completo, usando datos básicos:', profileError.message);
-
-                                // Fallback a datos básicos si falla la carga del perfil
-                                dispatch({
-                                    type: TYPES.LOGIN_SUCCESS,
-                                    payload: {
-                                        authType: 'branch',
-                                        branch: parsedBranchData,
-                                        token: branchToken,
-                                    },
-                                });
-                                API.defaults.headers.common.Authorization = `Bearer ${branchToken}`;
-                                return;
                             }
                         } else {
                             console.log('❌ Token de sucursal con formato inválido, limpiando datos');
@@ -710,6 +707,8 @@ function AuthProvider({ children }) {
         markAuthCheckEnd,
         normalizeUserData,
         enrichUserWithProfile]);
+
+    
 
     // ========================================================================
     // LOGIN
@@ -757,36 +756,83 @@ function AuthProvider({ children }) {
                 if (!token || !branchData) {
                     throw new Error('Datos incompletos recibidos del servicio de autenticación');
                 }
+
+                // ✅ VALIDACIÓN INMEDIATA: Verificar que todos los datos críticos estén presentes
+                if (!branchData.user_id || !branchData.client_id || !branchData.branch_id) {
+                    console.warn('⚠️ Respuesta de login incompleta, obteniendo perfil completo...', {
+                        hasUserId: !!branchData.user_id,
+                        hasClientId: !!branchData.client_id,
+                        hasBranchId: !!branchData.branch_id
+                    });
+                    
+                    try {
+                        // Establecer token temporalmente para obtener perfil
+                        API.defaults.headers.common.Authorization = `Bearer ${token}`;
+                        
+                        const profileResult = await API.get('/branch-auth/profile');
+                        if (profileResult.data.success && profileResult.data.data) {
+                            const completeData = {
+                                ...profileResult.data.data,
+                                type: 'branch'
+                            };
+                            
+                            // Guardar datos completos
+                            localStorage.setItem('branchAuthToken', token);
+                            localStorage.setItem('branchData', JSON.stringify(completeData));
+                            
+                            dispatch({
+                                type: TYPES.LOGIN_SUCCESS,
+                                payload: {
+                                    authType: 'branch',
+                                    branch: completeData,
+                                    token: token,
+                                },
+                            });
+                            
+                            console.log('✅ Login de sucursal exitoso con datos completos');
+                            return { success: true, data: completeData };
+                        } else {
+                            throw new Error('No se pudo obtener el perfil completo');
+                        }
+                    } catch (profileError) {
+                        console.error('❌ Error obteniendo perfil después del login:', profileError);
+                        return {
+                            success: false,
+                            error: 'Error cargando datos completos. Intenta nuevamente.'
+                        };
+                    }
+                }
+                
+                // Los datos están completos desde el login
                 if (branchData.email) {
                     emailUtils.validateEmailIntegrity(sanitizedInputEmail, branchData.email);
                 }
 
                 console.log('✅ Branch login successful:', {
                     branch_id: branchData.branch_id,
+                    user_id: branchData.user_id,
+                    client_id: branchData.client_id,
                     emailSent: sanitizedInputEmail,
                     emailReceived: branchData.email,
                     branchname: branchData.branchname,
                     tokenLength: token.length
                 });
-                const savedToken = localStorage.getItem('branchAuthToken');
-                const savedData = localStorage.getItem('branchData');
 
-                if (!savedToken || !savedData) {
-                    console.warn('⚠️ Datos no guardados por branchAuthService, guardando manualmente...');
-                    localStorage.setItem('branchAuthToken', token);
-                    localStorage.setItem('branchData', JSON.stringify(branchData));
-                }
-
-                API.defaults.headers.common.Authorization = `Bearer ${token}`;
-
+                const enrichedBranch = { ...branchData, type: 'branch' };
+                
+                localStorage.setItem('branchAuthToken', token);
+                localStorage.setItem('branchData', JSON.stringify(enrichedBranch));
+                
                 dispatch({
                     type: TYPES.LOGIN_SUCCESS,
                     payload: {
                         authType: AUTH_TYPES.BRANCH,
-                        branch: branchData,
+                        branch: enrichedBranch,
                         token: token,
                     },
                 });
+                
+                API.defaults.headers.common.Authorization = `Bearer ${token}`;
 
                 return { success: true, data: branchData };
 
@@ -1274,6 +1320,35 @@ function AuthProvider({ children }) {
         resetBranchPassword,
         initiateBranchEmailVerification,
 
+        // ✅ NUEVO MÉTODO: Refrescar autenticación
+        refreshAuth: useCallback(async () => {
+            if (state.authType === 'branch' && state.token) {
+                try {
+                    console.log('🔄 Refrescando datos de autenticación...');
+                    const profileResult = await API.get('/branch-auth/profile');
+                    
+                    if (profileResult.data.success && profileResult.data.data) {
+                        const freshData = { ...profileResult.data.data, type: 'branch' };
+                        localStorage.setItem('branchData', JSON.stringify(freshData));
+                        
+                        dispatch({
+                            type: TYPES.LOGIN_SUCCESS,
+                            payload: {
+                                authType: 'branch',
+                                branch: freshData,
+                                token: state.token,
+                            },
+                        });
+                        
+                        console.log('✅ Datos refrescados exitosamente');
+                        return true;
+                    }
+                } catch (error) {
+                    console.error('❌ Error refrescando autenticación:', error);
+                }
+            }
+            return false;
+        }, [state.authType, state.token]),
 
         // Estados adicionales para compatibilidad
         isBranchVerifying: state.isBranchVerifying,
