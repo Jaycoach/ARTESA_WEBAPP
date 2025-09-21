@@ -1236,7 +1236,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       product.unit_price || 
       0
     );
-    
+
     return {
       value: product.product_id,
       label: product.name,
@@ -1310,31 +1310,33 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     setOrderDetails(newDetails);
   };
 
-  const formatOptionLabel = ({ value, label, image, price }) => {
-  // Determinar si debe cargar imagen basado en cache de errores
-  const hasErrorCached = errorCache && errorCache.has(`${value}-thumbnail`);
-  const shouldLoadImage = (
-    visibleOptions.has(value) || 
-    selectedProductImages.has(value) || 
-    allProductImages.has(value) ||
-    productOptionsForSelect.findIndex(opt => opt.value === value) < 5
-  ) && !hasErrorCached;
+  const formatOptionLabel = ({ value, label, image, price, productData }) => {
+    // Determinar si debe cargar imagen basado en cache de errores y disponibilidad
+    const hasErrorCached = errorCache && errorCache.has(`${value}-thumbnail`);
+    const shouldLoadImage = (
+      visibleOptions.has(value) || 
+      selectedProductImages.has(value) || 
+      allProductImages.has(value) ||
+      productOptionsForSelect.findIndex(opt => opt.value === value) < 5
+    ) && !hasErrorCached;
 
-  return (
-    <div className="flex items-center py-1" data-product-id={value}>
-      <ProductImageSmall
-        productId={value}
-        alt={label}
-        className="w-8 h-8 mr-3"
-        shouldLoad={shouldLoadImage}
-      />
-      <div className="flex-1">
-        <div className="font-medium text-sm text-gray-800 leading-tight">{label}</div>
-        {price && <div className="text-xs text-gray-500">{formatCurrencyCOP(price)}</div>}
+    return (
+      <div className="flex items-center py-1" data-product-id={value}>
+        <ProductImageSmall
+          productId={value}
+          alt={label}
+          className="w-8 h-8 mr-3"
+          shouldLoad={shouldLoadImage}
+        />
+        <div className="flex-1">
+          <div className="font-medium text-sm text-gray-800 leading-tight">{label}</div>
+          {price && price > 0 && (
+            <div className="text-xs text-gray-500">{formatCurrencyCOP(price)}</div>
+          )}
+        </div>
       </div>
-    </div>
-  );
-};
+    );
+  };
 
   const formatCurrencyCOP = (value) => {
     const numValue = parseFloat(value);

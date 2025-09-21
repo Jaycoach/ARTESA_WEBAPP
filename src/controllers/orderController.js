@@ -251,6 +251,10 @@ const createOrder = async (req, res) => {
       // Calcular fecha mínima permitida usando el nuevo método
       const minDeliveryDate = Order.calculateDeliveryDate(new Date(), orderTimeLimit);
 
+      // Comparar solo las fechas (sin la hora)
+      const minDeliveryDateOnly = new Date(minDeliveryDate.toDateString());
+      const deliveryDateOnly = new Date(parsedDeliveryDate.toDateString());
+
       // Logging mejorado para debug
       logger.debug('Validación de fecha de entrega', {
         receivedDate: delivery_date,
@@ -262,12 +266,6 @@ const createOrder = async (req, res) => {
         timezone: process.env.TZ || 'UTC',
         orderTimeLimit: orderTimeLimit
       });
-      
-      // Comparar solo las fechas (sin la hora)
-      const minDeliveryDateOnly = new Date(minDeliveryDate.toDateString());
-      
-      // Comparar solo las fechas (sin la hora)
-      const deliveryDateOnly = new Date(parsedDeliveryDate.toDateString());
 
       // Logging para debug de zona horaria
       logger.debug('Validación de fecha con zona horaria', {
