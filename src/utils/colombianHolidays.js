@@ -199,11 +199,18 @@ function getEasterSunday(year) {
   function addWorkingDays(date, workingDays) {
     return getNextWorkingDay(date, workingDays);
   }
+  /**
+ * Alias para mantener compatibilidad
+ */
+function isHoliday(date) {
+  return isColombianHoliday(date);
+}
   
   module.exports = {
-    getColombianHolidays,
-    isColombianHoliday,
-    isWorkingDay,
-    getNextWorkingDay,
-    addWorkingDays
-  };
+  getColombianHolidays,
+  isColombianHoliday,
+  isHoliday,
+  isWorkingDay,
+  getNextWorkingDay,
+  addWorkingDays
+};

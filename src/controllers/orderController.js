@@ -253,7 +253,6 @@ const createOrder = async (req, res) => {
       
       // Comparar solo las fechas (sin la hora)
       const deliveryDateOnly = new Date(parsedDeliveryDate.toDateString());
-      const minDeliveryDateOnly = new Date(minDeliveryDate.toDateString());
 
       // Logging para debug de zona horaria
       logger.debug('Validación de fecha con zona horaria', {
@@ -276,11 +275,29 @@ const createOrder = async (req, res) => {
         });
       }
 
+      // Comparar solo las fechas (sin la hora)
+      const minDeliveryDateOnly = new Date(minDeliveryDate.toDateString());
+
+      // Logging mejorado para debug
+      logger.debug('Validación de fecha de entrega', {
+        receivedDate: delivery_date,
+        parsedDeliveryDate: parsedDeliveryDate.toISOString(),
+        deliveryDateOnly: deliveryDateOnly.toISOString(),
+        minDeliveryDate: minDeliveryDate.toISOString(),
+        minDeliveryDateOnly: minDeliveryDateOnly.toISOString(),
+        isValid: deliveryDateOnly >= minDeliveryDateOnly,
+        timezone: process.env.TZ || 'UTC',
+        orderTimeLimit: orderTimeLimit
+      });
+
       if (deliveryDateOnly < minDeliveryDateOnly) {
         return res.status(400).json({
           success: false,
-          message: `La fecha de entrega debe ser a partir del ${minDeliveryDate.toISOString().split('T')[0]}`,
-          minDeliveryDate: minDeliveryDate.toISOString().split('T')[0]
+          message: `La fecha de entrega debe ser a partir del ${minDeliveryDate.toISOString().split('T')[0]}. Se requieren mínimo 48 horas hábiles para procesar la orden.`,
+          minDeliveryDate: minDeliveryDate.toISOString().split('T')[0],
+          receivedDate: delivery_date,
+          currentTime: new Date().toISOString(),
+          orderTimeLimit: orderTimeLimit
         });
       }
     }
@@ -726,9 +743,31 @@ const updateOrder = async (req, res) => {
           message: 'Error en la configuración del sistema'
         });
       }
-      
-      // Calcular fecha mínima permitida
-      const minDeliveryDate = Order.calculateDeliveryDate(new Date(), orderTimeLimit);
+
+      // Obtener la fecha de creación de la orden
+      const orderCreationDate = new Date(currentOrder.order_date);
+      const now = new Date();
+
+      // Calcular hasta cuándo se puede editar la orden
+      const [limitHours, limitMinutes] = orderTimeLimit.split(':').map(Number);
+
+      // La orden se puede editar hasta las X horas del día siguiente a su creación
+      const editDeadline = new Date(orderCreationDate);
+      editDeadline.setDate(editDeadline.getDate() + 1); // Día siguiente
+      editDeadline.setHours(limitHours, limitMinutes, 0, 0); // Hora límite
+
+      // Verificar si aún se puede editar
+      if (now > editDeadline) {
+        return res.status(400).json({
+          success: false,
+          message: `No se puede modificar la orden después de las ${orderTimeLimit} del día siguiente a su creación (${editDeadline.toLocaleDateString('es-ES')})`,
+          orderCreationDate: orderCreationDate.toISOString().split('T')[0],
+          editDeadline: editDeadline.toISOString()
+        });
+      }
+
+      // Calcular fecha mínima de entrega (48 horas hábiles desde la fecha de creación)
+      const minDeliveryDate = Order.calculateDeliveryDate(orderCreationDate, orderTimeLimit);
       
       // Verificar que la fecha sea válida
       if (isNaN(deliveryDate.getTime())) {

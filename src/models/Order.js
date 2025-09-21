@@ -671,56 +671,49 @@ static async create(orderData) {
    * @param {string} [orderTimeLimit="18:00"] - Hora límite para pedidos del día (formato HH:MM)
    * @returns {Date} Fecha de entrega calculada
    */
-  static calculateDeliveryDate(orderDate = new Date(), orderTimeLimit) {
+  static calculateDeliveryDate(fromDate, orderTimeLimit) {
     const colombianHolidays = require('../utils/colombianHolidays');
-    const date = new Date(orderDate);
     
-    // Si no se proporcionó hora límite, obtenerla de la configuración (esto no debería ocurrir)
-    if (!orderTimeLimit) {
-      orderTimeLimit = "12:00"; // Valor seguro por defecto
-      logger.warn('No se proporcionó hora límite en calculateDeliveryDate, usando valor por defecto');
-    }
-
+    // Convertir fecha base a objeto Date si es string
+    const baseDate = new Date(fromDate);
+    
+    // Obtener hora límite configurada
     const [limitHours, limitMinutes] = orderTimeLimit.split(':').map(Number);
-
-    // Verificar si ya pasó la hora límite
-    const isPastTimeLimit = date.getHours() > limitHours || 
-    (date.getHours() === limitHours && date.getMinutes() >= limitMinutes);
     
-    // Determinar día de la semana (0 = domingo, 6 = sábado)
-    const dayOfWeek = date.getDay();
+    // Para cálculo de entrega, siempre empezar desde el día siguiente a la fecha base
+    let startDate = new Date(baseDate);
+    startDate.setDate(baseDate.getDate() + 1);
     
-    // Número de días hábiles de entrega (regla de negocio: 2 días hábiles)
-    let workingDaysToAdd = 2;
+    // Verificar si la orden fue creada después de la hora límite
+    const baseHour = baseDate.getHours();
+    const baseMinute = baseDate.getMinutes();
+    const baseTimeInMinutes = baseHour * 60 + baseMinute;
+    const limitTimeInMinutes = limitHours * 60 + limitMinutes;
     
-    // Caso especial para sábados
-    if (dayOfWeek === 6) { // Sábado
-      if (isPastTimeLimit) {
-        // Si ya pasó la hora límite, se entrega el miércoles (3 días hábiles)
-        workingDaysToAdd = 3;
-      } else {
-        // Si no pasó la hora límite, se entrega el martes (2 días hábiles)
-        workingDaysToAdd = 2;
+    // Si la orden fue creada después de la hora límite, agregar un día más
+    if (baseTimeInMinutes >= limitTimeInMinutes) {
+      startDate.setDate(startDate.getDate() + 1);
+    }
+    
+    // Contar 2 días hábiles desde la fecha de inicio
+    let deliveryDate = new Date(startDate);
+    let workingDaysAdded = 0;
+    
+    while (workingDaysAdded < 2) {
+      // Verificar si es día hábil (no fin de semana ni festivo)
+      if (colombianHolidays.isWorkingDay(deliveryDate)) {
+        workingDaysAdded++;
       }
-    } 
-    // Para cualquier otro día, añadir 2 días hábiles
-    else {
-      // Si ya pasó la hora límite, añadir un día más
-      if (isPastTimeLimit) {
-        workingDaysToAdd = 3;
-      } else {
-        workingDaysToAdd = 2;
+      
+      // Si aún no hemos completado los 2 días hábiles, avanzar al siguiente día
+      if (workingDaysAdded < 2) {
+        deliveryDate.setDate(deliveryDate.getDate() + 1);
       }
     }
     
-    // Calcular la fecha de entrega añadiendo días hábiles
-    const deliveryDate = colombianHolidays.addWorkingDays(date, workingDaysToAdd);
-    
-    // Verificar que la fecha resultante no sea un día festivo o fin de semana
-    // (esto no debería ocurrir con addWorkingDays, pero por seguridad lo verificamos)
-    if (!colombianHolidays.isWorkingDay(deliveryDate)) {
-      // Si por alguna razón cae en día no hábil, añadir días hasta llegar al próximo día hábil
-      return colombianHolidays.getNextWorkingDay(deliveryDate);
+    // Asegurar que la fecha final sea un día hábil
+    while (!colombianHolidays.isWorkingDay(deliveryDate)) {
+      deliveryDate.setDate(deliveryDate.getDate() + 1);
     }
     
     return deliveryDate;
