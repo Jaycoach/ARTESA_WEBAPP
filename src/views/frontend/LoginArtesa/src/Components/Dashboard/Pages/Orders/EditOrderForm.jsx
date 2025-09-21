@@ -87,6 +87,16 @@ const EditOrderForm = ({ onOrderUpdated }) => {
           const orderData = result.data;
           setOrder(orderData);
 
+          // ✅ DEBUG: Mostrar estructura completa del pedido
+          console.log('🔍 [DEBUG] Estructura completa del pedido:', {
+            order: orderData,
+            hasDetails: !!orderData.details,
+            detailsLength: orderData.details?.length || 0,
+            hasOrderDetails: !!orderData.orderDetails,
+            orderDetailsLength: orderData.orderDetails?.length || 0,
+            sampleDetail: orderData.details?.[0] || orderData.orderDetails?.[0]
+          });
+
           // ✅ VERIFICACIÓN DE PERMISOS SEGÚN CONTEXTO
           const currentUserId = authType === AUTH_TYPES.BRANCH ? branch?.branch_id : user?.id;
           const orderUserId = authType === AUTH_TYPES.BRANCH ? orderData.branch_id : orderData.user_id;
@@ -178,27 +188,43 @@ const EditOrderForm = ({ onOrderUpdated }) => {
     if (authType !== AUTH_TYPES.BRANCH) {
       const fetchProducts = async () => {
         try {
-          const response = await API.get('/products');
-          if (response.data.success) {
-            setProducts(response.data.data || []);
+          console.log('🔄 Cargando productos para usuario principal...');
+          
+          // ✅ USAR EL MISMO ENDPOINT QUE USA CREATEORDERFORM
+          let response;
+          
+          // Obtener productos disponibles para el usuario
+          if (user?.id) {
+            response = await API.get(`/products/user/${user.id}`);
           } else {
-            showNotification('No se pudieron cargar los productos', 'error');
-            // Datos de ejemplo como fallback
-            setProducts([
-              { product_id: 1, name: 'Pan Blanco', price_list1: 25.99 },
-              { product_id: 2, name: 'Croissant', price_list1: 15.50 },
-              { product_id: 3, name: 'Pan Integral', price_list1: 39.99 }
-            ]);
+            // Fallback al endpoint general
+            response = await API.get('/products');
+          }
+          
+          if (response.data.success) {
+            const productsData = response.data.data || [];
+            console.log('✅ Productos cargados:', productsData.length);
+            setProducts(productsData);
+          } else {
+            throw new Error('No se pudieron cargar los productos');
           }
         } catch (error) {
           console.error('Error fetching products:', error);
-          showNotification('Error al cargar productos', 'error');
-          // Datos de ejemplo como fallback
-          setProducts([
-            { product_id: 1, name: 'Pan Blanco', price_list1: 25.99 },
-            { product_id: 2, name: 'Croissant', price_list1: 15.50 },
-            { product_id: 3, name: 'Pan Integral', price_list1: 39.99 }
-          ]);
+          
+          // ✅ FALLBACK: Intentar endpoint alternativo
+          try {
+            const fallbackResponse = await API.get('/products');
+            if (fallbackResponse.data.success) {
+              setProducts(fallbackResponse.data.data || []);
+              console.log('✅ Productos cargados con endpoint fallback');
+            } else {
+              throw new Error('Error en endpoint fallback');
+            }
+          } catch (fallbackError) {
+            console.error('Error en fallback:', fallbackError);
+            showNotification('Error al cargar productos. Contacte al administrador.', 'error');
+            setProducts([]);
+          }
         }
       };
 
@@ -231,30 +257,55 @@ const EditOrderForm = ({ onOrderUpdated }) => {
             product_id: detail.product_id.toString(),
             quantity: detail.quantity,
             unit_price: detail.unit_price,
-            name: detail.product_name || 'Producto sin nombre'
+            name: detail.product_name || detail.name || 'Producto sin nombre'
           })));
+        } else if (order.orderDetails && order.orderDetails.length > 0) {
+          // ✅ FALLBACK: Si viene como orderDetails
+          console.log('👤 [USER] Mapeando productos desde field "orderDetails":', order.orderDetails);
+          setOrderDetails(order.orderDetails.map(detail => ({
+            product_id: detail.product_id.toString(),
+            quantity: detail.quantity,
+            unit_price: detail.unit_price,
+            name: detail.product_name || detail.name || 'Producto sin nombre'
+          })));
+        } else {
+          console.warn('👤 [USER] No se encontraron detalles del pedido');
+          setOrderDetails([]);
         }
       }
     }
   }, [order, authType]);
 
   useEffect(() => {
-    // Actualizar los precios unitarios en los detalles del pedido según los productos disponibles
+    // ✅ ACTUALIZAR PRECIOS SOLO SI ES NECESARIO
     if (authType !== AUTH_TYPES.BRANCH && products.length > 0 && orderDetails.length > 0) {
+      let needsUpdate = false;
+      
       const updatedDetails = orderDetails.map(detail => {
         const product = products.find(p => p.product_id.toString() === detail.product_id);
         if (product) {
-          return {
-            ...detail,
-            unit_price: product.price_list1,
-            name: product.name
-          };
+          // Solo actualizar si el precio actual está en 0 o es muy diferente
+          const currentPrice = parseFloat(detail.unit_price) || 0;
+          const productPrice = parseFloat(product.price_list1) || 0;
+          
+          if (currentPrice === 0 || Math.abs(currentPrice - productPrice) > 0.01) {
+            needsUpdate = true;
+            return {
+              ...detail,
+              unit_price: productPrice,
+              name: product.name || detail.name
+            };
+          }
         }
         return detail;
       });
-      setOrderDetails(updatedDetails);
+      
+      if (needsUpdate) {
+        console.log('🔄 Actualizando precios de productos:', updatedDetails);
+        setOrderDetails(updatedDetails);
+      }
     }
-  }, [products, orderDetails.length, authType]);
+  }, [products, authType]); // ✅ REMOVER orderDetails.length de dependencies
 
   const handleAddProduct = () => {
     setOrderDetails([...orderDetails, { product_id: '', quantity: 1, unit_price: 0 }]);
@@ -339,10 +390,14 @@ const EditOrderForm = ({ onOrderUpdated }) => {
   };
 
   const calculateTotal = () => {
-    return orderDetails.reduce((total, item) => {
-      const itemTotal = item.quantity * item.unit_price;
-      return total + (isNaN(itemTotal) ? 0 : itemTotal);
-    }, 0).toFixed(2);
+    const total = orderDetails.reduce((sum, item) => {
+      const quantity = parseFloat(item.quantity) || 0;
+      const unitPrice = parseFloat(item.unit_price) || 0;
+      const itemTotal = quantity * unitPrice;
+      return sum + (isNaN(itemTotal) ? 0 : itemTotal);
+    }, 0);
+    
+    return total.toFixed(2);
   };
 
   const showNotification = (message, type = 'success') => {
@@ -363,15 +418,48 @@ const EditOrderForm = ({ onOrderUpdated }) => {
     setIsSubmitting(true);
 
     try {
-      // Calcular total
-      const totalAmount = parseFloat(calculateTotal());
+      console.log(`🔄 [${authType.toUpperCase()}] Iniciando actualización de orden:`, orderId);
 
-      // Preparar datos para la API
+      // ✅ VALIDACIONES MEJORADAS
+      if (!deliveryDate) {
+        throw new Error('La fecha de entrega es requerida');
+      }
+
+      if (orderDetails.length === 0) {
+        throw new Error('Debe agregar al menos un producto al pedido');
+      }
+
+      // ✅ VALIDAR QUE TODOS LOS PRODUCTOS TENGAN DATOS VÁLIDOS
+      const invalidProducts = orderDetails.filter(detail => 
+        !detail.product_id || 
+        !detail.quantity || 
+        detail.quantity <= 0 || 
+        !detail.unit_price || 
+        detail.unit_price <= 0
+      );
+
+      if (invalidProducts.length > 0) {
+        console.error('❌ Productos con datos inválidos:', invalidProducts);
+        throw new Error('Todos los productos deben tener ID, cantidad y precio válidos');
+      }
+
+      // ✅ CALCULAR TOTALES
+      const totalAmount = orderDetails.reduce((sum, detail) => {
+        const quantity = parseFloat(detail.quantity) || 0;
+        const unitPrice = parseFloat(detail.unit_price) || 0;
+        return sum + (quantity * unitPrice);
+      }, 0);
+
+      if (totalAmount <= 0) {
+        throw new Error('El total del pedido debe ser mayor a $0');
+      }
+
+      // ✅ PREPARAR DATOS PARA LA API
       const orderData = {
         user_id: user.id,
-        total_amount: parseFloat(calculateTotal()),
+        total_amount: totalAmount,
         delivery_date: deliveryDate,
-        notes: orderNotes,
+        notes: orderNotes || '',
         details: orderDetails.map(detail => ({
           product_id: parseInt(detail.product_id),
           quantity: parseInt(detail.quantity),
@@ -379,26 +467,23 @@ const EditOrderForm = ({ onOrderUpdated }) => {
         }))
       };
 
-      // Si hay un archivo adjunto, crear FormData para envío multipart
-      let formData = null;
+      console.log('📦 Datos de actualización preparados:', orderData);
+
+      // ✅ MANEJAR ARCHIVO SI EXISTE
+      let finalData = orderData;
+      let isMultipart = false;
+
       if (orderFile) {
-        formData = new FormData();
-
-        // Agregar el archivo
+        const formData = new FormData();
         formData.append('orderFile', orderFile);
-
-        // Agregar los demás datos como JSON
         formData.append('orderData', JSON.stringify(orderData));
+        finalData = formData;
+        isMultipart = true;
+        console.log('📎 Incluyendo archivo en la actualización');
       }
 
-      console.log('Actualizando pedido:', orderData);
-
-      // Enviar a la API (usando formData si hay archivo)
-      const result = await orderService.updateOrder(
-        orderId,
-        formData || orderData,
-        !!formData
-      );
+      // ✅ ENVIAR ACTUALIZACIÓN
+      const result = await orderService.updateOrder(orderId, finalData, isMultipart);
 
       if (result.success) {
         showNotification('Pedido actualizado exitosamente', 'success');
@@ -406,9 +491,10 @@ const EditOrderForm = ({ onOrderUpdated }) => {
         // Notificar al componente padre
         if (onOrderUpdated) onOrderUpdated(result.data);
 
-        // Redireccionar después de 2 segundos
+        // Redireccionar según tipo de usuario
+        const routePrefix = authType === AUTH_TYPES.BRANCH ? '/dashboard-branch' : '/dashboard';
         setTimeout(() => {
-          navigate(`/dashboard/orders/${orderId}`);
+          navigate(`${routePrefix}/orders/${orderId}`);
         }, 2000);
       } else {
         throw new Error(result.message || 'Error al actualizar el pedido');

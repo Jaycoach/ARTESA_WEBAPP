@@ -516,4 +516,7 @@ router.get('/:orderId', branchOrderController.getOrderDetails);
  */
 router.put('/:orderId/status', branchOrderController.updateOrderStatus);
 
+// Ruta para actualización completa de orden desde sucursal
+router.put('/:orderId', branchOrderController.updateOrder);
+
 module.exports = router;

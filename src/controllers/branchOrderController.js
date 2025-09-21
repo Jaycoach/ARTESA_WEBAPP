@@ -623,6 +623,98 @@ class BranchOrderController {
       });
     }
   }
+  /**
+   * Actualizar orden completa desde sucursal
+   * PUT /api/branch-orders/{orderId}
+   */
+  async updateOrder(req, res) {
+    try {
+      const { branch_id, client_id } = req.branch;
+      const { orderId } = req.params;
+      const updateData = req.body;
+
+      logger.debug('Actualizando orden completa desde sucursal', { 
+        branchId: branch_id,
+        orderId,
+        updateData
+      });
+
+      // Verificar que la orden pertenece a la sucursal
+      const orderQuery = `
+        SELECT o.*, os.status_name as current_status
+        FROM orders o
+        JOIN order_status os ON o.status_id = os.status_id
+        WHERE o.order_id = $1 
+          AND o.branch_id = $2
+          AND o.user_id IN (
+            SELECT cp.user_id 
+            FROM client_profiles cp 
+            WHERE cp.client_id = $3
+          )
+      `;
+
+      const { rows: orderRows } = await pool.query(orderQuery, [orderId, branch_id, client_id]);
+
+      if (orderRows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'Orden no encontrada o no pertenece a esta sucursal'
+        });
+      }
+
+      const order = orderRows[0];
+
+      // Verificar si la orden está en un estado que permite modificación
+      const nonModifiableStates = [4, 5, 6]; // Entregado, Cerrado, Cancelado
+      if (nonModifiableStates.includes(order.status_id)) {
+        return res.status(400).json({
+          success: false,
+          message: 'No se puede modificar una orden en estado Entregado, Cerrado o Cancelado'
+        });
+      }
+
+      // ✅ USAR EL MODELO EXISTENTE PARA ACTUALIZACIÓN
+      const updatedOrder = await Order.updateOrder(orderId, {
+        delivery_date: updateData.delivery_date,
+        total_amount: updateData.total_amount,
+        details: updateData.products || updateData.details,
+        notes: updateData.notes
+      });
+
+      if (!updatedOrder) {
+        return res.status(404).json({
+          success: false,
+          message: 'No se pudo actualizar la orden'
+        });
+      }
+
+      logger.info('Orden actualizada exitosamente desde sucursal', {
+        orderId,
+        branchId: branch_id,
+        totalAmount: updatedOrder.total_amount
+      });
+
+      res.status(200).json({
+        success: true,
+        message: 'Orden actualizada exitosamente',
+        data: updatedOrder
+      });
+
+    } catch (error) {
+      logger.error('Error al actualizar orden desde sucursal', {
+        error: error.message,
+        stack: error.stack,
+        branchId: req.branch?.branch_id,
+        orderId: req.params?.orderId
+      });
+
+      res.status(500).json({
+        success: false,
+        message: 'Error al actualizar la orden',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
 }
 
 module.exports = new BranchOrderController();
