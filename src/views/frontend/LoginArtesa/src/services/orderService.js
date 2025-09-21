@@ -163,7 +163,7 @@ export const orderService = {
     }
   },
 
-  // ✅ ACTUALIZAR ORDEN ADAPTADA
+  // ✅ ACTUALIZAR ORDEN ADAPTADA CORREGIDA
   async updateOrder(orderId, orderData, isMultipart = false) {
     try {
       const userContext = detectUserContext();
@@ -178,9 +178,27 @@ export const orderService = {
 
       console.log(`🔄 Actualizando orden ${userContext.type.toUpperCase()}: ${orderId}`);
 
-      // ✅ USAR ENDPOINT CORRECTO PARA ACTUALIZACIÓN
-      const endpoint = `${userContext.endpoint}/${orderId}`;
-      const response = await API.put(endpoint, orderData, { headers });
+      let endpoint, response;
+
+      if (userContext.type === 'branch') {
+        // ✅ PARA BRANCH: Usar endpoint específico de actualización de estado
+        // Si solo se está cambiando el estado, usar el endpoint de status
+        if (orderData.status_id && Object.keys(orderData).length === 1) {
+          endpoint = `/branch-orders/${orderId}/status`;
+          response = await API.put(endpoint, {
+            status_id: orderData.status_id,
+            note: orderData.note || 'Actualización desde sucursal'
+          }, { headers });
+        } else {
+          // ✅ PARA BRANCH: Para actualizaciones completas, usar endpoint principal con permisos
+          endpoint = `/orders/${orderId}`;
+          response = await API.put(endpoint, orderData, { headers });
+        }
+      } else {
+        // ✅ PARA USUARIO PRINCIPAL: Usar endpoint estándar
+        endpoint = `/orders/${orderId}`;
+        response = await API.put(endpoint, orderData, { headers });
+      }
 
       if (response.data.success) {
         return {

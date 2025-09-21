@@ -350,7 +350,7 @@ const EditOrderForm = ({ onOrderUpdated }) => {
     setTimeout(() => setNotification({ show: false, message: '', type: '' }), 5000);
   };
 
-  const handleSubmit = async (e) => {
+  const handleUpdateOrder = async (e) => {
     e.preventDefault();
 
     if (!canEdit) {
@@ -358,31 +358,11 @@ const EditOrderForm = ({ onOrderUpdated }) => {
       return;
     }
 
-    // Validaciones
-    if (!user || !user.id) {
-      showNotification('Debes iniciar sesión para actualizar un pedido', 'error');
-      return;
-    }
-
-    // Validar productos y cantidades
-    const isValid = orderDetails.every(detail =>
-      detail.product_id && detail.quantity > 0 && detail.unit_price > 0
-    );
-
-    if (!isValid) {
-      showNotification('Por favor completa todos los campos correctamente', 'error');
-      return;
-    }
-
-    // Validar fecha de entrega
-    if (!deliveryDate) {
-      showNotification('Selecciona una fecha de entrega válida', 'error');
-      return;
-    }
+    if (isSubmitting) return;
+    
+    setIsSubmitting(true);
 
     try {
-      setIsSubmitting(true);
-
       // Calcular total
       const totalAmount = parseFloat(calculateTotal());
 
@@ -434,7 +414,7 @@ const EditOrderForm = ({ onOrderUpdated }) => {
         throw new Error(result.message || 'Error al actualizar el pedido');
       }
     } catch (error) {
-      console.error('Error updating order:', error);
+      console.error(`❌ [${authType.toUpperCase()}] Error updating order:`, error);
       showNotification(error.message || 'Ocurrió un error al actualizar tu pedido', 'error');
     } finally {
       setIsSubmitting(false);
@@ -472,7 +452,6 @@ const EditOrderForm = ({ onOrderUpdated }) => {
 
   return (
     <div className="w-full p-6 bg-white rounded-lg border border-gray-200 shadow-sm">
-      {/* ✅ RENDERIZADO ESPECIAL PARA BRANCH */}
       {authType === AUTH_TYPES.BRANCH ? (
         <div className="space-y-6">
           {/* Header para Branch */}
@@ -634,20 +613,11 @@ const EditOrderForm = ({ onOrderUpdated }) => {
                   <button
                     onClick={handleCancelOrderBranch}
                     disabled={isSubmitting}
-                    className={`px-6 py-2 border border-transparent rounded-md text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 ${isSubmitting ? 'opacity-75 cursor-not-allowed' : ''
-                      }`}
+                    className={`px-6 py-2 border border-transparent rounded-md text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 ${
+                      isSubmitting ? 'opacity-75 cursor-not-allowed' : ''
+                    }`}
                   >
-                    {isSubmitting ? (
-                      <span className="flex items-center">
-                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Cancelando...
-                      </span>
-                    ) : (
-                      'Sí, cancelar pedido'
-                    )}
+                    {isSubmitting ? 'Cancelando...' : 'Sí, cancelar pedido'}
                   </button>
                 </div>
               </div>
@@ -655,8 +625,7 @@ const EditOrderForm = ({ onOrderUpdated }) => {
           )}
         </div>
       ) : (
-        // ✅ RENDERIZADO ORIGINAL PARA USUARIOS PRINCIPALES (mantener exactamente igual)
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleUpdateOrder} className="space-y-6">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-semibold text-gray-800">Editar Pedido #{orderId}</h2>
             <button

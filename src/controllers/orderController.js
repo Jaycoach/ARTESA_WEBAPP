@@ -654,11 +654,53 @@ const updateOrder = async (req, res) => {
       });
     }
 
-    // Verificar permisos - solo el dueño o un administrador pueden modificar la orden
-    if (currentOrder.user_id !== user.id && user.rol_id !== 1) {
+    // ✅ VERIFICACIÓN DE PERMISOS MEJORADA
+    // Para usuarios principales: verificar que sea el dueño o administrador
+    // Para sucursales: verificar que la orden pertenezca a su cliente/sucursal
+    let hasPermission = false;
+
+    if (user.rol_id === 1) {
+      // Administradores pueden modificar cualquier orden
+      hasPermission = true;
+    } else if (currentOrder.user_id === user.id) {
+      // El usuario dueño puede modificar su orden
+      hasPermission = true;
+    } else {
+      // ✅ VERIFICAR SI ES UNA SUCURSAL CON PERMISOS
+      try {
+        // Verificar si existe un branch_id en la orden y si el usuario pertenece a esa sucursal
+        if (currentOrder.branch_id) {
+          const branchUserQuery = `
+            SELECT cp.user_id, cb.branch_id
+            FROM client_profiles cp
+            JOIN client_branches cb ON cp.client_id = cb.client_id
+            WHERE cp.user_id = $1 AND cb.branch_id = $2
+          `;
+          const branchUserResult = await require('../config/db').query(branchUserQuery, [user.id, currentOrder.branch_id]);
+          
+          if (branchUserResult.rows.length > 0) {
+            hasPermission = true;
+            logger.info('Usuario autorizado como parte de la sucursal de la orden', {
+              userId: user.id,
+              orderId,
+              branchId: currentOrder.branch_id
+            });
+          }
+        }
+      } catch (branchCheckError) {
+        logger.warn('Error verificando permisos de sucursal', {
+          error: branchCheckError.message,
+          userId: user.id,
+          orderId
+        });
+      }
+    }
+
+    if (!hasPermission) {
       logger.warn('Intento de acceso no autorizado a actualización de orden', {
         orderId,
         orderUserId: currentOrder.user_id,
+        orderBranchId: currentOrder.branch_id,
         requestingUserId: user.id,
         requestingUserRole: user.rol_id
       });
