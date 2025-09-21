@@ -568,6 +568,59 @@ const getUserOrders = async (req, res) => {
 
 /**
  * @swagger
+ * /api/orders/user-branches:
+ *   get:
+ *     summary: Obtener sucursales del usuario para filtros
+ *     description: Recupera las sucursales disponibles para un usuario para usar en filtros
+ *     tags: [Orders]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Lista de sucursales recuperada exitosamente
+ *       401:
+ *         description: No autorizado
+ *       500:
+ *         description: Error interno del servidor
+ */
+const getUserBranches = async (req, res) => {
+  try {
+    const user = req.user;
+    
+    logger.debug('Obteniendo sucursales del usuario', { userId: user.id });
+
+    // Obtener sucursales del usuario
+    const query = `
+      SELECT DISTINCT cb.branch_id, cb.branch_name, cb.address, cb.city
+      FROM client_branches cb
+      JOIN client_profiles cp ON cb.client_id = cp.client_id
+      WHERE cp.user_id = $1
+      ORDER BY cb.branch_name ASC
+    `;
+    
+    const { rows } = await pool.query(query, [user.id]);
+    
+    res.status(200).json({
+      success: true,
+      data: rows
+    });
+  } catch (error) {
+    logger.error('Error al obtener sucursales del usuario', {
+      error: error.message,
+      stack: error.stack,
+      userId: req.user?.id
+    });
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error al obtener sucursales del usuario',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * @swagger
  * /api/orders/{orderId}:
  *   put:
  *     summary: Actualizar una orden existente
@@ -2785,6 +2838,7 @@ module.exports = {
   createOrder,
   getOrderById,
   getUserOrders,
+  getUserBranches,
   updateOrder,
   getOrdersByStatus,
   getOrderStatuses,

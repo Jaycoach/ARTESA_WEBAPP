@@ -8,7 +8,8 @@ const {
   createOrder, 
   getOrderById, 
   getUserOrders, 
-  updateOrder, 
+  updateOrder,
+  getUserBranches, 
   getOrdersByStatus, 
   getOrderStatuses,
   calculateDeliveryDate,
@@ -259,6 +260,17 @@ router.get('/orders/top-products', verifyToken, getTopSellingProducts);
  * @returns {object} 500 - Error interno del servidor
  */
 router.get('/orders/monthly-stats', verifyToken, getMonthlyStats);
+
+/**
+ * Obtener sucursales del usuario para filtros
+ * @route GET /orders/user-branches
+ * @group Orders - Operaciones relacionadas con órdenes
+ * @security bearerAuth
+ * @returns {object} 200 - Lista de sucursales recuperada exitosamente
+ * @returns {object} 401 - No autorizado
+ * @returns {object} 500 - Error interno del servidor
+ */
+router.get('/orders/user-branches', verifyToken, getUserBranches);
 
 /**
  * Ejecutar diagnóstico SQL directo para órdenes de usuario

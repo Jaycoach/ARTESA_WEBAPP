@@ -451,12 +451,17 @@ static async create(orderData) {
       const query = `
         SELECT o.*, 
               COUNT(od.order_detail_id) as item_count, 
-              SUM(od.quantity) as total_items
+              SUM(od.quantity) as total_items,
+              cb.branch_name,
+              cb.branch_id,
+              cb.address as branch_address,
+              cb.city as branch_city
         FROM Orders o
         LEFT JOIN Order_Details od ON o.order_id = od.order_id
+        LEFT JOIN client_branches cb ON o.branch_id = cb.branch_id
         WHERE o.user_id = $1
-        GROUP BY o.order_id
-        ORDER BY o.order_date DESC
+        GROUP BY o.order_id, cb.branch_name, cb.branch_id, cb.address, cb.city
+        ORDER BY cb.branch_name ASC, o.order_date DESC
       `;
       
       const { rows } = await pool.query(query, [userId]);

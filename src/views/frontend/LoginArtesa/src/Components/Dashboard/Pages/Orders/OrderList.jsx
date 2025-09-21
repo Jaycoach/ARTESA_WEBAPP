@@ -46,11 +46,36 @@ const OrderList = ({ canCreateValidation, onCreateOrderClick }) => {
   const [orderTimeLimit, setOrderTimeLimit] = useState(null);
   const [orderStatuses, setOrderStatuses] = useState({});
 
-  // Filtros del panel
-  const [filters, setFilters] = useState({ deliveryDate: '', statusId: '' });
-  const [tempFilters, setTempFilters] = useState({ deliveryDate: '', statusId: '' });
+  // Filtros del panel - MODIFICADO para incluir sucursal
+  const [filters, setFilters] = useState({ deliveryDate: '', statusId: '', branchId: '' });
+  const [tempFilters, setTempFilters] = useState({ deliveryDate: '', statusId: '', branchId: '' });
   const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const [userBranches, setUserBranches] = useState([]); // NUEVO
   const isAdmin = user?.role === 1;
+
+  // Función para agrupar órdenes por sucursal
+  const groupOrdersByBranch = (orders) => {
+    const grouped = orders.reduce((acc, order) => {
+      const branchKey = order.branch_id || 'main';
+      const branchName = order.branch_name || 'Oficina Principal';
+      
+      if (!acc[branchKey]) {
+        acc[branchKey] = {
+          branch_id: order.branch_id,
+          branch_name: branchName,
+          branch_address: order.branch_address,
+          branch_city: order.branch_city,
+          orders: []
+        };
+      }
+      
+      acc[branchKey].orders.push(order);
+      return acc;
+    }, {});
+    
+    return Object.values(grouped);
+  };
+
   // NUEVO: Botón condicional para crear pedido
   // Botón condicional para crear pedido usando validación del componente padre
   const CreateOrderButton = ({ className = "", showIcon = true }) => {
@@ -136,12 +161,24 @@ const OrderList = ({ canCreateValidation, onCreateOrderClick }) => {
         if (configResp.data?.success) {
           setOrderTimeLimit(configResp.data.data.orderTimeLimit || '18:00');
         }
+
+        // NUEVO: Obtener sucursales del usuario
+        if (authType === 'user') {
+          try {
+            const branchesResp = await API.get('/orders/user-branches');
+            if (branchesResp.data?.success) {
+              setUserBranches(branchesResp.data.data || []);
+            }
+          } catch (err) {
+            console.warn('No se pudieron cargar las sucursales:', err);
+          }
+        }
       } catch (err) {
         console.error('Error fetching settings:', err);
       }
     };
     fetchSettingsAndStatuses();
-  }, []);
+  }, [authType]);
 
   const fetchOrders = useCallback(async () => {
     if (!isAuthenticated) {
@@ -315,9 +352,40 @@ const OrderList = ({ canCreateValidation, onCreateOrderClick }) => {
     }).format(d);
   };
 
+  // Aplicar filtros antes de agrupar
+  let filteredOrders = orders;
+
+  // Aplicar filtros de fecha y estado
+  if (filters.deliveryDate) {
+    const filterDate = new Date(filters.deliveryDate).toISOString().split('T')[0];
+    filteredOrders = filteredOrders.filter(order => {
+      const orderDate = order.delivery_date ? new Date(order.delivery_date).toISOString().split('T')[0] : null;
+      return orderDate === filterDate;
+    });
+  }
+
+  if (filters.statusId) {
+    filteredOrders = filteredOrders.filter(order => 
+      order.status_id === parseInt(filters.statusId)
+    );
+  }
+
+  // NUEVO: Aplicar filtro de sucursal
+  if (filters.branchId) {
+    filteredOrders = filteredOrders.filter(order => 
+      order.branch_id === parseInt(filters.branchId)
+    );
+  }
+
+  // Agrupar por sucursal si hay múltiples sucursales y es usuario principal
+  const shouldGroupByBranch = authType === 'user' && userBranches.length > 1;
+  const groupedOrders = shouldGroupByBranch ? groupOrdersByBranch(filteredOrders) : null;
+
+  // Paginación
+  const totalOrders = filteredOrders.length;
   const indexOfLastOrder = currentPage * ordersPerPage;
   const indexOfFirstOrder = indexOfLastOrder - ordersPerPage;
-  const currentOrders = orders.slice(indexOfFirstOrder, indexOfLastOrder);
+  const currentOrders = filteredOrders.slice(indexOfFirstOrder, indexOfLastOrder);
   const paginate = (page) => setCurrentPage(page);
 
   const handleFilterChange = (e) => {
@@ -360,92 +428,7 @@ const OrderList = ({ canCreateValidation, onCreateOrderClick }) => {
   }
 
   return (
-    <div className="bg-white p-3 sm:p-6 rounded-lg border shadow-sm w-full max-w-[98%] mx-auto">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6 gap-3">
-        {/* Mejorar el H2 */}
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <span className="inline-flex items-center justify-center rounded-full bg-blue-100 text-blue-600 p-2">
-            <FaEye className="text-lg" />
-          </span>
-          <h2 className="text-xl sm:text-2xl font-semibold text-gray-800 tracking-wide text-center sm:text-left w-full sm:w-auto">
-            Mis Pedidos
-          </h2>
-        </div>
-        <div className="flex gap-2 items-center w-full sm:w-auto">
-          <button
-            onClick={() => setShowFilterPanel(!showFilterPanel)}
-            className="px-3 py-1.5 bg-gray-100 text-sm rounded hover:bg-gray-200 flex-1 sm:flex-none flex items-center justify-center"
-          >
-            <FaFilter className="mr-1.5" />
-            {showFilterPanel ? 'Ocultar Filtros' : 'Mostrar Filtros'}
-          </button>
-          <CreateOrderButton className="flex-1 sm:flex-none" />
-        </div>
-      </div>
-
-      {/* Panel de filtros (mantener igual) */}
-      {showFilterPanel && (
-        <div
-          className="fixed inset-0 z-50 bg-black bg-opacity-40 flex justify-end"
-          onClick={() => setShowFilterPanel(false)}
-        >
-          <div
-            className="w-full max-w-xs h-full bg-white shadow-xl p-4 pt-4 relative"
-            style={{ marginTop: '110px' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              onClick={() => setShowFilterPanel(false)}
-              className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 z-50"
-            >
-              ✕
-            </button>
-
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">Filtrar pedidos</h2>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Fecha de entrega</label>
-                <input
-                  type="date"
-                  name="deliveryDate"
-                  value={tempFilters.deliveryDate}
-                  onChange={handleFilterChange}
-                  className="w-full border px-3 py-2 rounded-md mt-1"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Estado</label>
-                <select
-                  name="statusId"
-                  value={tempFilters.statusId}
-                  onChange={handleFilterChange}
-                  className="w-full border px-3 py-2 rounded-md mt-1"
-                >
-                  <option value="">-- Todos --</option>
-                  {Object.entries(orderStatuses).map(([id, name]) => (
-                    <option key={id} value={id}>
-                      {`${id} - ${name}`}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="mt-6 flex justify-end">
-              <button
-                onClick={applyFilters}
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-              >
-                Aplicar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODIFICADO: Renderizado condicional sin pedidos */}
+    <div className="contenedor-principal">
       {orders.length === 0 ? (
         <div>
           <p className="text-gray-500 text-center p-6">No tienes pedidos registrados.</p>
@@ -461,149 +444,298 @@ const OrderList = ({ canCreateValidation, onCreateOrderClick }) => {
           </div>
         </div>
       ) : (
-        // Resto del renderizado de la tabla (mantener igual)
         <>
-          {/* Versión móvil */}
-          <div className="block md:hidden">
-            {currentOrders.map((order) => (
-              <div key={order.order_id} className="mb-4 bg-white rounded-lg shadow-sm p-3 border border-gray-200">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-blue-600 font-bold">#{order.order_id}</span>
-                  <OrderStatusBadge status={orderStatuses[order.status_id] || order.status || 'pendiente'} />
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 text-sm mb-3">
-                  <div>
-                    <span className="text-gray-500 block">Fecha:</span>
-                    <span className="font-medium">{formatDate(order.order_date)}</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-500 block">Entrega:</span>
-                    <span className="font-medium">{formatDate(order.delivery_date)}</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-500 block">Total:</span>
-                    <span className="font-semibold">{formatColombianCurrency(order.total_amount)}</span>
-                  </div>
-                  {isAdmin && (
-                    <div>
-                      <span className="text-gray-500 block">Usuario:</span>
-                      <span className="font-medium">{order.user_name || order.user_email}</span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="mb-3">
-                  <span className="text-gray-500 block mb-1">Productos:</span>
-                  {(() => {
-                    const products = getOrderProducts(order, authType);
-                    return products && products.length > 0 ? (
-                      <div className="space-y-1">
-                        {products.map((product, index) => (
-                          <div key={index} className="flex justify-between text-xs">
-                            <span className="text-gray-800 font-medium truncate max-w-[70%]">
-                              {getProductName(product)}
-                            </span>
-                            <span className="text-blue-600">
-                              {getProductQuantity(product)} {getProductQuantity(product) === 1 ? 'unidad' : 'unidades'}
-                            </span>
-                          </div>
-                        ))}
+          {/* NUEVO: Renderizado por sucursales */}
+          {shouldGroupByBranch ? (
+            <>
+              {groupedOrders.map((branchGroup, branchIndex) => (
+                <div key={branchGroup.branch_id || 'main'} className="mb-8">
+                  {/* Encabezado de sucursal */}
+                  <div className="bg-blue-50 border-l-4 border-blue-400 p-4 mb-4">
+                    <div className="flex items-center">
+                      <div className="flex-shrink-0">
+                        <svg className="h-5 w-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2H4zm0 2h12v8H4V6z" clipRule="evenodd" />
+                        </svg>
                       </div>
-                    ) : (
-                      <span>No hay productos</span>
-                    );
-                  })()}
+                      <div className="ml-3">
+                        <h3 className="text-lg font-medium text-blue-800">
+                          {branchGroup.branch_name}
+                        </h3>
+                        {branchGroup.branch_address && (
+                          <p className="text-sm text-blue-600">
+                            {branchGroup.branch_address}{branchGroup.branch_city ? `, ${branchGroup.branch_city}` : ''}
+                          </p>
+                        )}
+                        <p className="text-sm text-blue-600">
+                          {branchGroup.orders.length} {branchGroup.orders.length === 1 ? 'pedido' : 'pedidos'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Órdenes de la sucursal - Versión móvil */}
+                  <div className="block md:hidden">
+                    {branchGroup.orders.slice(indexOfFirstOrder, indexOfLastOrder).map((order) => (
+                      <div key={order.order_id} className="mb-4 bg-white rounded-lg shadow-sm p-3 border border-gray-200">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-blue-600 font-bold">#{order.order_id}</span>
+                          <OrderStatusBadge status={orderStatuses[order.status_id] || order.status || 'pendiente'} />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 text-sm mb-3">
+                          <div>
+                            <span className="text-gray-500 block">Fecha:</span>
+                            <span className="font-medium">{formatDate(order.order_date)}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500 block">Entrega:</span>
+                            <span className="font-medium">{formatDate(order.delivery_date)}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500 block">Total:</span>
+                            <span className="font-semibold">{formatColombianCurrency(order.total_amount)}</span>
+                          </div>
+                          {isAdmin && (
+                            <div>
+                              <span className="text-gray-500 block">Usuario:</span>
+                              <span className="font-medium">{order.user_name || order.user_email}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="mb-3">
+                          <span className="text-gray-500 block mb-1">Productos:</span>
+                          {(() => {
+                            const products = getOrderProducts(order, authType);
+                            return products && products.length > 0 ? (
+                              <div className="space-y-1">
+                                {products.map((product, index) => (
+                                  <div key={index} className="flex justify-between text-xs">
+                                    <span className="text-gray-800 font-medium truncate max-w-[70%]">
+                                      {getProductName(product)}
+                                    </span>
+                                    <span className="text-blue-600">
+                                      {getProductQuantity(product)} {getProductQuantity(product) === 1 ? 'unidad' : 'unidades'}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <span>No hay productos</span>
+                            );
+                          })()}
+                        </div>
+
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          <Link
+                            to={`${getRoutePrefix(authType)}/orders/${order.order_id}`}
+                            className="bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 text-indigo-600 rounded flex items-center text-xs flex-grow justify-center"
+                          >
+                            <FaEye className="mr-1" />
+                            Ver
+                          </Link>
+
+                          {editableOrders[order.order_id] ? (
+                            <Link
+                              to={`${getRoutePrefix(authType)}/orders/${order.order_id}/edit`}
+                              className="bg-blue-50 hover:bg-blue-100 px-3 py-1.5 text-blue-600 rounded flex items-center text-xs flex-grow justify-center"
+                            >
+                              <FaEdit className="mr-1" />
+                              Editar
+                            </Link>
+                          ) : (
+                            <span className="text-gray-400 bg-gray-100 px-3 py-1.5 rounded flex items-center text-xs flex-grow justify-center">
+                              <FaExclamationTriangle className="mr-1 text-yellow-500" />
+                              No editable
+                            </span>
+                          )}
+
+                          {!['cancelado', 'canceled'].includes(order.status?.toLowerCase()) &&
+                            !['3', '4', '5', '7', '8'].includes(order.status_id?.toString()) && (
+                              <button
+                                onClick={() => handleCancelOrder(order.order_id)}
+                                className="text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded flex items-center text-xs flex-grow justify-center"
+                              >
+                                <FaTrashAlt className="mr-1" />
+                                Cancelar
+                              </button>
+                            )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Tabla desktop para esta sucursal */}
+                  <div className="hidden md:block w-full overflow-x-auto">
+                    <table className="w-full table-fixed divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="w-[8%] px-3 py-3 text-xs font-medium text-gray-500 uppercase text-center">ID</th>
+                          {isAdmin && (
+                            <th className="w-[12%] px-3 py-3 text-xs font-medium text-gray-500 uppercase text-center">Usuario</th>
+                          )}
+                          <th className="w-[10%] px-3 py-3 text-xs font-medium text-gray-500 uppercase text-center">Fecha</th>
+                          <th className="w-[10%] px-3 py-3 text-xs font-medium text-gray-500 uppercase text-center">Entrega</th>
+                          <th className="w-[22%] px-3 py-3 text-xs font-medium text-gray-500 uppercase text-center">Productos</th>
+                          <th className="w-[8%] px-3 py-3 text-xs font-medium text-gray-500 uppercase text-center">Cantidad</th>
+                          <th className="w-[10%] px-3 py-3 text-xs font-medium text-gray-500 uppercase text-center">Total</th>
+                          <th className="w-[10%] px-3 py-3 text-xs font-medium text-gray-500 uppercase text-center">Estado</th>
+                          <th className="w-[20%] px-3 py-3 text-xs font-medium text-gray-500 uppercase text-center">Acciones</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {branchGroup.orders.slice(indexOfFirstOrder, indexOfLastOrder).map((order) => (
+                          <tr key={order.order_id} className="hover:bg-gray-50">
+                            <td className="px-3 py-4 border-b text-sm text-blue-600 font-bold text-center">
+                              <Link to={`${getRoutePrefix(authType)}/orders/${order.order_id}`}>#{order.order_id}</Link>
+                            </td>
+
+                            {isAdmin && (
+                              <td className="px-3 py-4 border-b text-sm text-gray-500 text-center">
+                                {order.user_name || order.user_email}
+                              </td>
+                            )}
+
+                            <td className="px-3 py-4 border-b text-sm text-gray-500 text-center">
+                              {formatDate(order.order_date)}
+                            </td>
+                            <td className="px-3 py-4 border-b text-sm text-gray-500 text-center">
+                              {formatDate(order.delivery_date)}
+                            </td>
+                            <td className="px-3 py-4 border-b text-sm">
+                              {(() => {
+                                const products = getOrderProducts(order, authType);
+                                return products && products.length > 0 ? (
+                                  <div className="space-y-1">
+                                    {products.map((product, index) => (
+                                      <div
+                                        key={index}
+                                        className="text-gray-800 font-medium text-xs overflow-hidden text-ellipsis block max-w-full"
+                                        title={getProductName(product)}
+                                      >
+                                        {getProductName(product)}
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <span>No hay productos</span>
+                                );
+                              })()}
+                            </td>
+                            <td className="px-3 py-4 border-b text-sm">
+                              {(() => {
+                                const products = getOrderProducts(order, authType);
+                                return products && products.length > 0 ? (
+                                  <div className="space-y-1">
+                                    {products.map((product, index) => (
+                                      <div key={index} className="text-blue-600 text-center">
+                                        {getProductQuantity(product)}
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <span className="text-center block">No hay cantidades</span>
+                                );
+                              })()}
+                            </td>
+                            <td className="px-3 py-4 border-b text-sm text-gray-900 text-right font-semibold">
+                              {formatColombianCurrency(order.total_amount)}
+                            </td>
+                            <td className="px-3 py-4 border-b text-sm text-center">
+                              <OrderStatusBadge status={orderStatuses[order.status_id] || order.status || 'pendiente'} />
+                            </td>
+                            <td className="px-3 py-4 border-b text-sm font-medium text-center">
+                              <div className="flex justify-center items-center space-x-1 lg:space-x-2">
+                                <Link
+                                  to={`${getRoutePrefix(authType)}/orders/${order.order_id}`}
+                                  className="bg-indigo-50 hover:bg-indigo-100 px-2 lg:px-3 py-1 text-indigo-600 rounded flex items-center text-xs"
+                                >
+                                  <FaEye className="mr-1" />
+                                  <span className="hidden lg:inline">Ver</span>
+                                </Link>
+
+                                {editableOrders[order.order_id] ? (
+                                  <Link
+                                    to={`${getRoutePrefix(authType)}/orders/${order.order_id}/edit`}
+                                    className="bg-blue-50 hover:bg-blue-100 px-2 lg:px-3 py-1 text-blue-600 rounded flex items-center text-xs"
+                                  >
+                                    <FaEdit className="mr-1" />
+                                    <span className="hidden lg:inline">Editar</span>
+                                  </Link>
+                                ) : (
+                                  <span className="text-gray-400 bg-gray-100 px-2 lg:px-3 py-1 rounded flex items-center cursor-not-allowed text-xs">
+                                    <FaExclamationTriangle className="mr-1 text-yellow-500" />
+                                    <span className="hidden lg:inline">No editable</span>
+                                  </span>
+                                )}
+
+                                {!['cancelado', 'canceled'].includes(order.status?.toLowerCase()) &&
+                                  !['3', '4', '5', '7', '8'].includes(order.status_id?.toString()) && (
+                                    <button
+                                      onClick={() => handleCancelOrder(order.order_id)}
+                                      className="text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 px-2 lg:px-3 py-1 rounded flex items-center text-xs"
+                                    >
+                                      <FaTrashAlt className="mr-1" />
+                                      <span className="hidden lg:inline">Cancelar</span>
+                                    </button>
+                                  )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-
-                <div className="flex flex-wrap gap-2 mt-2">
-                  <Link
-                    to={`${getRoutePrefix(authType)}/orders/${order.order_id}`}
-                    className="bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 text-indigo-600 rounded flex items-center text-xs flex-grow justify-center"
-                  >
-                    <FaEye className="mr-1" />
-                    Ver
-                  </Link>
-
-                  {editableOrders[order.order_id] ? (
-                    <Link
-                      to={`${getRoutePrefix(authType)}/orders/${order.order_id}/edit`}
-                      className="bg-blue-50 hover:bg-blue-100 px-3 py-1.5 text-blue-600 rounded flex items-center text-xs flex-grow justify-center"
-                    >
-                      <FaEdit className="mr-1" />
-                      Editar
-                    </Link>
-                  ) : (
-                    <span className="text-gray-400 bg-gray-100 px-3 py-1.5 rounded flex items-center text-xs flex-grow justify-center">
-                      <FaExclamationTriangle className="mr-1 text-yellow-500" />
-                      No editable
-                    </span>
-                  )}
-
-                  {!['cancelado', 'canceled'].includes(order.status?.toLowerCase()) &&
-                    !['3', '4', '5', '7', '8'].includes(order.status_id?.toString()) && (
-                      <button
-                        onClick={() => handleCancelOrder(order.order_id)}
-                        className="text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded flex items-center text-xs flex-grow justify-center"
-                      >
-                        <FaTrashAlt className="mr-1" />
-                        Cancelar
-                      </button>
-                    )}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Tabla desktop (mantener igual el resto del código) */}
-          <div className="hidden md:block w-full overflow-x-auto">
-            <table className="w-full table-fixed divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="w-[8%] px-3 py-3 text-xs font-medium text-gray-500 uppercase text-center">ID</th>
-                  {isAdmin && (
-                    <th className="w-[12%] px-3 py-3 text-xs font-medium text-gray-500 uppercase text-center">Usuario</th>
-                  )}
-                  <th className="w-[10%] px-3 py-3 text-xs font-medium text-gray-500 uppercase text-center">Fecha</th>
-                  <th className="w-[10%] px-3 py-3 text-xs font-medium text-gray-500 uppercase text-center">Entrega</th>
-                  <th className="w-[22%] px-3 py-3 text-xs font-medium text-gray-500 uppercase text-center">Productos</th>
-                  <th className="w-[8%] px-3 py-3 text-xs font-medium text-gray-500 uppercase text-center">Cantidad</th>
-                  <th className="w-[10%] px-3 py-3 text-xs font-medium text-gray-500 uppercase text-center">Total</th>
-                  <th className="w-[10%] px-3 py-3 text-xs font-medium text-gray-500 uppercase text-center">Estado</th>
-                  <th className="w-[20%] px-3 py-3 text-xs font-medium text-gray-500 uppercase text-center">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              ))}
+            </>
+          ) : (
+            <>
+              {/* Renderizado original sin agrupamiento - Versión móvil */}
+              <div className="block md:hidden">
                 {currentOrders.map((order) => (
-                  <tr key={order.order_id} className="hover:bg-gray-50">
-                    <td className="px-3 py-4 border-b text-sm text-blue-600 font-bold text-center">
-                      <Link to={`${getRoutePrefix(authType)}/orders/${order.order_id}`}>#{order.order_id}</Link>
-                    </td>
+                  <div key={order.order_id} className="mb-4 bg-white rounded-lg shadow-sm p-3 border border-gray-200">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-blue-600 font-bold">#{order.order_id}</span>
+                      <OrderStatusBadge status={orderStatuses[order.status_id] || order.status || 'pendiente'} />
+                    </div>
 
-                    {isAdmin && (
-                      <td className="px-3 py-4 border-b text-sm text-gray-500 text-center">
-                        {order.user_name || order.user_email}
-                      </td>
-                    )}
+                    <div className="grid grid-cols-2 gap-2 text-sm mb-3">
+                      <div>
+                        <span className="text-gray-500 block">Fecha:</span>
+                        <span className="font-medium">{formatDate(order.order_date)}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 block">Entrega:</span>
+                        <span className="font-medium">{formatDate(order.delivery_date)}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 block">Total:</span>
+                        <span className="font-semibold">{formatColombianCurrency(order.total_amount)}</span>
+                      </div>
+                      {isAdmin && (
+                        <div>
+                          <span className="text-gray-500 block">Usuario:</span>
+                          <span className="font-medium">{order.user_name || order.user_email}</span>
+                        </div>
+                      )}
+                    </div>
 
-                    <td className="px-3 py-4 border-b text-sm text-gray-500 text-center">
-                      {formatDate(order.order_date)}
-                    </td>
-                    <td className="px-3 py-4 border-b text-sm text-gray-500 text-center">
-                      {formatDate(order.delivery_date)}
-                    </td>
-                    <td className="px-3 py-4 border-b text-sm">
+                    <div className="mb-3">
+                      <span className="text-gray-500 block mb-1">Productos:</span>
                       {(() => {
                         const products = getOrderProducts(order, authType);
                         return products && products.length > 0 ? (
                           <div className="space-y-1">
                             {products.map((product, index) => (
-                              <div
-                                key={index}
-                                className="text-gray-800 font-medium text-xs overflow-hidden text-ellipsis block max-w-full"
-                                title={getProductName(product)}
-                              >
-                                {getProductName(product)}
+                              <div key={index} className="flex justify-between text-xs">
+                                <span className="text-gray-800 font-medium truncate max-w-[70%]">
+                                  {getProductName(product)}
+                                </span>
+                                <span className="text-blue-600">
+                                  {getProductQuantity(product)} {getProductQuantity(product) === 1 ? 'unidad' : 'unidades'}
+                                </span>
                               </div>
                             ))}
                           </div>
@@ -611,76 +743,174 @@ const OrderList = ({ canCreateValidation, onCreateOrderClick }) => {
                           <span>No hay productos</span>
                         );
                       })()}
-                    </td>
-                    <td className="px-3 py-4 border-b text-sm">
-                      {(() => {
-                        const products = getOrderProducts(order, authType);
-                        return products && products.length > 0 ? (
-                          <div className="space-y-1">
-                            {products.map((product, index) => (
-                              <div key={index} className="text-blue-600 text-center">
-                                {getProductQuantity(product)}
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className="text-center block">No hay cantidades</span>
-                        );
-                      })()}
-                    </td>
-                    <td className="px-3 py-4 border-b text-sm text-gray-900 text-right font-semibold">
-                      {formatColombianCurrency(order.total_amount)}
-                    </td>
-                    <td className="px-3 py-4 border-b text-sm text-center">
-                      <OrderStatusBadge status={orderStatuses[order.status_id] || order.status || 'pendiente'} />
-                    </td>
-                    <td className="px-3 py-4 border-b text-sm font-medium text-center">
-                      <div className="flex justify-center items-center space-x-1 lg:space-x-2">
-                        <Link
-                          to={`${getRoutePrefix(authType)}/orders/${order.order_id}`}
-                          className="bg-indigo-50 hover:bg-indigo-100 px-2 lg:px-3 py-1 text-indigo-600 rounded flex items-center text-xs"
-                        >
-                          <FaEye className="mr-1" />
-                          <span className="hidden lg:inline">Ver</span>
-                        </Link>
+                    </div>
 
-                        {editableOrders[order.order_id] ? (
-                          <Link
-                            to={`${getRoutePrefix(authType)}/orders/${order.order_id}/edit`}
-                            className="bg-blue-50 hover:bg-blue-100 px-2 lg:px-3 py-1 text-blue-600 rounded flex items-center text-xs"
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      <Link
+                        to={`${getRoutePrefix(authType)}/orders/${order.order_id}`}
+                        className="bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 text-indigo-600 rounded flex items-center text-xs flex-grow justify-center"
+                      >
+                        <FaEye className="mr-1" />
+                        Ver
+                      </Link>
+
+                      {editableOrders[order.order_id] ? (
+                        <Link
+                          to={`${getRoutePrefix(authType)}/orders/${order.order_id}/edit`}
+                          className="bg-blue-50 hover:bg-blue-100 px-3 py-1.5 text-blue-600 rounded flex items-center text-xs flex-grow justify-center"
+                        >
+                          <FaEdit className="mr-1" />
+                          Editar
+                        </Link>
+                      ) : (
+                        <span className="text-gray-400 bg-gray-100 px-3 py-1.5 rounded flex items-center text-xs flex-grow justify-center">
+                          <FaExclamationTriangle className="mr-1 text-yellow-500" />
+                          No editable
+                        </span>
+                      )}
+
+                      {!['cancelado', 'canceled'].includes(order.status?.toLowerCase()) &&
+                        !['3', '4', '5', '7', '8'].includes(order.status_id?.toString()) && (
+                          <button
+                            onClick={() => handleCancelOrder(order.order_id)}
+                            className="text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded flex items-center text-xs flex-grow justify-center"
                           >
-                            <FaEdit className="mr-1" />
-                            <span className="hidden lg:inline">Editar</span>
-                          </Link>
-                        ) : (
-                          <span className="text-gray-400 bg-gray-100 px-2 lg:px-3 py-1 rounded flex items-center cursor-not-allowed text-xs">
-                            <FaExclamationTriangle className="mr-1 text-yellow-500" />
-                            <span className="hidden lg:inline">No editable</span>
-                          </span>
+                            <FaTrashAlt className="mr-1" />
+                            Cancelar
+                          </button>
+                        )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Tabla desktop original */}
+              <div className="hidden md:block w-full overflow-x-auto">
+                <table className="w-full table-fixed divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="w-[8%] px-3 py-3 text-xs font-medium text-gray-500 uppercase text-center">ID</th>
+                      {isAdmin && (
+                        <th className="w-[12%] px-3 py-3 text-xs font-medium text-gray-500 uppercase text-center">Usuario</th>
+                      )}
+                      <th className="w-[10%] px-3 py-3 text-xs font-medium text-gray-500 uppercase text-center">Fecha</th>
+                      <th className="w-[10%] px-3 py-3 text-xs font-medium text-gray-500 uppercase text-center">Entrega</th>
+                      <th className="w-[22%] px-3 py-3 text-xs font-medium text-gray-500 uppercase text-center">Productos</th>
+                      <th className="w-[8%] px-3 py-3 text-xs font-medium text-gray-500 uppercase text-center">Cantidad</th>
+                      <th className="w-[10%] px-3 py-3 text-xs font-medium text-gray-500 uppercase text-center">Total</th>
+                      <th className="w-[10%] px-3 py-3 text-xs font-medium text-gray-500 uppercase text-center">Estado</th>
+                      <th className="w-[20%] px-3 py-3 text-xs font-medium text-gray-500 uppercase text-center">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {currentOrders.map((order) => (
+                      <tr key={order.order_id} className="hover:bg-gray-50">
+                        <td className="px-3 py-4 border-b text-sm text-blue-600 font-bold text-center">
+                          <Link to={`${getRoutePrefix(authType)}/orders/${order.order_id}`}>#{order.order_id}</Link>
+                        </td>
+
+                        {isAdmin && (
+                          <td className="px-3 py-4 border-b text-sm text-gray-500 text-center">
+                            {order.user_name || order.user_email}
+                          </td>
                         )}
 
-                        {!['cancelado', 'canceled'].includes(order.status?.toLowerCase()) &&
-                          !['3', '4', '5', '7', '8'].includes(order.status_id?.toString()) && (
-                            <button
-                              onClick={() => handleCancelOrder(order.order_id)}
-                              className="text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 px-2 lg:px-3 py-1 rounded flex items-center text-xs"
+                        <td className="px-3 py-4 border-b text-sm text-gray-500 text-center">
+                          {formatDate(order.order_date)}
+                        </td>
+                        <td className="px-3 py-4 border-b text-sm text-gray-500 text-center">
+                          {formatDate(order.delivery_date)}
+                        </td>
+                        <td className="px-3 py-4 border-b text-sm">
+                          {(() => {
+                            const products = getOrderProducts(order, authType);
+                            return products && products.length > 0 ? (
+                              <div className="space-y-1">
+                                {products.map((product, index) => (
+                                  <div
+                                    key={index}
+                                    className="text-gray-800 font-medium text-xs overflow-hidden text-ellipsis block max-w-full"
+                                    title={getProductName(product)}
+                                  >
+                                    {getProductName(product)}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <span>No hay productos</span>
+                            );
+                          })()}
+                        </td>
+                        <td className="px-3 py-4 border-b text-sm">
+                          {(() => {
+                            const products = getOrderProducts(order, authType);
+                            return products && products.length > 0 ? (
+                              <div className="space-y-1">
+                                {products.map((product, index) => (
+                                  <div key={index} className="text-blue-600 text-center">
+                                    {getProductQuantity(product)}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-center block">No hay cantidades</span>
+                            );
+                          })()}
+                        </td>
+                        <td className="px-3 py-4 border-b text-sm text-gray-900 text-right font-semibold">
+                          {formatColombianCurrency(order.total_amount)}
+                        </td>
+                        <td className="px-3 py-4 border-b text-sm text-center">
+                          <OrderStatusBadge status={orderStatuses[order.status_id] || order.status || 'pendiente'} />
+                        </td>
+                        <td className="px-3 py-4 border-b text-sm font-medium text-center">
+                          <div className="flex justify-center items-center space-x-1 lg:space-x-2">
+                            <Link
+                              to={`${getRoutePrefix(authType)}/orders/${order.order_id}`}
+                              className="bg-indigo-50 hover:bg-indigo-100 px-2 lg:px-3 py-1 text-indigo-600 rounded flex items-center text-xs"
                             >
-                              <FaTrashAlt className="mr-1" />
-                              <span className="hidden lg:inline">Cancelar</span>
-                            </button>
-                          )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
+                              <FaEye className="mr-1" />
+                              <span className="hidden lg:inline">Ver</span>
+                            </Link>
 
+                            {editableOrders[order.order_id] ? (
+                              <Link
+                                to={`${getRoutePrefix(authType)}/orders/${order.order_id}/edit`}
+                                className="bg-blue-50 hover:bg-blue-100 px-2 lg:px-3 py-1 text-blue-600 rounded flex items-center text-xs"
+                              >
+                                <FaEdit className="mr-1" />
+                                <span className="hidden lg:inline">Editar</span>
+                              </Link>
+                            ) : (
+                              <span className="text-gray-400 bg-gray-100 px-2 lg:px-3 py-1 rounded flex items-center cursor-not-allowed text-xs">
+                                <FaExclamationTriangle className="mr-1 text-yellow-500" />
+                                <span className="hidden lg:inline">No editable</span>
+                              </span>
+                            )}
+
+                            {!['cancelado', 'canceled'].includes(order.status?.toLowerCase()) &&
+                              !['3', '4', '5', '7', '8'].includes(order.status_id?.toString()) && (
+                                <button
+                                  onClick={() => handleCancelOrder(order.order_id)}
+                                  className="text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 px-2 lg:px-3 py-1 rounded flex items-center text-xs"
+                                >
+                                  <FaTrashAlt className="mr-1" />
+                                  <span className="hidden lg:inline">Cancelar</span>
+                                </button>
+                              )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+          </>
+        )}
       {/* Paginación (mantener igual) */}
-      {orders.length > ordersPerPage && (
+      {totalOrders > ordersPerPage && (
         <div className="flex justify-center mt-4 overflow-x-auto py-2">
           <nav className="inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
             <button
@@ -694,7 +924,7 @@ const OrderList = ({ canCreateValidation, onCreateOrderClick }) => {
               </svg>
             </button>
 
-            {[...Array(Math.ceil(orders.length / ordersPerPage)).keys()].map(num => (
+            {[...Array(Math.ceil(totalOrders / ordersPerPage)).keys()].map(num => (
               <button
                 key={num + 1}
                 onClick={() => paginate(num + 1)}
@@ -709,8 +939,8 @@ const OrderList = ({ canCreateValidation, onCreateOrderClick }) => {
             ))}
 
             <button
-              onClick={() => paginate(currentPage < Math.ceil(orders.length / ordersPerPage) ? currentPage + 1 : currentPage)}
-              disabled={currentPage === Math.ceil(orders.length / ordersPerPage)}
+              onClick={() => paginate(currentPage < Math.ceil(totalOrders / ordersPerPage) ? currentPage + 1 : currentPage)}
+              disabled={currentPage === Math.ceil(totalOrders / ordersPerPage)}
               className="w-8 h-8 flex items-center justify-center rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 disabled:opacity-50"
             >
               <span className="sr-only">Siguiente</span>

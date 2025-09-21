@@ -449,5 +449,25 @@ export const orderService = {
         message: error.message || 'Error al obtener configuración'
       };
     }
+  },
+  
+  // ✅ OBTENER SUCURSALES DEL USUARIO (sin cambios de contexto)
+  async getUserBranches() {
+    try {
+      const response = await API.get('/orders/user-branches');
+
+      if (response.data.success) {
+        return response.data.data || [];
+      } else {
+        throw new Error(response.data.message || 'Error al obtener las sucursales');
+      }
+    } catch (error) {
+      console.error('Error fetching user branches:', error);
+      throw {
+        success: false,
+        message: error.response?.data?.message || error.message || 'Error al obtener las sucursales',
+        error
+      };
+    }
   }
 };
