@@ -56,6 +56,12 @@ const validateOrderData = (orderData, isMultipart, userContext) => {
       console.error('Error: user_id no encontrado en los datos de la orden', orderData);
       throw new Error('ID de usuario requerido');
     }
+
+    // ✅ NUEVA VALIDACIÓN: branch_id obligatorio para usuarios principales
+    if (!isMultipart && (!orderData.branch_id || orderData.branch_id === undefined)) {
+      console.error('Error: branch_id no encontrado en los datos de la orden', orderData);
+      throw new Error('ID de sucursal requerido - todo pedido debe tener una sucursal asignada');
+    }
     
     if (isMultipart && orderData instanceof FormData) {
       const hasUserId = orderData.has('user_id');
@@ -64,6 +70,12 @@ const validateOrderData = (orderData, isMultipart, userContext) => {
       if (!hasUserId && (!orderDataJson || !JSON.parse(orderDataJson).user_id)) {
         console.error('Error: user_id no encontrado en FormData', orderData);
         throw new Error('ID de usuario requerido');
+      }
+
+      // ✅ VALIDAR branch_id en FormData
+      const orderDataParsed = orderDataJson ? JSON.parse(orderDataJson) : {};
+      if (!orderDataParsed.branch_id) {
+        throw new Error('ID de sucursal requerido en FormData');
       }
     }
   }
@@ -450,7 +462,7 @@ export const orderService = {
       };
     }
   },
-  
+
   // ✅ OBTENER SUCURSALES DEL USUARIO (sin cambios de contexto)
   async getUserBranches() {
     try {

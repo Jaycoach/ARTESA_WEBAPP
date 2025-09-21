@@ -1,15 +1,17 @@
 import { useState, useEffect } from 'react';
 import API from '../api/config';
 
-const useProductImage = (productId, imageType = 'thumbnail') => { // ✅ CAMBIADO: 'main' → 'thumbnail'
+const useProductImage = (productId, imageType = 'thumbnail',  shouldLoad = true) => { // ✅ CAMBIADO: 'main' → 'thumbnail'
   const [imageUrl, setImageUrl] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     const fetchImage = async () => {
-      if (!productId) {
+      if (!productId || !shouldLoad) {
+        setImageUrl(null);
         setLoading(false);
+        setError(null);
         return;
       }
 
@@ -49,7 +51,7 @@ const useProductImage = (productId, imageType = 'thumbnail') => { // ✅ CAMBIAD
     };
 
     fetchImage();
-  }, [productId, imageType]);
+  }, [productId, imageType, shouldLoad]);
 
   return { imageUrl, loading, error };
 };

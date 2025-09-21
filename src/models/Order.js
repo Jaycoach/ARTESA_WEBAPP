@@ -95,6 +95,12 @@ class Order {
       throw new Error("Error al verificar el perfil del cliente.");
     }
 
+    // ✅ VALIDACIÓN OBLIGATORIA DE SUCURSAL
+    if (branch_id === null || branch_id === undefined) {
+      logger.warn('Intento de crear orden sin sucursal especificada', { user_id });
+      throw new Error("Toda orden debe estar asociada a una sucursal específica.");
+    }
+
     // Validar sucursal si se proporciona
     if (branch_id !== null && branch_id !== undefined) {
       try {

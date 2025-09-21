@@ -13,8 +13,19 @@ import { useNavigate } from 'react-router-dom';
 import usePriceList from '../../../../hooks/usePriceList';
 import useProductImage from '../../../../hooks/useProductImage';
 
-const ProductImageSmall = ({ productId, alt, className = "w-8 h-8" }) => {
-  const { imageUrl, loading, error } = useProductImage(productId, 'thumbnail');
+// Buscar el componente ProductImageSmall y reemplazarlo por:
+const ProductImageSmall = React.memo(({ productId, alt, className = "w-8 h-8", shouldLoad = false }) => {
+  const { imageUrl, loading, error } = useProductImage(productId, 'thumbnail', shouldLoad);
+
+  if (!shouldLoad) {
+    return (
+      <div className={`bg-gray-100 flex items-center justify-center rounded-md border border-gray-200 ${className}`}>
+        <svg className="w-3 h-3 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
+        </svg>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -56,7 +67,7 @@ const ProductImageSmall = ({ productId, alt, className = "w-8 h-8" }) => {
       }}
     />
   );
-};
+});
 
 const CreateOrderForm = ({ onOrderCreated }) => {
   const { user, branch, authType, isAuthenticated, refreshAuth } = useAuth();
@@ -1034,33 +1045,40 @@ const CreateOrderForm = ({ onOrderCreated }) => {
         });
 
       } else {
-        // 👤 PAYLOAD USUARIO PRINCIPAL
+        // 👤 PAYLOAD USUARIO PRINCIPAL - ESTRUCTURA CORREGIDA
         orderData = {
           user_id: user.id,
           total_amount: totalAmount,
           delivery_date: deliveryDate,
           notes: orderNotes,
           comments: orderNotes,
+          
+          // ✅ INFORMACIÓN DE SUCURSAL OBLIGATORIA
+          branch_id: selectedBranch ? selectedBranch.value : null,
           branch_address: branchAddress,
           delivery_zone: deliveryZone ? deliveryZone.key : null,
           delivery_zone_name: deliveryZone ? deliveryZone.name : null,
           municipality_dane_code: selectedBranch ? selectedBranch.municipality_code : null,
+          
+          // PRECIOS
           price_list_code: userPriceListCode || 'GENERAL',
           has_custom_pricing: userPriceListCode && userPriceListCode !== 'GENERAL',
           subtotal_amount: subtotal,
           iva_amount: ivaTotal,
           shipping_amount: shipping || 0,
+          
+          // ✅ DETALLES CON BRANCH_ID INCLUIDO
           details: orderDetails.map(detail => ({
             product_id: parseInt(detail.product_id || 0),
             quantity: parseInt(detail.quantity || 0),
-            branch_id: selectedBranch ? selectedBranch.value : null,
+            branch_id: selectedBranch ? selectedBranch.value : null,  // ✅ ASEGURAR QUE ESTÉ PRESENTE
             branch_name: selectedBranch ? selectedBranch.label : '',
             unit_price: parseFloat(detail.unit_price || 0),
             price_source: detail.price_source || 'default',
           }))
         };
 
-        console.log('👤 Payload USER construido (lógica original):', orderData);
+        console.log('👤 Payload USER construido:', orderData);
       }
 
       let formData = null;
@@ -1508,6 +1526,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
                           productId={parseInt(detail.product_id)}
                           alt={selectedProduct?.name || 'Producto'}
                           className="w-16 h-16"
+                          shouldLoad={true} 
                         />
                       ) : (
                         <div className="w-16 h-16 flex items-center justify-center bg-gray-100 rounded-md border border-gray-300">

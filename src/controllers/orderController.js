@@ -250,6 +250,21 @@ const createOrder = async (req, res) => {
       
       // Calcular fecha mínima permitida usando el nuevo método
       const minDeliveryDate = Order.calculateDeliveryDate(new Date(), orderTimeLimit);
+
+      // Logging mejorado para debug
+      logger.debug('Validación de fecha de entrega', {
+        receivedDate: delivery_date,
+        parsedDeliveryDate: parsedDeliveryDate.toISOString(),
+        deliveryDateOnly: deliveryDateOnly.toISOString(),
+        minDeliveryDate: minDeliveryDate.toISOString(),
+        minDeliveryDateOnly: minDeliveryDateOnly.toISOString(),
+        isValid: deliveryDateOnly >= minDeliveryDateOnly,
+        timezone: process.env.TZ || 'UTC',
+        orderTimeLimit: orderTimeLimit
+      });
+      
+      // Comparar solo las fechas (sin la hora)
+      const minDeliveryDateOnly = new Date(minDeliveryDate.toDateString());
       
       // Comparar solo las fechas (sin la hora)
       const deliveryDateOnly = new Date(parsedDeliveryDate.toDateString());
@@ -274,21 +289,6 @@ const createOrder = async (req, res) => {
           suggestedDate: colombianHolidays.getNextWorkingDay(deliveryDateOnly).toISOString().split('T')[0]
         });
       }
-
-      // Comparar solo las fechas (sin la hora)
-      const minDeliveryDateOnly = new Date(minDeliveryDate.toDateString());
-
-      // Logging mejorado para debug
-      logger.debug('Validación de fecha de entrega', {
-        receivedDate: delivery_date,
-        parsedDeliveryDate: parsedDeliveryDate.toISOString(),
-        deliveryDateOnly: deliveryDateOnly.toISOString(),
-        minDeliveryDate: minDeliveryDate.toISOString(),
-        minDeliveryDateOnly: minDeliveryDateOnly.toISOString(),
-        isValid: deliveryDateOnly >= minDeliveryDateOnly,
-        timezone: process.env.TZ || 'UTC',
-        orderTimeLimit: orderTimeLimit
-      });
 
       if (deliveryDateOnly < minDeliveryDateOnly) {
         return res.status(400).json({
