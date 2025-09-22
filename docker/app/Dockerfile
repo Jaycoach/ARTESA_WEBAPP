@@ -9,6 +9,10 @@ RUN apk add --no-cache \
     curl \
     bash
 
+# Crear usuario no-root para seguridad
+RUN addgroup -g 1001 -S artesa && \
+    adduser -S artesa -u 1001 -G artesa
+
 # Establecer directorio de trabajo
 WORKDIR /app
 
@@ -25,28 +29,31 @@ RUN npm config set fetch-retry-maxtimeout 120000
 # Instalar dependencias como root
 RUN npm install --only=production --no-optional --no-audit
 
-# Copiar código fuente
+# Crear directorio public y establecer permisos antes de copiar código
+RUN mkdir -p public && \
+    chown -R artesa:artesa /app
+
+# Copiar código fuente ANTES de cambiar usuario
 COPY . .
 
-# Copiar script de entrada
+# Copiar y configurar script de entrada
 COPY docker/scripts/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-# Crear usuario no-root DESPUÉS de copiar archivos
-RUN addgroup -g 1001 -S artesa && \
-    adduser -S artesa -u 1001 -G artesa
-
 # Crear directorios y establecer permisos
 RUN mkdir -p uploads tmp logs public && \
-    chown -R artesa:artesa /app /entrypoint.sh
+    chown -R artesa:artesa /app && \
+    chown artesa:artesa /entrypoint.sh
 
-# Generar documentación Swagger
+# Generar documentación Swagger como usuario artesa
+USER artesa
 RUN npm run generate-swagger
+USER root
 
 # Limpiar caché npm
 RUN npm cache clean --force
 
-# Cambiar a usuario no-root
+# Cambiar a usuario no-root AL FINAL
 USER artesa
 
 # Exponer puerto de la aplicación
