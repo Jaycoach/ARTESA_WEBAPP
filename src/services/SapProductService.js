@@ -156,7 +156,7 @@ class SapProductService extends SapBaseService {
       if (select) {
         params.push(`$select=${select}`);
       } else {
-        params.push('$select=ItemCode,ItemName,ForeignName,ItemsGroupCode,BarCode,QuantityOnStock,SalesItem,Frozen,SalesVATGroup');
+        params.push('$select=ItemCode,ItemName,ForeignName,ItemsGroupCode,BarCode,QuantityOnStock,SalesItem,Frozen,ArTaxCode');
       }
 
       // Paginación
@@ -214,12 +214,12 @@ class SapProductService extends SapBaseService {
     const description = sapProduct.ForeignName || sapProduct.ItemName || 'Sin descripción';
 
     // Mapear el código de impuestos de SAP
-    const taxCodeAr = sapProduct.SalesVATGroup || null;
+    const taxCodeAr = sapProduct.ArTaxCode || null;
 
     // Log para verificar el valor del campo de impuestos
     this.logger.debug('Mapeando código de impuestos', {
       sapCode: sapProduct.ItemCode,
-      salesVATGroup: sapProduct.SalesVATGroup,
+      arTaxCode: sapProduct.ArTaxCode,
       taxCodeAr: taxCodeAr
     });
 
@@ -568,7 +568,7 @@ class SapProductService extends SapBaseService {
    */
   async getProductByCode(itemCode) {
     try {
-      const endpoint = `Items('${itemCode}')?$select=ItemCode,ItemName,ForeignName,ItemsGroupCode,BarCode,QuantityOnStock,SalesItem,Frozen`;
+      const endpoint = `Items('${itemCode}')?$select=ItemCode,ItemName,ForeignName,ItemsGroupCode,BarCode,QuantityOnStock,SalesItem,Frozen,ArTaxCode`;
       
       this.logger.debug('Obteniendo producto específico de SAP B1', { itemCode });
       
@@ -760,7 +760,7 @@ class SapProductService extends SapBaseService {
           groupCode,
           skip,
           top: batchSize,
-          select: 'ItemCode,SalesVATGroup'
+          select: 'ItemCode,ArTaxCode'
         });
 
         if (!sapProducts.value || sapProducts.value.length === 0) {
@@ -776,7 +776,7 @@ class SapProductService extends SapBaseService {
           for (const sapProduct of sapProducts.value) {
             try {
               // Verificar que tengamos el código de impuestos
-              if (!sapProduct.SalesVATGroup) {
+              if (!sapProduct.ArTaxCode) {
                 this.logger.warn('Producto sin código de impuestos en SAP', {
                   sapCode: sapProduct.ItemCode
                 });
@@ -786,14 +786,14 @@ class SapProductService extends SapBaseService {
               // Actualizar en la base de datos
               const result = await client.query(
                 'UPDATE products SET tax_code_ar = $1, updated_at = CURRENT_TIMESTAMP WHERE sap_code = $2 RETURNING product_id',
-                [sapProduct.SalesVATGroup, sapProduct.ItemCode]
+                [sapProduct.ArTaxCode, sapProduct.ItemCode]
               );
 
               if (result.rowCount > 0) {
                 stats.updated++;
                 this.logger.debug('Código de impuestos actualizado', {
                   sapCode: sapProduct.ItemCode,
-                  taxCode: sapProduct.SalesVATGroup
+                  taxCode: sapProduct.ArTaxCode
                 });
               }
             } catch (error) {
