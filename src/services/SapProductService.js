@@ -139,7 +139,7 @@ class SapProductService extends SapBaseService {
    */
   async getProductsFromSAP(options = {}) {
     try {
-      const { skip = 0, groupCode = null } = options;
+      const { skip = 0, groupCode = null, top = 20, select = null } = options;
       
       // Construir endpoint OData para Items optimizado
       let endpoint = 'Items?';
@@ -152,38 +152,41 @@ class SapProductService extends SapBaseService {
         params.push(`$filter=SalesItem eq 'tYES'`);
       }
 
-      // Seleccionar solo campos necesarios para optimizar transferencia
-      params.push('$select=ItemCode,ItemName,ForeignName,ItemsGroupCode,BarCode,QuantityOnStock,SalesItem,Frozen,SalesVATGroup');
+      // Seleccionar campos específicos si se proporcionan
+      if (select) {
+        params.push(`$select=${select}`);
+      } else {
+        params.push('$select=ItemCode,ItemName,ForeignName,ItemsGroupCode,BarCode,QuantityOnStock,SalesItem,Frozen,SalesVATGroup');
+      }
 
       // Paginación
       params.push(`$skip=${skip}`);
-      params.push('$top=20');
+      params.push(`$top=${top}`);
 
       endpoint += params.join('&');
 
       this.logger.debug('Endpoint OData construido', {
         endpoint,
         groupCode,
-        skip
+        skip,
+        top
       });
+
       const result = await this.request('GET', endpoint);
 
       if (!result || !result.value) {
         throw new Error('Formato de respuesta inválido en consulta OData');
       }
 
-      // Los datos ya vienen en formato correcto de SAP B1 Service Layer
-      const mappedItems = result.value;
-
-      this.logger.debug('Productos obtenidos de SAP B1 via SQL directa', { 
-        count: mappedItems.length,
+      this.logger.debug('Productos obtenidos de SAP B1', { 
+        count: result.value.length,
         skip,
         groupCode
       });
 
-      return { value: mappedItems };
+      return result;
     } catch (error) {
-      this.logger.error('Error al obtener productos de SAP B1 via SQL directa', {
+      this.logger.error('Error al obtener productos de SAP B1', {
         error: error.message,
         stack: error.stack,
         options
@@ -747,27 +750,81 @@ class SapProductService extends SapBaseService {
     };
 
     try {
-      // Obtener productos del grupo desde SAP
-      const sapProducts = await this.getProductsFromSAP({
-        groupCode,
-        select: 'ItemCode,SalesVATGroup'
-      });
+      let hasMore = true;
+      let skip = 0;
+      const batchSize = 50; // Aumentamos el tamaño del lote
 
-      for (const sapProduct of sapProducts.value) {
-        try {
-          await pool.query(
-            'UPDATE products SET tax_code_ar = $1, updated_at = CURRENT_TIMESTAMP WHERE sap_code = $2',
-            [sapProduct.SalesVATGroup, sapProduct.ItemCode]
-          );
-          stats.updated++;
-        } catch (error) {
-          stats.errors++;
-          this.logger.error('Error actualizando código de impuesto', {
-            sapCode: sapProduct.ItemCode,
-            error: error.message
-          });
+      while (hasMore) {
+        // Obtener lote de productos desde SAP
+        const sapProducts = await this.getProductsFromSAP({
+          groupCode,
+          skip,
+          top: batchSize,
+          select: 'ItemCode,SalesVATGroup'
+        });
+
+        if (!sapProducts.value || sapProducts.value.length === 0) {
+          hasMore = false;
+          continue;
         }
-        stats.total++;
+
+        // Procesar el lote actual
+        const client = await pool.connect();
+        try {
+          await client.query('BEGIN');
+
+          for (const sapProduct of sapProducts.value) {
+            try {
+              // Verificar que tengamos el código de impuestos
+              if (!sapProduct.SalesVATGroup) {
+                this.logger.warn('Producto sin código de impuestos en SAP', {
+                  sapCode: sapProduct.ItemCode
+                });
+                continue;
+              }
+
+              // Actualizar en la base de datos
+              const result = await client.query(
+                'UPDATE products SET tax_code_ar = $1, updated_at = CURRENT_TIMESTAMP WHERE sap_code = $2 RETURNING product_id',
+                [sapProduct.SalesVATGroup, sapProduct.ItemCode]
+              );
+
+              if (result.rowCount > 0) {
+                stats.updated++;
+                this.logger.debug('Código de impuestos actualizado', {
+                  sapCode: sapProduct.ItemCode,
+                  taxCode: sapProduct.SalesVATGroup
+                });
+              }
+            } catch (error) {
+              stats.errors++;
+              this.logger.error('Error actualizando producto individual', {
+                sapCode: sapProduct.ItemCode,
+                error: error.message
+              });
+            }
+            stats.total++;
+          }
+
+          await client.query('COMMIT');
+        } catch (error) {
+          await client.query('ROLLBACK');
+          throw error;
+        } finally {
+          client.release();
+        }
+
+        // Preparar siguiente iteración
+        skip += sapProducts.value.length;
+        hasMore = sapProducts.value.length === batchSize;
+
+        this.logger.info('Lote procesado', {
+          processed: sapProducts.value.length,
+          total: stats.total,
+          updated: stats.updated,
+          errors: stats.errors,
+          skip
+        });
       }
 
       return stats;
