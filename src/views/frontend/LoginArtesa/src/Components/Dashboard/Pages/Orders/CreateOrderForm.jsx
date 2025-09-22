@@ -786,24 +786,26 @@ const CreateOrderForm = ({ onOrderCreated }) => {
   };
 
   const calculateShipping = (subtotal, totalTaxes) => {
-    // CAMBIO: Calcular flete antes de impuestos
+    // Validar monto mínimo sin impuestos
     if (subtotal < MIN_ORDER_AMOUNT) {
-      return null;
+      return null; // No se permite el pedido
     }
     
+    // Calcular el subtotal con impuestos para determinar el flete
     const subtotalWithTaxes = subtotal + totalTaxes;
     
     if (subtotalWithTaxes >= SHIPPING_FREE_LIMIT) {
-      return 0;
+      return 0; // Envío gratis
     }
     
     if (subtotalWithTaxes >= SHIPPING_LIMIT) {
-      // NUEVO: Calcular IVA del flete cuando aplique
-      const shippingWithTax = SHIPPING_CHARGE * (1 + IVA_RATE);
-      return shippingWithTax;
+      // Aplicar flete de $10,000 + IVA del flete
+      const baseShipping = 10000;
+      const shippingIVA = baseShipping * IVA_RATE;
+      return baseShipping + shippingIVA; // $10,000 + 19% = $11,900
     }
     
-    return null;
+    return null; // No aplica (pedido menor a $50,000)
   };
 
   const calculateIVA = (subtotal) => {
@@ -823,16 +825,17 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       const product = products.find(p => p.product_id === parseInt(detail.product_id));
       
       if (product) {
-        // NUEVA LÓGICA: Basada en TaxCodeAR del producto
         const taxCode = product.tax_code_ar;
         
         if (taxCode === 'IVAG03') {
-          // Sin IVA para productos con IVAG03
-        } else if (taxCode === 'IMSB01+I') {
-          // 39% de impuesto saludable para productos con IMSB01+I
+          // Sin impuestos para productos con IVAG03 (0%)
+          // No se suma nada
+        } else if (taxCode === 'IMSB+IVA') {
+          // 39% impuesto saludable + 19% IVA para productos con IMSB+IVA
           impuestoSaludableTotal += itemSubtotal * 0.39;
+          ivaTotal += itemSubtotal * IVA_RATE; // Agregar también IVA
         } else {
-          // IVA normal (19%) para otros casos
+          // IVA normal (19%) para otros casos o cuando no hay tax_code_ar
           ivaTotal += itemSubtotal * IVA_RATE;
         }
       } else {
@@ -1899,8 +1902,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
             {impuestoSaludableTotal > 0 && (
               <div className="flex justify-between items-center">
                 <span className="font-medium text-gray-700">
-                  {/* CAMBIO: Mostrar porcentaje correcto */}
-                  Impuesto Saludable (39%):
+                  Impuesto Saludable (39%) + IVA:
                 </span>
                 <span className="font-semibold text-gray-800">{formatCurrencyCOP(impuestoSaludableTotal)}</span>
               </div>
@@ -2029,7 +2031,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
                 )}
                 {impuestoSaludableTotal > 0 && (
                   <div className="flex justify-between">
-                    <span>Impuesto Saludable (10%):</span>
+                    <span>Impuesto Saludable (39%):</span>
                     <span>{formatCurrencyCOP(impuestoSaludableTotal)}</span>
                   </div>
                 )}
