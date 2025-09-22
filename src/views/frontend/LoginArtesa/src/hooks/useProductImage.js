@@ -116,13 +116,17 @@ const useProductImage = (productId, imageType = 'thumbnail',  shouldLoad = true)
       } catch (error) {
         pendingRequests.delete(pendingKey);
         
-        // Solo cachear errores 404
+        // Solo cachear errores 404 
         if (error.response?.status === 404) {
           errorCache.add(`${productId}-${imageType}`);
           console.log(`📸 Cache 404 agregado para producto ${productId} (${imageType})`);
+          setError('Image not found');
+        } else {
+          // Para otros errores, no cachear para permitir reintentos
+          console.warn(`Error temporal cargando imagen producto ${productId}:`, error.message);
+          setError('Temporary error');
         }
 
-        setError(error.response?.status === 404 ? 'Image not found' : error.message);
         setImageUrl(null);
       } finally {
         setLoading(false);

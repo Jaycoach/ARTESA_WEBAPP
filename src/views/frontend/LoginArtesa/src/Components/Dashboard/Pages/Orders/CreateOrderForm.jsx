@@ -61,15 +61,15 @@ const ProductImageSmall = React.memo(({ productId, alt, className = "w-8 h-8", s
     );
   }
 
-  // Estado de error o sin imagen - MEJORADO
+  // Estado de error o sin imagen - MEJORADO Y SILENCIOSO
   if (!imageUrl || error) {
-    // Silenciar logs excesivos para productos conocidos sin imagen
-    if (error && error !== 'Cached 404' && error !== 'Image not found' && error !== 'No image available') {
+    // Solo loggear errores verdaderos, no 404s esperados
+    if (error && error !== 'Cached 404' && error !== 'Image not found' && error !== 'No image available' && error !== 'Temporary error') {
       console.warn(`ProductImageSmall [${productId}]: ${error}`);
     }
     
     return (
-      <div className={`bg-gray-100 flex items-center justify-center rounded-md border border-gray-200 ${className}`}>
+      <div className={`bg-gray-100 flex items-center justify-center rounded-md border border-gray-200 ${className}`} title={`Producto ${productId} - Sin imagen disponible`}>
         <svg className="w-3 h-3 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
           <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
         </svg>
@@ -1263,14 +1263,16 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       newDetails[index].product_id = option.value;
       const selectedProduct = products.find(p => p.product_id === parseInt(option.value));
 
-      // AGREGAR A PRODUCTOS SELECCIONADOS PARA CARGAR IMAGEN
+      // AGREGAR A PRODUCTOS SELECCIONADOS PARA CARGAR IMAGEN - CON TOLERANCIA A ERRORES
       setSelectedProductImages(prev => new Set([...prev, parseInt(option.value)]));
       setAllProductImages(prev => new Set([...prev, parseInt(option.value)]));
 
-      // Forzar carga inmediata de imagen para producto seleccionado CON DELAY
-      setTimeout(() => {
-        setVisibleOptions(prev => new Set([...prev, parseInt(option.value)]));
-      }, 50); // Pequeño delay para asegurar que el estado se actualice
+      // Verificar si la imagen existe antes de forzar carga
+      if (!errorCache.has(`${option.value}-thumbnail`)) {
+        setTimeout(() => {
+          setVisibleOptions(prev => new Set([...prev, parseInt(option.value)]));
+        }, 50);
+      }
 
       if (selectedProduct) {
         // CORREGIR: usar la cadena completa de fallbacks de precios
@@ -1290,26 +1292,30 @@ const CreateOrderForm = ({ onOrderCreated }) => {
         console.log('✅ Producto seleccionado:', {
           name: selectedProduct.name,
           price: productPrice,
-          source: selectedProduct.price_source || 'price_list'
+          source: selectedProduct.price_source || 'price_list',
+          hasImageError: errorCache.has(`${option.value}-thumbnail`)
         });
       }
     } else {
-      // IMPORTANTE: Limpiar correctamente cuando se deselecciona
+      // LIMPIAR cuando se deselecciona - mejorado
       if (newDetails[index].product_id) {
+        const oldProductId = parseInt(newDetails[index].product_id);
         setSelectedProductImages(prev => {
           const newSet = new Set(prev);
-          newSet.delete(parseInt(newDetails[index].product_id));
-          // También limpiar de visibleOptions después de un delay
-          setTimeout(() => {
-            setVisibleOptions(prev => {
-              const updated = new Set(prev);
-              updated.delete(parseInt(newDetails[index].product_id));
-              return updated;
-            });
-          }, 1000);
+          newSet.delete(oldProductId);
           return newSet;
         });
+        
+        // Limpiar también de visibleOptions con delay
+        setTimeout(() => {
+          setVisibleOptions(prev => {
+            const updated = new Set(prev);
+            updated.delete(oldProductId);
+            return updated;
+          });
+        }, 1000);
       }
+      
       newDetails[index].product_id = '';
       newDetails[index].unit_price = 0;
       newDetails[index].price_source = '';

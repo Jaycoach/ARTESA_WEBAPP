@@ -405,6 +405,7 @@ class ProductImageController {
       // Verificar que el producto existe
       const product = await Product.findById(productId);
       if (!product) {
+        logger.warn('Producto no encontrado para imagen', { productId, imageType });
         return res.status(404).json({
           success: false,
           message: 'Producto no encontrado'
@@ -424,9 +425,18 @@ class ProductImageController {
       }
       
       if (!imageUrl) {
+        logger.info('Imagen no disponible para producto', { 
+          productId, 
+          imageType, 
+          hasSapCode: !!product.sap_code,
+          productName: product.name || 'Sin nombre'
+        });
         return res.status(404).json({
           success: false,
-          message: `La imagen ${imageType} no existe para este producto`
+          message: `La imagen ${imageType} no existe para este producto`,
+          productId: parseInt(productId),
+          imageType,
+          productName: product.name || 'Sin nombre'
         });
       }
 
