@@ -534,6 +534,8 @@ const CreateOrderForm = ({ onOrderCreated }) => {
             description: plProduct.local_product_description || plProduct.product_name,
             sap_code: plProduct.product_code,
             code: plProduct.product_code,
+            
+            tax_code_ar: plProduct.tax_code_ar || null,
 
             // PRECIOS
             price: priceValue,
@@ -567,6 +569,30 @@ const CreateOrderForm = ({ onOrderCreated }) => {
           const price = parseFloat(product.price);
           return price > 0;
         });
+
+        //Obtener información fiscal de productos
+        try {
+          console.log('🔍 Obteniendo información fiscal de productos...');
+          const productIds = validProducts.map(p => p.product_id).join(',');
+          const taxResponse = await API.get(`/products?ids=${productIds}&fields=product_id,tax_code_ar,sap_code`);
+          
+          if (taxResponse.data.success && Array.isArray(taxResponse.data.data)) {
+            const taxInfoMap = {};
+            taxResponse.data.data.forEach(product => {
+              taxInfoMap[product.product_id] = product.tax_code_ar;
+            });
+            
+            // Actualizar productos con información fiscal
+            validProducts.forEach(product => {
+              if (taxInfoMap[product.product_id]) {
+                product.tax_code_ar = taxInfoMap[product.product_id];
+                console.log(`✅ Tax code asignado: Producto ${product.product_id} (${product.name}) -> ${product.tax_code_ar}`);
+              }
+            });
+          }
+        } catch (taxError) {
+          console.warn('⚠️ No se pudo obtener información fiscal adicional:', taxError);
+        }
 
         setProducts(validProducts);
 
@@ -820,6 +846,8 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     let ivaTotal = 0;
     let impuestoSaludableTotal = 0;
     
+    console.log('📊 === INICIO CÁLCULO DE IMPUESTOS ===');
+    
     orderDetails.forEach(detail => {
       const itemSubtotal = detail.quantity * detail.unit_price;
       const product = products.find(p => p.product_id === parseInt(detail.product_id));
@@ -827,22 +855,37 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       if (product) {
         const taxCode = product.tax_code_ar;
         
+        console.log(`📦 Producto: ${product.name} (ID: ${product.product_id})`);
+        console.log(`   - Código fiscal: ${taxCode || 'NO DEFINIDO'}`);
+        console.log(`   - Subtotal: $${itemSubtotal.toFixed(2)}`);
+        
         if (taxCode === 'IVAG03') {
           // Sin impuestos para productos con IVAG03 (0%)
-          // No se suma nada
+          console.log(`   ✅ IVAG03 detectado - SIN IMPUESTOS`);
         } else if (taxCode === 'IMSB+IVA') {
-          // 39% impuesto saludable + 19% IVA para productos con IMSB+IVA
-          impuestoSaludableTotal += itemSubtotal * 0.39;
-          ivaTotal += itemSubtotal * IVA_RATE; // Agregar también IVA
+          // 39% impuesto saludable + 19% IVA
+          const impSaludable = itemSubtotal * 0.39;
+          const iva = itemSubtotal * IVA_RATE;
+          impuestoSaludableTotal += impSaludable;
+          ivaTotal += iva;
+          console.log(`   ✅ IMSB+IVA detectado - Imp. Saludable: $${impSaludable.toFixed(2)}, IVA: $${iva.toFixed(2)}`);
         } else {
-          // IVA normal (19%) para otros casos o cuando no hay tax_code_ar
-          ivaTotal += itemSubtotal * IVA_RATE;
+          // IVA normal (19%) para otros casos
+          const iva = itemSubtotal * IVA_RATE;
+          ivaTotal += iva;
+          console.log(`   ⚠️ Aplicando IVA por defecto (19%): $${iva.toFixed(2)}`);
         }
       } else {
         // Fallback: IVA normal si no se encuentra el producto
-        ivaTotal += itemSubtotal * IVA_RATE;
+        const iva = itemSubtotal * IVA_RATE;
+        ivaTotal += iva;
+        console.log(`   ❌ Producto no encontrado en array, aplicando IVA por defecto: $${iva.toFixed(2)}`);
       }
     });
+    
+    console.log('📊 === RESUMEN DE IMPUESTOS ===');
+    console.log(`   - IVA Total: $${ivaTotal.toFixed(2)}`);
+    console.log(`   - Impuesto Saludable Total: $${impuestoSaludableTotal.toFixed(2)}`);
     
     return { ivaTotal, impuestoSaludableTotal };
   };
@@ -1913,8 +1956,8 @@ const CreateOrderForm = ({ onOrderCreated }) => {
               <span className="font-medium text-gray-700">Flete:</span>
               {shipping === 0 ? (
                 <span className="text-green-600 font-bold">¡Envío gratis!</span>
-              ) : shipping === SHIPPING_CHARGE ? (
-                <span className="text-blue-700 font-semibold">{formatCurrencyCOP(SHIPPING_CHARGE)}</span>
+              ) : shipping > 0 ? (
+                <span className="text-blue-700 font-semibold">{formatCurrencyCOP(shipping)}</span>
               ) : (
                 <span className="text-red-600 font-semibold">No aplica</span>
               )}
