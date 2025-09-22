@@ -605,10 +605,9 @@ const CreateOrderForm = ({ onOrderCreated }) => {
         setProducts(validProducts);
 
         // LOG DE VERIFICACIÓN
-        console.log('🔍 === VERIFICACIÓN DE TAX CODES ===');
+        const productsWithTaxCode = validProducts.filter(p => p.tax_code_ar);
         console.log(`✅ Productos con tax_code_ar: ${productsWithTaxCode.length}/${validProducts.length}`);
         console.log('📊 Muestra de productos con tax_code:');
-        const productsWithTaxCode = validProducts.filter(p => p.tax_code_ar);
         productsWithTaxCode.slice(0, 5).forEach(p => {
           console.log(`  ✅ ${p.name} (ID: ${p.product_id}): ${p.tax_code_ar}`);
         });
@@ -871,12 +870,12 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     orderDetails.forEach(detail => {
       const itemSubtotal = detail.quantity * detail.unit_price;
       const product = products.find(p => p.product_id === parseInt(detail.product_id));
-      
-      if (product) {
+
+      if (product && product.tax_code_ar) {
         const taxCode = product.tax_code_ar;
         
         console.log(`📦 Producto: ${product.name} (ID: ${product.product_id})`);
-        console.log(`   - Código fiscal: ${taxCode || 'NO DEFINIDO'}`);
+        console.log(`   - Código fiscal: ${taxCode}`);
         console.log(`   - Subtotal: $${itemSubtotal.toFixed(2)}`);
         
         if (taxCode === 'IVAG03') {
@@ -899,7 +898,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
         // Fallback: IVA normal si no se encuentra el producto
         const iva = itemSubtotal * IVA_RATE;
         ivaTotal += iva;
-        console.log(`   ❌ Producto no encontrado en array, aplicando IVA por defecto: $${iva.toFixed(2)}`);
+        console.log(`   ❌ Producto no encontrado o sin tax_code_ar, aplicando IVA por defecto: $${iva.toFixed(2)}`);
       }
     });
     
@@ -944,15 +943,29 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     if (field === 'product_id') {
       const selectedProduct = products.find(p => p.product_id === parseInt(value));
       if (selectedProduct) {
-        if (selectedProduct.has_custom_price && selectedProduct.custom_price_info) {
-          newDetails[index].unit_price = selectedProduct.custom_price_info.price;
-          newDetails[index].price_source = 'custom';
-          newDetails[index].original_price = parseFloat(selectedProduct.effective_price || selectedProduct.price_list1 || selectedProduct.price_list || selectedProduct.price || 0);
+        // Usar la misma lógica de fallback que en productOptionsForSelect
+        const productPrice = parseFloat(
+          selectedProduct.price || 
+          selectedProduct.effective_price || 
+          selectedProduct.price_list1 || 
+          selectedProduct.price_list || 
+          selectedProduct.unit_price || 
+          0
+        );
+
+        if (productPrice > 0) {
+          newDetails[index].unit_price = productPrice;
+          newDetails[index].price_source = selectedProduct.price_source || 'price_list';
+          newDetails[index].original_price = productPrice;
+
+          console.log('✅ Producto seleccionado:', {
+            name: selectedProduct.name,
+            price: productPrice,
+            source: selectedProduct.price_source || 'price_list'
+          });
         } else {
-          const defaultPrice = parseFloat(selectedProduct.effective_price || selectedProduct.price_list1 || selectedProduct.price_list || selectedProduct.price || 0);
-          newDetails[index].unit_price = defaultPrice;
-          newDetails[index].price_source = 'default';
-          newDetails[index].original_price = defaultPrice;
+          console.warn('⚠️ Producto sin precio válido:', selectedProduct.name);
+          showNotification('El producto seleccionado no tiene un precio válido', 'warning');
         }
       }
     }
