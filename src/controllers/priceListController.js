@@ -101,6 +101,36 @@ class PriceListController {
         orderDirection: orderDirection.toUpperCase()
       });
 
+      // Obtener información fiscal adicional de productos
+      if (result.data && result.data.length > 0) {
+        try {
+          const Product = require('../models/Product');
+          const productIds = result.data.map(item => parseInt(item.product_id)).filter(id => !isNaN(id));
+          
+          if (productIds.length > 0) {
+            const placeholders = productIds.map((_, i) => `$${i + 1}`).join(',');
+            const pool = require('../config/db');
+            const taxQuery = `SELECT product_id, tax_code_ar FROM products WHERE product_id IN (${placeholders}) AND tax_code_ar IS NOT NULL`;
+            const taxResult = await pool.query(taxQuery, productIds);
+            
+            const taxMap = {};
+            taxResult.rows.forEach(row => {
+              taxMap[row.product_id] = row.tax_code_ar;
+            });
+            
+            result.data.forEach(product => {
+              if (product.product_id && taxMap[product.product_id]) {
+                product.tax_code_ar = taxMap[product.product_id];
+              }
+            });
+          }
+        } catch (taxError) {
+          logger.warn('Error obtaining tax information for products', {
+            error: taxError.message
+          });
+        }
+      }
+
       res.status(200).json({
         success: true,
         priceListCode,

@@ -409,6 +409,7 @@ class Product {
             p.sap_last_sync,
             p.sap_sync_pending,
             p.is_active,
+            p.tax_code_ar,
             COALESCE(pl.price, 
               CASE 
                 WHEN $1 = '1' THEN p.price_list1
@@ -449,6 +450,7 @@ class Product {
             p.sap_last_sync,
             p.sap_sync_pending,
             p.is_active,
+            p.tax_code_ar,
             p.price_list1 as effective_price,
             NULL as custom_price,
             NULL as price_list_code,

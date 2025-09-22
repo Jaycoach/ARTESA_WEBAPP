@@ -570,23 +570,31 @@ const CreateOrderForm = ({ onOrderCreated }) => {
           return price > 0;
         });
 
-        //Obtener información fiscal de productos
+        // NUEVO: Obtener información fiscal de productos
         try {
           console.log('🔍 Obteniendo información fiscal de productos...');
-          const productIds = validProducts.map(p => p.product_id).join(',');
-          const taxResponse = await API.get(`/products?ids=${productIds}&fields=product_id,tax_code_ar,sap_code`);
+          
+          // Obtener TODOS los productos con su información fiscal
+          const taxResponse = await API.get('/products');
           
           if (taxResponse.data.success && Array.isArray(taxResponse.data.data)) {
+            // Crear un mapa de tax_code_ar por product_id
             const taxInfoMap = {};
             taxResponse.data.data.forEach(product => {
-              taxInfoMap[product.product_id] = product.tax_code_ar;
+              if (product.tax_code_ar) {
+                taxInfoMap[product.product_id] = product.tax_code_ar;
+              }
             });
+            
+            console.log('📊 Mapa de códigos fiscales obtenido:', Object.keys(taxInfoMap).length, 'productos con información fiscal');
             
             // Actualizar productos con información fiscal
             validProducts.forEach(product => {
               if (taxInfoMap[product.product_id]) {
                 product.tax_code_ar = taxInfoMap[product.product_id];
                 console.log(`✅ Tax code asignado: Producto ${product.product_id} (${product.name}) -> ${product.tax_code_ar}`);
+              } else {
+                console.log(`⚠️ Sin tax_code_ar: Producto ${product.product_id} (${product.name}) - tax_code_ar: ${product.tax_code_ar || 'undefined'}`);
               }
             });
           }
@@ -595,6 +603,18 @@ const CreateOrderForm = ({ onOrderCreated }) => {
         }
 
         setProducts(validProducts);
+
+        // LOG DE VERIFICACIÓN
+        console.log('🔍 === VERIFICACIÓN DE TAX CODES ===');
+        console.log(`✅ Productos con tax_code_ar: ${productsWithTaxCode.length}/${validProducts.length}`);
+        console.log('📊 Muestra de productos con tax_code:');
+        const productsWithTaxCode = validProducts.filter(p => p.tax_code_ar);
+        productsWithTaxCode.slice(0, 5).forEach(p => {
+          console.log(`  ✅ ${p.name} (ID: ${p.product_id}): ${p.tax_code_ar}`);
+        });
+        productsWithTaxCode.slice(0, 5).forEach(p => {
+          console.log(`  - ${p.name} (ID: ${p.product_id}): ${p.tax_code_ar}`);
+        });
 
         console.log(`✅ PRODUCTOS FINALES CARGADOS: ${validProducts.length} productos válidos con precios > 0`);
         console.log(`📊 ESTADÍSTICAS:`);
