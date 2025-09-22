@@ -87,7 +87,7 @@ class Product {
         stock, barcode, image_url, sap_code, sap_group, sap_last_sync,
         sap_sync_pending, is_active, tax_code_ar
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       RETURNING *;
     `;
     

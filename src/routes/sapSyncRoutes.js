@@ -288,5 +288,53 @@ router.get('/sync/orders/schedule',
   checkRole([1]), // Solo administradores
   sapSyncController.getOrderSyncSchedule
 );
+/**
+ * @swagger
+ * /api/sap/sync/tax-codes/{groupCode}:
+ *   put:
+ *     summary: Actualizar códigos de impuestos por grupo
+ *     description: Actualiza los códigos de impuestos de productos de un grupo específico desde SAP B1
+ *     tags: [SAP]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: groupCode
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Código del grupo de productos a actualizar
+ *     responses:
+ *       200:
+ *         description: Códigos de impuestos actualizados exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     total:
+ *                       type: integer
+ *                     updated:
+ *                       type: integer
+ *                     errors:
+ *                       type: integer
+ *       400:
+ *         description: Código de grupo inválido
+ *       401:
+ *         description: No autorizado
+ *       500:
+ *         description: Error interno del servidor
+ */
+router.put('/sync/tax-codes/:groupCode',
+  checkRole([1]), // Solo administradores
+  sapSyncController.updateGroupTaxCodes
+);
 
 module.exports = router;

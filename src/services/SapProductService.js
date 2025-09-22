@@ -213,6 +213,13 @@ class SapProductService extends SapBaseService {
     // Mapear el código de impuestos de SAP
     const taxCodeAr = sapProduct.SalesVATGroup || null;
 
+    // Log para verificar el valor del campo de impuestos
+    this.logger.debug('Mapeando código de impuestos', {
+      sapCode: sapProduct.ItemCode,
+      salesVATGroup: sapProduct.SalesVATGroup,
+      taxCodeAr: taxCodeAr
+    });
+
     return {
       name: sapProduct.ItemName || 'Sin nombre',
       description: description,
@@ -722,6 +729,52 @@ class SapProductService extends SapBaseService {
         productId,
         error: error.message,
         stack: error.stack
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Actualiza códigos de impuestos de productos por grupo
+   * @param {number} groupCode - Código del grupo de artículos
+   * @returns {Promise<Object>} Estadísticas de actualización
+   */
+  async updateTaxCodesByGroup(groupCode) {
+    const stats = {
+      total: 0,
+      updated: 0,
+      errors: 0
+    };
+
+    try {
+      // Obtener productos del grupo desde SAP
+      const sapProducts = await this.getProductsFromSAP({
+        groupCode,
+        select: 'ItemCode,SalesVATGroup'
+      });
+
+      for (const sapProduct of sapProducts.value) {
+        try {
+          await pool.query(
+            'UPDATE products SET tax_code_ar = $1, updated_at = CURRENT_TIMESTAMP WHERE sap_code = $2',
+            [sapProduct.SalesVATGroup, sapProduct.ItemCode]
+          );
+          stats.updated++;
+        } catch (error) {
+          stats.errors++;
+          this.logger.error('Error actualizando código de impuesto', {
+            sapCode: sapProduct.ItemCode,
+            error: error.message
+          });
+        }
+        stats.total++;
+      }
+
+      return stats;
+    } catch (error) {
+      this.logger.error('Error en actualización de códigos de impuesto', {
+        error: error.message,
+        groupCode
       });
       throw error;
     }

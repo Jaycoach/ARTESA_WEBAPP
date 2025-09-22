@@ -880,6 +880,44 @@ class SapSyncController {
       return null;
     }
   }
+
+  /**
+   * Actualiza códigos de impuestos de productos por grupo
+   * @param {Request} req - Objeto de solicitud Express
+   * @param {Response} res - Objeto de respuesta Express
+   */
+  async updateGroupTaxCodes(req, res) {
+    try {
+      const { groupCode } = req.params;
+      
+      if (!groupCode || isNaN(parseInt(groupCode))) {
+        return res.status(400).json({
+          success: false,
+          message: 'Código de grupo inválido'
+        });
+      }
+
+      const stats = await sapServiceManager.productService.updateTaxCodesByGroup(parseInt(groupCode));
+
+      res.json({
+        success: true,
+        message: `Códigos de impuestos actualizados exitosamente para el grupo ${groupCode}`,
+        data: stats
+      });
+
+    } catch (error) {
+      logger.error('Error al actualizar códigos de impuestos', {
+        error: error.message,
+        groupCode: req.params.groupCode
+      });
+
+      res.status(500).json({
+        success: false,
+        message: 'Error al actualizar códigos de impuestos',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
 }
 
 // Crear instancia del controlador
@@ -899,5 +937,6 @@ module.exports = {
   configureGroupSync: sapSyncController.configureGroupSync.bind(sapSyncController),
   updateProductDescription: sapSyncController.updateProductDescription.bind(sapSyncController),
   getOrderSyncSchedule: sapSyncController.getOrderSyncSchedule.bind(sapSyncController),
-  calculateNextSyncTime: sapSyncController.calculateNextSyncTime.bind(sapSyncController)
+  calculateNextSyncTime: sapSyncController.calculateNextSyncTime.bind(sapSyncController),
+  updateGroupTaxCodes: sapSyncController.updateGroupTaxCodes.bind(sapSyncController)
 };
