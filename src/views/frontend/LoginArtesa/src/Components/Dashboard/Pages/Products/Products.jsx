@@ -463,8 +463,8 @@ const Products = () => {
         const mappedProducts = priceListProducts.map((plProduct, index) => {
           const priceValue = parseFloat(plProduct.price) || 0;
 
-          // ✅ SOLUCIÓN: Usar price_list_id directamente como product_id
-          const correctProductId = plProduct.product_id;
+          // ✅ USAR product_id REAL si existe, sino usar price_list_id como fallback
+          const correctProductId = plProduct.product_id || plProduct.price_list_id;
 
           // ✅ DEBUG: Log para verificar el mapeo correcto
           console.log('🔍 Product mapping debug:', {

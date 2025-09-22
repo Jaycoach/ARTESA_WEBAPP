@@ -403,15 +403,68 @@ class ProductImageController {
       });
       
       // Verificar que el producto existe
-      const product = await Product.findById(productId);
-      if (!product) {
-        logger.warn('Producto no encontrado para imagen', { productId, imageType });
-        return res.status(404).json({
-          success: false,
-          message: 'Producto no encontrado'
-        });
-      }
+      let product = await Product.findById(productId);
       
+      if (!product) {
+        // Intentar buscar por price_list_id si no se encuentra por product_id
+        try {
+          const priceListQuery = `
+            SELECT p.* FROM products p 
+            INNER JOIN price_lists pl ON p.sap_code = pl.product_code 
+            WHERE pl.price_list_id = $1 
+            LIMIT 1
+          `;
+          const { rows } = await pool.query(priceListQuery, [productId]);
+          
+          if (rows.length > 0) {
+            const actualProduct = rows[0];
+            
+            logger.info('Producto encontrado por price_list_id', { 
+              searchedId: productId,
+              realProductId: actualProduct.product_id,
+              productName: actualProduct.name
+            });
+            
+            // Procesar con el producto real encontrado
+            let imageUrl;
+            if (imageType === 'main') {
+              imageUrl = actualProduct.image_url;
+            } else if (actualProduct.sap_code) {
+              const productImage = await ProductImage.getByProductCode(actualProduct.sap_code);
+              imageUrl = productImage?.image_url;
+            }
+            
+            if (!imageUrl) {
+              return res.status(404).json({
+                success: false,
+                message: `La imagen ${imageType} no existe para este producto`,
+                productId: parseInt(productId),
+                imageType,
+                productName: actualProduct.name || 'Sin nombre'
+              });
+            }
+            
+            product = actualProduct;
+            
+          } else {
+            logger.warn('Producto no encontrado para imagen', { productId, imageType });
+            return res.status(404).json({
+              success: false,
+              message: 'Producto no encontrado'
+            });
+          }
+        } catch (searchError) {
+          logger.error('Error buscando producto alternativo', { 
+            error: searchError.message,
+            productId 
+          });
+          return res.status(404).json({
+            success: false,
+            message: 'Producto no encontrado'
+          });
+        }
+      }
+
       // Obtener la URL de la imagen según el tipo
       let imageUrl;
       if (imageType === 'main') {

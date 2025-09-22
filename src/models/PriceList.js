@@ -217,9 +217,12 @@ class PriceList {
       const query = `
         SELECT 
           pl.*,
-          p.product_id,
+          p.product_id as real_product_id,  -- AGREGAR ESTA LÍNEA
+          pl.price_list_id,
           p.name as local_product_name,
-          p.description as local_product_description
+          p.description as local_product_description,
+          p.image_url,
+          p.sap_code
         FROM price_lists pl
         LEFT JOIN products p ON pl.product_code = p.sap_code
         WHERE pl.price_list_code = $1 
@@ -270,8 +273,12 @@ class PriceList {
       const query = `
         SELECT 
           pl.*,
+          p.product_id as real_product_id, 
+          pl.price_list_id,
           p.name as local_product_name,
-          p.description as local_product_description
+          p.description as local_product_description,
+          p.image_url,
+          p.sap_code
         FROM price_lists pl
         LEFT JOIN products p ON pl.product_code = p.sap_code
         WHERE (pl.price_list_code = $1 OR pl.price_list_name = $1)

@@ -272,6 +272,16 @@ class S3Service {
     }
 
     const command = new commandMap[operation](params);
+
+    // Configurar metadatos para CORS en objetos S3
+    if (operation === 'putObject') {
+      params.Metadata = {
+        ...params.Metadata,
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET,HEAD,OPTIONS',
+        'Access-Control-Allow-Headers': '*'
+      };
+    } 
     // Configurar opciones de firma optimizadas para URLs más cortas
     const signingOptions = {
       expiresIn: urlOptions.expiresIn,

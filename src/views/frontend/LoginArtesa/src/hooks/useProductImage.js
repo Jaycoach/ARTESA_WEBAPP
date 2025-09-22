@@ -69,7 +69,17 @@ const useProductImage = (productId, imageType = 'thumbnail',  shouldLoad = true)
         setError(null);
 
         // Crear y guardar la promesa de la petición
-        const requestPromise = API.get(`/products/images/${productId}/${imageType}?download=false`);
+        // Intentar primero con product_id real, si falla intentar como price_list_id
+        const requestPromise = API.get(`/products/images/${productId}/${imageType}?download=false`)
+          .catch(async (firstError) => {
+            if (firstError.response?.status === 404) {
+              // Log para debugging
+              console.debug(`Image not found with ID ${productId}, this might be a price_list_id`);
+              // No hacer segunda petición para evitar loops, solo marcar el error
+              throw firstError;
+            }
+            throw firstError;
+          });
         pendingRequests.set(pendingKey, requestPromise);
 
         const response = await requestPromise;
