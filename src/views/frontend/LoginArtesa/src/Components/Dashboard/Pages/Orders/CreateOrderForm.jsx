@@ -604,15 +604,12 @@ const CreateOrderForm = ({ onOrderCreated }) => {
 
         setProducts(validProducts);
 
-        // LOG DE VERIFICACIÓN
+        console.log('🔍 === VERIFICACIÓN DE TAX CODES ===');
         const productsWithTaxCode = validProducts.filter(p => p.tax_code_ar);
         console.log(`✅ Productos con tax_code_ar: ${productsWithTaxCode.length}/${validProducts.length}`);
         console.log('📊 Muestra de productos con tax_code:');
         productsWithTaxCode.slice(0, 5).forEach(p => {
           console.log(`  ✅ ${p.name} (ID: ${p.product_id}): ${p.tax_code_ar}`);
-        });
-        productsWithTaxCode.slice(0, 5).forEach(p => {
-          console.log(`  - ${p.name} (ID: ${p.product_id}): ${p.tax_code_ar}`);
         });
 
         console.log(`✅ PRODUCTOS FINALES CARGADOS: ${validProducts.length} productos válidos con precios > 0`);
@@ -640,7 +637,17 @@ const CreateOrderForm = ({ onOrderCreated }) => {
   }, [canAccessForm, authType]);
 
     useEffect(() => {
-  }, [products]);
+      console.log('🔍 DEBUG PRODUCTS STATE:', {
+        productsLength: products.length,
+        firstProduct: products[0],
+        productsWithValidPrices: products.filter(p => parseFloat(p.price || p.effective_price || p.price_list1 || 0) > 0).length,
+        sampleProducts: products.slice(0, 3).map(p => ({
+          id: p.product_id,
+          name: p.name,
+          price: p.price || p.effective_price || p.price_list1
+        }))
+      });
+    }, [products]);
 
   useEffect(() => {
     if (!canAccessForm || !user || !user.id) return;
@@ -1324,10 +1331,17 @@ const CreateOrderForm = ({ onOrderCreated }) => {
   };
 
   const productOptionsForSelect = useMemo(() => {
+
+    console.log('🔍 GENERANDO OPTIONS FOR SELECT:', {
+      productsLength: products.length,
+      productsArray: products
+    });
     
-    if (!products || products.length === 0) {
+    if (!products || products.length === 0) { 
+      console.warn('⚠️ No hay productos disponibles para el select');
       return [];
     }
+
 
     const options = products.map(product => {
     // CORREGIR: usar la misma lógica de fallbacks que en handleSelectChange
@@ -1348,10 +1362,13 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       productData: product
     };
   });
+  console.log('✅ OPTIONS GENERADAS:', options.length);
+  console.log('📦 Primeras 3 options:', options.slice(0, 3));
   return options;
   }, [products]);
 
   const handleSelectChange = (index, option) => {
+    console.log('🔍 handleSelectChange llamado:', { index, option, productsLength: products.length });
     const newDetails = [...orderDetails];
     if (option) {
       newDetails[index].product_id = option.value;
