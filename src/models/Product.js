@@ -70,7 +70,8 @@ class Product {
       sapGroup, 
       sapLastSync,
       sapSyncPending = false, 
-      isActive = true
+      isActive = true,
+      taxCodeAr
     } = product;
   
     // Asegurar que todos los valores numéricos son números válidos
@@ -84,7 +85,7 @@ class Product {
       INSERT INTO products (
         name, description, price_list1, price_list2, price_list3,
         stock, barcode, image_url, sap_code, sap_group, sap_last_sync,
-        sap_sync_pending, is_active
+        sap_sync_pending, is_active, tax_code_ar
       )
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       RETURNING *;
@@ -107,7 +108,8 @@ class Product {
         sanitizedSapGroup, 
         sapLastSync,
         sapSyncPending, 
-        isActive
+        isActive,
+        taxCodeAr
       ];
       
       // Ahora el log puede acceder a 'values' porque ya está definido
@@ -536,7 +538,8 @@ class Product {
       'sapGroup': 'sap_group',
       'sapLastSync': 'sap_last_sync',
       'sapSyncPending': 'sap_sync_pending',
-      'isActive': 'is_active'
+      'isActive': 'is_active',
+      'taxCodeAr': 'tax_code_ar'
     };
 
     const updates = [];

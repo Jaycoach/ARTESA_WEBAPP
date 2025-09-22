@@ -210,6 +210,9 @@ class SapProductService extends SapBaseService {
     // Usar ForeignName si está disponible, sino ItemName
     const description = sapProduct.ForeignName || sapProduct.ItemName || 'Sin descripción';
 
+    // Mapear el código de impuestos de SAP
+    const taxCodeAr = sapProduct.SalesVATGroup || null;
+
     return {
       name: sapProduct.ItemName || 'Sin nombre',
       description: description,
@@ -221,7 +224,7 @@ class SapProductService extends SapBaseService {
       imageUrl: null,
       sapCode: sapProduct.ItemCode,
       sapGroup: parseInt(parseNumberSafely(sapProduct.ItemsGroupCode), 10),
-      taxCodeAr: sapProduct.SalesVATGroup || null,
+      tax_code_ar: taxCodeAr,
       isActive: isActive,
       sapLastSync: new Date().toISOString(),
       sapSyncPending: false
