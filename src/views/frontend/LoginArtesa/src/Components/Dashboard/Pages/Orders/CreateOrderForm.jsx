@@ -786,18 +786,21 @@ const CreateOrderForm = ({ onOrderCreated }) => {
   };
 
   const calculateShipping = (subtotal, totalTaxes) => {
-    const subtotalWithTaxes = subtotal + totalTaxes;
-    
-    if (subtotalWithTaxes < MIN_ORDER_AMOUNT) {
-      return null; // No se aplica flete si está por debajo del mínimo
+    // CAMBIO: Calcular flete antes de impuestos
+    if (subtotal < MIN_ORDER_AMOUNT) {
+      return null;
     }
     
+    const subtotalWithTaxes = subtotal + totalTaxes;
+    
     if (subtotalWithTaxes >= SHIPPING_FREE_LIMIT) {
-      return 0; // Envío gratis
+      return 0;
     }
     
     if (subtotalWithTaxes >= SHIPPING_LIMIT) {
-      return SHIPPING_CHARGE; // Costo de envío con impuestos incluidos
+      // NUEVO: Calcular IVA del flete cuando aplique
+      const shippingWithTax = SHIPPING_CHARGE * (1 + IVA_RATE);
+      return shippingWithTax;
     }
     
     return null;
@@ -819,9 +822,21 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       const itemSubtotal = detail.quantity * detail.unit_price;
       const product = products.find(p => p.product_id === parseInt(detail.product_id));
       
-      if (product && product.has_impuesto_saludable) {
-        impuestoSaludableTotal += itemSubtotal * IMPUESTO_SALUDABLE_RATE;
+      if (product) {
+        // NUEVA LÓGICA: Basada en TaxCodeAR del producto
+        const taxCode = product.tax_code_ar;
+        
+        if (taxCode === 'IVAG03') {
+          // Sin IVA para productos con IVAG03
+        } else if (taxCode === 'IMSB01+I') {
+          // 39% de impuesto saludable para productos con IMSB01+I
+          impuestoSaludableTotal += itemSubtotal * 0.39;
+        } else {
+          // IVA normal (19%) para otros casos
+          ivaTotal += itemSubtotal * IVA_RATE;
+        }
       } else {
+        // Fallback: IVA normal si no se encuentra el producto
         ivaTotal += itemSubtotal * IVA_RATE;
       }
     });
@@ -1883,7 +1898,10 @@ const CreateOrderForm = ({ onOrderCreated }) => {
             {/* Impuesto Saludable */}
             {impuestoSaludableTotal > 0 && (
               <div className="flex justify-between items-center">
-                <span className="font-medium text-gray-700">Impuesto Saludable (10%):</span>
+                <span className="font-medium text-gray-700">
+                  {/* CAMBIO: Mostrar porcentaje correcto */}
+                  Impuesto Saludable (39%):
+                </span>
                 <span className="font-semibold text-gray-800">{formatCurrencyCOP(impuestoSaludableTotal)}</span>
               </div>
             )}

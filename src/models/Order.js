@@ -60,7 +60,7 @@ class Order {
    * @returns {Promise<OrderResponse>} - Información de la orden creada
    * @throws {Error} Si no hay detalles o ocurre un error en la transacción
    */
-  static async createOrder(user_id, total_amount, details, delivery_date = null, status_id = 1, branch_id = null, comments = null) {
+  static async createOrder(user_id, total_amount, details, delivery_date = null, status_id = 1, branch_id = null, comments = null, attachment_url = null) {
     if (!details || details.length === 0) {
       logger.warn('Intento de crear orden sin detalles', { user_id });
       throw new Error("No se puede insertar una orden sin detalles.");
@@ -175,8 +175,8 @@ class Order {
 
       // Crear la orden principal con valores calculados
       const orderQuery = `
-        INSERT INTO orders (user_id, total_amount, subtotal, tax_amount, delivery_date, status_id, branch_id, comments)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        INSERT INTO orders (user_id, total_amount, subtotal, tax_amount, delivery_date, status_id, branch_id, comments, attachment_url)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         RETURNING order_id;
       `;
 
@@ -188,7 +188,8 @@ class Order {
         delivery_date, 
         status_id, 
         branch_id,
-        comments
+        comments,
+        attachment_url
       ]);
       const order_id = orderResult.rows[0].order_id;
 
@@ -396,6 +397,7 @@ static async create(orderData) {
             o.invoice_doc_entry, o.invoice_doc_num,
             o.invoice_date, o.invoice_total, o.invoice_url,
             o.comments,
+            o.attachment_url,
             cb.ship_to_code, cb.branch_name, cb.address as branch_address,
             cb.city as branch_city, cb.phone as branch_phone
       FROM Orders o

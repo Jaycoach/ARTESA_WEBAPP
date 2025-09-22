@@ -147,6 +147,31 @@ class BranchOrderController {
         }))
       });
 
+      // Validar y procesar archivo adjunto para usuarios BRANCH
+      let attachmentUrl = null;
+      if (req.files && req.files.orderFile) {
+        try {
+          const orderFile = req.files.orderFile;
+          const fileName = `branch-order-${branch_id}-${Date.now()}-${orderFile.name}`;
+          
+          const S3Service = require('../services/S3Service');
+          attachmentUrl = await S3Service.uploadFormFile(orderFile, `orders/branches/${fileName}`);
+          
+          logger.info('Archivo de orden BRANCH subido exitosamente', {
+            fileName,
+            url: attachmentUrl,
+            branch_id,
+            user_id
+          });
+        } catch (fileError) {
+          logger.error('Error subiendo archivo de orden BRANCH', {
+            error: fileError.message,
+            branch_id,
+            user_id
+          });
+        }
+      }
+
       // Validar fecha de entrega
       if (delivery_date) {
         const deliveryDate = new Date(delivery_date);
@@ -162,9 +187,10 @@ class BranchOrderController {
       // Crear la orden usando el modelo existente pero con branch_id
       const orderData = {
         user_id,
-        branch_id, // Importante: especificar la sucursal
+        branch_id,
         delivery_date,
         comments,
+        attachment_url: attachmentUrl, 
         products
       };
 

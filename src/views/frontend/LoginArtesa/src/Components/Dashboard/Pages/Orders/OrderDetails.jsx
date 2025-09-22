@@ -406,10 +406,16 @@ const OrderDetails = () => {
                 <dt className="text-sm font-medium text-gray-500">Método de envío</dt>
                 <dd className="mt-1 text-sm text-gray-900">{order.shipping_method || 'No especificado'}</dd>
               </div>
-              <div className="sm:col-span-1">
-                <dt className="text-sm font-medium text-gray-500">Dirección de envío</dt>
-                <dd className="mt-1 text-sm text-gray-900">{order.shipping_address || 'No especificada'}</dd>
-              </div>
+              {order.branch_address && (
+                <div>
+                  <dt className="text-sm font-medium text-gray-500">Dirección de entrega</dt>
+                  <dd className="mt-1 text-sm text-gray-900">
+                    {order.branch_address}
+                    {order.branch_city && `, ${order.branch_city}`}
+                    {order.branch_name && ` (${order.branch_name})`}
+                  </dd>
+                </div>
+              )}
               {order.comments && (
                 <div className="sm:col-span-2">
                   <dt className="text-sm font-medium text-gray-500">Historial de actualizaciones</dt>
@@ -433,6 +439,25 @@ const OrderDetails = () => {
                       {getFileIcon(order.file_type)}
                       <span className="ml-2">Descargar archivo</span>
                       <FaFileDownload className="ml-2" />
+                    </a>
+                  </dd>
+                </div>
+              )}
+              {/* NUEVO: Mostrar archivo adjunto */}
+              {order.attachment_url && (
+                <div>
+                  <dt className="text-sm font-medium text-gray-500">Archivo adjunto</dt>
+                  <dd className="mt-1 text-sm text-gray-900">
+                    <a 
+                      href={order.attachment_url} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:text-blue-800 underline flex items-center"
+                    >
+                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      Ver documento adjunto
                     </a>
                   </dd>
                 </div>

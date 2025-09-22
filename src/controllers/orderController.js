@@ -119,6 +119,32 @@ const createOrder = async (req, res) => {
     }
 
     const { user_id, total_amount, details, delivery_date, status_id, branch_id, comments } = requestData;
+    
+    // Manejar archivo adjunto correctamente
+    let attachmentUrl = null;
+    if (req.files && req.files.orderFile) {
+      try {
+        const orderFile = req.files.orderFile;
+        const fileName = `order-${Date.now()}-${orderFile.name}`;
+        
+        // Usar S3Service para subir el archivo
+        const S3Service = require('../services/S3Service');
+        attachmentUrl = await S3Service.uploadFormFile(orderFile, `orders/${fileName}`);
+        
+        logger.info('Archivo de orden subido exitosamente', {
+          fileName,
+          url: attachmentUrl,
+          userId: user_id
+        });
+      } catch (fileError) {
+        logger.error('Error subiendo archivo de orden', {
+          error: fileError.message,
+          userId: user_id
+        });
+        // Continuar sin archivo si hay error
+      }
+    }
+    
     logger.debug('Iniciando creación de orden', {
       userId: user_id,
       totalAmount: total_amount,
@@ -359,7 +385,8 @@ const createOrder = async (req, res) => {
       parsedDeliveryDate,
       initialStatus,
       branch_id,
-      comments
+      comments,
+      attachmentUrl
     );
     
     logger.info('Orden creada exitosamente', {
