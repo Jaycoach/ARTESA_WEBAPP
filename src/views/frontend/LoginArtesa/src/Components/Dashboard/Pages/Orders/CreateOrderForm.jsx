@@ -14,6 +14,12 @@ import usePriceList from '../../../../hooks/usePriceList';
 import { throttle } from 'lodash';
 import useProductImage, { errorCache } from '../../../../hooks/useProductImage';
 
+const adjustDateForTimezone = (dateString) => {
+  // Crear fecha sin problemas de zona horaria
+  const [year, month, day] = dateString.split('-').map(Number);
+  return new Date(year, month - 1, day);
+};
+
 const ProductImageSmall = React.memo(({ productId, alt, className = "w-8 h-8", shouldLoad = true }) => {
   const { imageUrl, loading, error } = useProductImage(productId, 'thumbnail', shouldLoad);
 
@@ -313,44 +319,37 @@ const CreateOrderForm = ({ onOrderCreated }) => {
   const calculateAvailableDeliveryDates = (zone, orderTimeLimit = '18:00') => {
     if (!zone) return [];
 
-    // Usar fecha local normalizada para evitar problemas de zona horaria
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // Normalizar a medianoche local
+    // Normalizar fecha actual para evitar problemas de zona horaria
+    const normalizedToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    today.setHours(0, 0, 0, 0);
     
-    const currentHour = new Date().getHours();
-    const currentMinute = new Date().getMinutes();
-    const [limitHour, limitMinute] = orderTimeLimit.split(':').map(Number);
-
-    const isAfterLimit = currentHour > limitHour ||
-      (currentHour === limitHour && currentMinute > limitMinute);
-
-    let additionalDays = 2;
+    // Calcular días mínimos de manera más permisiva
+    let additionalDays = 2; // Mínimo 2 días calendario
     const currentDay = today.getDay();
 
-    if (isAfterLimit) {
-      additionalDays += 1;
+    // Solo agregar días extra si es muy tarde o fin de semana
+    const currentHour = new Date().getHours();
+    const [limitHour] = orderTimeLimit.split(':').map(Number);
+    
+    if (currentHour >= limitHour && currentDay >= 1 && currentDay <= 5) {
+      additionalDays = 3; // 1 día extra si es después de la hora límite en día hábil
     }
 
-    if (currentDay === 6) {
-      if (isAfterLimit) {
-        additionalDays = 4;
-      } else {
-        additionalDays = 3;
-      }
-    } else if (currentDay === 0) {
-      additionalDays = 3;
+    if (currentDay === 6) { // Sábado
+      additionalDays = 3; // Entregar el martes
+    } else if (currentDay === 0) { // Domingo
+      additionalDays = 3; // Entregar el miércoles
     }
 
     const availableDates = [];
-    const maxDaysToCheck = 30;
+    const maxDaysToCheck = 45; // Aumentar el rango
 
     for (let i = additionalDays; i <= maxDaysToCheck; i++) {
-      // Crear fecha normalizada sin problemas de zona horaria
-      const checkDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() + i);
+      const checkDate = new Date(normalizedToday.getFullYear(), normalizedToday.getMonth(), normalizedToday.getDate() + i);
       const dayOfWeek = checkDate.getDay();
 
       if (zone.days.includes(dayOfWeek)) {
-        // Crear fecha normalizada para consistencia
         const normalizedDate = new Date(checkDate.getFullYear(), checkDate.getMonth(), checkDate.getDate());
         availableDates.push(normalizedDate);
       }
@@ -646,9 +645,8 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       });
 
       if (deliveryDate) {
-        // CORRECCIÓN: Crear fecha sin problemas de zona horaria
-        const [year, month, day] = deliveryDate.split('-').map(Number);
-        const selectedDate = new Date(year, month - 1, day);
+        // Usar función de normalización de zona horaria
+        const selectedDate = adjustDateForTimezone(deliveryDate);
         
         const isDateAvailable = dates.some(date => {
           const normalizedAvailable = new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -922,18 +920,18 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     }
 
     // Crear fecha a partir del string sin problemas de zona horaria
-    const [year, month, day] = deliveryDate.split('-').map(Number);
-    const selectedDate = new Date(year, month - 1, day); // month - 1 porque los meses en Date van de 0-11
-    const isDateAvailable = availableDeliveryDays.some(date => {
-      const normalizedAvailable = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-      const normalizedSelected = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
-      return normalizedAvailable.getTime() === normalizedSelected.getTime();
-    });
+    //const [year, month, day] = deliveryDate.split('-').map(Number);
+    //const selectedDate = new Date(year, month - 1, day); // month - 1 porque los meses en Date van de 0-11
+    //const isDateAvailable = availableDeliveryDays.some(date => {
+      //const normalizedAvailable = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      //const normalizedSelected = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+      //return normalizedAvailable.getTime() === normalizedSelected.getTime();
+    //});
 
-    if (!isDateAvailable) {
-      showNotification(`La fecha seleccionada no está disponible para entregas en ${deliveryZone.name}`, 'error');
-      return;
-    }
+    //if (!isDateAvailable) {
+      //showNotification(`La fecha seleccionada no está disponible para entregas en ${deliveryZone.name}`, 'error');
+      //return;
+    //}
 
     if (subtotal < MIN_ORDER_AMOUNT) {
       showNotification(`El monto mínimo para crear un pedido es ${formatCurrencyCOP(MIN_ORDER_AMOUNT)} (sin IVA).`, 'error');
@@ -1198,7 +1196,18 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       }
     } catch (error) {
       console.error('Error creating order:', error);
-      showNotification(error.message || 'Ocurrió un error al procesar tu pedido', 'error');
+      
+      // Manejo específico para errores de fecha
+      if (error.response?.status === 400 && error.response?.data?.message?.includes('fecha de entrega')) {
+        showNotification(
+          `Error de fecha: ${error.response.data.message}. Selecciona otra fecha disponible.`,
+          'error'
+        );
+        // Limpiar la fecha seleccionada para forzar nueva selección
+        setDeliveryDate('');
+      } else {
+        showNotification(error.message || 'Ocurrió un error al procesar tu pedido', 'error');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -1239,10 +1248,10 @@ const CreateOrderForm = ({ onOrderCreated }) => {
 
     return {
       value: product.product_id,
-      label: product.name,
+      label: (product.name || product.local_product_name || product.product_name || 'Producto sin nombre').trim(),
       image: product.image_url,
       price: price,
-      productData: product // Agregar referencia completa al producto
+      productData: product
     };
   });
   return options;
@@ -1320,6 +1329,12 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       productOptionsForSelect.findIndex(opt => opt.value === value) < 5
     ) && !hasErrorCached;
 
+    // Validación adicional para productos con nombres largos
+    const displayLabel = label || productData?.name || 'Producto sin nombre';
+    const truncatedLabel = displayLabel.length > 50 
+      ? displayLabel.substring(0, 47) + '...' 
+      : displayLabel;
+
     return (
       <div className="flex items-center py-1" data-product-id={value}>
         <ProductImageSmall
@@ -1328,8 +1343,10 @@ const CreateOrderForm = ({ onOrderCreated }) => {
           className="w-8 h-8 mr-3"
           shouldLoad={shouldLoadImage}
         />
-        <div className="flex-1">
-          <div className="font-medium text-sm text-gray-800 leading-tight">{label}</div>
+        <div className="flex-1 min-w-0">
+          <div className="font-medium text-sm text-gray-800 leading-tight truncate">
+            {truncatedLabel}
+          </div>
           {price && price > 0 && (
             <div className="text-xs text-gray-500">{formatCurrencyCOP(price)}</div>
           )}
