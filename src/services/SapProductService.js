@@ -153,7 +153,7 @@ class SapProductService extends SapBaseService {
       }
 
       // Seleccionar solo campos necesarios para optimizar transferencia
-      params.push('$select=ItemCode,ItemName,ForeignName,ItemsGroupCode,BarCode,QuantityOnStock,SalesItem,Frozen,TaxCodeAR');
+      params.push('$select=ItemCode,ItemName,ForeignName,ItemsGroupCode,BarCode,QuantityOnStock,SalesItem,Frozen,SalesVATGroup');
 
       // Paginación
       params.push(`$skip=${skip}`);
@@ -221,7 +221,7 @@ class SapProductService extends SapBaseService {
       imageUrl: null,
       sapCode: sapProduct.ItemCode,
       sapGroup: parseInt(parseNumberSafely(sapProduct.ItemsGroupCode), 10),
-      taxCodeAr: sapProduct.TaxCodeAR || null,
+      taxCodeAr: sapProduct.SalesVATGroup || null,
       isActive: isActive,
       sapLastSync: new Date().toISOString(),
       sapSyncPending: false
