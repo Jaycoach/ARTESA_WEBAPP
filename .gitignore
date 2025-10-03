@@ -91,3 +91,6 @@ venv/
 .venv/
 env/
 .env/
+
+# Documentación generada automáticamente
+ARTESA-DOCUMENTATION.md

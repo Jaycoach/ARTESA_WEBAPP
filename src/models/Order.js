@@ -257,15 +257,61 @@ static async create(orderData) {
     branch_id = null,
     delivery_date = null,
     comments = null,
+    attachment_url = null,
     products = []
   } = orderData;
 
-  // Actualizar el query de inserción para incluir comments
-  const insertQuery = `
-    INSERT INTO Orders (user_id, branch_id, delivery_date, comments, subtotal, tax_amount, total_amount, status_id, order_date)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, 1, CURRENT_TIMESTAMP)
-    RETURNING order_id;
-  `;
+  // Validar productos PRIMERO
+  if (!products || products.length === 0) {
+    throw new Error('Debe especificar al menos un producto');
+  }
+
+  // Validar cada producto
+  products.forEach((product, index) => {
+    if (!product.product_id) {
+      throw new Error(`Producto ${index + 1}: ID de producto requerido`);
+    }
+    if (!product.quantity || parseInt(product.quantity) <= 0) {
+      throw new Error(`Producto ${index + 1}: Cantidad debe ser mayor a 0`);
+    }
+    if (!product.unit_price || parseFloat(product.unit_price) <= 0) {
+      throw new Error(`Producto ${index + 1}: Precio unitario debe ser mayor a 0`);
+    }
+  });
+
+  // CALCULAR TOTALES CON IVA (19%)
+  let subtotal = 0;
+  let tax_amount = 0;
+  
+  const details = products.map(product => {
+    const quantity = parseInt(product.quantity);
+    const unitPrice = parseFloat(product.unit_price);
+    const lineSubtotal = unitPrice * quantity;
+    
+    subtotal += lineSubtotal;
+    
+    return {
+      product_id: product.product_id,
+      quantity: quantity,
+      unit_price: unitPrice
+    };
+  });
+
+  // Calcular IVA del 19% sobre el subtotal
+  tax_amount = subtotal * 0.19;
+  const total_amount = subtotal + tax_amount;
+
+  // Validar que el total sea positivo
+  if (total_amount <= 0) {
+    throw new Error('El total de la orden debe ser mayor a 0');
+  }
+
+  logger.debug('Totales calculados para orden', {
+    subtotal,
+    tax_amount,
+    total_amount,
+    productsCount: products.length
+  });
 
   const insertParams = [user_id, branch_id, delivery_date, comments, subtotal, tax_amount, total_amount];
 
@@ -287,35 +333,17 @@ static async create(orderData) {
     }
   });
 
-  // Calcular el total de los productos
-  let totalAmount = 0;
-  const details = products.map(product => {
-    const quantity = parseInt(product.quantity);
-    const unitPrice = parseFloat(product.unit_price);
-    const lineTotal = unitPrice * quantity;
-    totalAmount += lineTotal;
-    
-    return {
-      product_id: product.product_id,
-      quantity: quantity,
-      unit_price: unitPrice
-    };
-  });
-
-  // Validar que el total sea positivo
-  if (totalAmount <= 0) {
-    throw new Error('El total de la orden debe ser mayor a 0');
-  }
 
   // Crear la orden usando el método existente
   const result = await this.createOrder(
     user_id,
-    totalAmount,
+    total_amount,
     details,
     delivery_date,
     1, // status_id por defecto (Abierto)
     branch_id,
-    comments
+    comments,
+    attachment_url
   );
 
   // Obtener la orden completa con detalles

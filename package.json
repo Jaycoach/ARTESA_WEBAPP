@@ -4,6 +4,7 @@
   "main": "app.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
+    "generate-docs": "node scripts/generate-docs.js",
     "start:dev": "NODE_ENV=development PORT=3000 nodemon app.js",
     "start:ngrok": "NODE_ENV=development PORT=3000 nodemon app.js",
     "start:prod": "NODE_ENV=production node app.js",
