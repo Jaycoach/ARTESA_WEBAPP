@@ -118,7 +118,7 @@ const createOrder = async (req, res) => {
       }
     }
 
-    const { user_id, total_amount, details, delivery_date, status_id, branch_id, comments } = requestData;
+    const { user_id, total_amount, details, delivery_date, status_id, branch_id, comments, customer_po_number } = requestData;
     
     // Manejar archivo adjunto correctamente
     let attachmentUrl = null;
@@ -386,7 +386,8 @@ const createOrder = async (req, res) => {
       initialStatus,
       branch_id,
       comments,
-      attachmentUrl
+      attachmentUrl,
+      customer_po_number
     );
     
     logger.info('Orden creada exitosamente', {

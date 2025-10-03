@@ -60,7 +60,7 @@ class Order {
    * @returns {Promise<OrderResponse>} - Información de la orden creada
    * @throws {Error} Si no hay detalles o ocurre un error en la transacción
    */
-  static async createOrder(user_id, total_amount, details, delivery_date = null, status_id = 1, branch_id = null, comments = null, attachment_url = null) {
+  static async createOrder(user_id, total_amount, details, delivery_date = null, status_id = 1, branch_id = null, comments = null, attachment_url = null, customer_po_number = null) {
     if (!details || details.length === 0) {
       logger.warn('Intento de crear orden sin detalles', { user_id });
       throw new Error("No se puede insertar una orden sin detalles.");
@@ -175,8 +175,8 @@ class Order {
 
       // Crear la orden principal con valores calculados
       const orderQuery = `
-        INSERT INTO orders (user_id, total_amount, subtotal, tax_amount, delivery_date, status_id, branch_id, comments, attachment_url)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        INSERT INTO orders (user_id, total_amount, subtotal, tax_amount, delivery_date, status_id, branch_id, comments, attachment_url, customer_po_number)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         RETURNING order_id;
       `;
 
@@ -189,7 +189,8 @@ class Order {
         status_id, 
         branch_id,
         comments,
-        attachment_url
+        attachment_url,
+        customer_po_number
       ]);
       const order_id = orderResult.rows[0].order_id;
 
@@ -258,6 +259,7 @@ static async create(orderData) {
     delivery_date = null,
     comments = null,
     attachment_url = null,
+    customer_po_number = null,
     products = []
   } = orderData;
 
@@ -343,7 +345,8 @@ static async create(orderData) {
     1, // status_id por defecto (Abierto)
     branch_id,
     comments,
-    attachment_url
+    attachment_url,
+    customer_po_number
   );
 
   // Obtener la orden completa con detalles
@@ -590,6 +593,19 @@ static async create(orderData) {
       if (updateData.comments !== undefined) {
         updateFields.push(`comments = $${paramIndex}`);
         queryParams.push(updateData.comments);
+        paramIndex++;
+      }
+      
+      if (updateData.comments !== undefined) {
+        updateFields.push(`comments = $${paramIndex}`);
+        queryParams.push(updateData.comments);
+        paramIndex++;
+      }
+
+      // ← AGREGAR ESTE BLOQUE COMPLETO AQUÍ
+      if (updateData.customer_po_number !== undefined) {
+        updateFields.push(`customer_po_number = $${paramIndex}`);
+        queryParams.push(updateData.customer_po_number);
         paramIndex++;
       }
       

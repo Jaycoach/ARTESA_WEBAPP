@@ -19,6 +19,7 @@ class BranchOrderController {
         delivery_date, 
         comments, 
         products,
+        customer_po_number,
         user_id // Usuario del cliente principal que creará la orden
       } = req.body;
 
@@ -190,7 +191,8 @@ class BranchOrderController {
         branch_id,
         delivery_date,
         comments,
-        attachment_url: attachmentUrl, 
+        attachment_url: attachmentUrl,
+        customer_po_number,
         products
       };
 

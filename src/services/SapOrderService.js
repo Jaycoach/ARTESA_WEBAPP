@@ -217,11 +217,11 @@ scheduleInvoiceCheckTask() {
   
       // Consulta para obtener todos los datos necesarios para la orden
       const orderResult = await pool.query(
-        `SELECT o.*, cp.cardcode_sap, u.name as user_name
-         FROM orders o
-         JOIN users u ON o.user_id = u.id
-         JOIN client_profiles cp ON u.id = cp.user_id
-         WHERE o.order_id = $1`,
+        `SELECT o.*, cp.cardcode_sap, u.name as user_name, o.customer_po_number
+        FROM orders o
+        JOIN users u ON o.user_id = u.id
+        JOIN client_profiles cp ON u.id = cp.user_id
+        WHERE o.order_id = $1`,
         [order.order_id]
       );
   
@@ -302,6 +302,7 @@ scheduleInvoiceCheckTask() {
         DocDueDate: formatDate(orderData.delivery_date),
         Comments: fullComments,
         U_WebOrderId: order.order_id.toString(),
+        NumAtCard: orderData.customer_po_number || null,
         DocumentLines: orderItemsResult.rows.map(item => ({
           ItemCode: item.sap_code,
           Quantity: parseFloat(item.quantity) || 1,
