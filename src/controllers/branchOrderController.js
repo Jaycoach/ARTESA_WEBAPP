@@ -586,19 +586,24 @@ class BranchOrderController {
       const order = orderRows[0];
 
       // Validar transiciones de estado permitidas para sucursales
-      // Por ejemplo, solo permitir cancelar órdenes pendientes
+      // Las sucursales pueden:
+      // - Cancelar pedidos en estados: Abierto (1), En Proceso (2), En Producción (3)
+      // - Los pedidos entregados (4) o ya cancelados (6) no se pueden modificar
       const allowedTransitions = {
-        1: [5], // De pendiente a cancelada
-        2: [], // Procesada no se puede cambiar
-        3: [], // Enviada no se puede cambiar
-        4: [], // Entregada no se puede cambiar
-        5: [] // Cancelada no se puede cambiar
+        1: [6], // De Abierto a Cancelado
+        2: [6], // De En Proceso a Cancelado
+        3: [6], // De En Producción a Cancelado
+        4: [], // Entregado no se puede cambiar
+        5: [], // Cerrado no se puede cambiar (si aplica)
+        6: [] // Cancelado no se puede cambiar
       };
 
+      // Mensaje descriptivo si no se permite la transición
       if (!allowedTransitions[order.status_id] || !allowedTransitions[order.status_id].includes(parseInt(status_id))) {
         return res.status(400).json({
           success: false,
-          message: `No se permite cambiar el estado de ${order.current_status} al estado solicitado`
+          message: `Las sucursales solo pueden cancelar pedidos en estado Abierto, En Proceso o En Producción. Estado actual: ${order.current_status}`,
+          allowedActions: 'Para modificaciones adicionales, contacte con su administrador'
         });
       }
 
@@ -622,17 +627,32 @@ class BranchOrderController {
         paramIndex++;
       }
 
-      // Actualizar el estado
-      const updateQuery = `
-        UPDATE orders 
-        SET status_id = $${paramIndex}${updateFields.length > 0 ? ', ' + updateFields.join(', ') : ''}, updated_at = CURRENT_TIMESTAMP
-        WHERE order_id = $${paramIndex + 1}
-        RETURNING *
-      `;
+      // Construir el query final con los índices correctos
+      let finalQuery;
+      let finalParams;
 
-      queryParams.push(status_id, orderId);
+      if (updateFields.length > 0) {
+        // Si hay comentarios, usar queryParams que ya tiene el comentario
+        finalQuery = `
+          UPDATE orders 
+          SET ${updateFields.join(', ')}, status_id = $${paramIndex}, updated_at = CURRENT_TIMESTAMP
+          WHERE order_id = $${paramIndex + 1}
+          RETURNING *
+        `;
+        queryParams.push(status_id, orderId);
+        finalParams = queryParams;
+      } else {
+        // Si no hay comentarios, query simple
+        finalQuery = `
+          UPDATE orders 
+          SET status_id = $1, updated_at = CURRENT_TIMESTAMP
+          WHERE order_id = $2
+          RETURNING *
+        `;
+        finalParams = [status_id, orderId];
+      }
 
-      const { rows: updatedRows } = await pool.query(updateQuery, [status_id, orderId]);
+      const { rows: updatedRows } = await pool.query(finalQuery, finalParams);
 
       // Agregar nota si se proporciona
       if (note) {
@@ -712,12 +732,36 @@ class BranchOrderController {
 
       const order = orderRows[0];
 
-      // Verificar si la orden está en un estado que permite modificación
-      const nonModifiableStates = [4, 5, 6]; // Entregado, Cerrado, Cancelado
+      // Verificar si la orden está en un estado que permite modificación desde sucursal
+      const nonModifiableStates = [4, 5, 6]; // Entregado (4), Cerrado (5), Cancelado (6)
       if (nonModifiableStates.includes(order.status_id)) {
+        const stateNames = {
+          4: 'Entregado',
+          5: 'Cerrado',
+          6: 'Cancelado'
+        };
+        
         return res.status(400).json({
           success: false,
-          message: 'No se puede modificar una orden en estado Entregado, Cerrado o Cancelado'
+          message: `No se puede modificar una orden en estado ${stateNames[order.status_id] || order.current_status}`,
+          currentStatus: order.current_status,
+          allowedStates: 'Solo se pueden modificar pedidos en estados: Abierto, En Proceso, En Producción'
+        });
+      }
+
+      // Para sucursales, solo permitir modificaciones limitadas (no cambios de productos)
+      // Si se intenta modificar detalles de productos, rechazar
+      if (updateData.products || updateData.details) {
+        logger.warn('Sucursal intentó modificar productos de la orden', {
+          branchId: branch_id,
+          orderId,
+          attemptedUpdate: 'products'
+        });
+        
+        return res.status(403).json({
+          success: false,
+          message: 'Las sucursales no pueden modificar los productos de un pedido',
+          allowedActions: 'Puede modificar: fecha de entrega, notas, y cancelar el pedido'
         });
       }
 

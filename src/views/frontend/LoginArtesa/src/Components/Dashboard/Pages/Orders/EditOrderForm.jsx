@@ -472,6 +472,54 @@ const EditOrderForm = ({ onOrderUpdated }) => {
     }
   };
 
+  // Función para actualizar fecha de entrega y notas desde sucursal
+  const handleSubmitBranchUpdate = async (e) => {
+    e.preventDefault();
+
+    if (!deliveryDate) {
+      showNotification('Por favor selecciona una fecha de entrega', 'warning');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+
+      console.log('🏢 [BRANCH] Actualizando pedido:', {
+        orderId,
+        deliveryDate,
+        notes: orderNotes
+      });
+
+      const updateData = {
+        delivery_date: deliveryDate,
+        notes: orderNotes
+      };
+
+      const response = await API.put(`/branch-orders/${orderId}`, updateData);
+
+      if (response.data && response.data.success) {
+        showNotification('Pedido actualizado exitosamente', 'success');
+
+        if (onOrderUpdated) onOrderUpdated(response.data.data);
+
+        setTimeout(() => {
+          navigate(`${getRoutePrefix()}/orders/${orderId}`);
+        }, 2000);
+      } else {
+        throw new Error(response.data?.message || 'Error al actualizar el pedido');
+      }
+
+    } catch (error) {
+      console.error('❌ [BRANCH] Error actualizando pedido:', error);
+      showNotification(
+        error.response?.data?.message || 'Error al actualizar el pedido. Contacte al administrador.',
+        'error'
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleRemoveProduct = (index) => {
     if (orderDetails.length > 1) {
       const newDetails = [...orderDetails];
@@ -730,19 +778,74 @@ const EditOrderForm = ({ onOrderUpdated }) => {
               </div>
               <div className="ml-3">
                 <h3 className="text-sm font-medium text-blue-800">
-                  Cuenta de Sucursal - Opciones Limitadas
+                  Cuenta de Sucursal - Opciones Disponibles
                 </h3>
                 <div className="mt-2 text-sm text-blue-700">
-                  <p>
-                    Para una cuenta de tipo <strong>Sucursal</strong>, solo se permite cambiar el estado de la orden de <strong>Abierta</strong> a <strong>Cancelado</strong>.
-                  </p>
-                  <p className="mt-1">
-                    Si necesita realizar otros cambios en el pedido, consulte con su administrador o contacte a Soporte.
+                  <p className="font-semibold">Como sucursal, puedes:</p>
+                  <ul className="list-disc list-inside mt-2 space-y-1">
+                    <li>Cambiar el estado del pedido a <strong>Cancelado</strong> si está en estado Abierto, En Proceso o En Producción</li>
+                    <li>Modificar la fecha de entrega del pedido</li>
+                    <li>Agregar comentarios y notas adicionales</li>
+                  </ul>
+                  <p className="mt-2 text-xs">
+                    <strong>Nota:</strong> No puedes modificar los productos incluidos en el pedido. Para cambios en productos, contacta con el administrador.
                   </p>
                 </div>
               </div>
             </div>
           </div>
+
+          {/* Formulario para modificar fecha de entrega */}
+          <form onSubmit={handleSubmitBranchUpdate} className="space-y-4">
+            <div>
+              <label htmlFor="deliveryDate" className="block text-sm font-medium text-gray-700 mb-1">
+                Fecha de Entrega
+              </label>
+              <input
+                type="date"
+                id="deliveryDate"
+                value={deliveryDate}
+                onChange={(e) => setDeliveryDate(e.target.value)}
+                min={new Date().toISOString().split('T')[0]}
+                className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Puedes modificar la fecha de entrega del pedido
+              </p>
+            </div>
+
+            <div>
+              <label htmlFor="branchNotes" className="block text-sm font-medium text-gray-700 mb-1">
+                Comentarios adicionales
+              </label>
+              <textarea
+                id="branchNotes"
+                rows="3"
+                value={orderNotes}
+                onChange={(e) => setOrderNotes(e.target.value)}
+                placeholder="Agrega notas o comentarios sobre este pedido..."
+                className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              ></textarea>
+            </div>
+
+            <div className="flex space-x-3">
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className={`flex-1 py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${isSubmitting ? 'opacity-75 cursor-not-allowed' : ''}`}
+              >
+                {isSubmitting ? 'Actualizando...' : 'Guardar Cambios'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => navigate(`${getRoutePrefix()}/orders/${orderId}`)}
+                className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+            </div>
+          </form>
 
           {/* Información del pedido */}
           {order && (

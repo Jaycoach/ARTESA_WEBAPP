@@ -235,6 +235,19 @@ scheduleInvoiceCheckTask() {
       if (!orderData.cardcode_sap) {
         throw new Error('Cliente no tiene código SAP asociado');
       }
+
+      // Construir comentarios completos incluyendo el historial
+      let fullComments = `Orden web #${order.order_id} - Cliente: ${orderData.user_name}`;
+
+      // Agregar comentarios del campo 'comments' de la base de datos si existen
+      if (orderData.comments && orderData.comments.trim()) {
+        fullComments += `\n\nCOMENTARIOS:\n${orderData.comments}`;
+      }
+
+      // Agregar notas adicionales si existen (campo attachment_description o notes)
+      if (orderData.notes && orderData.notes.trim()) {
+        fullComments += `\n\nNOTAS: ${orderData.notes}`;
+      }
   
       // Obtener detalles de los productos en la orden
       const orderItemsResult = await pool.query(
@@ -287,7 +300,7 @@ scheduleInvoiceCheckTask() {
         CardCode: orderData.cardcode_sap,
         DocDate: formatDate(orderData.order_date), 
         DocDueDate: formatDate(orderData.delivery_date),
-        Comments: `Orden web #${order.order_id} - Cliente: ${orderData.user_name}`,
+        Comments: fullComments,
         U_WebOrderId: order.order_id.toString(),
         DocumentLines: orderItemsResult.rows.map(item => ({
           ItemCode: item.sap_code,
@@ -295,6 +308,13 @@ scheduleInvoiceCheckTask() {
           Price: parseFloat(item.unit_price) || 0
         }))
       };
+
+      // Log para debugging de comentarios
+      this.logger.debug('Comentarios completos preparados para SAP:', {
+        orderId: order.order_id,
+        commentsLength: fullComments.length,
+        commentsPreview: fullComments.substring(0, 200) + (fullComments.length > 200 ? '...' : '')
+      });
 
       // Validar y actualizar TRM si es necesario
       const trmValidation = await this.validateAndUpdateTRM(orderData.order_date || new Date());
