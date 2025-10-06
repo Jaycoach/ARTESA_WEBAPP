@@ -809,8 +809,6 @@ const updateOrder = async (req, res) => {
 
     // Validar fecha de entrega si se proporciona
     if (updateData.delivery_date) {
-      const deliveryDate = new Date(updateData.delivery_date);
-      
       // Obtener configuración de hora límite
       const adminSettings = await require('../models/AdminSettings').getSettings();
       const orderTimeLimit = adminSettings.orderTimeLimit;
@@ -823,55 +821,78 @@ const updateOrder = async (req, res) => {
         });
       }
 
-      // Obtener la fecha de creación de la orden
-      const orderCreationDate = new Date(currentOrder.order_date);
+      // ✅ VALIDACIÓN BASADA EN FECHA DE ENTREGA
+      const newDeliveryDate = new Date(updateData.delivery_date);
+      const currentDeliveryDate = new Date(currentOrder.delivery_date);
       const now = new Date();
 
-      // Calcular hasta cuándo se puede editar la orden
-      const [limitHours, limitMinutes] = orderTimeLimit.split(':').map(Number);
+      // Normalizar fechas (sin horas)
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const deliveryDay = new Date(currentDeliveryDate.getFullYear(), currentDeliveryDate.getMonth(), currentDeliveryDate.getDate());
 
-      // La orden se puede editar hasta las X horas del día siguiente a su creación
-      const editDeadline = new Date(orderCreationDate);
-      editDeadline.setDate(editDeadline.getDate() + 1); // Día siguiente
-      editDeadline.setHours(limitHours, limitMinutes, 0, 0); // Hora límite
+      // Calcular días hasta la entrega actual
+      const diffTime = deliveryDay.getTime() - today.getTime();
+      const daysUntilDelivery = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-      // Verificar si aún se puede editar
-      if (now > editDeadline) {
+      logger.debug('Validando edición de orden', {
+        orderId,
+        currentDeliveryDate: deliveryDay.toISOString().split('T')[0],
+        daysUntilDelivery,
+        currentTime: now.toISOString(),
+        orderTimeLimit
+      });
+
+      // Si la fecha de entrega ya pasó, no se puede editar
+      if (daysUntilDelivery < 0) {
         return res.status(400).json({
           success: false,
-          message: `No se puede modificar la orden después de las ${orderTimeLimit} del día siguiente a su creación (${editDeadline.toLocaleDateString('es-ES')})`,
-          orderCreationDate: orderCreationDate.toISOString().split('T')[0],
-          editDeadline: editDeadline.toISOString()
+          message: 'No se puede modificar la orden - La fecha de entrega ya pasó',
+          deliveryDate: currentDeliveryDate.toISOString().split('T')[0]
         });
       }
 
-      // Calcular fecha mínima de entrega (48 horas hábiles desde la fecha de creación)
-      const minDeliveryDate = Order.calculateDeliveryDate(orderCreationDate, orderTimeLimit);
-      
-      // Verificar que la fecha sea válida
-      if (isNaN(deliveryDate.getTime())) {
+      // Si faltan 2 días o menos, verificar hora límite
+      if (daysUntilDelivery <= 2) {
+        const [limitHours, limitMinutes] = orderTimeLimit.split(':').map(Number);
+        
+        if (now.getHours() > limitHours || (now.getHours() === limitHours && now.getMinutes() >= limitMinutes)) {
+          return res.status(400).json({
+            success: false,
+            message: `No se puede modificar la orden después de las ${orderTimeLimit} cuando faltan ${daysUntilDelivery} días o menos para la entrega`,
+            deliveryDate: currentDeliveryDate.toISOString().split('T')[0],
+            orderTimeLimit: orderTimeLimit,
+            daysUntilDelivery
+          });
+        }
+      }
+
+      // ✅ VALIDAR QUE LA NUEVA FECHA SEA VÁLIDA
+      if (isNaN(newDeliveryDate.getTime())) {
         return res.status(400).json({
           success: false,
           message: 'Formato de fecha de entrega inválido'
         });
       }
       
-      // Validar que sea un día hábil
+      // Validar que la nueva fecha sea un día hábil
       const colombianHolidays = require('../utils/colombianHolidays');
       
-      if (!colombianHolidays.isWorkingDay(deliveryDate)) {
+      if (!colombianHolidays.isWorkingDay(newDeliveryDate)) {
         return res.status(400).json({
           success: false,
           message: 'La fecha de entrega debe ser un día hábil (no festivo ni fin de semana)',
-          suggestedDate: colombianHolidays.getNextWorkingDay(deliveryDate).toISOString().split('T')[0]
+          suggestedDate: colombianHolidays.getNextWorkingDay(newDeliveryDate).toISOString().split('T')[0]
         });
       }
+
+      // Calcular fecha mínima de entrega desde HOY
+      const minDeliveryDate = Order.calculateDeliveryDate(new Date(), orderTimeLimit);
       
       // Comparar solo las fechas (sin la hora)
-      const deliveryDateOnly = new Date(deliveryDate.toDateString());
+      const newDeliveryDateOnly = new Date(newDeliveryDate.toDateString());
       const minDeliveryDateOnly = new Date(minDeliveryDate.toDateString());
       
-      if (deliveryDateOnly < minDeliveryDateOnly) {
+      if (newDeliveryDateOnly < minDeliveryDateOnly) {
         return res.status(400).json({
           success: false,
           message: `La fecha de entrega debe ser a partir del ${minDeliveryDate.toISOString().split('T')[0]}`,

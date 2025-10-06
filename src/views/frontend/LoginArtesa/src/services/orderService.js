@@ -384,50 +384,58 @@ export const orderService = {
         };
       }
 
-      // Verificar la hora límite para edición
-      const orderDate = new Date(order.order_date);
+      // ✅ NUEVA LÓGICA: Validar según fecha de entrega y hora límite
+      const deliveryDate = new Date(order.delivery_date);
       const now = new Date();
+
+      // Normalizar fechas para comparación (sin horas)
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const orderDay = new Date(orderDate.getFullYear(), orderDate.getMonth(), orderDate.getDate());
+      const deliveryDay = new Date(deliveryDate.getFullYear(), deliveryDate.getMonth(), deliveryDate.getDate());
 
-      const diffTime = Math.abs(today - orderDay);
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      // Calcular días de diferencia entre hoy y la fecha de entrega
+      const diffTime = deliveryDay.getTime() - today.getTime();
+      const daysUntilDelivery = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-      console.log(`Días entre la creación y hoy: ${diffDays}`);
-      console.log(`Fecha de pedido: ${orderDate.toLocaleString()}, Hoy: ${now.toLocaleString()}`);
+      console.log(`📅 Validación de edición:`, {
+        today: today.toLocaleDateString('es-ES'),
+        deliveryDate: deliveryDay.toLocaleDateString('es-ES'),
+        daysUntilDelivery,
+        currentTime: now.toLocaleTimeString('es-ES')
+      });
 
-      if (diffDays > 1) {
-        console.log(`Pedido de hace más de 1 día - no editable`);
+      // Si la fecha de entrega ya pasó, no se puede editar
+      if (daysUntilDelivery < 0) {
+        console.log(`❌ No se puede editar - La fecha de entrega ya pasó`);
         return {
           canEdit: false,
-          reason: 'Los pedidos solo pueden editarse el mismo día o al día siguiente'
+          reason: 'No se puede editar un pedido cuya fecha de entrega ya pasó'
         };
       }
 
-      if (diffDays > 0) {
-        console.log(`Pedido de un día diferente al actual - no editable`);
-        return {
-          canEdit: false,
-          reason: `Solo puedes editar pedidos el mismo día de su creación`
-        };
+      // Si faltan 2 días o menos para la entrega, verificar la hora límite
+      if (daysUntilDelivery <= 2) {
+        const [limitHours, limitMinutes] = orderTimeLimit.split(':').map(Number);
+        const limitTime = new Date();
+        limitTime.setHours(limitHours, limitMinutes, 0, 0);
+
+        console.log(`⏰ Verificando hora límite:`, {
+          daysUntilDelivery,
+          currentTime: now.toLocaleTimeString('es-ES'),
+          limitTime: limitTime.toLocaleTimeString('es-ES'),
+          isPastLimit: now > limitTime
+        });
+
+        if (now > limitTime) {
+          console.log(`❌ No se puede editar - Ya pasó la hora límite (${orderTimeLimit})`);
+          return {
+            canEdit: false,
+            reason: `No se puede editar después de las ${orderTimeLimit} cuando faltan ${daysUntilDelivery} días o menos para la entrega`
+          };
+        }
       }
 
-      // Si es el mismo día, verificar la hora límite
-      const [limitHours, limitMinutes] = orderTimeLimit.split(':').map(Number);
-      const limitTime = new Date();
-      limitTime.setHours(limitHours, limitMinutes, 0, 0);
-
-      console.log(`Hora actual: ${now.toLocaleTimeString()}, Hora límite: ${limitTime.toLocaleTimeString()}`);
-
-      if (now > limitTime) {
-        console.log(`Fuera de la hora límite de edición`);
-        return {
-          canEdit: false,
-          reason: `No se puede editar después de las ${orderTimeLimit}`
-        };
-      }
-
-      console.log('El pedido puede ser editado');
+      // Si llegamos aquí, el pedido puede ser editado
+      console.log('✅ El pedido puede ser editado');
       return {
         canEdit: true
       };

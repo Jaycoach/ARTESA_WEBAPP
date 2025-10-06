@@ -202,20 +202,36 @@ const EditOrderForm = ({ onOrderUpdated }) => {
               return;
             }
 
-            // Validar hora límite (solo para usuarios principales)
-            const orderDate = new Date(orderData.order_date);
+            // ✅ VALIDAR HORA LÍMITE BASADA EN FECHA DE ENTREGA
+            const deliveryDate = new Date(orderData.delivery_date);
             const now = new Date();
             const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-            const orderDay = new Date(orderDate.getFullYear(), orderDate.getMonth(), orderDate.getDate());
+            const deliveryDay = new Date(deliveryDate.getFullYear(), deliveryDate.getMonth(), deliveryDate.getDate());
 
-            if (orderDay.getTime() < today.getTime()) {
+            // Calcular días hasta la entrega
+            const diffTime = deliveryDay.getTime() - today.getTime();
+            const daysUntilDelivery = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            console.log('🔍 Validación de edición:', {
+              deliveryDate: deliveryDay.toLocaleDateString('es-ES'),
+              daysUntilDelivery,
+              orderTimeLimit: siteSettings.orderTimeLimit
+            });
+
+            // Si la fecha de entrega ya pasó
+            if (daysUntilDelivery < 0) {
+              setCanEdit(false);
+              setEditNotAllowedReason('La fecha de entrega ya pasó - no se puede editar');
+              return;
+            }
+
+            // Si faltan 2 días o menos, verificar hora límite
+            if (daysUntilDelivery <= 2) {
               const [limitHours, limitMinutes] = siteSettings.orderTimeLimit.split(':').map(Number);
-              const limitTime = new Date();
-              limitTime.setHours(limitHours, limitMinutes, 0, 0);
-
-              if (now > limitTime) {
+              
+              if (now.getHours() > limitHours || (now.getHours() === limitHours && now.getMinutes() >= limitMinutes)) {
                 setCanEdit(false);
-                setEditNotAllowedReason(`No se puede editar después de las ${siteSettings.orderTimeLimit}`);
+                setEditNotAllowedReason(`No se puede editar después de las ${siteSettings.orderTimeLimit} cuando faltan ${daysUntilDelivery} días o menos para la entrega`);
                 return;
               }
             }
