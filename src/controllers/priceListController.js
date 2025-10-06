@@ -61,27 +61,75 @@ class PriceListController {
         orderDirection = 'ASC'
       } = req.query;
 
-      // Validar que el usuario tenga acceso a esta lista de precios
+      // ✅ VALIDACIÓN MEJORADA: Verificar acceso a la lista de precios
       if (req.user && req.user.clientProfile) {
         const userPriceListCode = req.user.clientProfile.price_list_code;
         
-        // **NUEVA VALIDACIÓN FLEXIBLE**: Buscar coincidencia por código O por nombre
-        const hasAccess = await PriceList.validateUserAccessToPriceList(
-          userPriceListCode, 
-          priceListCode
-        );
+        logger.debug('Validando acceso a lista de precios', {
+          userId: req.user.id,
+          userPriceListCode,
+          userPriceListCodeType: typeof userPriceListCode,
+          requestedPriceListCode: priceListCode,
+          requestedPriceListCodeType: typeof priceListCode
+        });
+        
+        // ✅ CONVERTIR AMBOS A STRING PARA COMPARACIÓN CONSISTENTE
+        const normalizedUserCode = String(userPriceListCode || '').trim();
+        const normalizedRequestedCode = String(priceListCode || '').trim();
+        
+        // ✅ VALIDAR ACCESO: Comparar códigos normalizados
+        const hasDirectAccess = normalizedUserCode === normalizedRequestedCode;
+        
+        // ✅ FALLBACK: Si no hay coincidencia directa, verificar en la base de datos
+        let hasAccess = hasDirectAccess;
+        
+        if (!hasDirectAccess) {
+          try {
+            hasAccess = await PriceList.validateUserAccessToPriceList(
+              normalizedUserCode, 
+              normalizedRequestedCode
+            );
+            
+            logger.debug('Resultado validación BD', {
+              hasAccess,
+              userCode: normalizedUserCode,
+              requestedCode: normalizedRequestedCode
+            });
+          } catch (validationError) {
+            logger.error('Error crítico validando acceso en BD', {
+              error: validationError.message,
+              stack: validationError.stack
+            });
+            // ⚠️ Por seguridad, si hay error en validación BD pero códigos no coinciden, denegar
+            hasAccess = false;
+          }
+        } else {
+          logger.debug('Acceso directo concedido (códigos idénticos)', {
+            code: normalizedUserCode
+          });
+        }
         
         if (!hasAccess) {
           logger.warn('User attempted to access unauthorized price list', {
             userId: req.user.id,
-            requestedPriceList: priceListCode,
-            userPriceList: userPriceListCode
+            userPriceListCode: normalizedUserCode,
+            requestedPriceListCode: normalizedRequestedCode
           });
+          
           return res.status(403).json({
             success: false,
-            message: 'No tienes acceso a esta lista de precios'
+            message: 'No tienes acceso a esta lista de precios',
+            details: {
+              yourPriceList: normalizedUserCode,
+              requestedPriceList: normalizedRequestedCode
+            }
           });
         }
+        
+        logger.debug('Acceso a lista de precios autorizado', {
+          userId: req.user.id,
+          priceListCode: normalizedRequestedCode
+        });
       }
 
       const offset = (parseInt(page) - 1) * parseInt(limit);

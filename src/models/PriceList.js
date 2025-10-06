@@ -385,42 +385,71 @@ class PriceList {
    * @param {string} requestedPriceListCode - Código solicitado
    * @returns {Promise<boolean>} - true si tiene acceso
    */
+  /**
+   * Validar si un usuario tiene acceso a una lista de precios específica
+   * @param {string} userPriceListCode - Código de lista del usuario
+   * @param {string} requestedPriceListCode - Código solicitado
+   * @returns {Promise<boolean>} - true si tiene acceso
+   */
   static async validateUserAccessToPriceList(userPriceListCode, requestedPriceListCode) {
     try {
-      // Si son exactamente iguales, acceso directo
-      if (userPriceListCode === requestedPriceListCode) {
+      // ✅ NORMALIZAR AMBOS CÓDIGOS COMO STRINGS
+      const normalizedUserCode = String(userPriceListCode || '').trim();
+      const normalizedRequestedCode = String(requestedPriceListCode || '').trim();
+      
+      logger.debug('validateUserAccessToPriceList - Entrada', {
+        userPriceListCode,
+        requestedPriceListCode,
+        normalizedUserCode,
+        normalizedRequestedCode,
+        userType: typeof userPriceListCode,
+        requestedType: typeof requestedPriceListCode
+      });
+      
+      // ✅ COMPARACIÓN DIRECTA NORMALIZADA
+      if (normalizedUserCode === normalizedRequestedCode) {
+        logger.debug('Acceso concedido: códigos idénticos');
         return true;
       }
 
-      // Buscar si el código del usuario coincide con alguna lista 
-      // (por código o por nombre)
+      // ✅ BUSCAR EN LA BASE DE DATOS SI HAY COINCIDENCIA POR CÓDIGO O NOMBRE
       const query = `
-        SELECT DISTINCT price_list_code, price_list_name
-        FROM price_lists
-        WHERE is_active = true
+        SELECT DISTINCT pl1.price_list_code, pl1.price_list_name
+        FROM price_lists pl1
+        WHERE pl1.is_active = true
           AND (
-            (price_list_code = $1 AND (price_list_code = $2 OR price_list_name = $2))
+            -- El código del usuario coincide con el código solicitado
+            (pl1.price_list_code = $1 AND pl1.price_list_code = $2)
             OR
-            (price_list_name = $1 AND (price_list_code = $2 OR price_list_name = $2))
+            -- El código del usuario coincide con el nombre solicitado
+            (pl1.price_list_code = $1 AND pl1.price_list_name = $2)
+            OR
+            -- El nombre del usuario coincide con el código solicitado
+            (pl1.price_list_name = $1 AND pl1.price_list_code = $2)
           )
         LIMIT 1;
       `;
       
-      const { rows } = await pool.query(query, [userPriceListCode, requestedPriceListCode]);
+      const { rows } = await pool.query(query, [normalizedUserCode, normalizedRequestedCode]);
+      
+      const hasAccess = rows.length > 0;
       
       logger.debug('Price list access validation', {
-        userPriceListCode,
-        requestedPriceListCode,
-        hasAccess: rows.length > 0
+        normalizedUserCode,
+        normalizedRequestedCode,
+        hasAccess,
+        matchedRow: rows[0] || null
       });
       
-      return rows.length > 0;
+      return hasAccess;
     } catch (error) {
       logger.error('Error validating price list access', { 
         error: error.message,
+        stack: error.stack,
         userPriceListCode,
         requestedPriceListCode
       });
+      // ✅ En caso de error, denegar acceso por seguridad
       return false;
     }
   }
