@@ -115,129 +115,92 @@ class ProductController {
    */
   async getProducts(req, res) {
     try {
-        // Obtener el price_list_code del usuario autenticado
-        const userPriceListCode = req.user?.clientProfile?.price_list_code;
+        let priceListCode = null;
+        let authType = 'user';
+        let debugInfo = {};
 
-        console.log('🔍 DEBUG: Información del usuario:', {
-            userId: req.user?.id,
-            userPriceListCode,
-            userPriceListCodeType: typeof userPriceListCode,
-            clientProfile: req.user?.clientProfile
-        });
-
-        // Verificar si el usuario tiene price_list_code válido
-        if (!userPriceListCode) {
-            console.log('❌ DEBUG: Usuario sin price_list_code asignado');
+        // ✅ DETERMINAR TIPO DE AUTENTICACIÓN Y PRICE_LIST_CODE
+        if (req.branch) {
+            // Usuario de sucursal
+            authType = 'branch';
+            priceListCode = req.branch.price_list_code || '1';
             
-            // En lugar de retornar error, usar lista de precios por defecto
-            console.log('🔄 DEBUG: Usando lista de precios por defecto (1)');
+            debugInfo = {
+                authType: 'branch',
+                branchId: req.branch.branch_id,
+                priceListCode,
+                source: req.branch.price_list_source || 'default'
+            };
             
-            const productsWithDefault = await Product.getAll({
-                userPriceListCode: '1' // Lista por defecto
-            });
-
-            console.log('✅ DEBUG: Productos obtenidos con lista por defecto:', {
-                count: productsWithDefault.length
-            });
-
-            return res.status(200).json({
-                success: true,
-                data: productsWithDefault,
-                warning: 'Usuario sin lista de precios específica, usando precios por defecto'
-            });
-        }
-
-        // Buscar el mapeo numérico para la lista del usuario
-        let numericPriceListCode = null;
-        
-        try {
-            const PriceList = require('../models/PriceList');
-            const priceListMapping = await PriceList.getPriceListCodeMapping(userPriceListCode);
-            numericPriceListCode = priceListMapping?.price_list_code || null;
+            logger.debug('Productos solicitados por sucursal', debugInfo);
             
-            console.log('🔍 DEBUG: Resultado del mapeo:', {
-                userPriceListCode,
-                mappingFound: !!priceListMapping,
-                numericPriceListCode,
-                numericType: typeof numericPriceListCode,
-                fullMapping: priceListMapping
-            });
-        } catch (error) {
-            logger.error('Error getting price list mapping', { 
-                userPriceListCode, 
-                error: error.message 
-            });
+        } else if (req.user) {
+            // Usuario principal
+            authType = 'user';
+            priceListCode = req.user.clientProfile?.effective_price_list_code || 
+                           req.user.clientProfile?.price_list_code || 
+                           req.user.clientProfile?.price_list || 
+                           '1';
             
-            return res.status(500).json({
+            debugInfo = {
+                authType: 'user',
+                userId: req.user.id,
+                priceListCode,
+                hasClientProfile: !!req.user.clientProfile,
+                clientProfileData: req.user.clientProfile || 'none'
+            };
+            
+            logger.debug('Productos solicitados por usuario principal', debugInfo);
+            
+        } else {
+            // Sin autenticación válida (no debería llegar aquí por el middleware)
+            logger.warn('Solicitud de productos sin autenticación válida');
+            return res.status(401).json({
                 success: false,
-                message: 'Error al consultar configuración de precios',
-                data: [],
-                debug: {
-                    userPriceListCode,
-                    error: error.message
-                }
+                message: 'Autenticación requerida'
             });
         }
 
-        // Si no se encontró mapeo, usar lista por defecto
-        if (!numericPriceListCode) {
-            console.log('❌ DEBUG: No se encontró mapeo para la lista de precios, usando lista por defecto');
-            
-            const productsWithDefault = await Product.getAll({
-                userPriceListCode: '1' // Lista por defecto
-            });
-
-            console.log('✅ DEBUG: Productos obtenidos con lista por defecto:', {
-                count: productsWithDefault.length,
-                originalPriceListCode: userPriceListCode
-            });
-
-            return res.status(200).json({
-                success: true,
-                data: productsWithDefault,
-                warning: `Lista de precios "${userPriceListCode}" no configurada, usando precios por defecto`
-            });
-        }
-
-        console.log('✅ DEBUG: Código válido encontrado:', {
-            originalName: userPriceListCode,
-            mappedCode: numericPriceListCode,
-            finalCodeAsString: String(numericPriceListCode)
+        // ✅ OBTENER PRODUCTOS CON EL PRICE_LIST_CODE CORRECTO
+        logger.debug('Obteniendo productos con price_list_code', {
+            priceListCode,
+            priceListCodeType: typeof priceListCode
         });
 
-        // Obtener productos con la lista de precios específica
         const products = await Product.getAll({
-            userPriceListCode: String(numericPriceListCode) // Asegurar que sea string
+            userPriceListCode: priceListCode
         });
 
-        console.log('🔍 DEBUG: Resultado final de productos:', {
+        logger.debug('Productos obtenidos exitosamente', {
+            authType,
+            priceListCode,
             count: products.length,
-            userPriceListCode,
-            numericPriceListCode,
-            sentAsString: String(numericPriceListCode),
-            firstProduct: products[0] ? {
+            sampleProduct: products[0] ? {
                 id: products[0].product_id,
                 name: products[0].name,
-                price_list1: products[0].price_list1,
-                custom_price: products[0].custom_price,
-                effective_price: products[0].effective_price,
-                price_list_code: products[0].price_list_code
-            } : 'No products found'
+                effective_price: products[0].effective_price
+            } : null
         });
-        
-        res.status(200).json({
+
+        return res.status(200).json({
             success: true,
-            data: products
+            data: products,
+            meta: {
+                auth_type: authType,
+                price_list_code: priceListCode,
+                count: products.length
+            }
         });
+
     } catch (error) {
         logger.error('Error al obtener productos', {
             error: error.message,
             stack: error.stack
         });
-        
-        res.status(500).json({
+
+        return res.status(500).json({
             success: false,
-            message: 'Error al obtener los productos',
+            message: 'Error al obtener productos',
             error: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
     }

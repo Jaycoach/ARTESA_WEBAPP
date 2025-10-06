@@ -48,6 +48,34 @@ const verifyBranchToken = async (req, res, next) => {
       client_name: decoded.client_name,
       type: 'branch'
     };
+
+    // ✅ CRÍTICO: Cargar price_list_code del cliente principal para la sucursal
+    try {
+        const ClientBranch = require('../models/ClientBranch');
+        const priceListInfo = await ClientBranch.getClientPriceListCode(decoded.branch_id);
+        
+        if (priceListInfo) {
+            req.branch.price_list_code = priceListInfo.price_list_code;
+            req.branch.price_list_source = priceListInfo.price_list_source;
+            
+            logger.debug('Price list code cargado para sucursal', {
+                branchId: decoded.branch_id,
+                price_list_code: req.branch.price_list_code,
+                source: req.branch.price_list_source
+            });
+        } else {
+            req.branch.price_list_code = '1';
+            logger.debug('Sucursal sin price_list_code, usando default', {
+                branchId: decoded.branch_id
+            });
+        }
+    } catch (priceListError) {
+        logger.warn('Error cargando price_list_code para sucursal', {
+            branchId: decoded.branch_id,
+            error: priceListError.message
+        });
+        req.branch.price_list_code = '1';
+    }
     
     next();
   } catch (error) {
@@ -126,6 +154,35 @@ const verifyAnyToken = async (req, res, next) => {
         type: 'branch'
       };
       req.authType = 'branch';
+
+      // ✅ AGREGAR: Cargar price_list_code para sucursal
+      try {
+        const ClientBranch = require('../models/ClientBranch');
+        const priceListInfo = await ClientBranch.getClientPriceListCode(decoded.branch_id);
+        
+        if (priceListInfo) {
+          req.branch.price_list_code = priceListInfo.price_list_code;
+          req.branch.price_list_source = priceListInfo.price_list_source;
+          
+          logger.debug('Price list code cargado para sucursal (verifyAnyToken)', {
+            branchId: decoded.branch_id,
+            price_list_code: req.branch.price_list_code,
+            source: req.branch.price_list_source
+          });
+        } else {
+          req.branch.price_list_code = '1';
+          logger.debug('Sucursal sin price_list_code (verifyAnyToken), usando default', {
+            branchId: decoded.branch_id
+          });
+        }
+      } catch (priceListError) {
+        logger.warn('Error cargando price_list_code para sucursal (verifyAnyToken)', {
+          branchId: decoded.branch_id,
+          error: priceListError.message
+        });
+        req.branch.price_list_code = '1';
+      }
+
     } else {
       // Es un token de usuario normal
       req.user = {
@@ -135,6 +192,50 @@ const verifyAnyToken = async (req, res, next) => {
         rol_id: decoded.rol_id
       };
       req.authType = 'user';
+
+      // ✅ AGREGAR: Cargar clientProfile con price_list_code para usuario
+      try {
+        const ClientProfile = require('../models/clientProfile');
+        const clientProfile = await ClientProfile.getByUserId(decoded.id);
+        
+        if (clientProfile) {
+          req.user.clientProfile = {
+            client_id: clientProfile.client_id,
+            price_list: clientProfile.price_list,
+            price_list_code: clientProfile.price_list_code || clientProfile.price_list || '1',
+            effective_price_list_code: clientProfile.effective_price_list_code || clientProfile.price_list_code || clientProfile.price_list || '1',
+            razonSocial: clientProfile.razonSocial,
+            cardcode_sap: clientProfile.cardcode_sap
+          };
+          
+          logger.debug('ClientProfile cargado en middleware (verifyAnyToken)', {
+            userId: decoded.id,
+            price_list_code: req.user.clientProfile.price_list_code,
+            effective_price_list_code: req.user.clientProfile.effective_price_list_code
+          });
+        } else {
+          // Usuario sin perfil de cliente, usar defaults
+          req.user.clientProfile = {
+            price_list_code: '1',
+            effective_price_list_code: '1'
+          };
+          
+          logger.debug('Usuario sin clientProfile (verifyAnyToken), usando defaults', {
+            userId: decoded.id
+          });
+        }
+      } catch (profileError) {
+        logger.warn('Error cargando clientProfile (verifyAnyToken), usando defaults', {
+          userId: decoded.id,
+          error: profileError.message
+        });
+        
+        // Fallback seguro
+        req.user.clientProfile = {
+          price_list_code: '1',
+          effective_price_list_code: '1'
+        };
+      }
     }
     
     next();
@@ -248,13 +349,57 @@ const verifyToken = async (req, res, next) => {
             }
         }
         
-        // Agregar información del usuario al request
+        // Agregar información básica del usuario al request
         req.user = {
             id: decoded.id,
             mail: decoded.mail,
             name: decoded.name,
             rol_id: decoded.rol_id
         };
+
+        // ✅ CRÍTICO: Cargar clientProfile con price_list_code
+        try {
+            const ClientProfile = require('../models/clientProfile');
+            const clientProfile = await ClientProfile.getByUserId(decoded.id);
+            
+            if (clientProfile) {
+                req.user.clientProfile = {
+                    client_id: clientProfile.client_id,
+                    price_list: clientProfile.price_list,
+                    price_list_code: clientProfile.price_list_code || clientProfile.price_list || '1',
+                    effective_price_list_code: clientProfile.effective_price_list_code || clientProfile.price_list_code || clientProfile.price_list || '1',
+                    razonSocial: clientProfile.razonSocial,
+                    cardcode_sap: clientProfile.cardcode_sap
+                };
+                
+                logger.debug('ClientProfile cargado en middleware', {
+                    userId: decoded.id,
+                    price_list_code: req.user.clientProfile.price_list_code,
+                    effective_price_list_code: req.user.clientProfile.effective_price_list_code
+                });
+            } else {
+                // Usuario sin perfil de cliente, usar defaults
+                req.user.clientProfile = {
+                    price_list_code: '1',
+                    effective_price_list_code: '1'
+                };
+                
+                logger.debug('Usuario sin clientProfile, usando defaults', {
+                    userId: decoded.id
+                });
+            }
+        } catch (profileError) {
+            logger.warn('Error cargando clientProfile, usando defaults', {
+                userId: decoded.id,
+                error: profileError.message
+            });
+            
+            // Fallback seguro
+            req.user.clientProfile = {
+                price_list_code: '1',
+                effective_price_list_code: '1'
+            };
+        }
         
         // Almacenar el token en el objeto request para posible uso posterior
         req.token = token;

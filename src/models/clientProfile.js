@@ -12,7 +12,7 @@ const logger = createContextLogger('ClientProfileModel');
  * para coincidir con el formulario del frontend
  * @class ClientProfile
  */
-class ClientProfile {
+class ClientProfile { 
   /**
    * Obtiene un perfil de cliente por su ID
    * @async
@@ -40,7 +40,6 @@ class ClientProfile {
           cp.verification_digit,
           cp.cardcode_sap,
           cp.clientprofilecode_sap,
-          cp.price_list,
           cp.price_list,
           cp.price_list_code,
           COALESCE(cp.price_list_code, 'ESTÁNDAR') as effective_price_list_code,

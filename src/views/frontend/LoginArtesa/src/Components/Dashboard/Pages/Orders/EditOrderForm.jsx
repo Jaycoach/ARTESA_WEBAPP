@@ -30,6 +30,10 @@ const EditOrderForm = ({ onOrderUpdated }) => {
   const [siteSettings, setSiteSettings] = useState({ orderTimeLimit: '18:00' });
   const [canEdit, setCanEdit] = useState(true);
   const [editNotAllowedReason, setEditNotAllowedReason] = useState('');
+  // ✅ NUEVOS ESTADOS PARA ZONA DE ENTREGA Y FECHAS DISPONIBLES
+  const [deliveryZone, setDeliveryZone] = useState(null);
+  const [availableDeliveryDays, setAvailableDeliveryDays] = useState([]);
+  const [selectedBranch, setSelectedBranch] = useState(null);
 
   // Cargar configuración del sitio
   useEffect(() => {
@@ -56,6 +60,78 @@ const EditOrderForm = ({ onOrderUpdated }) => {
 
     fetchSettings();
   }, []);
+
+  // ✅ CARGAR ZONA DE ENTREGA PARA BRANCHES
+  useEffect(() => {
+    const loadBranchDeliveryZone = async () => {
+      // Solo ejecutar para branches
+      if (authType !== AUTH_TYPES.BRANCH || !branch) return;
+
+      try {
+        console.log('🏢 [BRANCH] Cargando zona de entrega para el branch...');
+        
+        // Obtener información completa del branch
+        const response = await API.get('/branch-auth/profile');
+        
+        if (response.data.success) {
+          const branchData = response.data.data;
+          
+          console.log('🏢 [BRANCH] Datos del branch:', {
+            branch_id: branchData.branch_id,
+            branch_name: branchData.branch_name,
+            municipality_code: branchData.municipality_code,
+            city: branchData.city
+          });
+
+          // Construir objeto de sucursal
+          const branchInfo = {
+            value: branchData.branch_id,
+            label: branchData.branch_name,
+            address: branchData.address,
+            municipality_code: branchData.municipality_code,
+            city: branchData.city || "",
+            municipality_name: getCityNameByDANECode(branchData.municipality_code)
+          };
+
+          setSelectedBranch(branchInfo);
+
+          // Determinar zona de entrega
+          const zone = getDeliveryZoneByDANECode(
+            branchData.municipality_code,
+            branchData.city || ""
+          );
+
+          if (zone) {
+            setDeliveryZone(zone);
+            
+            // Calcular fechas disponibles
+            const dates = calculateAvailableDeliveryDates(
+              zone,
+              siteSettings?.orderTimeLimit || '18:00'
+            );
+            setAvailableDeliveryDays(dates);
+
+            console.log('✅ [BRANCH] Zona de entrega configurada:', {
+              zone: zone.name,
+              daysOfWeek: zone.days,
+              availableDatesCount: dates.length,
+              firstAvailableDates: dates.slice(0, 3).map(d => d.toISOString().split('T')[0])
+            });
+          } else {
+            console.warn('⚠️ [BRANCH] No se pudo determinar la zona de entrega');
+            setDeliveryZone(null);
+            setAvailableDeliveryDays([]);
+          }
+        }
+      } catch (error) {
+        console.error('❌ [BRANCH] Error cargando zona de entrega:', error);
+        setDeliveryZone(null);
+        setAvailableDeliveryDays([]);
+      }
+    };
+
+    loadBranchDeliveryZone();
+  }, [authType, branch, siteSettings]);
 
   // Cargar el pedido actual
   useEffect(() => {
@@ -582,6 +658,107 @@ const EditOrderForm = ({ onOrderUpdated }) => {
     setTimeout(() => setNotification({ show: false, message: '', type: '' }), 5000);
   };
 
+  // ✅ FUNCIONES HELPER PARA ZONA DE ENTREGA (igual que en CreateOrderForm)
+  const DELIVERY_ZONES = {
+    BOGOTA: {
+      name: 'Bogotá',
+      days: [1, 2, 3, 4, 5, 6], // Lunes a Sábado
+      municipalities: ['11001'],
+      cities: ['bogota', 'bogotá d.c', 'bogota d.c']
+    },
+    SABANA_NORTE: {
+      name: 'Sabana Norte',
+      days: [2, 4], // Martes y Jueves
+      municipalities: ['25053', '25099', '25214', '25322', '25295', '25799'],
+      cities: ['cajicá', 'cajica', 'chía', 'chia', 'zipaquirá', 'zipaquira', 'cota', 'guasca', 'gachancipá', 'gachancipa', 'tenjo']
+    },
+    SABANA_OCCIDENTE: {
+      name: 'Sabana Occidente',
+      days: [3, 5], // Miércoles y Viernes
+      municipalities: ['25754', '25473', '25430', '25286'],
+      cities: ['soacha', 'mosquera', 'madrid', 'funza']
+    }
+  };
+
+  const getCityNameByDANECode = (daneCode) => {
+    const municipalityMap = {
+      '25053': 'Cajicá',
+      '25099': 'Zipaquirá',
+      '25214': 'Cota',
+      '25322': 'Guasca',
+      '25295': 'Gachancipá',
+      '25799': 'Tenjo',
+      '25754': 'Soacha',
+      '25473': 'Mosquera',
+      '25430': 'Madrid',
+      '25286': 'Funza',
+      '11001': 'Bogotá D.C'
+    };
+    return municipalityMap[daneCode] || 'Ciudad no identificada';
+  };
+
+  const getDeliveryZoneByDANECode = (daneCode, cityName = '') => {
+    if (!daneCode && !cityName) return null;
+
+    if (daneCode) {
+      const normalizedDANE = daneCode.toString().trim();
+      for (const [zoneKey, zoneData] of Object.entries(DELIVERY_ZONES)) {
+        if (zoneData.municipalities.includes(normalizedDANE)) {
+          return { key: zoneKey, ...zoneData };
+        }
+      }
+    }
+
+    if (cityName) {
+      const normalizedCity = cityName.toLowerCase().trim();
+      for (const [zoneKey, zoneData] of Object.entries(DELIVERY_ZONES)) {
+        if (zoneData.cities.some(city => normalizedCity.includes(city.toLowerCase()))) {
+          return { key: zoneKey, ...zoneData };
+        }
+      }
+    }
+
+    return null;
+  };
+
+  const calculateAvailableDeliveryDates = (zone, orderTimeLimit = '18:00') => {
+    if (!zone) return [];
+
+    const today = new Date();
+    const normalizedToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    today.setHours(0, 0, 0, 0);
+    
+    let additionalDays = 2;
+    const currentDay = today.getDay();
+    const currentHour = new Date().getHours();
+    const [limitHour] = orderTimeLimit.split(':').map(Number);
+    
+    if (currentHour >= limitHour && currentDay >= 1 && currentDay <= 5) {
+      additionalDays = 3;
+    }
+
+    if (currentDay === 6) {
+      additionalDays = 3;
+    } else if (currentDay === 0) {
+      additionalDays = 3;
+    }
+
+    const availableDates = [];
+    const maxDaysToCheck = 45;
+
+    for (let i = additionalDays; i <= maxDaysToCheck; i++) {
+      const checkDate = new Date(normalizedToday.getFullYear(), normalizedToday.getMonth(), normalizedToday.getDate() + i);
+      const dayOfWeek = checkDate.getDay();
+
+      if (zone.days.includes(dayOfWeek)) {
+        const normalizedDate = new Date(checkDate.getFullYear(), checkDate.getMonth(), checkDate.getDate());
+        availableDates.push(normalizedDate);
+      }
+    }
+
+    return availableDates;
+  };
+
   const handleUpdateOrder = async (e) => {
     e.preventDefault();
 
@@ -798,19 +975,18 @@ const EditOrderForm = ({ onOrderUpdated }) => {
           {/* Formulario para modificar fecha de entrega */}
           <form onSubmit={handleSubmitBranchUpdate} className="space-y-4">
             <div>
-              <label htmlFor="deliveryDate" className="block text-sm font-medium text-gray-700 mb-1">
-                Fecha de Entrega
-              </label>
-              <input
-                type="date"
-                id="deliveryDate"
+              <h4 className="text-sm font-medium text-gray-700 mb-3">Fecha de Entrega</h4>
+              
+              <DeliveryDatePicker
                 value={deliveryDate}
-                onChange={(e) => setDeliveryDate(e.target.value)}
-                min={new Date().toISOString().split('T')[0]}
-                className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                onChange={setDeliveryDate}
+                orderTimeLimit={siteSettings.orderTimeLimit}
+                availableDates={availableDeliveryDays}
+                deliveryZone={deliveryZone}
               />
-              <p className="text-xs text-gray-500 mt-1">
-                Puedes modificar la fecha de entrega del pedido
+              
+              <p className="text-xs text-gray-500 mt-2">
+                Solo puedes seleccionar fechas disponibles según la zona de entrega de tu sucursal
               </p>
             </div>
 
@@ -1031,6 +1207,8 @@ const EditOrderForm = ({ onOrderUpdated }) => {
               value={deliveryDate}
               onChange={setDeliveryDate}
               orderTimeLimit={siteSettings.orderTimeLimit}
+              availableDates={availableDeliveryDays}
+              deliveryZone={deliveryZone}
             />
           </div>
 
