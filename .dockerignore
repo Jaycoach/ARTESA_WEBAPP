@@ -53,6 +53,15 @@ public/
 *.zip
 *.tar.gz
 
-# Archivos específicos de desarrollo local
+# Caché y archivos temporales de Docker
+.dockerignore
+docker-compose*.yml
+Dockerfile*
+deploy*.sh
+backups/
+ssl/
 uploads/
-backup*/
+
+# Archivos de configuración sensibles
+.env.staging
+.env.production

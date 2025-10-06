@@ -19,15 +19,17 @@ WORKDIR /app
 # Copiar archivos de dependencias primero (para cache de Docker)
 COPY package*.json ./
 
-# Configurar npm para mejor conectividad
-RUN npm config set registry https://registry.npmjs.org/
-RUN npm config set fetch-retries 5
-RUN npm config set fetch-retry-factor 2
-RUN npm config set fetch-retry-mintimeout 20000
-RUN npm config set fetch-retry-maxtimeout 120000
+# Configurar npm para mejor conectividad y timeouts más largos
+RUN npm config set registry https://registry.npmjs.org/ && \
+    npm config set fetch-retries 10 && \
+    npm config set fetch-retry-factor 3 && \
+    npm config set fetch-retry-mintimeout 30000 && \
+    npm config set fetch-retry-maxtimeout 180000 && \
+    npm config set fetch-timeout 300000 && \
+    npm config set maxsockets 5
 
-# Instalar dependencias como root
-RUN npm install --only=production --no-optional --no-audit
+# Instalar dependencias con flags actualizados
+RUN npm install --omit=dev --omit=optional --no-audit --legacy-peer-deps
 
 # Crear directorio public y establecer permisos antes de copiar código
 RUN mkdir -p public && \
