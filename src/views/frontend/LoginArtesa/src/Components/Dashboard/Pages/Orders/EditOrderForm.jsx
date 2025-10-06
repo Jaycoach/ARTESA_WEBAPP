@@ -34,6 +34,8 @@ const EditOrderForm = ({ onOrderUpdated }) => {
   const [deliveryZone, setDeliveryZone] = useState(null);
   const [availableDeliveryDays, setAvailableDeliveryDays] = useState([]);
   const [selectedBranch, setSelectedBranch] = useState(null);
+  // Agregar este estado junto a los demás estados
+  const [customerPoNumber, setCustomerPoNumber] = useState('');
 
   // Cargar configuración del sitio
   useEffect(() => {
@@ -281,6 +283,9 @@ const EditOrderForm = ({ onOrderUpdated }) => {
               })));
             }
           }
+
+          // Agregar esta línea:
+          setCustomerPoNumber(orderData.customer_po_number || '');
         } else {
           throw new Error('No se pudo obtener los detalles del pedido');
         }
@@ -645,6 +650,7 @@ const EditOrderForm = ({ onOrderUpdated }) => {
       const updateData = {
         delivery_date: deliveryDate,
         comments: orderNotes,
+        customer_po_number: customerPoNumber.trim(),
         products: orderDetails.map(detail => ({
           product_id: parseInt(detail.product_id),
           quantity: parseInt(detail.quantity),
@@ -928,6 +934,7 @@ const EditOrderForm = ({ onOrderUpdated }) => {
         total_amount: totalAmount,
         delivery_date: deliveryDate,
         notes: orderNotes || '',
+        customer_po_number: customerPoNumber.trim(),
         details: orderDetails.map(detail => ({
           product_id: parseInt(detail.product_id),
           quantity: parseInt(detail.quantity),
@@ -1226,6 +1233,27 @@ const EditOrderForm = ({ onOrderUpdated }) => {
               placeholder="Agrega notas o comentarios sobre este pedido..."
               className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
             ></textarea>
+          </div>
+
+          {/* Agregar el campo de formulario antes de la sección de comentarios */}
+          <div className="space-y-4 mt-6">
+            <div>
+              <label htmlFor="customerPoNumber" className="block text-sm font-medium text-gray-700 mb-1">
+                Número de Orden de Compra
+              </label>
+              <input
+                type="text"
+                id="customerPoNumber"
+                value={customerPoNumber}
+                onChange={(e) => setCustomerPoNumber(e.target.value)}
+                placeholder="Ingrese el número de orden de compra (opcional)"
+                className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                maxLength={50}
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                Puede contener letras y números. Máximo 50 caracteres.
+              </p>
+            </div>
           </div>
 
           {/* Botones de acción */}
