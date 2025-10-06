@@ -1047,9 +1047,8 @@ class AuthController {
             
             logger.debug('Obteniendo perfil completo del usuario', { userId });
             
-            // Obtener datos del usuario
             const userQuery = `
-                SELECT id, name, mail, rol_id, is_active, mail_verified, created_at
+                SELECT id, name, mail, rol_id, is_active, email_verified, created_at
                 FROM users
                 WHERE id = $1
             `;
@@ -1069,14 +1068,13 @@ class AuthController {
             const ClientProfile = require('../models/clientProfile');
             const clientProfile = await ClientProfile.getByUserId(userId);
             
-            // Construir respuesta completa
             const response = {
                 id: userData.id,
                 name: userData.name,
                 mail: userData.mail,
                 role: userData.rol_id,
                 is_active: userData.is_active,
-                mail_verified: userData.mail_verified,
+                email_verified: userData.email_verified, 
                 created_at: userData.created_at
             };
             

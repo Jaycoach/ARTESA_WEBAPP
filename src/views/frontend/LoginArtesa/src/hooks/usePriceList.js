@@ -118,32 +118,74 @@ const usePriceList = () => {
             userPriceList: contextData.userPriceList,
             userId: contextData.userId,
             hasClientProfile: !!user?.clientProfile,
-            hasPriceListProfile: !!user?.priceListProfile
+            hasPriceListProfile: !!user?.priceListProfile,
+            userClientProfileCode: user?.clientProfile?.price_list_code,
+            userPriceListProfileCode: user?.priceListProfile?.price_list_code
           });
 
-          // ✅ PRIORIDAD 1: Usar price_list_code del contexto si existe
+          // ✅ PRIORIDAD 1: Verificar si ya está en el contexto memoizado
           if (contextData.userPriceList) {
             priceCode = contextData.userPriceList;
-            console.log('✅ Price list code desde contexto de usuario:', priceCode);
-          } else {
-            // ✅ PRIORIDAD 2: Consultar directamente a la API de perfil completo
+            console.log('✅ Price list code desde contexto memoizado:', priceCode);
+          } 
+          // ✅ PRIORIDAD 2: Si el usuario ya está cargado con clientProfile en memoria
+          else if (user?.clientProfile?.price_list_code) {
+            priceCode = user.clientProfile.price_list_code;
+            console.log('✅ Price list code desde user.clientProfile en memoria:', priceCode);
+          }
+          // ✅ PRIORIDAD 3: Consultar API solo si no está en contexto ni en memoria
+          else {
             try {
-              console.log('⚠️ Price list code no en contexto, consultando API de usuario...');
+              console.log('⚠️ Price list code no disponible, consultando API de usuario...');
               const response = await API.get(`/auth/profile`);
               
               if (response.data?.success && response.data?.data?.clientProfile?.price_list_code) {
                 priceCode = response.data.data.clientProfile.price_list_code;
                 console.log('✅ Price list code desde API de auth/profile:', priceCode);
               } else {
-                // ✅ FALLBACK FINAL: Usar lista general solo si no hay clientProfile
-                console.warn('⚠️ Usuario sin clientProfile o sin price_list_code configurado');
+                console.warn('⚠️ Usuario sin clientProfile o sin price_list_code en respuesta API');
+                // Solo usar fallback si realmente no hay alternativa
                 priceCode = '1';
                 console.log('⚠️ Usando fallback price_list_code = "1" (lista general)');
               }
             } catch (apiError) {
               console.error('❌ Error consultando API de perfil:', apiError.message);
-              console.log('⚠️ Usando fallback price_list_code = "1" por error en API');
-              priceCode = '1';
+              
+              // ✅ CRÍTICO: Si la API falla, intentar recuperar de localStorage o memoria
+              const storedUser = localStorage.getItem('user');
+              const storedClientProfile = localStorage.getItem('clientProfile');
+              
+              if (user?.clientProfile?.price_list_code) {
+                priceCode = user.clientProfile.price_list_code;
+                console.log('✅ Recuperado price_list_code del usuario en memoria tras error API:', priceCode);
+              } else if (storedUser) {
+                try {
+                  const parsedUser = JSON.parse(storedUser);
+                  if (parsedUser?.clientProfile?.price_list_code) {
+                    priceCode = parsedUser.clientProfile.price_list_code;
+                    console.log('✅ Recuperado price_list_code de localStorage tras error API:', priceCode);
+                  }
+                } catch (parseError) {
+                  console.error('❌ Error parseando usuario de localStorage:', parseError.message);
+                }
+              } else if (storedClientProfile) {
+                try {
+                  const parsedProfile = JSON.parse(storedClientProfile);
+                  if (parsedProfile?.price_list_code) {
+                    priceCode = parsedProfile.price_list_code;
+                    console.log('✅ Recuperado price_list_code de clientProfile en localStorage:', priceCode);
+                  }
+                } catch (parseError) {
+                  console.error('❌ Error parseando clientProfile de localStorage:', parseError.message);
+                }
+              }
+              
+              // Solo si todo falla, usar fallback
+              if (!priceCode) {
+                console.warn('⚠️ No hay price_list_code disponible en ninguna fuente, usando fallback');
+                priceCode = '1';
+                console.log('⚠️ Usando fallback price_list_code = "1" por error completo');
+              }
             }
           }
         }
