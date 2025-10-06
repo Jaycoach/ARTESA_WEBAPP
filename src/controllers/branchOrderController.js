@@ -564,7 +564,7 @@ class BranchOrderController {
 
       // Verificar que la orden pertenece a la sucursal
       const orderQuery = `
-        SELECT o.*, os.status_name as current_status
+        SELECT o.*, os.name as current_status
         FROM orders o
         JOIN order_status os ON o.status_id = os.status_id
         WHERE o.order_id = $1 
@@ -711,7 +711,7 @@ class BranchOrderController {
 
       // Verificar que la orden pertenece a la sucursal
       const orderQuery = `
-        SELECT o.*, os.status_name as current_status
+        SELECT o.*, os.name as current_status
         FROM orders o
         JOIN order_status os ON o.status_id = os.status_id
         WHERE o.order_id = $1 
@@ -751,29 +751,52 @@ class BranchOrderController {
         });
       }
 
-      // Para sucursales, solo permitir modificaciones limitadas (no cambios de productos)
-      // Si se intenta modificar detalles de productos, rechazar
-      if (updateData.products || updateData.details) {
-        logger.warn('Sucursal intentó modificar productos de la orden', {
-          branchId: branch_id,
-          orderId,
-          attemptedUpdate: 'products'
-        });
-        
-        return res.status(403).json({
-          success: false,
-          message: 'Las sucursales no pueden modificar los productos de un pedido',
-          allowedActions: 'Puede modificar: fecha de entrega, notas, y cancelar el pedido'
-        });
+      // Preparar datos de actualización
+      const orderUpdateData = {};
+
+      // Solo agregar campos que se proporcionaron en la solicitud
+      if (updateData.delivery_date !== undefined) {
+        orderUpdateData.delivery_date = updateData.delivery_date;
       }
 
-      // ✅ USAR EL MODELO EXISTENTE PARA ACTUALIZACIÓN
-      const updatedOrder = await Order.updateOrder(orderId, {
-        delivery_date: updateData.delivery_date,
-        total_amount: updateData.total_amount,
-        details: updateData.products || updateData.details,
-        notes: updateData.notes
-      });
+      if (updateData.comments !== undefined) {
+        // Agregar información de quién modificó
+        const branchInfo = `${req.branch.branch_name || 'Sucursal'} (ID: ${branch_id})`;
+        const timestamp = new Date().toLocaleString('es-ES', { timeZone: 'America/Bogota' });
+        const updateEntry = `Modificado por ${branchInfo} - ${timestamp}: ${updateData.comments}`;
+        
+        // Obtener comentarios existentes
+        const existingComments = order.comments || '';
+        orderUpdateData.comments = existingComments 
+          ? `${existingComments}\n\n${updateEntry}`
+          : updateEntry;
+      }
+
+      // Si se proporcionan productos, agregarlos a los detalles
+      if (updateData.products && Array.isArray(updateData.products)) {
+        // Validar que todos los productos tengan los campos requeridos
+        for (let i = 0; i < updateData.products.length; i++) {
+          const product = updateData.products[i];
+          if (!product.product_id || !product.quantity || !product.unit_price) {
+            return res.status(400).json({
+              success: false,
+              message: `Producto ${i + 1}: Debe incluir product_id, quantity y unit_price`
+            });
+          }
+        }
+        
+        orderUpdateData.details = updateData.products;
+        
+        // Calcular el nuevo total
+        const newTotal = updateData.products.reduce((sum, product) => {
+          return sum + (parseFloat(product.quantity) * parseFloat(product.unit_price));
+        }, 0);
+        
+        orderUpdateData.total_amount = newTotal;
+      }
+
+      // Actualizar la orden usando el modelo
+      const updatedOrder = await Order.updateOrder(orderId, orderUpdateData);
 
       if (!updatedOrder) {
         return res.status(404).json({

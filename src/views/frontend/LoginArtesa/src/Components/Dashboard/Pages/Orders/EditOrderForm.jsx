@@ -261,8 +261,8 @@ const EditOrderForm = ({ onOrderUpdated }) => {
 
   // Cargar productos disponibles
   useEffect(() => {
-    // ✅ SOLO EJECUTAR PARA USUARIOS PRINCIPALES
-    if (authType !== AUTH_TYPES.BRANCH) {
+    // Cargar productos para todos los usuarios
+    if (authType === AUTH_TYPES.USER || authType === AUTH_TYPES.BRANCH) {
       const fetchProducts = async () => {
         console.log('🚀 Iniciando fetchProducts - CARGANDO TODOS LOS PRODUCTOS:', {
           authType,
@@ -271,11 +271,37 @@ const EditOrderForm = ({ onOrderUpdated }) => {
         setLoadingProducts(true);
 
         try {
-          // DETERMINAR CÓDIGO DE LISTA DE PRECIOS (igual que CreateOrderForm)
-          let priceListCode = '1';
+          let allProducts = [];
+          let totalProductCount = 0;
 
-          // ✅ CORREGIR: Para usuarios principales, obtener su price_list_code
-          if (authType === AUTH_TYPES.USER && user?.id) {
+          // Para BRANCH, obtener productos de su catálogo heredado
+          if (authType === AUTH_TYPES.BRANCH) {
+            try {
+              console.log('🏢 Obteniendo productos para branch desde catálogo heredado');
+              const response = await API.get('/branch-orders/products');
+              
+              if (response.data.success && response.data.data?.products) {
+                allProducts = response.data.data.products.map(product => ({
+                  product_id: product.product_id,
+                  name: product.name || product.product_name,
+                  description: product.description,
+                  sap_code: product.sap_code,
+                  price: parseFloat(product.inherited_price || product.custom_price || 0),
+                  price_list1: parseFloat(product.inherited_price || product.custom_price || 0),
+                  effective_price: parseFloat(product.inherited_price || product.custom_price || 0),
+                }));
+                
+                totalProductCount = allProducts.length;
+                
+                console.log(`✅ Productos branch cargados: ${allProducts.length}`);
+              }
+            } catch (error) {
+              console.warn('⚠️ Error obteniendo productos para branch:', error.message);
+            }
+          } else {
+            // Para usuarios principales, cargar desde price-lists
+            let priceListCode = '1';
+            
             try {
               console.log('👤 Obteniendo price_list_code para usuario PRINCIPAL...');
               const userResponse = await API.get('/auth/profile');
@@ -285,92 +311,86 @@ const EditOrderForm = ({ onOrderUpdated }) => {
             } catch (error) {
               console.warn('⚠️ Error obteniendo price_list_code de usuario, usando fallback:', error.message);
             }
-          }
 
-          console.log(`🎯 Usando lista de precios: ${priceListCode}`);
+            console.log(`🎯 Usando lista de precios: ${priceListCode}`);
 
-          // CARGAR TODOS LOS PRODUCTOS CON PAGINACIÓN COMPLETA (igual que CreateOrderForm)
-          let allProducts = [];
-          let currentPage = 1;
-          let totalPages = 1;
-          let totalProductCount = 0;
+            // CARGAR TODOS LOS PRODUCTOS CON PAGINACIÓN COMPLETA
+            let currentPage = 1;
+            let totalPages = 1;
 
-          do {
-            const params = new URLSearchParams({
-              page: currentPage.toString(),
-              limit: '50',
-              orderBy: 'product_code',
-              orderDirection: 'ASC'
-            });
+            do {
+              const params = new URLSearchParams({
+                page: currentPage.toString(),
+                limit: '50',
+                orderBy: 'product_code',
+                orderDirection: 'ASC'
+              });
 
-            const endpoint = `/price-lists/${priceListCode}/products?${params.toString()}`;
-            console.log(`📡 Cargando página ${currentPage}/${totalPages}:`, endpoint);
+              const endpoint = `/price-lists/${priceListCode}/products?${params.toString()}`;
+              console.log(`📡 Cargando página ${currentPage}/${totalPages}:`, endpoint);
 
-            const response = await API.get(endpoint);
+              const response = await API.get(endpoint);
 
-            if (response.data.success && Array.isArray(response.data.data)) {
-              const pageProducts = response.data.data;
-              allProducts = [...allProducts, ...pageProducts];
+              if (response.data.success && Array.isArray(response.data.data)) {
+                const pageProducts = response.data.data;
+                allProducts = [...allProducts, ...pageProducts];
 
-              // ACTUALIZAR INFORMACIÓN DE PAGINACIÓN
-              if (response.data.pagination) {
-                totalPages = response.data.pagination.totalPages;
-                totalProductCount = response.data.pagination.totalCount;
-                console.log(`✅ Página ${currentPage}/${totalPages} cargada: ${pageProducts.length} productos (Total: ${allProducts.length}/${totalProductCount})`);
+                if (response.data.pagination) {
+                  totalPages = response.data.pagination.totalPages;
+                  totalProductCount = response.data.pagination.totalCount;
+                  console.log(`✅ Página ${currentPage}/${totalPages} cargada: ${pageProducts.length} productos (Total: ${allProducts.length}/${totalProductCount})`);
+                }
+
+                currentPage++;
+              } else {
+                throw new Error(response.data.message || 'Error en respuesta del API');
               }
 
-              currentPage++;
-            } else {
-              throw new Error(response.data.message || 'Error en respuesta del API');
-            }
+              if (currentPage > 20) {
+                console.warn('⚠️ Límite de seguridad alcanzado (20 páginas)');
+                break;
+              }
 
-            // SEGURIDAD: Evitar bucle infinito
-            if (currentPage > 20) {
-              console.warn('⚠️ Límite de seguridad alcanzado (20 páginas)');
-              break;
-            }
-
-          } while (currentPage <= totalPages);
+            } while (currentPage <= totalPages);
+          }
 
           console.log(`🎉 CARGA COMPLETA: ${allProducts.length} productos cargados de ${totalProductCount} disponibles`);
 
-          // MAPEO DE TODOS LOS PRODUCTOS (igual que CreateOrderForm)
-          const mappedProducts = allProducts.map((plProduct, index) => {
-            const priceValue = parseFloat(plProduct.price) || 0;
+          // MAPEO DE PRODUCTOS (solo para usuarios principales, branch ya viene mapeado)
+          let mappedProducts = allProducts;
+          
+          if (authType === AUTH_TYPES.USER) {
+            mappedProducts = allProducts.map((plProduct, index) => {
+              const priceValue = parseFloat(plProduct.price) || 0;
 
-            return {
-              product_id: plProduct.product_id || (index + 1),
-              name: plProduct.local_product_name || plProduct.product_name,
-              description: plProduct.local_product_description || plProduct.product_name,
-              sap_code: plProduct.product_code,
-              code: plProduct.product_code,
-
-              // PRECIOS
-              price: priceValue,
-              price_list1: priceValue,
-              effective_price: priceValue,
-              unit_price: priceValue,
-
-              // INFORMACIÓN ADICIONAL
-              price_list_code: plProduct.price_list_code,
-              price_list_name: plProduct.price_list_name,
-              currency: plProduct.currency || 'COP',
-              image_url: null,
-              has_custom_price: true,
-              custom_price_info: {
+              return {
+                product_id: plProduct.product_id || (index + 1),
+                name: plProduct.local_product_name || plProduct.product_name,
+                description: plProduct.local_product_description || plProduct.product_name,
+                sap_code: plProduct.product_code,
+                code: plProduct.product_code,
                 price: priceValue,
+                price_list1: priceValue,
+                effective_price: priceValue,
+                unit_price: priceValue,
+                price_list_code: plProduct.price_list_code,
+                price_list_name: plProduct.price_list_name,
                 currency: plProduct.currency || 'COP',
-                updated_at: plProduct.updated_at
-              },
-              price_source: 'price_list',
-              has_impuesto_saludable: false,
-              updated_at: plProduct.updated_at,
-              sap_last_sync: plProduct.sap_last_sync,
-
-              // DATOS ORIGINALES
-              _original: plProduct
-            };
-          });
+                image_url: null,
+                has_custom_price: true,
+                custom_price_info: {
+                  price: priceValue,
+                  currency: plProduct.currency || 'COP',
+                  updated_at: plProduct.updated_at
+                },
+                price_source: 'price_list',
+                has_impuesto_saludable: false,
+                updated_at: plProduct.updated_at,
+                sap_last_sync: plProduct.sap_last_sync,
+                _original: plProduct
+              };
+            });
+          }
 
           // FILTRAR PRODUCTOS CON PRECIOS VÁLIDOS
           const validProducts = mappedProducts.filter(product => {
@@ -386,8 +406,6 @@ const EditOrderForm = ({ onOrderUpdated }) => {
             console.log(`✅ Productos listos para edición: ${validProducts.length} productos cargados`);
           }
 
-          console.log(`✅ PRODUCTOS FINALES CARGADOS: ${validProducts.length} productos válidos con precios > 0`);
-
         } catch (error) {
           console.error('❌ Error cargando productos para edición:', error);
           showNotification('Error al cargar productos: ' + error.message, 'error');
@@ -398,8 +416,6 @@ const EditOrderForm = ({ onOrderUpdated }) => {
       };
 
       fetchProducts();
-    } else {
-      console.log('🏢 [BRANCH] Omitiendo carga de productos - no necesarios para cancelación');
     }
   }, [authType, user?.id]);
 
@@ -548,28 +564,61 @@ const EditOrderForm = ({ onOrderUpdated }) => {
     }
   };
 
-  // Función para actualizar fecha de entrega y notas desde sucursal
+  // Función para actualizar orden completa desde sucursal (incluyendo productos)
   const handleSubmitBranchUpdate = async (e) => {
     e.preventDefault();
 
+    // Validaciones
     if (!deliveryDate) {
       showNotification('Por favor selecciona una fecha de entrega', 'warning');
       return;
     }
 
+    // Validar que haya al menos un producto
+    if (!orderDetails || orderDetails.length === 0) {
+      showNotification('Debe haber al menos un producto en el pedido', 'warning');
+      return;
+    }
+
+    // Validar cada producto
+    for (let i = 0; i < orderDetails.length; i++) {
+      const detail = orderDetails[i];
+      if (!detail.product_id || detail.product_id === '') {
+        showNotification(`Producto ${i + 1}: Debe seleccionar un producto`, 'warning');
+        return;
+      }
+      if (!detail.quantity || parseInt(detail.quantity) <= 0) {
+        showNotification(`Producto ${i + 1}: La cantidad debe ser mayor a 0`, 'warning');
+        return;
+      }
+      if (!detail.unit_price || parseFloat(detail.unit_price) <= 0) {
+        showNotification(`Producto ${i + 1}: El precio debe ser mayor a 0`, 'warning');
+        return;
+      }
+    }
+
     try {
       setIsSubmitting(true);
 
-      console.log('🏢 [BRANCH] Actualizando pedido:', {
+      console.log('🏢 [BRANCH] Actualizando pedido completo:', {
         orderId,
         deliveryDate,
-        notes: orderNotes
+        comments: orderNotes,
+        productsCount: orderDetails.length
       });
 
+      // Preparar datos de actualización
       const updateData = {
         delivery_date: deliveryDate,
-        notes: orderNotes
+        comments: orderNotes,
+        products: orderDetails.map(detail => ({
+          product_id: parseInt(detail.product_id),
+          quantity: parseInt(detail.quantity),
+          unit_price: parseFloat(detail.unit_price)
+        }))
       };
+
+      console.log('📦 [BRANCH] Datos a enviar:', updateData);
 
       const response = await API.put(`/branch-orders/${orderId}`, updateData);
 
@@ -922,232 +971,212 @@ const EditOrderForm = ({ onOrderUpdated }) => {
   return (
     <div className="w-full p-6 bg-white rounded-lg border border-gray-200 shadow-sm">
       {authType === AUTH_TYPES.BRANCH ? (
-        <div className="space-y-6">
-          {/* Header para Branch */}
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-semibold text-gray-800">
-              Gestión de Pedido #{orderId}
-            </h2>
+      <div className="space-y-6">
+        {/* Header para Branch */}
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-xl font-semibold text-gray-800">
+            Editar Pedido #{orderId}
+          </h2>
+          <button
+            type="button"
+            onClick={() => navigate(`${getRoutePrefix()}/orders/${orderId}`)}
+            className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+          >
+            Volver a detalles
+          </button>
+        </div>
+
+        {notification.show && (
+          <Notification
+            message={notification.message}
+            type={notification.type}
+            onClose={() => setNotification({ show: false, message: '', type: '' })}
+          />
+        )}
+
+        {/* Mensaje informativo para Branch */}
+        <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-md">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-blue-800">
+                Edición de pedido desde sucursal
+              </h3>
+              <div className="mt-2 text-sm text-blue-700">
+                <p>
+                  Puedes modificar productos, cantidades, fecha de entrega y comentarios de este pedido.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Formulario completo con productos */}
+        <form onSubmit={handleSubmitBranchUpdate} className="space-y-6">
+          
+          {/* Sección de Productos */}
+          <div className="border-b pb-6">
+            <h4 className="text-lg font-medium text-gray-900 mb-4">Productos del Pedido</h4>
+            
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Producto</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Cantidad</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Precio Unit.</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Subtotal</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {orderDetails.map((detail, index) => (
+                    <tr key={index}>
+                      <td className="px-4 py-2">
+                        <div className="text-sm font-medium text-gray-900">
+                          {detail.name || 'Producto sin nombre'}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          ID: {detail.product_id}
+                        </div>
+                      </td>
+                      <td className="px-4 py-2">
+                        <input
+                          type="number"
+                          min="1"
+                          value={detail.quantity}
+                          onChange={(e) => handleProductChange(index, 'quantity', e.target.value)}
+                          className="w-20 text-center border border-gray-300 rounded-md shadow-sm py-1 px-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          required
+                        />
+                      </td>
+                      <td className="px-4 py-2 text-right">
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          value={detail.unit_price}
+                          onChange={(e) => handleProductChange(index, 'unit_price', e.target.value)}
+                          className="w-28 text-right border border-gray-300 rounded-md shadow-sm py-1 px-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          required
+                        />
+                      </td>
+                      <td className="px-4 py-2 text-right font-medium text-gray-900">
+                        ${(parseFloat(detail.quantity) * parseFloat(detail.unit_price)).toFixed(2)}
+                      </td>
+                      <td className="px-4 py-2 text-center">
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveProduct(index)}
+                          className="text-red-600 hover:text-red-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                          disabled={orderDetails.length === 1}
+                          title={orderDetails.length === 1 ? "No puedes eliminar el único producto" : "Eliminar producto"}
+                        >
+                          <FaTimes className="h-5 w-5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="bg-gray-50">
+                  <tr>
+                    <td colSpan="3" className="px-4 py-3 text-right font-bold text-gray-900">
+                      Total del pedido:
+                    </td>
+                    <td className="px-4 py-3 text-right font-bold text-gray-900 text-lg">
+                      ${calculateTotal()}
+                    </td>
+                    <td></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
+            <div className="mt-3 text-sm text-gray-600">
+              <p className="flex items-center">
+                <svg className="h-4 w-4 mr-2 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+                Puedes modificar las cantidades y precios de los productos existentes
+              </p>
+            </div>
+          </div>
+
+          {/* Fecha de Entrega */}
+          <div>
+            <h4 className="text-sm font-medium text-gray-700 mb-3">Fecha de Entrega</h4>
+            
+            <DeliveryDatePicker
+              value={deliveryDate}
+              onChange={setDeliveryDate}
+              orderTimeLimit={siteSettings.orderTimeLimit}
+              availableDates={availableDeliveryDays}
+              deliveryZone={deliveryZone}
+            />
+            
+            <p className="text-xs text-gray-500 mt-2">
+              Solo puedes seleccionar fechas disponibles según la zona de entrega de tu sucursal
+            </p>
+          </div>
+
+          {/* Comentarios */}
+          <div>
+            <label htmlFor="branchNotes" className="block text-sm font-medium text-gray-700 mb-1">
+              Comentarios adicionales
+            </label>
+            <textarea
+              id="branchNotes"
+              rows="3"
+              value={orderNotes}
+              onChange={(e) => setOrderNotes(e.target.value)}
+              placeholder="Agrega notas o comentarios sobre este pedido..."
+              className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+            ></textarea>
+          </div>
+
+          {/* Botones de acción */}
+          <div className="flex space-x-3">
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className={`flex-1 py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${isSubmitting ? 'opacity-75 cursor-not-allowed' : ''}`}
+            >
+              {isSubmitting ? 'Actualizando...' : 'Actualizar Pedido'}
+            </button>
+
             <button
               type="button"
               onClick={() => navigate(`${getRoutePrefix()}/orders/${orderId}`)}
-              className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+              className="py-2 px-4 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
             >
-              Volver a detalles
+              Cancelar
             </button>
           </div>
 
-          {notification.show && (
-            <Notification
-              message={notification.message}
-              type={notification.type}
-              onClose={() => setNotification({ show: false, message: '', type: '' })}
-            />
-          )}
-
-          {/* Mensaje informativo para Branch */}
-          <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-md">
-            <div className="flex">
-              <div className="flex-shrink-0">
-                <svg className="h-5 w-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <div className="ml-3">
-                <h3 className="text-sm font-medium text-blue-800">
-                  Cuenta de Sucursal - Opciones Disponibles
-                </h3>
-                <div className="mt-2 text-sm text-blue-700">
-                  <p className="font-semibold">Como sucursal, puedes:</p>
-                  <ul className="list-disc list-inside mt-2 space-y-1">
-                    <li>Cambiar el estado del pedido a <strong>Cancelado</strong> si está en estado Abierto, En Proceso o En Producción</li>
-                    <li>Modificar la fecha de entrega del pedido</li>
-                    <li>Agregar comentarios y notas adicionales</li>
-                  </ul>
-                  <p className="mt-2 text-xs">
-                    <strong>Nota:</strong> No puedes modificar los productos incluidos en el pedido. Para cambios en productos, contacta con el administrador.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Formulario para modificar fecha de entrega */}
-          <form onSubmit={handleSubmitBranchUpdate} className="space-y-4">
-            <div>
-              <h4 className="text-sm font-medium text-gray-700 mb-3">Fecha de Entrega</h4>
-              
-              <DeliveryDatePicker
-                value={deliveryDate}
-                onChange={setDeliveryDate}
-                orderTimeLimit={siteSettings.orderTimeLimit}
-                availableDates={availableDeliveryDays}
-                deliveryZone={deliveryZone}
-              />
-              
-              <p className="text-xs text-gray-500 mt-2">
-                Solo puedes seleccionar fechas disponibles según la zona de entrega de tu sucursal
-              </p>
-            </div>
-
-            <div>
-              <label htmlFor="branchNotes" className="block text-sm font-medium text-gray-700 mb-1">
-                Comentarios adicionales
-              </label>
-              <textarea
-                id="branchNotes"
-                rows="3"
-                value={orderNotes}
-                onChange={(e) => setOrderNotes(e.target.value)}
-                placeholder="Agrega notas o comentarios sobre este pedido..."
-                className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-              ></textarea>
-            </div>
-
-            <div className="flex space-x-3">
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className={`flex-1 py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${isSubmitting ? 'opacity-75 cursor-not-allowed' : ''}`}
-              >
-                {isSubmitting ? 'Actualizando...' : 'Guardar Cambios'}
-              </button>
-
+          {/* Botón de cancelar pedido */}
+          <div className="border-t pt-4">
+            <div className="text-center">
               <button
                 type="button"
-                onClick={() => navigate(`${getRoutePrefix()}/orders/${orderId}`)}
-                className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+                onClick={handleCancelOrderBranch}
+                disabled={isSubmitting}
+                className="inline-flex items-center px-4 py-2 border border-red-300 text-sm font-medium rounded-md text-red-700 bg-red-50 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
               >
-                Cancelar
+                <FaTimes className="mr-2" />
+                Cancelar Pedido Completamente
               </button>
+              <p className="text-xs text-gray-500 mt-2">
+                Esta acción no se puede deshacer
+              </p>
             </div>
-          </form>
-
-          {/* Información del pedido */}
-          {order && (
-            <div className="bg-gray-50 p-4 rounded-md">
-              <h3 className="text-lg font-medium text-gray-900 mb-3">Información del Pedido</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className="font-medium text-gray-700">Estado actual:</span>
-                  <span className="ml-2 text-gray-900">{order.status_name || order.status}</span>
-                </div>
-                <div>
-                  <span className="font-medium text-gray-700">Fecha de creación:</span>
-                  <span className="ml-2 text-gray-900">
-                    {new Date(order.order_date).toLocaleDateString('es-ES')}
-                  </span>
-                </div>
-                <div>
-                  <span className="font-medium text-gray-700">Subtotal:</span>
-                  <span className="ml-2 text-gray-900">
-                    ${parseFloat(order.subtotal || order.total_amount).toLocaleString('es-CO')}
-                  </span>
-                </div>
-                <div>
-                  <span className="font-medium text-gray-700">IVA:</span>
-                  <span className="ml-2 text-gray-900">
-                    ${parseFloat(order.tax_amount || 0).toLocaleString('es-CO')}
-                  </span>
-                </div>
-                <div>
-                  <span className="font-medium text-gray-700">Total:</span>
-                  <span className="ml-2 text-gray-900 font-semibold">
-                    ${parseFloat(order.total_amount).toLocaleString('es-CO')}
-                  </span>
-                </div>
-                <div>
-                  <span className="font-medium text-gray-700">Fecha de entrega:</span>
-                  <span className="ml-2 text-gray-900">
-                    {order.delivery_date ? new Date(order.delivery_date).toLocaleDateString('es-ES') : 'No especificada'}
-                  </span>
-                </div>
-              </div>
-
-              {/* ✅ NUEVA SECCIÓN: Productos del pedido para Branch */}
-              {orderDetails && orderDetails.length > 0 && (
-                <div className="mt-4">
-                  <h4 className="text-md font-medium text-gray-900 mb-2">Productos en el Pedido</h4>
-                  <div className="bg-white rounded-lg border">
-                    <div className="overflow-hidden">
-                      <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Producto</th>
-                            <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Cantidad</th>
-                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Precio Unit.</th>
-                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Subtotal</th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                          {orderDetails.map((product, index) => (
-                            <tr key={index} className="hover:bg-gray-50">
-                              <td className="px-4 py-2 text-sm text-gray-900">
-                                <div className="font-medium">{product.name}</div>
-                              </td>
-                              <td className="px-4 py-2 text-sm text-gray-500 text-center">
-                                {product.quantity}
-                              </td>
-                              <td className="px-4 py-2 text-sm text-gray-500 text-right">
-                                ${parseFloat(product.unit_price).toLocaleString('es-CO')}
-                              </td>
-                              <td className="px-4 py-2 text-sm font-medium text-gray-900 text-right">
-                                ${(product.quantity * product.unit_price).toLocaleString('es-CO')}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Botón de cancelación o mensaje de no edición */}
-          {loading ? (
-            <div className="flex justify-center items-center h-20">
-              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
-            </div>
-          ) : !canEdit ? (
-            <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-md">
-              <p className="font-medium">Cancelación no permitida</p>
-              <p>{editNotAllowedReason}</p>
-            </div>
-          ) : (
-            <div className="text-center">
-              <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-                <FaTimes className="mx-auto h-12 w-12 text-red-400 mb-4" />
-                <h3 className="text-lg font-medium text-red-900 mb-2">
-                  ¿Desea cancelar este pedido?
-                </h3>
-                <p className="text-sm text-red-700 mb-6">
-                  Esta acción cambiará el estado del pedido a <strong>Cancelado</strong> y no se puede deshacer.
-                </p>
-                <div className="flex justify-center space-x-4">
-                  <button
-                    type="button"
-                    onClick={() => navigate(`${getRoutePrefix()}/orders/${orderId}`)}
-                    className="px-6 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
-                  >
-                    No, volver
-                  </button>
-                  <button
-                    onClick={handleCancelOrderBranch}
-                    disabled={isSubmitting}
-                    className={`px-6 py-2 border border-transparent rounded-md text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 ${
-                      isSubmitting ? 'opacity-75 cursor-not-allowed' : ''
-                    }`}
-                  >
-                    {isSubmitting ? 'Cancelando...' : 'Sí, cancelar pedido'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      ) : (
+          </div>
+        </form>
+      </div>
+    ) : (
         <form onSubmit={handleUpdateOrder} className="space-y-6">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-semibold text-gray-800">Editar Pedido #{orderId}</h2>
