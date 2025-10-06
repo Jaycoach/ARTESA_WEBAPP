@@ -116,19 +116,36 @@ const usePriceList = () => {
         } else if (contextData.userId) {
           console.log('👤 Usuario PRINCIPAL detectado');
 
-          // ✅ USAR DATOS MEMOIZADOS
+          // ✅ PRIORIDAD 1: Usar price_list_code del contexto si existe
           if (contextData.userPriceList) {
             priceCode = contextData.userPriceList;
-            console.log('✅ Price list code desde perfil usuario:', priceCode);
+            console.log('✅ Price list code desde contexto de usuario:', priceCode);
           } else {
-            // Inferir por tamaño de empresa
-            const size = contextData.userSize;
-            if (size === 'Grande') priceCode = 'ORO';
-            else if (size === 'Mediana') priceCode = 'PLATA';
-            else if (size === 'Pequena') priceCode = 'BRONCE';
-            else priceCode = 'GENERAL';
-
-            console.log('✅ Price list code inferido:', priceCode, 'para tamaño:', size);
+            // ✅ PRIORIDAD 2: Consultar directamente a la API de perfil completo
+            try {
+              console.log('⚠️ Price list code no en contexto, consultando API de usuario...');
+              const response = await API.get(`/auth/profile`); // ← Usar nuevo endpoint
+              
+              if (response.data?.success && response.data?.data?.clientProfile?.price_list_code) {
+                priceCode = response.data.data.clientProfile.price_list_code;
+                console.log('✅ Price list code desde API de auth/profile:', priceCode);
+              } else {
+                // ✅ FALLBACK: Inferir por tamaño de empresa
+                const size = contextData.userSize;
+                if (size === 'Grande') priceCode = 'ORO';
+                else if (size === 'Mediana') priceCode = 'PLATA';
+                else if (size === 'Pequena') priceCode = 'BRONCE';
+                else priceCode = 'GENERAL';
+                
+                console.log('⚠️ Price list code inferido por tamaño:', priceCode, 'para tamaño:', size);
+              }
+            } catch (apiError) {
+              console.warn('⚠️ Error consultando price_list_code, usando fallback:', apiError.message);
+              
+              // Fallback final
+              priceCode = 'GENERAL';
+              console.log('⚠️ Fallback - Price list code:', priceCode);
+            }
           }
         }
 

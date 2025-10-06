@@ -1038,12 +1038,99 @@ class AuthController {
             return false;
         }
     }
+    /**
+     * Obtener perfil del usuario autenticado
+     */
+    static async getProfile(req, res) {
+        try {
+            const userId = req.user.id; // Viene del middleware verifyToken
+            
+            logger.debug('Obteniendo perfil completo del usuario', { userId });
+            
+            // Obtener datos del usuario
+            const userQuery = `
+                SELECT id, name, mail, rol_id, is_active, mail_verified, created_at
+                FROM users
+                WHERE id = $1
+            `;
+            
+            const { rows: userRows } = await pool.query(userQuery, [userId]);
+            
+            if (userRows.length === 0) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Usuario no encontrado'
+                });
+            }
+            
+            const userData = userRows[0];
+            
+            // Obtener client_profile con price_list_code
+            const ClientProfile = require('../models/clientProfile');
+            const clientProfile = await ClientProfile.getByUserId(userId);
+            
+            // Construir respuesta completa
+            const response = {
+                id: userData.id,
+                name: userData.name,
+                mail: userData.mail,
+                role: userData.rol_id,
+                is_active: userData.is_active,
+                mail_verified: userData.mail_verified,
+                created_at: userData.created_at
+            };
+            
+            // Agregar clientProfile si existe
+            if (clientProfile) {
+                response.clientProfile = {
+                    client_id: clientProfile.client_id,
+                    price_list: clientProfile.price_list,
+                    price_list_code: clientProfile.price_list_code || clientProfile.price_list || '1',
+                    effective_price_list_code: clientProfile.effective_price_list_code || clientProfile.price_list_code || clientProfile.price_list || '1',
+                    company_name: clientProfile.company_name,
+                    cardcode_sap: clientProfile.cardcode_sap,
+                    tamanoEmpresa: clientProfile.tamanoEmpresa
+                };
+                
+                logger.debug('Perfil con clientProfile enviado', {
+                    userId,
+                    price_list_code: response.clientProfile.price_list_code
+                });
+            } else {
+                // Usuario sin perfil de cliente
+                response.clientProfile = {
+                    price_list_code: '1',
+                    effective_price_list_code: '1'
+                };
+                
+                logger.debug('Usuario sin clientProfile, enviando defaults', { userId });
+            }
+            
+            return res.status(200).json({
+                success: true,
+                data: response
+            });
+            
+        } catch (error) {
+            logger.error('Error obteniendo perfil de usuario', {
+                error: error.message,
+                userId: req.user?.id
+            });
+            
+            return res.status(500).json({
+                success: false,
+                message: 'Error al obtener el perfil del usuario',
+                details: process.env.NODE_ENV === 'development' ? error.message : undefined
+            });
+        }
+    }
 }
 
 module.exports = {
     login: AuthController.login.bind(AuthController),
     register: AuthController.register.bind(AuthController),
     verifyToken: AuthController.verifyToken.bind(AuthController),
+    getProfile: AuthController.getProfile.bind(AuthController),
     handleServerRestart: AuthController.handleServerRestart.bind(AuthController),
     verifyEmail: AuthController.verifyEmail.bind(AuthController),
     resendVerification: AuthController.resendVerification.bind(AuthController),

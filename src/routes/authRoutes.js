@@ -144,6 +144,22 @@ router.post(
 
 /**
  * @swagger
+ * /api/auth/profile:
+ *   get:
+ *     summary: Obtener perfil del usuario autenticado
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Perfil obtenido exitosamente
+ *       401:
+ *         description: No autorizado
+ */
+router.get('/profile', verifyToken, authController.getProfile);
+
+/**
+ * @swagger
  * /api/auth/register:
  *   post:
  *     summary: Registro de nuevo usuario
