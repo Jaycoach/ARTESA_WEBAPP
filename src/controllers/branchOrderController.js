@@ -772,6 +772,10 @@ class BranchOrderController {
           : updateEntry;
       }
 
+      if (updateData.customer_po_number !== undefined) {
+        orderUpdateData.customer_po_number = updateData.customer_po_number;
+      }
+
       // Si se proporcionan productos, agregarlos a los detalles
       if (updateData.products && Array.isArray(updateData.products)) {
         // Validar que todos los productos tengan los campos requeridos

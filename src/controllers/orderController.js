@@ -932,6 +932,11 @@ const updateOrder = async (req, res) => {
       updateData.comments = newComments;
     }
 
+    // Validar y agregar customer_po_number si se proporciona
+    if (req.body.customer_po_number !== undefined) {
+      updateData.customer_po_number = req.body.customer_po_number;
+    }
+
     // Actualizar la orden
     const updatedOrder = await Order.updateOrder(orderId, updateData);
     

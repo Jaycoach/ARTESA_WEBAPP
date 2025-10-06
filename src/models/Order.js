@@ -596,7 +596,6 @@ static async create(orderData) {
         paramIndex++;
       }
 
-      // ← AGREGAR ESTE BLOQUE COMPLETO AQUÍ
       if (updateData.customer_po_number !== undefined) {
         updateFields.push(`customer_po_number = $${paramIndex}`);
         queryParams.push(updateData.customer_po_number);
