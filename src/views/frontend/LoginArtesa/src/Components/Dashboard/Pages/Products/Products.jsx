@@ -348,7 +348,7 @@ const Products = () => {
       });
 
       // ✅ DETERMINAR CÓDIGO DE LISTA DE PRECIOS
-      let priceListCode = 'GENERAL'; // Valor por defecto
+      let priceListCode = null; // ✅ Cambiado: null indica que aún no se ha determinado
 
       if (authType === AUTH_TYPES.BRANCH) {
         // ✅ PARA USUARIOS BRANCH: Obtener lista de precios de la sucursal
@@ -367,9 +367,14 @@ const Products = () => {
       } else if (userPriceListCode && userPriceListCode !== 'GENERAL') {
         // Para usuarios principales, usar su lista personalizada
         priceListCode = userPriceListCode;
-      } else {
-        // Fallback a lista general
+      } else if (userPriceListCode === 'GENERAL') {
+        // Solo si explícitamente es GENERAL, usar lista 1
         priceListCode = '1';
+      } else {
+        // Si userPriceListCode es null o undefined, no hacer nada aún
+        console.warn('⚠️ userPriceListCode no disponible, cancelando carga de productos');
+        setLoading(false);
+        return; // ✅ IMPORTANTE: Salir sin hacer la petición
       }
 
       console.log(`🎯 Usando lista de precios: ${priceListCode} para tipo de usuario: ${authType}`);
@@ -1223,8 +1228,12 @@ const Products = () => {
   }, []);
 
   useEffect(() => {
-    if (isAuthenticated && userPriceListCode) {
+    // ✅ Solo cargar productos cuando userPriceListCode esté realmente disponible
+    if (isAuthenticated && userPriceListCode && userPriceListCode !== null) {
+      console.log('✅ Cargando productos con price_list_code:', userPriceListCode);
       fetchProducts();
+    } else if (isAuthenticated && !userPriceListCode) {
+      console.log('⏳ Esperando inicialización de userPriceListCode...');
     }
   }, [fetchProducts, isAuthenticated, userPriceListCode]);
 

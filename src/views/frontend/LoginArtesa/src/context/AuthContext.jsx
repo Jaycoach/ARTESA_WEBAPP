@@ -450,12 +450,13 @@ function AuthProvider({ children }) {
 
                 const priceListData = {
                     price_list: clientProfile.price_list || null,
-                    price_list_code: clientProfile.price_list_code || 'GENERAL',
-                    effective_price_list_code: clientProfile.effective_price_list_code || 'GENERAL',
+                    // ✅ CORREGIDO: Solo usar price_list_code (NO existe effective_price_list_code)
+                    price_list_code: clientProfile.price_list_code || 
+                                     (clientProfile.price_list ? clientProfile.price_list.toString() : '1'),
                     client_id: clientProfile.client_id,
                     cardcode_sap: clientProfile.cardcode_sap,
-                    razonSocial: clientProfile.razonSocial,
-                    nit: clientProfile.nit
+                    razonSocial: clientProfile.company_name || clientProfile.razonSocial,
+                    nit: clientProfile.nit_number || clientProfile.nit
                 };
 
                 // Guardar en cache de sesión

@@ -14,25 +14,24 @@ const usePriceList = () => {
   const initializingRef = useRef(false);
   const initializedRef = useRef(false);
   const priceListCodeRef = useRef(null);
-  const lastLogRef = useRef(null); // ✅ NUEVO: Para controlar logs
+  const lastLogRef = useRef(null);
 
-  // ✅ MEMOIZAR datos del contexto para evitar re-renders innecesarios
+  // ✅ MEMOIZAR datos del contexto - ÚNICA DECLARACIÓN CORRECTA
   const contextData = useMemo(() => ({
     userId: user?.id,
     authType,
     branchId: branch?.branch_id,
-    userPriceList: user?.clientProfile?.effective_price_list_code ||
-      user?.clientProfile?.price_list_code,
-    branchPriceList: branch?.price_list_code,
-    userSize: user?.clientProfile?.tamanoEmpresa
+    // ✅ CORREGIDO: Solo usar price_list_code (NO existe effective_price_list_code)
+    userPriceList: user?.clientProfile?.price_list_code || 
+                   user?.priceListProfile?.price_list_code,
+    branchPriceList: branch?.price_list_code
   }), [
     user?.id,
     authType,
     branch?.branch_id,
-    user?.clientProfile?.effective_price_list_code,
     user?.clientProfile?.price_list_code,
-    branch?.price_list_code,
-    user?.clientProfile?.tamanoEmpresa
+    user?.priceListProfile?.price_list_code,
+    branch?.price_list_code
   ]);
 
   // ✅ CONTROLAR LOGS - Solo cuando hay cambios reales
@@ -110,11 +109,17 @@ const usePriceList = () => {
               }
             } catch (apiError) {
               console.warn('⚠️ Error API, usando fallback price_list_code = "1":', apiError.message);
-              priceCode = '1'; // Fallback seguro
+              priceCode = '1';
             }
           }
         } else if (contextData.userId) {
           console.log('👤 Usuario PRINCIPAL detectado');
+          console.log('🔍 Datos de contexto disponibles:', {
+            userPriceList: contextData.userPriceList,
+            userId: contextData.userId,
+            hasClientProfile: !!user?.clientProfile,
+            hasPriceListProfile: !!user?.priceListProfile
+          });
 
           // ✅ PRIORIDAD 1: Usar price_list_code del contexto si existe
           if (contextData.userPriceList) {
@@ -124,27 +129,21 @@ const usePriceList = () => {
             // ✅ PRIORIDAD 2: Consultar directamente a la API de perfil completo
             try {
               console.log('⚠️ Price list code no en contexto, consultando API de usuario...');
-              const response = await API.get(`/auth/profile`); // ← Usar nuevo endpoint
+              const response = await API.get(`/auth/profile`);
               
               if (response.data?.success && response.data?.data?.clientProfile?.price_list_code) {
                 priceCode = response.data.data.clientProfile.price_list_code;
                 console.log('✅ Price list code desde API de auth/profile:', priceCode);
               } else {
-                // ✅ FALLBACK: Inferir por tamaño de empresa
-                const size = contextData.userSize;
-                if (size === 'Grande') priceCode = 'ORO';
-                else if (size === 'Mediana') priceCode = 'PLATA';
-                else if (size === 'Pequena') priceCode = 'BRONCE';
-                else priceCode = 'GENERAL';
-                
-                console.log('⚠️ Price list code inferido por tamaño:', priceCode, 'para tamaño:', size);
+                // ✅ FALLBACK FINAL: Usar lista general solo si no hay clientProfile
+                console.warn('⚠️ Usuario sin clientProfile o sin price_list_code configurado');
+                priceCode = '1';
+                console.log('⚠️ Usando fallback price_list_code = "1" (lista general)');
               }
             } catch (apiError) {
-              console.warn('⚠️ Error consultando price_list_code, usando fallback:', apiError.message);
-              
-              // Fallback final
-              priceCode = 'GENERAL';
-              console.log('⚠️ Fallback - Price list code:', priceCode);
+              console.error('❌ Error consultando API de perfil:', apiError.message);
+              console.log('⚠️ Usando fallback price_list_code = "1" por error en API');
+              priceCode = '1';
             }
           }
         }
@@ -160,7 +159,6 @@ const usePriceList = () => {
 
       } catch (error) {
         console.error('❌ Error en usePriceList initialization:', error);
-        // Fallback seguro
         if (!priceListCodeRef.current) {
           priceListCodeRef.current = '1';
           setUserPriceListCode('1');
@@ -170,7 +168,7 @@ const usePriceList = () => {
       }
     })();
 
-  }, [contextData]); // ✅ USAR DATOS MEMOIZADOS COMO DEPENDENCIA
+  }, [contextData, user]);
 
   // ✅ FUNCIONES MEMOIZADAS
   const fetchMultiplePrices = useCallback(
