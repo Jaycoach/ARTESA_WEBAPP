@@ -595,12 +595,6 @@ static async create(orderData) {
         queryParams.push(updateData.comments);
         paramIndex++;
       }
-      
-      if (updateData.comments !== undefined) {
-        updateFields.push(`comments = $${paramIndex}`);
-        queryParams.push(updateData.comments);
-        paramIndex++;
-      }
 
       // ← AGREGAR ESTE BLOQUE COMPLETO AQUÍ
       if (updateData.customer_po_number !== undefined) {

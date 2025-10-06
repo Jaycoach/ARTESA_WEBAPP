@@ -47,8 +47,8 @@ const OrderList = ({ canCreateValidation, onCreateOrderClick }) => {
   const [orderStatuses, setOrderStatuses] = useState({});
 
   // Filtros del panel - MODIFICADO para incluir sucursal
-  const [filters, setFilters] = useState({ deliveryDate: '', statusId: '', branchId: '' });
-  const [tempFilters, setTempFilters] = useState({ deliveryDate: '', statusId: '', branchId: '' });
+  const [filters, setFilters] = useState({ deliveryDate: '', status: '', statusId: '', branchId: '' });
+  const [tempFilters, setTempFilters] = useState({ deliveryDate: '', status: '', statusId: '', branchId: '' });
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [userBranches, setUserBranches] = useState([]); // NUEVO
   const isAdmin = user?.role === 1;
@@ -364,6 +364,17 @@ const OrderList = ({ canCreateValidation, onCreateOrderClick }) => {
     });
   }
 
+  // Aplicar filtro de estado (incluyendo canceladas)
+  if (filters.status) {
+    if (filters.status === 'canceled') {
+      filteredOrders = filteredOrders.filter(order => order.status_id === 6);
+    } else if (filters.status !== 'all') {
+      filteredOrders = filteredOrders.filter(order => 
+        order.status_name?.toLowerCase() === filters.status.toLowerCase()
+      );
+    }
+  }
+
   if (filters.statusId) {
     filteredOrders = filteredOrders.filter(order => 
       order.status_id === parseInt(filters.statusId)
@@ -429,6 +440,60 @@ const OrderList = ({ canCreateValidation, onCreateOrderClick }) => {
 
   return (
     <div className="contenedor-principal">
+      {/* Panel de Filtros */}
+      <div className="bg-white p-4 rounded-lg shadow mb-6 border border-gray-200">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-800 flex items-center">
+            <FaFilter className="mr-2 text-blue-600" />
+            Filtros
+          </h3>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Filtro de Fecha de Entrega */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Fecha de Entrega
+            </label>
+            <input
+              type="date"
+              value={filters.deliveryDate}
+              onChange={(e) => setFilters(prev => ({ ...prev, deliveryDate: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          {/* Filtro de Estado */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Estado del Pedido
+            </label>
+            <select
+              value={filters.status}
+              onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Todos los estados</option>
+              <option value="abierto">Abierto</option>
+              <option value="en proceso">En Proceso</option>
+              <option value="en producción">En Producción</option>
+              <option value="entregado">Entregado</option>
+              <option value="cerrado">Cerrado</option>
+              <option value="canceled">Canceladas</option>
+            </select>
+          </div>
+
+          {/* Botón para limpiar filtros */}
+          <div className="flex items-end">
+            <button
+              onClick={() => setFilters({ deliveryDate: '', status: '', statusId: '', branchId: '' })}
+              className="w-full px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors"
+            >
+              Limpiar Filtros
+            </button>
+          </div>
+        </div>
+      </div>
       {orders.length === 0 ? (
         <div>
           <p className="text-gray-500 text-center p-6">No tienes pedidos registrados.</p>

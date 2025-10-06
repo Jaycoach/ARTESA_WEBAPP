@@ -184,13 +184,38 @@ const EditOrderForm = ({ onOrderUpdated }) => {
             return;
           }
 
-          // ✅ PARA BRANCH: Solo permitir cancelación si el estado lo permite
+          // ✅ PARA BRANCH: Misma validación que USER (pueden editar, no solo cancelar)
           if (authType === AUTH_TYPES.BRANCH) {
-            const cancelableStatuses = [1, 2, 3]; // Abierto, En Proceso, En Producción
-            if (!cancelableStatuses.includes(orderData.status_id)) {
+            const nonModifiableStates = [4, 5, 6]; // Entregado, Cerrado, Cancelado
+            if (nonModifiableStates.includes(orderData.status_id)) {
               setCanEdit(false);
-              setEditNotAllowedReason(`No se puede cancelar un pedido en estado: ${orderData.status_name || orderData.status}`);
+              setEditNotAllowedReason(`No se puede modificar un pedido en estado: ${orderData.status_name || orderData.status}`);
               return;
+            }
+            
+            // Para branches, también validar hora límite similar a usuarios principales
+            const deliveryDate = new Date(orderData.delivery_date);
+            const now = new Date();
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const deliveryDay = new Date(deliveryDate.getFullYear(), deliveryDate.getMonth(), deliveryDate.getDate());
+
+            const diffTime = deliveryDay.getTime() - today.getTime();
+            const daysUntilDelivery = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            if (daysUntilDelivery < 0) {
+              setCanEdit(false);
+              setEditNotAllowedReason('La fecha de entrega ya pasó - no se puede editar');
+              return;
+            }
+
+            if (daysUntilDelivery <= 2) {
+              const [limitHours, limitMinutes] = siteSettings.orderTimeLimit.split(':').map(Number);
+              
+              if (now.getHours() > limitHours || (now.getHours() === limitHours && now.getMinutes() >= limitMinutes)) {
+                setCanEdit(false);
+                setEditNotAllowedReason(`No se puede editar después de las ${siteSettings.orderTimeLimit} cuando faltan ${daysUntilDelivery} días o menos para la entrega`);
+                return;
+              }
             }
           } else {
             // ✅ VALIDACIONES PARA USUARIOS PRINCIPALES
@@ -237,28 +262,25 @@ const EditOrderForm = ({ onOrderUpdated }) => {
             }
           }
 
-          // ✅ CONFIGURAR DATOS SOLO PARA USUARIOS PRINCIPALES
-          if (authType !== AUTH_TYPES.BRANCH) {
+          // ✅ CONFIGURAR DATOS SEGÚN TIPO DE USUARIO
+          if (authType === AUTH_TYPES.BRANCH) {
+            // Para BRANCH: configurar fecha de entrega y comentarios
+            setDeliveryDate(orderData.delivery_date?.split('T')[0] || '');
+            setOrderNotes(orderData.comments || ''); // BRANCH usa 'comments' en lugar de 'notes'
+            console.log('🏢 [BRANCH] Datos del pedido configurados, productos se mapearán en useEffect separado');
+          } else {
+            // Para USER: configurar todos los datos
             setDeliveryDate(orderData.delivery_date?.split('T')[0] || '');
             setOrderNotes(orderData.notes || '');
 
-            if (authType !== AUTH_TYPES.BRANCH) {
-              setDeliveryDate(orderData.delivery_date?.split('T')[0] || '');
-              setOrderNotes(orderData.notes || '');
-
-              if (orderData.details && orderData.details.length > 0) {
-                setOrderDetails(orderData.details.map(detail => ({
-                  product_id: detail.product_id.toString(),
-                  quantity: detail.quantity,
-                  unit_price: detail.unit_price
-                })));
-              }
-            } else {
-              // ✅ PARA BRANCH: Los datos se mapean en el useEffect separado
-              console.log('🏢 [BRANCH] Datos del pedido cargados, productos se mapearán automáticamente');
+            if (orderData.details && orderData.details.length > 0) {
+              setOrderDetails(orderData.details.map(detail => ({
+                product_id: detail.product_id.toString(),
+                quantity: detail.quantity,
+                unit_price: detail.unit_price
+              })));
             }
           }
-
         } else {
           throw new Error('No se pudo obtener los detalles del pedido');
         }
@@ -535,10 +557,6 @@ const EditOrderForm = ({ onOrderUpdated }) => {
     }
   }, [products, authType]); // Solo depende de products y authType
 
-  const handleAddProduct = () => {
-    setOrderDetails([...orderDetails, { product_id: '', quantity: 1, unit_price: 0 }]);
-  };
-
   const handleCancelOrderBranch = async () => {
     if (!window.confirm('¿Estás seguro que deseas cancelar este pedido? Esta acción no se puede deshacer.')) {
       return;
@@ -669,6 +687,20 @@ const EditOrderForm = ({ onOrderUpdated }) => {
     } else {
       showNotification('No se puede eliminar el único producto del pedido', 'warning');
     }
+  };
+
+  // Función para agregar un nuevo producto a la orden
+  const handleAddProduct = () => {
+    const newProduct = {
+      product_id: '',
+      quantity: 1,
+      unit_price: 0,
+      name: '',
+      sap_code: ''
+    };
+    
+    setOrderDetails([...orderDetails, newProduct]);
+    showNotification('Producto agregado. Selecciona un producto de la lista.', 'info');
   };
 
   const handleProductChange = (index, field, value) => {
@@ -1053,12 +1085,38 @@ const EditOrderForm = ({ onOrderUpdated }) => {
                   {orderDetails.map((detail, index) => (
                     <tr key={index}>
                       <td className="px-4 py-2">
-                        <div className="text-sm font-medium text-gray-900">
-                          {detail.name || 'Producto sin nombre'}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          ID: {detail.product_id}
-                        </div>
+                        {detail.product_id && products.find(p => p.product_id.toString() === detail.product_id.toString()) ? (
+                          // Producto existente - solo mostrar
+                          <>
+                            <div className="text-sm font-medium text-gray-900">
+                              {detail.name || 'Producto sin nombre'}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              ID: {detail.product_id}
+                            </div>
+                          </>
+                        ) : (
+                          // Producto nuevo o no encontrado - permitir selección
+                          <select
+                            value={detail.product_id}
+                            onChange={(e) => handleProductChange(index, 'product_id', e.target.value)}
+                            className="w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
+                            required
+                          >
+                            <option value="">Seleccionar producto</option>
+                            {products.map(product => (
+                              <option
+                                key={product.product_id}
+                                value={product.product_id}
+                                disabled={orderDetails.some(
+                                  item => item !== detail && item.product_id === product.product_id.toString()
+                                )}
+                              >
+                                {product.name}
+                              </option>
+                            ))}
+                          </select>
+                        )}
                       </td>
                       <td className="px-4 py-2">
                         <input
@@ -1121,6 +1179,22 @@ const EditOrderForm = ({ onOrderUpdated }) => {
               </p>
             </div>
           </div>
+
+          {/* Botón para agregar más productos en Branch */}
+          {!isSubmitting && (
+            <div className="mt-4">
+              <button
+                type="button"
+                onClick={handleAddProduct}
+                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+              >
+                <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Agregar Producto
+              </button>
+            </div>
+          )}
 
           {/* Fecha de Entrega */}
           <div>
@@ -1327,6 +1401,22 @@ const EditOrderForm = ({ onOrderUpdated }) => {
               </tbody>
             </table>
           </div>
+
+          {/* Botón para agregar más productos */}
+          {!isSubmitting && (
+            <div className="mt-4">
+              <button
+                type="button"
+                onClick={handleAddProduct}
+                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+              >
+                <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Agregar Producto
+              </button>
+            </div>
+          )}
 
           <div className="flex justify-between items-center">
             <button
