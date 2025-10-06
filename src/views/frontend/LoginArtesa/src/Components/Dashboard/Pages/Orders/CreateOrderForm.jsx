@@ -372,113 +372,54 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       </div>
     );
   };
-  /*useEffect(() => {
-    if (!canAccessForm) return;
 
-    const fetchProducts = async () => {
-      setLoadingProducts(true);
-      try {
-        const response = await API.get('/products');
-        if (response.data.success && Array.isArray(response.data.data)) {
-          const fetchedProducts = response.data.data.map(p => ({
-            ...p,
-            image_url: p.image_url || null
-          }));
-
-          // **NUEVA LÓGICA: Si hay lista de precios personalizada, obtener precios**
-          if (userPriceListCode && userPriceListCode !== 'GENERAL' && fetchedProducts.length > 0) {
-            try {
-              const productCodes = fetchedProducts.map(p =>
-                p.sap_code || p.code || p.product_id.toString()
-              );
-
-              const customPrices = await fetchMultiplePrices(productCodes);
-
-              const productsWithCustomPrices = fetchedProducts.map(product => {
-                const productCode = product.sap_code || product.code || product.product_id.toString();
-                const customPrice = customPrices[productCode];
-
-                return {
-                  ...product,
-                  original_price_list1: product.price_list1,
-                  original_price_list2: product.price_list2,
-                  original_price_list3: product.price_list3,
-                  price_list1: customPrice?.price || product.price_list1,
-                  price_list2: product.price_list2,
-                  price_list3: product.price_list3,
-                  has_custom_price: !!customPrice,
-                  custom_price_info: customPrice || null,
-                  price_list_code: userPriceListCode
-                };
-              });
-
-              // Filtrar productos con precios válidos (custom prices)
-              const validCustomProducts = productsWithCustomPrices.filter(product => {
-                const price = product.has_custom_price && product.custom_price_info
-                  ? product.custom_price_info.price
-                  : parseFloat(product.effective_price || product.price_list1 || 0);
-                return price > 0;
-              });
-              setProducts(validCustomProducts);
-            } catch (priceError) {
-              
-              // Filtrar productos con precios válidos (precio por defecto - fallback)
-              const validDefaultProducts = fetchedProducts.filter(product => {
-                const price = parseFloat(product.effective_price || product.price_list1 || 0);
-                return price > 0;
-              });
-              
-              setProducts(validDefaultProducts);
-            }
-          } else {
-            // Filtrar productos con precios válidos (precio por defecto)
-            const validProducts = fetchedProducts.filter(product => {
-              const price = parseFloat(product.effective_price || product.price_list1 || 0);
-              return price > 0;
-            });
-            setProducts(validProducts);
-          }
-        } else {
-          showNotification('No se pudieron cargar los productos', 'error');
-          setProducts([]);
-        }
-      } catch (error) {
-        console.error('Error fetching products:', error);
-        showNotification('Error al cargar productos', 'error');
-        setProducts([]);
-      } finally {
-        setLoadingProducts(false);
-      }
-    };
-    fetchProducts();
-  }, [canAccessForm, userPriceListCode, fetchMultiplePrices]);*/
   useEffect(() => {
     if (!canAccessForm) return;
 
     const fetchProducts = async () => {
       console.log('🚀 Iniciando fetchProducts - CARGANDO TODOS LOS PRODUCTOS:', {
         authType,
+        userPriceListCode,  // ✅ AGREGAR LOG
         timestamp: new Date().toISOString()
       });
       setLoadingProducts(true);
 
       try {
-        // DETERMINAR CÓDIGO DE LISTA DE PRECIOS
-        let priceListCode = '1';
+        // ✅ DETERMINAR CÓDIGO DE LISTA DE PRECIOS - USAR EL DEL HOOK
+        let priceListCode = userPriceListCode || '1';  // ✅ PRIORIZAR userPriceListCode
 
-        if (authType === AUTH_TYPES.BRANCH) {
-          try {
-            console.log('🏢 Obteniendo price_list_code para usuario BRANCH...');
-            const branchResponse = await API.get('/branch-auth/profile');
-            if (branchResponse.data.success && branchResponse.data.data.price_list_code) {
-              priceListCode = branchResponse.data.data.price_list_code;
+        console.log('📋 Price list code inicial:', {
+          fromHook: userPriceListCode,
+          willUse: priceListCode,
+          authType
+        });
+
+        // ✅ Solo sobrescribir si no viene del hook (no debería ser necesario)
+        if (!priceListCode || priceListCode === '1') {
+          if (authType === AUTH_TYPES.BRANCH) {
+            try {
+              console.log('🏢 Obteniendo price_list_code para usuario BRANCH como fallback...');
+              const branchResponse = await API.get('/branch-auth/profile');
+              if (branchResponse.data.success && branchResponse.data.data.price_list_code) {
+                priceListCode = branchResponse.data.data.price_list_code;
+                console.log('✅ Price list code obtenido de API branch:', priceListCode);
+              }
+            } catch (error) {
+              console.warn('⚠️ Error obteniendo price_list_code de branch:', error.message);
             }
-          } catch (error) {
-            console.warn('⚠️ Error obteniendo price_list_code, usando fallback:', error.message);
           }
         }
 
         console.log(`🎯 Usando lista de precios: ${priceListCode}`);
+        // ✅ VALIDACIÓN FINAL antes de cargar productos
+        if (!priceListCode) {
+          console.error('❌ No se pudo determinar price_list_code');
+          showNotification('No se pudo determinar la lista de precios del usuario', 'error');
+          setLoadingProducts(false);
+          return;
+        }
+
+        console.log(`🎯 Usando lista de precios FINAL: ${priceListCode}`);
 
         // CARGAR TODOS LOS PRODUCTOS CON PAGINACIÓN COMPLETA
         let allProducts = [];
@@ -635,7 +576,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     };
 
     fetchProducts();
-  }, [canAccessForm, authType]);
+  }, [canAccessForm, authType, userPriceListCode]);
 
     useEffect(() => {
       console.log('🔍 DEBUG PRODUCTS STATE:', {
