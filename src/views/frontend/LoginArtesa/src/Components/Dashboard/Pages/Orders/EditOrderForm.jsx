@@ -317,10 +317,10 @@ const EditOrderForm = ({ onOrderUpdated }) => {
           let allProducts = [];
           let totalProductCount = 0;
 
-          // Para BRANCH, obtener productos de su catálogo heredado
+          // ✅ PARA BRANCH, usar el endpoint específico
           if (authType === AUTH_TYPES.BRANCH) {
             try {
-              console.log('🏢 Obteniendo productos para branch desde catálogo heredado');
+              console.log('🏢 Obteniendo productos para branch desde endpoint específico');
               const response = await API.get('/branch-orders/products');
               
               if (response.data.success && response.data.data?.products) {
@@ -340,6 +340,7 @@ const EditOrderForm = ({ onOrderUpdated }) => {
               }
             } catch (error) {
               console.warn('⚠️ Error obteniendo productos para branch:', error.message);
+              throw new Error('No se pudieron cargar los productos para la sucursal');
             }
           } else {
             // Para usuarios principales, cargar desde price-lists
@@ -386,73 +387,27 @@ const EditOrderForm = ({ onOrderUpdated }) => {
 
                 currentPage++;
               } else {
-                throw new Error(response.data.message || 'Error en respuesta del API');
+                throw new Error(response.data.message || 'Error al cargar productos');
               }
-
-              if (currentPage > 20) {
-                console.warn('⚠️ Límite de seguridad alcanzado (20 páginas)');
-                break;
-              }
-
             } while (currentPage <= totalPages);
           }
 
-          console.log(`🎉 CARGA COMPLETA: ${allProducts.length} productos cargados de ${totalProductCount} disponibles`);
-
-          // MAPEO DE PRODUCTOS (solo para usuarios principales, branch ya viene mapeado)
-          let mappedProducts = allProducts;
-          
-          if (authType === AUTH_TYPES.USER) {
-            mappedProducts = allProducts.map((plProduct, index) => {
-              const priceValue = parseFloat(plProduct.price) || 0;
-
-              return {
-                product_id: plProduct.product_id || (index + 1),
-                name: plProduct.local_product_name || plProduct.product_name,
-                description: plProduct.local_product_description || plProduct.product_name,
-                sap_code: plProduct.product_code,
-                code: plProduct.product_code,
-                price: priceValue,
-                price_list1: priceValue,
-                effective_price: priceValue,
-                unit_price: priceValue,
-                price_list_code: plProduct.price_list_code,
-                price_list_name: plProduct.price_list_name,
-                currency: plProduct.currency || 'COP',
-                image_url: null,
-                has_custom_price: true,
-                custom_price_info: {
-                  price: priceValue,
-                  currency: plProduct.currency || 'COP',
-                  updated_at: plProduct.updated_at
-                },
-                price_source: 'price_list',
-                has_impuesto_saludable: false,
-                updated_at: plProduct.updated_at,
-                sap_last_sync: plProduct.sap_last_sync,
-                _original: plProduct
-              };
-            });
-          }
-
-          // FILTRAR PRODUCTOS CON PRECIOS VÁLIDOS
-          const validProducts = mappedProducts.filter(product => {
-            const price = parseFloat(product.price);
-            return price > 0;
+          // ✅ VALIDAR PRODUCTOS CON PRECIOS VÁLIDOS
+          const validProducts = allProducts.filter(p => {
+            const price = parseFloat(p.price || p.effective_price || p.price_list1 || 0);
+            return price > 0 && p.product_id;
           });
 
           setProducts(validProducts);
+          setAvailableProducts(validProducts);
 
-          if (validProducts.length === 0) {
-            showNotification('No se encontraron productos con precios válidos para tu lista de precios', 'warning');
-          } else {
-            console.log(`✅ Productos listos para edición: ${validProducts.length} productos cargados`);
-          }
+          console.log(`✅ PRODUCTOS FINALES CARGADOS: ${validProducts.length}`);
 
         } catch (error) {
-          console.error('❌ Error cargando productos para edición:', error);
-          showNotification('Error al cargar productos: ' + error.message, 'error');
+          console.error('❌ Error cargando productos:', error);
+          showNotification(error.message || 'Error al cargar productos', 'error');
           setProducts([]);
+          setAvailableProducts([]);
         } finally {
           setLoadingProducts(false);
         }

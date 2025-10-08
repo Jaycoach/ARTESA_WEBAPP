@@ -49,7 +49,7 @@ const DELIVERY_ZONES = {
 };
 
 const IVA_RATE = 0.19;
-const IMPUESTO_SALUDABLE_RATE = 0.10;
+const IMPUESTO_SALUDABLE_RATE = 0.12; // 12% impuesto saludable
 const MIN_ORDER_AMOUNT = 50000;
 const SHIPPING_CHARGE = 10000;
 const SHIPPING_LIMIT = 50000;

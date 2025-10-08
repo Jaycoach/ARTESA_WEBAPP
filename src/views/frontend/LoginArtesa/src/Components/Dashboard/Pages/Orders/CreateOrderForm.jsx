@@ -379,186 +379,91 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     const fetchProducts = async () => {
       console.log('🚀 Iniciando fetchProducts - CARGANDO TODOS LOS PRODUCTOS:', {
         authType,
-        userPriceListCode,  // ✅ AGREGAR LOG
+        userPriceListCode,
         timestamp: new Date().toISOString()
       });
       setLoadingProducts(true);
 
       try {
-        // ✅ DETERMINAR CÓDIGO DE LISTA DE PRECIOS - USAR EL DEL HOOK
-        let priceListCode = userPriceListCode || '1';  // ✅ PRIORIZAR userPriceListCode
-
-        console.log('📋 Price list code inicial:', {
-          fromHook: userPriceListCode,
-          willUse: priceListCode,
-          authType
-        });
-
-        // ✅ Solo sobrescribir si no viene del hook (no debería ser necesario)
-        if (!priceListCode || priceListCode === '1') {
-          if (authType === AUTH_TYPES.BRANCH) {
-            try {
-              console.log('🏢 Obteniendo price_list_code para usuario BRANCH como fallback...');
-              const branchResponse = await API.get('/branch-auth/profile');
-              if (branchResponse.data.success && branchResponse.data.data.price_list_code) {
-                priceListCode = branchResponse.data.data.price_list_code;
-                console.log('✅ Price list code obtenido de API branch:', priceListCode);
-              }
-            } catch (error) {
-              console.warn('⚠️ Error obteniendo price_list_code de branch:', error.message);
-            }
-          }
-        }
-
-        console.log(`🎯 Usando lista de precios: ${priceListCode}`);
-        // ✅ VALIDACIÓN FINAL antes de cargar productos
-        if (!priceListCode) {
-          console.error('❌ No se pudo determinar price_list_code');
-          showNotification('No se pudo determinar la lista de precios del usuario', 'error');
-          setLoadingProducts(false);
-          return;
-        }
-
-        console.log(`🎯 Usando lista de precios FINAL: ${priceListCode}`);
-
-        // CARGAR TODOS LOS PRODUCTOS CON PAGINACIÓN COMPLETA
         let allProducts = [];
-        let currentPage = 1;
-        let totalPages = 1;
         let totalProductCount = 0;
 
-        do {
-          const params = new URLSearchParams({
-            page: currentPage.toString(),
-            limit: '50',
-            orderBy: 'product_code',
-            orderDirection: 'ASC'
-          });
-
-          const endpoint = `/price-lists/${priceListCode}/products?${params.toString()}`;
-          console.log(`📡 Cargando página ${currentPage}/${totalPages}:`, endpoint);
-
-          const response = await API.get(endpoint);
-
-          if (response.data.success && Array.isArray(response.data.data)) {
-            const pageProducts = response.data.data;
-            allProducts = [...allProducts, ...pageProducts];
-
-            // ACTUALIZAR INFORMACIÓN DE PAGINACIÓN
-            if (response.data.pagination) {
-              totalPages = response.data.pagination.totalPages;
-              totalProductCount = response.data.pagination.totalCount;
-              console.log(`✅ Página ${currentPage}/${totalPages} cargada: ${pageProducts.length} productos (Total: ${allProducts.length}/${totalProductCount})`);
+        // ✅ PARA BRANCH, usar el endpoint específico
+        if (authType === AUTH_TYPES.BRANCH) {
+          try {
+            console.log('🏢 Obteniendo productos para branch desde endpoint específico');
+            const response = await API.get('/branch-orders/products');
+            
+            if (response.data.success && response.data.data?.products) {
+              allProducts = response.data.data.products.map(product => ({
+                product_id: product.product_id,
+                name: product.name || product.product_name,
+                description: product.description,
+                sap_code: product.sap_code,
+                price: parseFloat(product.inherited_price || product.custom_price || 0),
+                price_list1: parseFloat(product.inherited_price || product.custom_price || 0),
+                effective_price: parseFloat(product.inherited_price || product.custom_price || 0),
+                tax_code_ar: product.tax_code_ar,
+                unit: product.unit || 'UN',
+              }));
+              
+              totalProductCount = allProducts.length;
+              
+              console.log(`✅ Productos branch cargados: ${allProducts.length}`);
             }
-
-            currentPage++;
-          } else {
-            throw new Error(response.data.message || 'Error en respuesta del API');
+          } catch (error) {
+            console.error('❌ Error obteniendo productos para branch:', error);
+            throw new Error('No se pudieron cargar los productos para la sucursal');
           }
-
-          // SEGURIDAD: Evitar bucle infinito
-          if (currentPage > 20) {
-            console.warn('⚠️ Límite de seguridad alcanzado (20 páginas)');
-            break;
-          }
-
-        } while (currentPage <= totalPages);
-
-        console.log(`🎉 CARGA COMPLETA: ${allProducts.length} productos cargados de ${totalProductCount} disponibles`);
-
-        // MAPEO DE TODOS LOS PRODUCTOS
-        const mappedProducts = allProducts.map((plProduct, index) => {
-          const priceValue = parseFloat(plProduct.price) || 0;
-
-          return {
-            product_id: plProduct.product_id || plProduct.price_list_id,
-            name: plProduct.local_product_name || plProduct.product_name,
-            description: plProduct.local_product_description || plProduct.product_name,
-            sap_code: plProduct.product_code,
-            code: plProduct.product_code,
-            
-            tax_code_ar: plProduct.tax_code_ar || null,
-
-            // PRECIOS
-            price: priceValue,
-            price_list1: priceValue,
-            effective_price: priceValue,
-            unit_price: priceValue,
-
-            // INFORMACIÓN ADICIONAL
-            price_list_code: plProduct.price_list_code,
-            price_list_name: plProduct.price_list_name,
-            currency: plProduct.currency || 'COP',
-            image_url: null,
-            has_custom_price: true,
-            custom_price_info: {
-              price: priceValue,
-              currency: plProduct.currency || 'COP',
-              updated_at: plProduct.updated_at
-            },
-            price_source: 'price_list',
-            has_impuesto_saludable: false,
-            updated_at: plProduct.updated_at,
-            sap_last_sync: plProduct.sap_last_sync,
-
-            // DATOS ORIGINALES
-            _original: plProduct
-          };
-        });
-
-        // FILTRAR PRODUCTOS CON PRECIOS VÁLIDOS
-        const validProducts = mappedProducts.filter(product => {
-          const price = parseFloat(product.price);
-          return price > 0;
-        });
-
-        // NUEVO: Obtener información fiscal de productos
-        try {
-          console.log('🔍 Obteniendo información fiscal de productos...');
+        } else {
+          // Para usuarios principales, cargar desde price-lists
+          let priceListCode = userPriceListCode || '1';
           
-          // Obtener TODOS los productos con su información fiscal
-          const taxResponse = await API.get('/products');
-          
-          if (taxResponse.data.success && Array.isArray(taxResponse.data.data)) {
-            // Crear un mapa de tax_code_ar por product_id
-            const taxInfoMap = {};
-            taxResponse.data.data.forEach(product => {
-              if (product.tax_code_ar) {
-                taxInfoMap[product.product_id] = product.tax_code_ar;
-              }
+          console.log(`🎯 Usuario principal - Usando lista de precios: ${priceListCode}`);
+
+          // CARGAR TODOS LOS PRODUCTOS CON PAGINACIÓN COMPLETA
+          let currentPage = 1;
+          let totalPages = 1;
+
+          do {
+            const params = new URLSearchParams({
+              page: currentPage.toString(),
+              limit: '50',
+              orderBy: 'product_code',
+              orderDirection: 'ASC'
             });
-            
-            console.log('📊 Mapa de códigos fiscales obtenido:', Object.keys(taxInfoMap).length, 'productos con información fiscal');
-            
-            // Actualizar productos con información fiscal
-            validProducts.forEach(product => {
-              if (taxInfoMap[product.product_id]) {
-                product.tax_code_ar = taxInfoMap[product.product_id];
-                console.log(`✅ Tax code asignado: Producto ${product.product_id} (${product.name}) -> ${product.tax_code_ar}`);
-              } else {
-                console.log(`⚠️ Sin tax_code_ar: Producto ${product.product_id} (${product.name}) - tax_code_ar: ${product.tax_code_ar || 'undefined'}`);
+
+            const endpoint = `/price-lists/${priceListCode}/products?${params.toString()}`;
+            console.log(`📡 Cargando página ${currentPage}/${totalPages}:`, endpoint);
+
+            const response = await API.get(endpoint);
+
+            if (response.data.success && Array.isArray(response.data.data)) {
+              const pageProducts = response.data.data;
+              allProducts = [...allProducts, ...pageProducts];
+
+              if (response.data.pagination) {
+                totalPages = response.data.pagination.totalPages;
+                totalProductCount = response.data.pagination.totalCount;
+                console.log(`✅ Página ${currentPage}/${totalPages} cargada: ${pageProducts.length} productos (Total: ${allProducts.length}/${totalProductCount})`);
               }
-            });
-          }
-        } catch (taxError) {
-          console.warn('⚠️ No se pudo obtener información fiscal adicional:', taxError);
+
+              currentPage++;
+            } else {
+              throw new Error(response.data.message || 'Error al cargar productos');
+            }
+          } while (currentPage <= totalPages);
         }
+
+        // ✅ VALIDAR PRODUCTOS CON PRECIOS VÁLIDOS (común para ambos tipos)
+        const validProducts = allProducts.filter(p => {
+          const price = parseFloat(p.price || p.effective_price || p.price_list1 || 0);
+          return price > 0 && p.product_id;
+        });
 
         setProducts(validProducts);
 
-        console.log('🔍 === VERIFICACIÓN DE TAX CODES ===');
-        const productsWithTaxCode = validProducts.filter(p => p.tax_code_ar);
-        console.log(`✅ Productos con tax_code_ar: ${productsWithTaxCode.length}/${validProducts.length}`);
-        console.log('📊 Muestra de productos con tax_code:');
-        productsWithTaxCode.slice(0, 5).forEach(p => {
-          console.log(`  ✅ ${p.name} (ID: ${p.product_id}): ${p.tax_code_ar}`);
-        });
-
         console.log(`✅ PRODUCTOS FINALES CARGADOS: ${validProducts.length} productos válidos con precios > 0`);
-        console.log(`📊 ESTADÍSTICAS:`);
-        console.log(`   - Total obtenido del API: ${allProducts.length}`);
-        console.log(`   - Productos con precios válidos: ${validProducts.length}`);
-        console.log(`   - Lista de precios: ${priceListCode} (${allProducts[0]?.price_list_name || 'N/A'})`);
 
         if (validProducts.length === 0) {
           showNotification('No se encontraron productos con precios válidos', 'warning');
@@ -831,8 +736,8 @@ const CreateOrderForm = ({ onOrderCreated }) => {
           // Sin impuestos para productos con IVAG03 (0%)
           console.log(`   ✅ IVAG03 detectado - SIN IMPUESTOS`);
         } else if (taxCode === 'IMSB+IVA') {
-          // 39% impuesto saludable + 19% IVA
-          const impSaludable = itemSubtotal * 0.39;
+          // 12% impuesto saludable + 19% IVA (calculados independientemente)
+          const impSaludable = itemSubtotal * 0.12;
           const iva = itemSubtotal * IVA_RATE;
           impuestoSaludableTotal += impSaludable;
           ivaTotal += iva;
@@ -1947,7 +1852,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
             {impuestoSaludableTotal > 0 && (
               <div className="flex justify-between items-center">
                 <span className="font-medium text-gray-700">
-                  Impuesto Saludable (39%) + IVA:
+                  Impuesto Saludable (12%):
                 </span>
                 <span className="font-semibold text-gray-800">{formatCurrencyCOP(impuestoSaludableTotal)}</span>
               </div>
@@ -2094,7 +1999,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
                 )}
                 {impuestoSaludableTotal > 0 && (
                   <div className="flex justify-between">
-                    <span>Impuesto Saludable (39%):</span>
+                    <span>Impuesto Saludable (12%):</span>
                     <span>{formatCurrencyCOP(impuestoSaludableTotal)}</span>
                   </div>
                 )}
