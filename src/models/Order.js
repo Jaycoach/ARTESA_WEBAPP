@@ -423,19 +423,20 @@ static async create(orderData) {
       
       // Obtener información básica de la orden
       const orderQuery = `
-      SELECT o.*, u.name as user_name,
-            o.delivered_quantity, o.total_quantity,
-            o.invoice_doc_entry, o.invoice_doc_num,
-            o.invoice_date, o.invoice_total, o.invoice_url,
-            o.comments,
-            o.attachment_url,
-            cb.ship_to_code, cb.branch_name, cb.address as branch_address,
-            cb.city as branch_city, cb.phone as branch_phone
-      FROM Orders o
-      JOIN users u ON o.user_id = u.id
-      LEFT JOIN client_branches cb ON o.branch_id = cb.branch_id
-      WHERE o.order_id = $1
-    `;
+        SELECT o.*, u.name as user_name,
+              o.delivered_quantity, o.total_quantity,
+              o.invoice_doc_entry, o.invoice_doc_num,
+              o.invoice_date, o.invoice_total, o.invoice_url,
+              o.comments,
+              o.attachment_url,
+              o.customer_po_number,
+              cb.ship_to_code, cb.branch_name, cb.address as branch_address,
+              cb.city as branch_city, cb.phone as branch_phone
+        FROM Orders o
+        JOIN users u ON o.user_id = u.id
+        LEFT JOIN client_branches cb ON o.branch_id = cb.branch_id
+        WHERE o.order_id = $1
+      `;
       
       const { rows } = await pool.query(orderQuery, [orderId]);
       

@@ -464,7 +464,7 @@ const OrderDetails = () => {
               )}
               {/* Mostrar número de orden de compra del cliente */}
               {order.customer_po_number && (
-                <div>
+                <div className="sm:col-span-1">
                   <dt className="text-sm font-medium text-gray-500">Número de Orden de Compra</dt>
                   <dd className="mt-1 text-sm text-gray-900 font-medium">
                     {order.customer_po_number}

@@ -726,7 +726,7 @@ const EditOrderForm = ({ onOrderUpdated }) => {
         newDetails[index] = {
           ...newDetails[index],
           product_id: value,
-          unit_price: productPrice, // ← CAMBIAR ESTA LÍNEA
+          unit_price: productPrice,
           name: selectedProduct.name
         };
       } else {
@@ -735,7 +735,8 @@ const EditOrderForm = ({ onOrderUpdated }) => {
           product_id: value
         };
       }
-    } else {
+    } else if (field !== 'unit_price') {
+      // ✅ BLOQUEAR cambios en unit_price
       newDetails[index] = {
         ...newDetails[index],
         [field]: value
@@ -952,6 +953,8 @@ const EditOrderForm = ({ onOrderUpdated }) => {
         const formData = new FormData();
         formData.append('orderFile', orderFile);
         formData.append('orderData', JSON.stringify(orderData));
+        // Asegurar que customer_po_number se incluya explícitamente
+        formData.append('customer_po_number', customerPoNumber.trim());
         finalData = formData;
         isMultipart = true;
         console.log('📎 Incluyendo archivo en la actualización');
@@ -1136,15 +1139,7 @@ const EditOrderForm = ({ onOrderUpdated }) => {
                         />
                       </td>
                       <td className="px-4 py-2 text-right">
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0.01"
-                          value={detail.unit_price}
-                          onChange={(e) => handleProductChange(index, 'unit_price', e.target.value)}
-                          className="w-28 text-right border border-gray-300 rounded-md shadow-sm py-1 px-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                          required
-                        />
+                        ${parseFloat(detail.unit_price).toFixed(2)}
                       </td>
                       <td className="px-4 py-2 text-right font-medium text-gray-900">
                         ${(parseFloat(detail.quantity) * parseFloat(detail.unit_price)).toFixed(2)}

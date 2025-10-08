@@ -1051,6 +1051,7 @@ const Products = () => {
           shipping_amount: shipping || 0,
           delivery_date: deliveryDate,
           notes: '',
+          customer_po_number: '',
           delivery_zone: deliveryZone ? deliveryZone.key : null,
           delivery_zone_name: deliveryZone ? deliveryZone.name : branchInfo.city,
           municipality_dane_code: branchInfo.municipality_code,
@@ -1110,6 +1111,7 @@ const Products = () => {
           price_list_code: userPriceListCode || 'GENERAL',
           has_custom_pricing: customPricesApplied,
           notes: '',
+          customer_po_number: '',
 
           // ✅ PRODUCTOS SIMPLIFICADOS - MISMO FORMATO
           details: orderItems.map(item => ({
