@@ -111,6 +111,7 @@ const Products = () => {
   const [orderTotal, setOrderTotal] = useState(0);
   const [submittingOrder, setSubmittingOrder] = useState(false);
   const [deliveryDate, setDeliveryDate] = useState('');
+  const [customerPoNumber, setCustomerPoNumber] = useState('');
 
   // **ESTADOS PARA PRECIOS PERSONALIZADOS**
   const [customPricesApplied, setCustomPricesApplied] = useState(false);
@@ -1058,7 +1059,7 @@ const Products = () => {
           shipping_amount: shipping || 0,
           delivery_date: deliveryDate,
           notes: '',
-          customer_po_number: '',
+          customer_po_number: customerPoNumber?.trim() || '',
           delivery_zone: deliveryZone ? deliveryZone.key : null,
           delivery_zone_name: deliveryZone ? deliveryZone.name : branchInfo.city,
           municipality_dane_code: branchInfo.municipality_code,
@@ -1118,7 +1119,7 @@ const Products = () => {
           price_list_code: userPriceListCode || 'GENERAL',
           has_custom_pricing: customPricesApplied,
           notes: '',
-          customer_po_number: '',
+          customer_po_number: customerPoNumber?.trim() || '',
 
           // ✅ PRODUCTOS SIMPLIFICADOS - MISMO FORMATO
           details: orderItems.map(item => ({

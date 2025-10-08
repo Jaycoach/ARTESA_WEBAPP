@@ -1105,7 +1105,8 @@ const CreateOrderForm = ({ onOrderCreated }) => {
 
           // INFORMACIÓN DE ENTREGA
           delivery_date: deliveryDate,
-          notes: orderNotes,
+          notes: orderNotes || '',
+          customer_po_number: customerPoNumber.trim(),
           comments: orderNotes,
           delivery_zone: deliveryZone ? deliveryZone.key : null,
           delivery_zone_name: deliveryZone ? deliveryZone.name : branchInfo.city,
@@ -1166,6 +1167,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
           delivery_date: deliveryDate,
           notes: orderNotes,
           comments: orderNotes,
+          customer_po_number: customerPoNumber.trim(),
           
           // ✅ INFORMACIÓN DE SUCURSAL OBLIGATORIA
           branch_id: selectedBranch ? selectedBranch.value : null,
@@ -1209,6 +1211,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
         }
 
         formData.append('orderData', JSON.stringify(orderData));
+        formData.append('customer_po_number', customerPoNumber.trim());
       }
 
       let result;
@@ -1235,6 +1238,12 @@ const CreateOrderForm = ({ onOrderCreated }) => {
         }
 
         if (onOrderCreated) onOrderCreated(result.data);
+        // Redirigir a los detalles de la orden recién creada
+        const newOrderId = result.data.order_id;
+        if (newOrderId) {
+          const routePrefix = authType === AUTH_TYPES.BRANCH ? '/dashboard-branch' : '/dashboard';
+          navigate(`${routePrefix}/orders/${newOrderId}`);
+        }
       } else {
         throw new Error(result.message || 'Error al crear el pedido');
       }
