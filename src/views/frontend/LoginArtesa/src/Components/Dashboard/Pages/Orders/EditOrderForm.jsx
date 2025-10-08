@@ -667,9 +667,9 @@ const EditOrderForm = ({ onOrderUpdated }) => {
 
         if (onOrderUpdated) onOrderUpdated(response.data.data);
 
-        setTimeout(() => {
-          navigate(`${getRoutePrefix()}/orders/${orderId}`);
-        }, 2000);
+        navigate(`${getRoutePrefix()}/orders/${orderId}`, { 
+          state: { updated: true } 
+        });
       } else {
         throw new Error(response.data?.message || 'Error al actualizar el pedido');
       }

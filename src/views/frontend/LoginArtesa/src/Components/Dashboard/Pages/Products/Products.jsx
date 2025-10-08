@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   FiShoppingCart, FiSearch, FiEye, FiPlus, FiMinus, FiList, FiGrid,
   FiCheck, FiEdit, FiTrash2, FiUpload, FiImage, FiSettings,
@@ -57,6 +58,7 @@ const SHIPPING_FREE_LIMIT = 80000;
 const Products = () => {
   // **AUTENTICACIÓN**
   const { user, branch, authType, isAuthenticated, isAdmin, updateUserInfo } = useAuth();
+  const navigate = useNavigate();
   const isBranchUser = authType === AUTH_TYPES.BRANCH;
   const userIsAdmin = isAdmin();
 
@@ -125,6 +127,11 @@ const Products = () => {
   const showNotification = useCallback((message, type = 'success') => {
     setNotification({ show: true, message, type });
   }, []);
+
+  // **FUNCIÓN PARA OBTENER PREFIJO DE RUTA SEGÚN TIPO DE USUARIO**
+  const getRoutePrefix = () => {
+    return authType === AUTH_TYPES.BRANCH ? '/dashboard-branch' : '/dashboard';
+  };
 
   // **FUNCIONES AUXILIARES**
   const getCurrentUserId = useCallback(() => {
@@ -1132,13 +1139,15 @@ const Products = () => {
         }
       }
 
-      // ✅ MANEJO DE RESPUESTA (mantener como está)
       if (response.data.success) {
-        showNotification('Pedido creado exitosamente desde Products');
+        const newOrderId = response.data.data.order_id;
+        showNotification('Pedido creado exitosamente', 'success');
+        
+        // Limpiar estado
         setOrderItems([]);
         setOrderTotal(0);
         setDeliveryDate('');
-
+        
         if (authType !== AUTH_TYPES.BRANCH) {
           setSelectedBranch(null);
           setBranchAddress('');
@@ -1146,7 +1155,18 @@ const Products = () => {
           setAvailableDeliveryDays([]);
           setMunicipalityCode(null);
         }
-
+        
+        // ✅ REDIRIGIR A DETALLES DE LA ORDEN O LISTA DE ÓRDENES
+        setTimeout(() => {
+          navigate(`${getRoutePrefix()}/orders/${newOrderId}`, {
+            state: { fromCreation: true }
+          });
+          // O alternativamente a la lista:
+          // navigate(`${getRoutePrefix()}/orders`, {
+          //   state: { newOrderId }
+          // });
+        }, 1500);
+        
         console.log('✅ Pedido creado exitosamente desde Products component');
       } else {
         throw new Error(response.data.message || 'Error al crear el pedido');

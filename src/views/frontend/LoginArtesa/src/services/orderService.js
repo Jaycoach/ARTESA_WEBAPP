@@ -105,14 +105,27 @@ export const orderService = {
 
         // ✅ CONFIGURAR DATOS SEGÚN TIPO DE CONTENIDO
         let finalOrderData = orderData;
-        
+
         // Si es multipart/form-data, asegurar que incluya orderData JSON
         if (isMultipart && !(orderData instanceof FormData)) {
           // Si no es FormData pero se especificó multipart, crear FormData
           const formData = new FormData();
-          formData.append('orderData', JSON.stringify(orderData));
+          
+          // ✅ CRÍTICO: Asegurar que customer_po_number esté en orderData antes de stringify
+          const orderDataWithPO = {
+            ...orderData,
+            customer_po_number: orderData.customer_po_number || ''
+          };
+          
+          formData.append('orderData', JSON.stringify(orderDataWithPO));
+          
+          // Si hay archivo, agregarlo
+          if (orderData.orderFile) {
+            formData.append('orderFile', orderData.orderFile);
+          }
+          
           finalOrderData = formData;
-          console.log('📦 Datos convertidos a FormData con orderData JSON');
+          console.log('📦 Datos convertidos a FormData con orderData JSON y customer_po_number');
         } else if (isMultipart && orderData instanceof FormData) {
           // Si ya es FormData, verificar que tenga orderData
           if (!orderData.has('orderData')) {
@@ -120,14 +133,34 @@ export const orderService = {
             // Extraer datos del FormData existente y crear orderData JSON
             const extractedData = {};
             for (let [key, value] of orderData.entries()) {
-              if (key !== 'orderData') {
+              if (key !== 'orderData' && key !== 'orderFile') {
                 extractedData[key] = value;
               }
             }
+            // ✅ ASEGURAR customer_po_number en el JSON
+            if (!extractedData.customer_po_number) {
+              extractedData.customer_po_number = '';
+            }
             orderData.append('orderData', JSON.stringify(extractedData));
           }
+          
+          // ✅ VERIFICAR que customer_po_number esté en el FormData
+          if (!orderData.has('customer_po_number')) {
+            const orderDataJson = orderData.get('orderData');
+            if (orderDataJson) {
+              try {
+                const parsed = JSON.parse(orderDataJson);
+                if (parsed.customer_po_number) {
+                  orderData.append('customer_po_number', parsed.customer_po_number);
+                }
+              } catch (e) {
+                console.warn('⚠️ No se pudo parsear orderData para extraer customer_po_number');
+              }
+            }
+          }
+          
           finalOrderData = orderData;
-          console.log('📦 FormData verificado con orderData JSON');
+          console.log('📦 FormData verificado con orderData JSON y customer_po_number');
         }
 
       // ✅ LOG DETALLADO SEGÚN CONTEXTO
@@ -192,6 +225,31 @@ export const orderService = {
       const headers = isMultipart
         ? { 'Content-Type': 'multipart/form-data' }
         : { 'Content-Type': 'application/json' };
+
+        // ✅ ASEGURAR que customer_po_number siempre se incluya en actualizaciones
+        if (!orderData.customer_po_number && orderData.customer_po_number !== '') {
+          // Si no está definido, establecer como string vacío para evitar undefined
+          orderData.customer_po_number = '';
+        }
+
+        // ✅ Si es FormData, verificar que customer_po_number esté presente
+        if (isMultipart && orderData instanceof FormData) {
+          if (!orderData.has('customer_po_number')) {
+            const orderDataJson = orderData.get('orderData');
+            if (orderDataJson) {
+              try {
+                const parsed = JSON.parse(orderDataJson);
+                if (parsed.customer_po_number) {
+                  orderData.append('customer_po_number', parsed.customer_po_number);
+                } else {
+                  orderData.append('customer_po_number', '');
+                }
+              } catch (e) {
+                orderData.append('customer_po_number', '');
+              }
+            }
+          }
+        }
 
       console.log(`🔄 Actualizando orden ${userContext.type.toUpperCase()}: ${orderId}`);
 

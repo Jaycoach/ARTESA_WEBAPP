@@ -599,7 +599,7 @@ static async create(orderData) {
 
       if (updateData.customer_po_number !== undefined) {
         updateFields.push(`customer_po_number = $${paramIndex}`);
-        queryParams.push(updateData.customer_po_number);
+        queryParams.push(updateData.customer_po_number || ''); 
         paramIndex++;
       }
       
