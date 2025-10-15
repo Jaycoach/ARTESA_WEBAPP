@@ -110,6 +110,39 @@ class SAPSyncService {
       };
     }
   }
+  // Sincronizar productos manualmente desde SAP
+  async syncProducts() {
+    try {
+      const response = await API.post('/sap/sync');
+      return {
+        success: true,
+        data: response.data
+      };
+    } catch (error) {
+      console.error('Error syncing products:', error);
+      return {
+        success: false,
+        error: error.response?.data?.message || 'Error al sincronizar productos'
+      };
+    }
+  }
+
+  // Sincronizar sucursales manualmente desde SAP
+  async syncBranches() {
+    try {
+      const response = await API.post('/client-sync/branches/sync');
+      return {
+        success: true,
+        data: response.data
+      };
+    } catch (error) {
+      console.error('Error syncing branches:', error);
+      return {
+        success: false,
+        error: error.response?.data?.message || 'Error al sincronizar sucursales'
+      };
+    }
+  }
 }
 
 export const sapSyncService = new SAPSyncService();
