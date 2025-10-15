@@ -236,7 +236,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     setTimeout(() => setNotification({ show: false, message: '', type: '' }), 5000);
   };
   const IVA_RATE = 0.19;
-  const IMPUESTO_SALUDABLE_RATE = 0.10; // 10% impuesto saludable
+  const IMPUESTO_SALUDABLE_RATE = 0.20; // 20% impuesto saludable
   const MIN_ORDER_AMOUNT = 50000;
   const SHIPPING_CHARGE = 10000;
   const SHIPPING_LIMIT = 50000;
@@ -417,7 +417,15 @@ const CreateOrderForm = ({ onOrderCreated }) => {
           }
         } else {
           // Para usuarios principales, cargar desde price-lists
-          let priceListCode = userPriceListCode || '1';
+          
+          // ✅ ESPERAR A QUE userPriceListCode esté disponible
+          if (!userPriceListCode) {
+            console.warn('⚠️ userPriceListCode aún no disponible, esperando...');
+            setLoadingProducts(false);
+            return; // Salir sin cargar productos hasta que el hook cargue el price_list_code
+          }
+          
+          let priceListCode = userPriceListCode;
           
           console.log(`🎯 Usuario principal - Usando lista de precios: ${priceListCode}`);
 
@@ -736,8 +744,8 @@ const CreateOrderForm = ({ onOrderCreated }) => {
           // Sin impuestos para productos con IVAG03 (0%)
           console.log(`   ✅ IVAG03 detectado - SIN IMPUESTOS`);
         } else if (taxCode === 'IMSB+IVA') {
-          // 12% impuesto saludable + 19% IVA (calculados independientemente)
-          const impSaludable = itemSubtotal * 0.12;
+          // 20% impuesto saludable + 19% IVA (calculados independientemente)
+          const impSaludable = itemSubtotal * 0.20;
           const iva = itemSubtotal * IVA_RATE;
           impuestoSaludableTotal += impSaludable;
           ivaTotal += iva;
@@ -1852,7 +1860,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
             {impuestoSaludableTotal > 0 && (
               <div className="flex justify-between items-center">
                 <span className="font-medium text-gray-700">
-                  Impuesto Saludable (12%):
+                  Impuesto Saludable (20%):
                 </span>
                 <span className="font-semibold text-gray-800">{formatCurrencyCOP(impuestoSaludableTotal)}</span>
               </div>

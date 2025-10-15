@@ -1320,7 +1320,7 @@ static async getMonthlyStats(userId, months = 6) {
         const basePrice = parseFloat(product.price) || 0;
         // Determinar tipo de impuesto según configuración del producto
         const hasImpuestoSaludable = product.has_impuesto_saludable || false;
-        const taxRate = hasImpuestoSaludable ? 0.10 : 0.19; // 10% saludable o 19% IVA
+        const taxRate = hasImpuestoSaludable ? 0.20 : 0.19; // 20% saludable o 19% IVA
         const taxAmount = basePrice * taxRate;
         const totalPrice = basePrice + taxAmount;
 
