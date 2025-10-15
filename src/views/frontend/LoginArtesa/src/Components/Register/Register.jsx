@@ -31,6 +31,10 @@ const Register = () => {
     const [loading, setLoading] = useState(false);
     const [generalError, setGeneralError] = useState('');
     const [formSubmitted, setFormSubmitted] = useState(false);
+    const [acceptPrivacyPolicy, setAcceptPrivacyPolicy] = useState(false);
+    const [acceptDataProtection, setAcceptDataProtection] = useState(false);
+    const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+    const [showDataProtectionModal, setShowDataProtectionModal] = useState(false);
 
     const handleChange = (e) => {
         const { id, value } = e.target;
@@ -84,6 +88,18 @@ const Register = () => {
         }
         
         if (!formValid) return;
+
+        // Validar aceptación de políticas
+        if (!acceptPrivacyPolicy) {
+            setGeneralError('Debes aceptar la Política de Privacidad para continuar');
+            return;
+        }
+
+        if (!acceptDataProtection) {
+            setGeneralError('Debes aceptar la Política de Protección de Datos para continuar');
+            return;
+        }
+
 
         setLoading(true);
         setGeneralError('');
@@ -218,6 +234,66 @@ const Register = () => {
                             </div>
                             {errors.password && <FormErrorMessage message={errors.password} />}
                         </div>
+                        {/* Checkboxes de Políticas - Versión Compacta */}
+                        <div className="space-y-2 my-3">
+                            <div className="flex items-center">
+                                <input
+                                    type="checkbox"
+                                    id="acceptPrivacyPolicy"
+                                    checked={acceptPrivacyPolicy}
+                                    onChange={(e) => setAcceptPrivacyPolicy(e.target.checked)}
+                                    className="h-4 w-4 border-gray-300 rounded focus:ring-2 focus:ring-offset-0"
+                                    style={{ 
+                                        accentColor: '#f6754e',
+                                        flexShrink: 0
+                                    }}
+                                />
+                                <label 
+                                    htmlFor="acceptPrivacyPolicy" 
+                                    className="ml-2 text-xs"
+                                    style={{ color: '#374151', lineHeight: '1.3' }}
+                                >
+                                    Acepto la{' '}
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPrivacyModal(true)}
+                                        className="underline font-medium"
+                                        style={{ color: '#f6754e' }}
+                                    >
+                                        Política de Privacidad
+                                    </button>
+                                </label>
+                            </div>
+
+                            <div className="flex items-center">
+                                <input
+                                    type="checkbox"
+                                    id="acceptDataProtection"
+                                    checked={acceptDataProtection}
+                                    onChange={(e) => setAcceptDataProtection(e.target.checked)}
+                                    className="h-4 w-4 border-gray-300 rounded focus:ring-2 focus:ring-offset-0"
+                                    style={{ 
+                                        accentColor: '#f6754e',
+                                        flexShrink: 0
+                                    }}
+                                />
+                                <label 
+                                    htmlFor="acceptDataProtection" 
+                                    className="ml-2 text-xs"
+                                    style={{ color: '#374151', lineHeight: '1.3' }}
+                                >
+                                    Acepto la{' '}
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowDataProtectionModal(true)}
+                                        className="underline font-medium"
+                                        style={{ color: '#f6754e' }}
+                                    >
+                                        Política de Protección de Datos
+                                    </button>
+                                </label>
+                            </div>
+                        </div>
 
                         <button
                             type="submit"
@@ -236,7 +312,221 @@ const Register = () => {
                     </form>
                 </div>
             </div>
-        </div>
+            {/* Modal de Política de Privacidad */}
+            {showPrivacyModal && (
+                <div 
+                    className="fixed inset-0 flex items-center justify-center z-50 p-4"
+                    style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
+                >
+                    <div 
+                        className="rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+                        style={{ backgroundColor: '#ffffff' }}
+                    >
+                        <div 
+                            className="p-6 border-b"
+                            style={{ borderColor: '#e5e7eb' }}
+                        >
+                            <h2 
+                                className="text-2xl font-bold"
+                                style={{ color: '#1f2937' }}
+                            >
+                                Aviso de Privacidad
+                            </h2>
+                        </div>
+                        <div 
+                            className="p-6 overflow-y-auto flex-1"
+                            style={{ 
+                                color: '#374151',
+                                fontSize: '0.875rem',
+                                lineHeight: '1.5'
+                            }}
+                        >
+                            <p className="mb-4">
+                                La ARTESA SAS, es una sociedad legalmente constituida, identificada con NIT. 900.561.500-2, 
+                                que, en virtud del desarrollo de su objeto social, que es el procesamiento de harina y la venta 
+                                y comercialización de pan, le corresponde la obligación y la necesidad de dar cumplimiento a las 
+                                disposiciones previstas en la Ley 1581 de 2012 el Decreto 1377 de 2013 y el Decreto 886 de 2014.
+                            </p>
+                            
+                            <h3 
+                                className="text-lg font-semibold mt-4 mb-2"
+                                style={{ color: '#1f2937' }}
+                            >
+                                Finalidades del Tratamiento de Datos
+                            </h3>
+                            <ul className="list-disc pl-5 mb-4">
+                                <li>Para el cumplimiento de las obligaciones legales que involucren datos personales de sus grupos de interés.</li>
+                                <li>Para la gestión del talento humano y bienestar social de sus grupos de interés.</li>
+                                <li>Para la gestión comercial y relacionamiento con sus grupos de interés.</li>
+                                <li>Para comunicar a sus clientes, proveedores información comercial de interés sobre sus actividades comerciales, promociones y ofertas de manera directa o indirecta.</li>
+                            </ul>
+
+                            <h3 
+                                className="text-lg font-semibold mt-4 mb-2"
+                                style={{ color: '#1f2937' }}
+                            >
+                                Derechos del Titular
+                            </h3>
+                            <p className="mb-4">
+                                Como titular de sus datos personales, usted tiene derecho a conocer, actualizar, rectificar y solicitar 
+                                la supresión de su información personal. Para ejercer estos derechos, puede contactarnos a través de:
+                            </p>
+                            <ul className="list-disc pl-5 mb-4">
+                                <li><strong>Correo:</strong> servicioalcliente@artesapanaderia.com</li>
+                                <li><strong>Teléfono:</strong> +57 (1) 304 2481640</li>
+                                <li><strong>Dirección:</strong> Cra 35 #17a-61, Bogotá D.C.</li>
+                            </ul>
+
+                            <p 
+                                className="text-sm mt-4"
+                                style={{ color: '#6b7280' }}
+                            >
+                                Para conocer la política completa de protección de datos, visite: www.artesapanaderia.com
+                            </p>
+                        </div>
+                        <div 
+                            className="p-6 border-t flex justify-end"
+                            style={{ borderColor: '#e5e7eb' }}
+                        >
+                            <button
+                                onClick={() => setShowPrivacyModal(false)}
+                                className="px-6 py-2 rounded-md transition"
+                                style={{ 
+                                    backgroundColor: '#f6754e',
+                                    color: '#ffffff'
+                                }}
+                                onMouseEnter={(e) => e.target.style.backgroundColor = '#e56543'}
+                                onMouseLeave={(e) => e.target.style.backgroundColor = '#f6754e'}
+                            >
+                                Cerrar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal de Política de Protección de Datos */}
+            {showDataProtectionModal && (
+                <div 
+                    className="fixed inset-0 flex items-center justify-center z-50 p-4"
+                    style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
+                >
+                    <div 
+                        className="rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+                        style={{ backgroundColor: '#ffffff' }}
+                    >
+                        <div 
+                            className="p-6 border-b"
+                            style={{ borderColor: '#e5e7eb' }}
+                        >
+                            <h2 
+                                className="text-2xl font-bold"
+                                style={{ color: '#1f2937' }}
+                            >
+                                Política de Protección de Datos Personales
+                            </h2>
+                        </div>
+                        <div 
+                            className="p-6 overflow-y-auto flex-1"
+                            style={{ 
+                                color: '#374151',
+                                fontSize: '0.875rem',
+                                lineHeight: '1.5'
+                            }}
+                        >
+                            <h3 
+                                className="text-lg font-semibold mb-2"
+                                style={{ color: '#1f2937' }}
+                            >
+                                Legislación Aplicable
+                            </h3>
+                            <p className="mb-4">
+                                Esta política se expide con fundamento en la Ley 1581 de 2012 y sus Decretos Reglamentarios 
+                                1377 de 2013 y 886 de 2014, para garantizar el derecho constitucional que tienen todas las 
+                                personas a conocer, actualizar y rectificar las informaciones que se hayan recogido sobre 
+                                ellas en bases de datos.
+                            </p>
+
+                            <h3 
+                                className="text-lg font-semibold mt-4 mb-2"
+                                style={{ color: '#1f2937' }}
+                            >
+                                Principios
+                            </h3>
+                            <ul className="list-disc pl-5 mb-4">
+                                <li><strong>Legalidad:</strong> El tratamiento de datos es una actividad reglada que debe 
+                                sujetarse a lo establecido en la ley.</li>
+                                <li><strong>Finalidad:</strong> El tratamiento debe obedecer a una finalidad legítima 
+                                informada al titular.</li>
+                                <li><strong>Libertad:</strong> Solo puede llevarse a cabo con el consentimiento previo, 
+                                expreso e informado del titular.</li>
+                                <li><strong>Veracidad:</strong> La información debe ser veraz, completa, exacta y actualizada.</li>
+                                <li><strong>Transparencia:</strong> Se garantiza el derecho del titular a obtener información 
+                                sobre la existencia de datos que le conciernen.</li>
+                                <li><strong>Seguridad:</strong> La información se protegerá mediante medidas técnicas, humanas 
+                                y administrativas necesarias.</li>
+                                <li><strong>Confidencialidad:</strong> Todas las personas que intervengan están obligadas a 
+                                garantizar la reserva de la información.</li>
+                            </ul>
+
+                            <h3 
+                                className="text-lg font-semibold mt-4 mb-2"
+                                style={{ color: '#1f2937' }}
+                            >
+                                Sus Derechos
+                            </h3>
+                            <p className="mb-2">Como titular de datos personales, usted tiene derecho a:</p>
+                            <ul className="list-disc pl-5 mb-4">
+                                <li>Conocer, actualizar y rectificar sus datos personales</li>
+                                <li>Solicitar prueba de la autorización otorgada</li>
+                                <li>Ser informado sobre el uso que se ha dado a sus datos</li>
+                                <li>Presentar quejas ante la Superintendencia de Industria y Comercio</li>
+                                <li>Revocar la autorización y/o solicitar la supresión de sus datos</li>
+                                <li>Acceder de forma gratuita a sus datos personales</li>
+                            </ul>
+
+                            <h3 
+                                className="text-lg font-semibold mt-4 mb-2"
+                                style={{ color: '#1f2937' }}
+                            >
+                                Contacto
+                            </h3>
+                            <p className="mb-2">Para ejercer sus derechos o realizar consultas:</p>
+                            <ul className="list-disc pl-5 mb-4">
+                                <li><strong>Correo:</strong> servicioalcliente@artesapanaderia.com</li>
+                                <li><strong>Teléfono:</strong> +57 (1) 304 2481640</li>
+                                <li><strong>Dirección:</strong> Cra 35 #17a-61, Bogotá D.C.</li>
+                                <li><strong>Web:</strong> www.artesapanaderia.com</li>
+                            </ul>
+
+                            <p 
+                                className="text-sm mt-4"
+                                style={{ color: '#6b7280' }}
+                            >
+                                <strong>Vigencia:</strong> Esta política está vigente desde el 3 de octubre de 2024.
+                            </p>
+                        </div>
+                        <div 
+                            className="p-6 border-t flex justify-end"
+                            style={{ borderColor: '#e5e7eb' }}
+                        >
+                            <button
+                                onClick={() => setShowDataProtectionModal(false)}
+                                className="px-6 py-2 rounded-md transition"
+                                style={{ 
+                                    backgroundColor: '#f6754e',
+                                    color: '#ffffff'
+                                }}
+                                onMouseEnter={(e) => e.target.style.backgroundColor = '#e56543'}
+                                onMouseLeave={(e) => e.target.style.backgroundColor = '#f6754e'}
+                            >
+                                Cerrar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>  
     );
 };
 
