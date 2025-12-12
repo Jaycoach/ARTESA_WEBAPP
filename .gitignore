@@ -20,6 +20,7 @@ node_modules/
 # El resto de scripts por seguridad
 /scripts/*
 !/scripts/production/
+!scripts/update-product-images.js
 
 # Implementaciones de seguridad
 /src/security/
