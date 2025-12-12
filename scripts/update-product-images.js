@@ -12,13 +12,16 @@ const { Pool } = require('pg');
 const fs = require('fs');
 const path = require('path');
 
-// Configuración de la base de datos
+/// Configuración de la base de datos
 const pool = new Pool({
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_DATABASE,
-  port: process.env.DB_PORT || 5432
+  port: process.env.DB_PORT || 5432,
+  ssl: {
+    rejectUnauthorized: false
+  }
 });
 
 // Modo de simulación (no aplica cambios)
