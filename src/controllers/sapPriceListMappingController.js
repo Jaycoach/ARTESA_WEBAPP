@@ -1,5 +1,5 @@
 // src/controllers/sapSyncController.js - Agregar nuevo método
-const SapServiceManager = require('../services/SapServiceManager');
+const SapPriceListService = require('../services/SapPriceListService');
 const pool = require('../config/db');
 const { createContextLogger } = require('../config/logger');
 
@@ -13,15 +13,10 @@ async function syncPriceListMapping(req, res) {
     logger.info('Iniciando sincronización de mapeo de listas de precios...');
     
     // 1. Obtener todas las listas de precios desde SAP
-    const sapService = await SapServiceManager.getInstance();
+    const sapService = new SapPriceListService();
     await sapService.initialize();
-    
-    const priceListsResponse = await sapService.get('/PriceLists', {
-      $select: 'PriceListNo,PriceListName,IsGrossPrice,Active',
-      $filter: 'Active eq \'Y\''
-    });
-    
-    const sapPriceLists = priceListsResponse.value;
+
+    const sapPriceLists = await sapService.getPriceListsFromSap();
     logger.info(`Obtenidas ${sapPriceLists.length} listas de precios desde SAP`);
     
     // 2. Crear mapa de listas de precios
@@ -30,17 +25,16 @@ async function syncPriceListMapping(req, res) {
       priceListMap.set(pl.PriceListNo, {
         code: pl.PriceListNo.toString(),
         name: pl.PriceListName,
-        isGross: pl.IsGrossPrice === 'Y',
-        active: pl.Active === 'Y'
+        isGross: pl.IsGrossPrice === 'tYES',
+        active: pl.Active === 'tYES'
       });
     });
     
     // 3. Obtener clientes desde SAP con sus listas de precios
-    const clientsResponse = await sapService.get('/BusinessPartners', {
-      $select: 'CardCode,CardName,PriceListNum,ListNum',
-      $filter: 'CardType eq \'C\' and Valid eq \'Y\''
-    });
-    
+    const clientsResponse = await sapService.makeRequest('GET',
+      `${sapService.baseUrl}/BusinessPartners?$select=CardCode,CardName,PriceListNum,ListNum&$filter=CardType eq 'C' and Valid eq 'Y'`
+    );
+
     const sapClients = clientsResponse.value;
     logger.info(`Obtenidos ${sapClients.length} clientes desde SAP`);
     
