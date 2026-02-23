@@ -32,7 +32,7 @@ async function syncPriceListMapping(req, res) {
     
     // 3. Obtener clientes desde SAP con sus listas de precios
     const clientsResponse = await sapService.makeRequest('GET',
-      `${sapService.baseUrl}/BusinessPartners?$select=CardCode,CardName,PriceListNum,ListNum&$filter=CardType eq 'C' and Valid eq 'Y'`
+      `${sapService.baseUrl}/BusinessPartners?$select=CardCode,CardName,PriceListNum&$filter=CardType eq 'C' and Valid eq 'Y'`
     );
 
     const sapClients = clientsResponse.value;
@@ -48,7 +48,7 @@ async function syncPriceListMapping(req, res) {
     for (const sapClient of sapClients) {
       try {
         // Determinar qué lista de precios usar
-        let priceListNum = sapClient.PriceListNum || sapClient.ListNum;
+        let priceListNum = sapClient.PriceListNum;
         
         if (!priceListNum) {
           logger.warn(`Cliente sin lista de precios: ${sapClient.CardCode}`);
