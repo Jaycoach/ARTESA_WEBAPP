@@ -495,34 +495,16 @@ class ProductImageController {
 
       // Si no se requiere descarga, devolver la URL
       if (!download || download === 'false') {
-        // Para S3, generar URL firmada
+        // Para S3, devolver URL pública directa (bucket images/* es público)
         if (process.env.STORAGE_MODE === 's3') {
-          const key = S3Service.extractKeyFromUrl(imageUrl);
-          if (key) {
-            // Verificar que el archivo existe
-            const exists = await S3Service.fileExists(key);
-            if (!exists) {
-              logger.warn('Imagen no encontrada en S3', { key, productId, imageType });
-              return res.status(404).json({
-                success: false,
-                message: 'Imagen no encontrada'
-              });
+          return res.status(200).json({
+            success: true,
+            data: {
+              imageUrl: imageUrl,
+              imageType,
+              productId: parseInt(productId)
             }
-
-            // Generar URL firmada para visualización (24 horas)
-            const signedUrl = await S3Service.getSignedUrl('getObject', key, 86400);
-            
-            return res.status(200).json({
-              success: true,
-              data: {
-                imageUrl: signedUrl,
-                imageType,
-                productId: parseInt(productId),
-                expiresIn: 86400 // 24 horas
-              }
-            });
-          }
-          
+          });
         }
         
         // Para almacenamiento local o URL directa
