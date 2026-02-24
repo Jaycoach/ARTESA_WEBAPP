@@ -28,10 +28,10 @@ mkdir -p /app/uploads/client-profiles
 mkdir -p /app/tmp
 mkdir -p /app/logs
 mkdir -p /app/public
+mkdir -p /app/public/product-images
 
 # Asegurar permisos correctos
-chmod 755 /app/uploads /app/tmp /app/logs /app/public
-chown -R artesa:artesa /app/public
+chmod 755 /app/uploads /app/tmp /app/logs /app/public /app/public/product-images
 
 log "📁 Directorios preparados"
 
