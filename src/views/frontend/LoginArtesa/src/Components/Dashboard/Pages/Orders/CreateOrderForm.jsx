@@ -118,6 +118,9 @@ const CreateOrderForm = ({ onOrderCreated }) => {
   const isValidating = userStatus.loading;
   const canAccessForm = userStatus.canCreateOrders && !userStatus.loading && isAuthenticated;
 
+  // Estado para tooltip de imagen en hover
+  const [hoveredImage, setHoveredImage] = useState(null); // { productId, x, y }
+
   // Estados para manejo de imágenes visibles
   const [visibleOptions, setVisibleOptions] = useState(new Set());
   const [selectedProductImages, setSelectedProductImages] = useState(new Set()); // NUEVO
@@ -1426,6 +1429,25 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     );
   }, [throttledSetVisibleOptions]);
 
+  const ImageTooltip = ({ productId, x, y }) => {
+    if (!productId) return null;
+    return (
+      <div
+        className="fixed z-50 pointer-events-none"
+        style={{ top: y - 160, left: x + 20 }}
+      >
+        <div className="bg-white rounded-xl shadow-2xl border border-gray-200 p-2">
+          <ProductImageSmall
+            productId={productId}
+            alt="Vista previa"
+            className="w-40 h-40"
+            shouldLoad={true}
+          />
+        </div>
+      </div>
+    );
+  };
+
   // Verificación de estado de carga
   if (isValidating) {
     return (
@@ -1716,7 +1738,20 @@ const CreateOrderForm = ({ onOrderCreated }) => {
 
                 return (
                   <tr key={index}>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td
+                      className="px-6 py-4 whitespace-nowrap"
+                      onMouseEnter={(e) => {
+                        if (detail.product_id) {
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          setHoveredImage({
+                            productId: parseInt(detail.product_id),
+                            x: rect.right,
+                            y: rect.top + rect.height / 2
+                          });
+                        }
+                      }}
+                      onMouseLeave={() => setHoveredImage(null)}
+                    >
                       {detail.product_id && parseInt(detail.product_id) > 0 ? (
                         <ProductImageSmall
                           productId={parseInt(detail.product_id)}
@@ -1984,6 +2019,14 @@ const CreateOrderForm = ({ onOrderCreated }) => {
             </div>
           </div>
         </div>
+      )}
+
+      {hoveredImage && (
+        <ImageTooltip
+          productId={hoveredImage.productId}
+          x={hoveredImage.x}
+          y={hoveredImage.y}
+        />
       )}
 
       {showConfirmationModal && (
