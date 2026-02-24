@@ -17,6 +17,7 @@ services:
       - "3000"  # Solo exponer internamente
     volumes:
       - artesa-uploads:/app/uploads
+      - artesa-product-images:/app/public/product-images
       - artesa-logs:/app/logs
       - artesa-tmp:/app/tmp
     healthcheck:
@@ -45,6 +46,7 @@ services:
       - ./docker/nginx/staging-ssl.conf:/etc/nginx/conf.d/default.conf:ro
       - ./ssl:/etc/nginx/ssl:ro
       - ./logs/nginx:/var/log/nginx
+      - artesa-product-images:/app/public/product-images:ro
     depends_on:
       app:
         condition: service_healthy
@@ -70,5 +72,7 @@ volumes:
   artesa-tmp:
     external: true
     name: artesa-api_artesa-tmp
+  artesa-product-images:
+    driver: local
   nginx-logs:
     driver: local
