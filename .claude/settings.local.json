@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(aws cloudfront list-distributions --profile artesa --query \"DistributionList.Items[?DomainName==''d1bqegutwmfn98.cloudfront.net''].Id\" --output text)"
+    ]
+  }
+}

@@ -43,6 +43,7 @@ if ($Environment -eq "production") {
     $BucketName = "artesa-frontend-staging"
     $Mode = "staging"
     $CloudFrontUrl = "https://d1bqegutwmfn98.cloudfront.net"
+    $CloudFrontDistributionId = "EW6Z1KU9EFB7I"
     $EnvFile = ".env.staging"
 }
 
@@ -244,7 +245,7 @@ aws s3 sync dist/ s3://$BucketName --delete --cache-control "public, max-age=300
 Write-Host "`n🔄 Invalidando CloudFront..." -ForegroundColor Yellow
 
 # Extraer Distribution ID de la URL de CloudFront
-$DistributionId = $CloudFrontUrl -replace "https://", "" -replace "\.cloudfront\.net.*", ""
+$DistributionId = $CloudFrontDistributionId
 Write-Host "🔗 Distribution ID: $DistributionId" -ForegroundColor Cyan
 
 if ($DistributionId -and $DistributionId -ne "None") {
