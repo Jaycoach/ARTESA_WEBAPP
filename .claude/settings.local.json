@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(aws cloudfront list-distributions --profile artesa --query \"DistributionList.Items[?DomainName==''d1bqegutwmfn98.cloudfront.net''].Id\" --output text)"
+      "Bash(aws cloudfront list-distributions --profile artesa --query \"DistributionList.Items[?DomainName==''d1bqegutwmfn98.cloudfront.net''].Id\" --output text)",
+      "Bash(aws cloudfront create-invalidation --distribution-id EW6Z1KU9EFB7I --paths \"/*\" --profile artesa)"
     ]
   }
 }

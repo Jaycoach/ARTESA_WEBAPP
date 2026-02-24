@@ -96,6 +96,20 @@ elif [ "$DEPLOY_MODE" = "partial" ] || [ "$NEEDS_PARTIAL_REBUILD" = true ]; then
     
     # Paso 3: Levantar contenedores
     echo "🚀 Levantando contenedores..."
+    # Verificar que certificados SSL coincidan
+    echo "🔐 Verificando certificados SSL..."
+    CERT_MD5=$(openssl x509 -noout -modulus -in ~/artesa-api/ssl/nginx.crt | openssl md5)
+    KEY_MD5=$(openssl rsa -noout -modulus -in ~/artesa-api/ssl/nginx.key | openssl md5)
+    if [ "$CERT_MD5" != "$KEY_MD5" ]; then
+        echo "⚠️  Certificados SSL no coinciden, regenerando..."
+        openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+          -keyout ~/artesa-api/ssl/nginx.key \
+          -out ~/artesa-api/ssl/nginx.crt \
+          -subj "/C=US/ST=State/L=City/O=Artesa/CN=ec2-44-216-131-63.compute-1.amazonaws.com"
+        echo "✅ Certificados SSL regenerados correctamente"
+    else
+        echo "✅ Certificados SSL verificados"
+    fi
     docker-compose --env-file .env.staging -f docker-compose.staging.yml up -d
     # Verificar y corregir permisos si es necesario
     echo "🔧 Verificando permisos de directorios..."
@@ -119,8 +133,22 @@ elif [ "$DEPLOY_MODE" = "full" ] || [ "$NEEDS_FULL_REBUILD" = true ]; then
     
     # Paso 3: Levantar contenedores
     echo "🚀 Levantando contenedores..."
+    # Verificar que certificados SSL coincidan
+    echo "🔐 Verificando certificados SSL..."
+    CERT_MD5=$(openssl x509 -noout -modulus -in ~/artesa-api/ssl/nginx.crt | openssl md5)
+    KEY_MD5=$(openssl rsa -noout -modulus -in ~/artesa-api/ssl/nginx.key | openssl md5)
+    if [ "$CERT_MD5" != "$KEY_MD5" ]; then
+        echo "⚠️  Certificados SSL no coinciden, regenerando..."
+        openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+          -keyout ~/artesa-api/ssl/nginx.key \
+          -out ~/artesa-api/ssl/nginx.crt \
+          -subj "/C=US/ST=State/L=City/O=Artesa/CN=ec2-44-216-131-63.compute-1.amazonaws.com"
+        echo "✅ Certificados SSL regenerados correctamente"
+    else
+        echo "✅ Certificados SSL verificados"
+    fi
     docker-compose --env-file .env.staging -f docker-compose.staging.yml up -d
-    
+
 else
     echo "❌ Modo de deploy no reconocido"
     exit 1
