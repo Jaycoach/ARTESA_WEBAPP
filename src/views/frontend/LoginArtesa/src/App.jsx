@@ -13,7 +13,7 @@ import { AuthProvider } from './context/AuthContext';
 import Home from './Components/Home/Home';
 import OriginalHome from './Components/Home/home2';
 import ErrorBoundary from './Components/ErrorBoundary.jsx';
-import RecaptchaWrapper from './components/RecaptchaWrapper';
+import RecaptchaWrapper from './Components/RecaptchaWrapper';
 
 // 3️⃣  Imports diferidos
 const Login               = lazy(() => import('./Components/Login/Login'));
