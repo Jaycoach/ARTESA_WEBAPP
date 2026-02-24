@@ -43,7 +43,7 @@ COPY docker/scripts/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 # Crear directorios y establecer permisos
-RUN mkdir -p uploads tmp logs public && \
+RUN mkdir -p uploads tmp logs public public/product-images && \
     chown -R artesa:artesa /app && \
     chown artesa:artesa /entrypoint.sh
 

@@ -31,7 +31,7 @@ mkdir -p /app/public
 mkdir -p /app/public/product-images
 
 # Asegurar permisos correctos
-chmod 755 /app/uploads /app/tmp /app/logs /app/public /app/public/product-images
+chmod 755 /app/uploads /app/tmp /app/logs /app/public
 
 log "📁 Directorios preparados"
 
