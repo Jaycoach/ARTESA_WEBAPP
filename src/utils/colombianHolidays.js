@@ -162,8 +162,8 @@ function getEasterSunday(year) {
    */
   function isWorkingDay(date) {
     const dayOfWeek = date.getDay();
-    // Verificar si no es fin de semana (0 = domingo, 6 = sábado)
-    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+    // Solo domingo es no hábil; sábado es día de entrega válido
+    const isWeekend = dayOfWeek === 0;
     // Si no es fin de semana, verificar si no es festivo
     return !isWeekend && !isColombianHoliday(date);
   }

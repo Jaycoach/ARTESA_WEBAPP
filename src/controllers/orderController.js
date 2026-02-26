@@ -253,7 +253,8 @@ const createOrder = async (req, res) => {
     // Validar fecha de entrega si se proporciona
     let parsedDeliveryDate = null;
     if (delivery_date) {
-      parsedDeliveryDate = new Date(delivery_date);
+      const [dyear, dmonth, dday] = delivery_date.split('-').map(Number);
+      parsedDeliveryDate = new Date(dyear, dmonth - 1, dday, 12, 0, 0);
       
       if (isNaN(parsedDeliveryDate.getTime())) {
         return res.status(400).json({
