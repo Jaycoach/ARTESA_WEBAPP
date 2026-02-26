@@ -1712,13 +1712,13 @@ const CreateOrderForm = ({ onOrderCreated }) => {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ width: '80px' }}>
                   Imagen Referencia
                 </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ width: '40%' }}>
                   Producto
                 </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ width: '90px' }}>
                   Cantidad
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -1791,22 +1791,22 @@ const CreateOrderForm = ({ onOrderCreated }) => {
                             ...base,
                             borderColor: '#D1D5DB',
                             boxShadow: 'none',
-                            minWidth: '300px',
+                            minWidth: '280px',
                             width: '100%',
                             '&:hover': { borderColor: '#4F46E5' }
                           }),
                           container: (base) => ({
                             ...base,
-                            width: '300px',
-                            minWidth: '300px',
-                            maxWidth: '400px'
+                            width: '100%',
+                            minWidth: '280px',
+                            maxWidth: '100%'
                           }),
                           menu: (base) => ({
                             ...base,
                             zIndex: 9999,
-                            width: '300px',
-                            minWidth: '300px',
-                            maxHeight: '240px', // NUEVO: Limitar altura total del menú
+                            width: '420px',
+                            minWidth: '280px',
+                            maxHeight: '240px',
                           }),
                           menuList: (base) => ({  // NUEVO: Estilos específicos para la lista
                             ...base,
@@ -1822,13 +1822,14 @@ const CreateOrderForm = ({ onOrderCreated }) => {
                       />
                     </td>
 
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-6 py-4 whitespace-nowrap" style={{ width: '90px' }}>
                       <input
                         type="number"
                         min="1"
                         value={detail.quantity}
                         onChange={(e) => handleProductChange(index, 'quantity', e.target.value)}
                         className="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                        style={{ width: '70px' }}
                         required
                       />
                     </td>
