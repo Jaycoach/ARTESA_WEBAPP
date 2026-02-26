@@ -1,4 +1,5 @@
 const { createContextLogger } = require('../config/logger');
+const cron = require('node-cron');
 const SapBaseService = require('./SapBaseService');
 const SapProductService = require('./SapProductService');
 const SapClientService = require('./SapClientService');
@@ -113,7 +114,10 @@ class SapServiceManager {
       
       // Esperar a que todos los servicios se inicialicen
       await Promise.allSettled(initTasks);
-      
+
+      // Programar sincronización nocturna unificada (3 AM)
+      this.scheduleDailySyncTask();
+
       this.initialized = true;
       this.logger.info('Gestor de servicios SAP inicializado correctamente');
     } catch (error) {
@@ -263,6 +267,89 @@ class SapServiceManager {
         error: error.message
       });
     }
+  }
+
+  /**
+   * Programa la sincronización nocturna unificada a las 3 AM
+   * Ejecuta en orden: productos → listas de precios → clientes → institucionales → sucursales
+   */
+  scheduleDailySyncTask() {
+    const dailySchedule = '0 3 * * *';
+
+    if (!cron.validate(dailySchedule)) {
+      this.logger.error('Formato de programación inválido para sincronización nocturna', {
+        schedule: dailySchedule
+      });
+      return;
+    }
+
+    this.logger.info('Programando sincronización nocturna unificada', { schedule: dailySchedule });
+
+    cron.schedule(dailySchedule, async () => {
+      this.logger.info('Iniciando sincronización nocturna unificada');
+
+      // 1. Productos (sync completo)
+      try {
+        this.logger.info('[Noche] Sincronizando productos desde SAP');
+        await this.productService.syncProductsFromSAP(true);
+        this.logger.info('[Noche] Sincronización de productos finalizada');
+      } catch (error) {
+        this.logger.error('[Noche] Error al sincronizar productos', {
+          error: error.message,
+          stack: error.stack
+        });
+      }
+
+      // 2. Listas de precios
+      try {
+        this.logger.info('[Noche] Sincronizando listas de precios desde SAP');
+        await this.priceListService.syncAllPriceLists();
+        this.logger.info('[Noche] Sincronización de listas de precios finalizada');
+      } catch (error) {
+        this.logger.error('[Noche] Error al sincronizar listas de precios', {
+          error: error.message,
+          stack: error.stack
+        });
+      }
+
+      // 3. Perfiles de clientes (sync completo)
+      try {
+        this.logger.info('[Noche] Sincronizando perfiles de clientes desde SAP');
+        await this.clientService.syncAllClientsWithSAP();
+        this.logger.info('[Noche] Sincronización de perfiles de clientes finalizada');
+      } catch (error) {
+        this.logger.error('[Noche] Error al sincronizar perfiles de clientes', {
+          error: error.message,
+          stack: error.stack
+        });
+      }
+
+      // 4. Clientes institucionales
+      try {
+        this.logger.info('[Noche] Sincronizando clientes institucionales desde SAP');
+        await this.clientService.syncInstitutionalClients();
+        this.logger.info('[Noche] Sincronización de clientes institucionales finalizada');
+      } catch (error) {
+        this.logger.error('[Noche] Error al sincronizar clientes institucionales', {
+          error: error.message,
+          stack: error.stack
+        });
+      }
+
+      // 5. Sucursales de todos los clientes
+      try {
+        this.logger.info('[Noche] Sincronizando sucursales de clientes desde SAP');
+        await this.clientService.syncAllClientBranches();
+        this.logger.info('[Noche] Sincronización de sucursales finalizada');
+      } catch (error) {
+        this.logger.error('[Noche] Error al sincronizar sucursales', {
+          error: error.message,
+          stack: error.stack
+        });
+      }
+
+      this.logger.info('Sincronización nocturna unificada completada');
+    });
   }
 
   /**

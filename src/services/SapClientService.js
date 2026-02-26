@@ -25,11 +25,8 @@ class SapClientService extends SapBaseService {
       // Inicializar servicio base primero
       await super.initialize();
       
-      // Iniciar sincronización programada de clientes
+      // Iniciar sincronización programada de clientes (cada 2h de 6AM a 8PM)
       this.scheduleSyncTask();
-      
-      // Programar sincronización diaria completa
-      this.scheduleDailySyncTask();
       
       return this;
     } catch (error) {
@@ -67,6 +64,8 @@ class SapClientService extends SapBaseService {
         await this.syncAllClientsWithSAP();
         // Sincronizar también clientes institucionales
         await this.syncInstitutionalClients();
+        // Sincronizar sucursales de todos los clientes después de sincronizar perfiles
+        await this.syncAllClientBranches();
         this.logger.info('Sincronización diaria completa de perfiles finalizada exitosamente');
       } catch (error) {
         this.logger.error('Error en sincronización diaria completa de perfiles', {
@@ -75,6 +74,128 @@ class SapClientService extends SapBaseService {
         });
       }
     });
+  }
+
+  /**
+   * Sincroniza sucursales de todos los clientes desde SAP
+   * Se ejecuta después de la sincronización diaria de perfiles
+   */
+  async syncAllClientBranches() {
+    try {
+      this.logger.info('Iniciando sincronización de sucursales post-sync de clientes');
+
+      const { rows: clients } = await pool.query(
+        `SELECT client_id, cardcode_sap, company_name
+         FROM client_profiles
+         WHERE cardcode_sap IS NOT NULL
+         ORDER BY company_name`
+      );
+
+      const stats = { total: clients.length, created: 0, updated: 0, errors: 0, skipped: 0 };
+
+      for (const client of clients) {
+        try {
+          const branches = await this.getClientBranchesFromCRD1(client.cardcode_sap);
+
+          if (branches.length === 0) {
+            stats.skipped++;
+            continue;
+          }
+
+          const branchStats = { total: branches.length, created: 0, updated: 0, errors: 0 };
+
+          for (const branch of branches) {
+            try {
+              const normalizedBranch = {
+                AddressName: branch.AddressName || branch.Address,
+                Street: branch.Street || '',
+                City: branch.City || '',
+                State: branch.State || '',
+                Country: branch.Country || 'CO',
+                ZipCode: branch.ZipCode || '',
+                U_HBT_MunMed: branch.U_HBT_MunMed || null,
+                U_HBT_CORREO: branch.U_HBT_CORREO || null,
+                U_HBT_ENCARGADO: branch.U_HBT_ENCARGADO || null
+              };
+
+              const { rows } = await pool.query(
+                'SELECT branch_id FROM client_branches WHERE client_id = $1 AND ship_to_code = $2',
+                [client.client_id, normalizedBranch.AddressName]
+              );
+
+              if (rows.length === 0) {
+                // Verificar que el email no exista ya en otra sucursal
+                if (normalizedBranch.U_HBT_CORREO) {
+                  const { rows: emailCheck } = await pool.query(
+                    'SELECT branch_id FROM client_branches WHERE email_branch = $1',
+                    [normalizedBranch.U_HBT_CORREO]
+                  );
+                  if (emailCheck.length > 0) {
+                    this.logger.warn('Email de sucursal ya existe en otro registro, omitiendo', {
+                      cardCode: client.cardcode_sap,
+                      email: normalizedBranch.U_HBT_CORREO,
+                      existingBranchId: emailCheck[0].branch_id
+                    });
+                    branchStats.errors++;
+                    continue;
+                  }
+                }
+
+                await pool.query(
+                  `INSERT INTO client_branches
+                   (client_id, ship_to_code, branch_name, address, city, state, country, zip_code,
+                    is_default, municipality_code, mail, email_branch, manager_name)
+                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+                  [
+                    client.client_id,
+                    normalizedBranch.AddressName,
+                    normalizedBranch.AddressName,
+                    normalizedBranch.Street,
+                    normalizedBranch.City,
+                    normalizedBranch.State,
+                    normalizedBranch.Country,
+                    normalizedBranch.ZipCode,
+                    false,
+                    normalizedBranch.U_HBT_MunMed,
+                    normalizedBranch.U_HBT_CORREO,
+                    normalizedBranch.U_HBT_CORREO,
+                    normalizedBranch.U_HBT_ENCARGADO
+                  ]
+                );
+                branchStats.created++;
+              }
+            } catch (branchError) {
+              branchStats.errors++;
+              this.logger.error('Error al sincronizar sucursal individual en cron', {
+                cardCode: client.cardcode_sap,
+                error: branchError.message
+              });
+            }
+          }
+
+          stats.created += branchStats.created;
+          stats.updated += branchStats.updated;
+          stats.errors += branchStats.errors;
+
+        } catch (clientError) {
+          stats.errors++;
+          this.logger.error('Error al procesar cliente en syncAllClientBranches', {
+            cardCode: client.cardcode_sap,
+            error: clientError.message
+          });
+        }
+      }
+
+      this.logger.info('Sincronización de sucursales post-sync finalizada', stats);
+      return stats;
+
+    } catch (error) {
+      this.logger.error('Error general en syncAllClientBranches', {
+        error: error.message,
+        stack: error.stack
+      });
+      throw error;
+    }
   }
 
   /**
