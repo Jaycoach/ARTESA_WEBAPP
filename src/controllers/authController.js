@@ -379,17 +379,19 @@ class AuthController {
     
             // 3. Buscar usuario y verificar estado
             const query = `
-                SELECT 
+                SELECT
                     u.id,
                     u.name,
                     u.mail,
                     u.password,
                     u.rol_id,
                     u.is_active,
-                    COALESCE(u.email_verified, true) as email_verified,
-                    r.nombre as role_name
+                    COALESCE(u.email_verified, false) as email_verified,
+                    r.nombre as role_name,
+                    cp.cardcode_sap
                 FROM users u
                 JOIN roles r ON u.rol_id = r.id
+                LEFT JOIN client_profiles cp ON u.id = cp.user_id
                 WHERE u.mail = $1
             `;
             
@@ -437,7 +439,7 @@ class AuthController {
             }
 
             // Verificar si el correo está verificado (si existe el campo)
-            if (user.hasOwnProperty('email_verified') && !user.email_verified) {
+            if (user.hasOwnProperty('email_verified') && !user.email_verified && !user.cardcode_sap) {
                 logger.warn('Intento de login con correo no verificado', {
                     mail: mailField,
                     userId: user.id

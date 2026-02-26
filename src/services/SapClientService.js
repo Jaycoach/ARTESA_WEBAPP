@@ -1579,19 +1579,19 @@ class SapClientService extends SapBaseService {
               
               // 1. Crear usuario activo con contraseña temporal
               const userInsertQuery = `
-                INSERT INTO users (name, mail, password, rol_id, is_active, created_at, updated_at)
-                VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                INSERT INTO users (name, mail, password, rol_id, is_active, email_verified, created_at, updated_at)
+                VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 RETURNING id
               `;
-              
+
               const username = sapClient.CardName || sapClient.CardCode;
               const email = sapClient.EmailAddress.trim();
               const tempPasswordHash = '$2b$10$ZxUFAqOVXfZ9QBjFqX2h.eQGfgNAm3HPAZ9Aa8Th5lqeJ4hCmhXMK'; // "password123"
               const roleId = 2; // Role USER
               const isActive = true; // Activo pero necesitará resetear contraseña
-              
+
               const { rows: [newUser] } = await client.query(userInsertQuery, [
-                username, email, tempPasswordHash, roleId, isActive
+                username, email, tempPasswordHash, roleId, isActive, true
               ]);
               
               // 2. Crear perfil de cliente completo
@@ -2361,8 +2361,8 @@ class SapClientService extends SapBaseService {
               
               // Crear usuario
               const userResult = await client.query(
-                'INSERT INTO users (name, mail, password, rol_id, is_active) VALUES ($1, $2, $3, $4, $5) RETURNING id',
-                [username, email, hashedPassword, 2, true] // rol_id 2 = Usuario regular, ya activo
+                'INSERT INTO users (name, mail, password, rol_id, is_active, email_verified) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
+                [username, email, hashedPassword, 2, true, true] // rol_id 2 = Usuario regular, ya activo
               );
               
               userId = userResult.rows[0].id;
@@ -3135,19 +3135,19 @@ class SapClientService extends SapBaseService {
       
       // Crear usuario
       const userInsertQuery = `
-        INSERT INTO users (name, mail, password, rol_id, is_active, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        INSERT INTO users (name, mail, password, rol_id, is_active, email_verified, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         RETURNING id
       `;
-      
+
       const username = sapClient.CardName || sapClient.CardCode;
       const email = sapClient.EmailAddress.trim();
       const tempPasswordHash = '$2b$10$ZxUFAqOVXfZ9QBjFqX2h.eQGfgNAm3HPAZ9Aa8Th5lqeJ4hCmhXMK';
       const roleId = 2;
       const isActive = true;
-      
+
       const { rows: [newUser] } = await client.query(userInsertQuery, [
-        username, email, tempPasswordHash, roleId, isActive
+        username, email, tempPasswordHash, roleId, isActive, true
       ]);
       
       // Crear perfil
