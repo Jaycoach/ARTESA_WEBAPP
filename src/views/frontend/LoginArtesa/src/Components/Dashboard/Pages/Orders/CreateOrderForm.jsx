@@ -1316,9 +1316,6 @@ const CreateOrderForm = ({ onOrderCreated }) => {
 
     // Validación adicional para productos con nombres largos
     const displayLabel = label || productData?.name || 'Producto sin nombre';
-    const truncatedLabel = displayLabel.length > 50 
-      ? displayLabel.substring(0, 47) + '...' 
-      : displayLabel;
 
     return (
       <div className="flex items-center py-1" data-product-id={value}>
@@ -1329,8 +1326,8 @@ const CreateOrderForm = ({ onOrderCreated }) => {
           shouldLoad={shouldLoadImage}
         />
         <div className="flex-1 min-w-0">
-          <div className="font-medium text-sm text-gray-800 leading-tight truncate">
-            {truncatedLabel}
+          <div className="font-medium text-sm text-gray-800 leading-snug break-words whitespace-normal">
+            {displayLabel}
           </div>
           {price && price > 0 && (
             <div className="text-xs text-gray-500">{formatCurrencyCOP(price)}</div>
@@ -1737,7 +1734,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
                 const selectedProduct = products.find(p => p.product_id === parseInt(detail.product_id));
 
                 return (
-                  <tr key={index}>
+                  <tr key={index} className="align-top">
                     <td
                       className="px-6 py-4 whitespace-nowrap"
                       onMouseEnter={(e) => {
@@ -1766,7 +1763,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
                       )}
                     </td>
 
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-6 py-4 align-top" style={{ width: '40%' }}>
                       <Select
                         value={productOptionsForSelect.find(option => option.value === parseInt(detail.product_id))}
                         onChange={(option) => handleSelectChange(index, option)}
