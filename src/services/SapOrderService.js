@@ -454,7 +454,7 @@ scheduleInvoiceCheckTask() {
         JOIN users u ON o.user_id = u.id
         JOIN client_profiles cp ON u.id = cp.user_id
         WHERE (o.sap_synced = false OR o.sap_synced IS NULL)
-        AND o.status_id = 3  -- En Producción
+        AND o.status_id IN (1, 2, 3)  -- Pendiente, Aprobada o En Producción
         AND cp.cardcode_sap IS NOT NULL
         AND COALESCE(o.sap_sync_attempts, 0) < 3 -- Limitar intentos
         AND o.delivery_date IS NOT NULL  -- Solo órdenes con fecha de entrega definida
@@ -496,7 +496,14 @@ scheduleInvoiceCheckTask() {
         try {
           await this.createOrderInSAP({ order_id: orderRow.order_id });
           stats.created++;
-          
+
+          // Actualizar estado a "En Producción" tras sincronización exitosa
+          await pool.query(
+            'UPDATE orders SET status_id = 3, last_status_update = CURRENT_TIMESTAMP WHERE order_id = $1 AND status_id != 3',
+            [orderRow.order_id]
+          );
+          this.logger.info('Orden movida a estado En Producción', { orderId: orderRow.order_id });
+
         } catch (orderError) {
           stats.errors++;
           this.logger.error('Error al sincronizar orden individual', {
