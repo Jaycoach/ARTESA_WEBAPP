@@ -1,0 +1,73 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/app/Dockerfile
+      args:
+        - BUILDKIT_INLINE_CACHE=1
+      shm_size: '2gb'
+    container_name: artesa-api-production
+    restart: always
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    env_file:
+      - .env.production
+    expose:
+      - "3000"
+    volumes:
+      - artesa-uploads:/app/uploads
+      - artesa-product-images:/app/public/product-images
+      - artesa-logs:/app/logs
+      - artesa-tmp:/app/tmp
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - artesa-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  nginx:
+    image: nginx:1.21-alpine
+    container_name: artesa-nginx-production
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/production-ssl.conf:/etc/nginx/conf.d/default.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - ./logs/nginx:/var/log/nginx
+      - artesa-product-images:/app/public/product-images:ro
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - artesa-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  artesa-network:
+    driver: bridge
+
+volumes:
+  artesa-uploads:
+    driver: local
+  artesa-logs:
+    driver: local
+  artesa-tmp:
+    driver: local
+  artesa-product-images:
+    driver: local
