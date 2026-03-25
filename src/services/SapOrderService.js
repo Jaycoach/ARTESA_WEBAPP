@@ -71,9 +71,9 @@ class SapOrderService extends SapBaseService {
         // Extraer horas y minutos de la hora límite (ej: "18:00")
         const [hours, minutes] = settings.orderTimeLimit.split(':').map(Number);
         
-        // Configurar sincronización 30 minutos después de la hora límite
-        const syncMinutes = (minutes + 30) % 60;
-        const syncHours = hours + Math.floor((minutes + 30) / 60);
+        // Configurar sincronización 5 minutos después de la hora límite
+        const syncMinutes = (minutes + 5) % 60;
+        const syncHours = hours + Math.floor((minutes + 5) / 60);
         
         // Crear expresión cron: minutos horas * * * (diariamente)
         this.syncSchedule = `${syncMinutes} ${syncHours} * * *`;
