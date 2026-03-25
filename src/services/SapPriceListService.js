@@ -1,4 +1,5 @@
 // src/services/SapPriceListService.js
+const cron = require('node-cron');
 const SapBaseService = require('./SapBaseService');
 const PriceList = require('../models/PriceList');
 const { createContextLogger } = require('../config/logger');
@@ -26,6 +27,7 @@ class SapPriceListService extends SapBaseService {
       await super.initialize();
       
       this.logger.info('Servicio de listas de precios SAP inicializado correctamente');
+      this.scheduleSyncTask();
       return this;
     } catch (error) {
       this.logger.error('Error al inicializar servicio de listas de precios SAP', {
@@ -552,6 +554,29 @@ class SapPriceListService extends SapBaseService {
       });
       throw error;
     }
+  }
+  scheduleSyncTask() {
+    const schedule = process.env.SAP_PRICE_LIST_SYNC_SCHEDULE || '0 0 * * *';
+
+    if (!cron.validate(schedule)) {
+      this.logger.error('Formato de programación inválido para listas de precios', { schedule });
+      return;
+    }
+
+    this.logger.info('Programando sincronización periódica de listas de precios', { schedule });
+
+    cron.schedule(schedule, async () => {
+      try {
+        this.logger.info('Iniciando sincronización programada de listas de precios');
+        await this.syncAllPriceLists();
+        this.logger.info('Sincronización programada de listas de precios completada');
+      } catch (error) {
+        this.logger.error('Error en sincronización programada de listas de precios', {
+          error: error.message,
+          stack: error.stack
+        });
+      }
+    });
   }
 }
 
