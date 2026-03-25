@@ -13,6 +13,7 @@ import { useNavigate } from 'react-router-dom';
 import usePriceList from '../../../../hooks/usePriceList';
 import { throttle } from 'lodash';
 import useProductImage, { errorCache } from '../../../../hooks/useProductImage';
+import { isColombianHoliday } from '../../../../utils/colombianHolidays';
 
 const adjustDateForTimezone = (dateString) => {
   // Crear fecha sin problemas de zona horaria
@@ -353,7 +354,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       const checkDate = new Date(normalizedToday.getFullYear(), normalizedToday.getMonth(), normalizedToday.getDate() + i);
       const dayOfWeek = checkDate.getDay();
 
-      if (zone.days.includes(dayOfWeek)) {
+      if (zone.days.includes(dayOfWeek) && !isColombianHoliday(checkDate)) {
         const normalizedDate = new Date(checkDate.getFullYear(), checkDate.getMonth(), checkDate.getDate());
         availableDates.push(normalizedDate);
       }

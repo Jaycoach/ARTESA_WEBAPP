@@ -8,6 +8,7 @@ import DeliveryDatePicker from './DeliveryDatePicker';
 import OrderFileUpload from './OrderFileUpload';
 import { FaExclamationTriangle, FaTimes } from 'react-icons/fa';
 import Notification from '../../../../Components/ui/Notification';
+import { isColombianHoliday } from '../../../../utils/colombianHolidays';
 
 const EditOrderForm = ({ onOrderUpdated }) => {
   const navigate = useNavigate();
@@ -809,7 +810,7 @@ const EditOrderForm = ({ onOrderUpdated }) => {
       const checkDate = new Date(normalizedToday.getFullYear(), normalizedToday.getMonth(), normalizedToday.getDate() + i);
       const dayOfWeek = checkDate.getDay();
 
-      if (zone.days.includes(dayOfWeek)) {
+      if (zone.days.includes(dayOfWeek) && !isColombianHoliday(checkDate)) {
         const normalizedDate = new Date(checkDate.getFullYear(), checkDate.getMonth(), checkDate.getDate());
         availableDates.push(normalizedDate);
       }

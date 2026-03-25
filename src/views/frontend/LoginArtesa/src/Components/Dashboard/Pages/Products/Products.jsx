@@ -19,6 +19,7 @@ import Button from '../../../../Components/ui/Button';
 import ProductImage from './components/ProductImage';
 import { AUTH_TYPES } from '../../../../constants/AuthTypes';
 import { orderService } from '../../../../services/orderService';
+import { isColombianHoliday } from '../../../../utils/colombianHolidays';
 
 // **CONSTANTES DE ZONAS DE ENTREGA Y CÁLCULOS**
 const DELIVERY_ZONES = {
@@ -246,7 +247,7 @@ const Products = () => {
       checkDate.setDate(today.getDate() + i);
       const dayOfWeek = checkDate.getDay();
 
-      if (zone.days.includes(dayOfWeek)) {
+      if (zone.days.includes(dayOfWeek) && !isColombianHoliday(checkDate)) {
         availableDates.push(new Date(checkDate));
       }
     }
