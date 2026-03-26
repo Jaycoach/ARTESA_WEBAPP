@@ -840,7 +840,8 @@ function AuthProvider({ children }) {
             } else {
                 const normalizedCredentials = {
                     mail: sanitizedInputEmail,
-                    password: credentials.password
+                    password: credentials.password,
+                    recaptchaToken: credentials.recaptchaToken
                 };
 
                 console.log('🔄 User login - Email enviado al backend:', normalizedCredentials.mail);
