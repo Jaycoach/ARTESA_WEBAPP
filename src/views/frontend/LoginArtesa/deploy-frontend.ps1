@@ -233,11 +233,14 @@ aws s3 sync dist/ s3://$BucketName --delete --cache-control "public, max-age=315
 
 # Sync archivos HTML con no cache
 Write-Host "📤 Subiendo archivos HTML (sin cache)..." -ForegroundColor Cyan
-aws s3 sync dist/ s3://$BucketName --delete --cache-control "public, max-age=0, must-revalidate" --include "*.html"
+aws s3 cp dist/index.html s3://$BucketName/index.html --cache-control "public, max-age=0, must-revalidate" --content-type "text/html"
 
-# Sync archivos JSON con cache corto
+# JSON con cache corto (si existe)
 Write-Host "📤 Subiendo archivos JSON (cache corto)..." -ForegroundColor Cyan
-aws s3 sync dist/ s3://$BucketName --delete --cache-control "public, max-age=300" --include "*.json"
+Get-ChildItem -Path dist -Filter "*.json" -Recurse | ForEach-Object {
+    $relativePath = $_.FullName.Replace((Get-Location).Path + "\dist\", "").Replace("\", "/")
+    aws s3 cp $_.FullName s3://$BucketName/$relativePath --cache-control "public, max-age=300" --content-type "application/json"
+}
 
 # ================================
 # INVALIDACIÓN CLOUDFRONT (SIN CAMBIOS)
