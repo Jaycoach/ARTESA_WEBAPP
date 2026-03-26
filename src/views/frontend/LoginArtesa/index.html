@@ -7,8 +7,8 @@
       connect-src 'self' 
         http://localhost:5173 
         http://localhost:3000 
-        https://api.artesapanaderia.com
-        https://artesa-documents-staging.s3.us-east-1.amazonaws.com 
+        %VITE_API_URL%
+        https://artesa-documents-staging.s3.us-east-1.amazonaws.com
         https://artesa-documents-staging.s3.amazonaws.com 
         https://*.s3.us-east-1.amazonaws.com 
         https://*.s3.amazonaws.com 
@@ -51,8 +51,8 @@
         https://*.s3.amazonaws.com;
       object-src 'none';
       base-uri 'self';
-      form-action 'self' 
-        https://api.artesapanaderia.com;
+      form-action 'self'
+        %VITE_API_URL%;
       upgrade-insecure-requests;
     ">
 
@@ -78,7 +78,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="preconnect" href="https://www.google.com" crossorigin>
     <link rel="preconnect" href="https://artesa-documents-staging.s3.us-east-1.amazonaws.com" crossorigin>
-    <link rel="preconnect" href="https://api.artesapanaderia.com" crossorigin>
+    <link rel="preconnect" href="%VITE_API_URL%" crossorigin>
 
     <!-- **DNS PREFETCH PARA MEJOR RENDIMIENTO** -->
     <link rel="dns-prefetch" href="//fonts.googleapis.com">
@@ -108,7 +108,7 @@
     <script>
       // Configuración global para debugging CSP
       window.ARTESA_CONFIG = {
-        API_BASE: 'https://api.artesapanaderia.com/api',
+        API_BASE: '%VITE_API_URL%%VITE_API_PATH%',
         S3_BUCKET: 'https://artesa-documents-staging.s3.us-east-1.amazonaws.com',
         CDN_URL: 'https://app.artesapanaderia.com',
         DEBUG: true
