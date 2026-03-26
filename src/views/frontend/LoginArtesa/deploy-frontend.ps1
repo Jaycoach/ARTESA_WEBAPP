@@ -37,7 +37,8 @@ if (Test-Path $awsExePath) {
 if ($Environment -eq "production") {
     $BucketName = "artesa-frontend-production"
     $Mode = "production"
-    $CloudFrontUrl = "https://d1nkfheaf642r6.cloudfront.net"
+    $CloudFrontUrl = "https://app.artesapanaderia.com"
+    $CloudFrontDistributionId = "E2DQU9UCJBZKP5"
     $EnvFile = ".env.production"
 } else {
     $BucketName = "artesa-frontend-staging"
