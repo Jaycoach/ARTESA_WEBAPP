@@ -126,7 +126,7 @@ router.post('/client/:userId/sync',
  *       500:
  *         description: Error interno del servidor
  */
-router.post('/client/:userId/activate', clientSyncController.activateClient);
+router.post('/client/:userId/activate', checkRole([1]), clientSyncController.activateClient);
 
 /**
  * @swagger
@@ -765,6 +765,6 @@ router.post('/test-email-ses',
   clientSyncController.testEmailSes
 );
 
-router.get('/debug/client/:userId', clientSyncController.debugClientStatus);
+router.get('/debug/client/:userId', checkRole([1]), clientSyncController.debugClientStatus);
 
 module.exports = router;
