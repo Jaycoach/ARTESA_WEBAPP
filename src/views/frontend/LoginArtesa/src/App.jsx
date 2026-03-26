@@ -79,7 +79,9 @@ const router = createBrowserRouter([
     element: (
       <Suspense fallback={<LoadingScreen />}>
         <ErrorBoundary>
-          <Login />
+          <RecaptchaWrapper>
+            <Login />
+          </RecaptchaWrapper>
         </ErrorBoundary>
       </Suspense>
     ),
@@ -238,9 +240,7 @@ function App() {
 
   return (
     <AuthProvider>
-      <RecaptchaWrapper>
-        <RouterProvider router={router} />
-      </RecaptchaWrapper>
+      <RouterProvider router={router} />
     </AuthProvider>
   );
 }
