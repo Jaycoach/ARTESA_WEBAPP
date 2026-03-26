@@ -558,7 +558,7 @@ class AuthController {
             logger.error('Error en el proceso de login', {
                 error: error.message,
                 stack: error.stack,
-                mail
+                mail: req.body?.mail || req.body?.email || 'desconocido'
             });
             
             const errorMessage = process.env.NODE_ENV === 'development' 
