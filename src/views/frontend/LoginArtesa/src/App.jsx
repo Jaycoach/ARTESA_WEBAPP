@@ -92,7 +92,9 @@ const router = createBrowserRouter([
     element: (
       <Suspense fallback={<LoadingScreen />}>
         <ErrorBoundary>
-          <Register />
+          <RecaptchaWrapper>
+            <Register />
+          </RecaptchaWrapper>
         </ErrorBoundary>
       </Suspense>
     ),
