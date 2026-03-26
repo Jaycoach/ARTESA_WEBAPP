@@ -20,7 +20,7 @@ export default ({ mode }) => {
   }
 
   if (mode === 'production') {
-    env.VITE_API_URL = env.VITE_PROD_API_URL || 'https://api.tudominio.com';
+    env.VITE_API_URL = env.VITE_API_URL || env.VITE_PROD_API_URL || 'https://api.artesapanaderia.com';
   }
   
   // Forzar configuración para ngrok

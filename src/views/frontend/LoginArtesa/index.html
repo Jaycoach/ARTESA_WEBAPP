@@ -7,14 +7,13 @@
       connect-src 'self' 
         http://localhost:5173 
         http://localhost:3000 
-        http://ec2-44-216-131-63.compute-1.amazonaws.com 
-        https://ec2-44-216-131-63.compute-1.amazonaws.com 
+        https://api.artesapanaderia.com
         https://artesa-documents-staging.s3.us-east-1.amazonaws.com 
         https://artesa-documents-staging.s3.amazonaws.com 
         https://*.s3.us-east-1.amazonaws.com 
         https://*.s3.amazonaws.com 
-        https://d1bqegutwmfn98.cloudfront.net 
-        https://www.google.com 
+        https://app.artesapanaderia.com
+        https://www.google.com
         https://www.gstatic.com;
       script-src 'self' 
         'unsafe-inline' 
@@ -38,10 +37,10 @@
         https://artesa-documents-staging.s3.amazonaws.com 
         https://*.s3.us-east-1.amazonaws.com 
         https://*.s3.amazonaws.com 
-        https://d1bqegutwmfn98.cloudfront.net 
-        https://www.google.com 
+        https://app.artesapanaderia.com
+        https://www.google.com
         https://www.gstatic.com
-        https://drive.google.com 
+        https://drive.google.com
         https://*.googleusercontent.com;
       frame-src 'self' 
         https://www.google.com 
@@ -53,7 +52,7 @@
       object-src 'none';
       base-uri 'self';
       form-action 'self' 
-        https://ec2-44-216-131-63.compute-1.amazonaws.com;
+        https://api.artesapanaderia.com;
       upgrade-insecure-requests;
     ">
 
@@ -79,7 +78,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="preconnect" href="https://www.google.com" crossorigin>
     <link rel="preconnect" href="https://artesa-documents-staging.s3.us-east-1.amazonaws.com" crossorigin>
-    <link rel="preconnect" href="https://ec2-44-216-131-63.compute-1.amazonaws.com" crossorigin>
+    <link rel="preconnect" href="https://api.artesapanaderia.com" crossorigin>
 
     <!-- **DNS PREFETCH PARA MEJOR RENDIMIENTO** -->
     <link rel="dns-prefetch" href="//fonts.googleapis.com">
@@ -109,9 +108,9 @@
     <script>
       // Configuración global para debugging CSP
       window.ARTESA_CONFIG = {
-        API_BASE: 'http://ec2-44-216-131-63.compute-1.amazonaws.com/api',
+        API_BASE: 'https://api.artesapanaderia.com/api',
         S3_BUCKET: 'https://artesa-documents-staging.s3.us-east-1.amazonaws.com',
-        CDN_URL: 'https://d1bqegutwmfn98.cloudfront.net',
+        CDN_URL: 'https://app.artesapanaderia.com',
         DEBUG: true
       };
 
