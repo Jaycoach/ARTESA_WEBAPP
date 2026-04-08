@@ -855,8 +855,11 @@ const updateOrder = async (req, res) => {
       // Si faltan 2 días o menos, verificar hora límite
       if (daysUntilDelivery <= 2) {
         const [limitHours, limitMinutes] = orderTimeLimit.split(':').map(Number);
-        
-        if (now.getHours() > limitHours || (now.getHours() === limitHours && now.getMinutes() >= limitMinutes)) {
+
+        // Convertir hora actual a Colombia (UTC-5)
+        const nowColombia = new Date(now.toLocaleString('en-US', { timeZone: 'America/Bogota' }));
+
+        if (nowColombia.getHours() > limitHours || (nowColombia.getHours() === limitHours && nowColombia.getMinutes() >= limitMinutes)) {
           return res.status(400).json({
             success: false,
             message: `No se puede modificar la orden después de las ${orderTimeLimit} cuando faltan ${daysUntilDelivery} días o menos para la entrega`,
@@ -1307,7 +1310,7 @@ const calculateDeliveryDate = async (req, res) => {
         deliveryDate: deliveryDate.toISOString().split('T')[0],
         orderTimeLimit,
         nextAvailableDates: nextFiveDays,
-        isPastTimeLimit: new Date().getHours() >= parseInt(orderTimeLimit.split(':')[0])
+        isPastTimeLimit: new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' })).getHours() >= parseInt(orderTimeLimit.split(':')[0])
       }
     });
   } catch (error) {

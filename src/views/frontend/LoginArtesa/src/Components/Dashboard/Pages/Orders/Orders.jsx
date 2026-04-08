@@ -5,6 +5,7 @@ import { useUserActivation } from '../../../../hooks/useUserActivation';
 import CreateOrderForm from './CreateOrderForm';
 import OrderList from './OrderList';
 import EditOrderForm from './EditOrderForm';
+import ClientProfile from '../../ClientProfile/ClientProfile';
 import Notification from '../../../../Components/ui/Notification';
 import API, { BranchOrdersAPI } from '../../../../api/config';
 import { FaExclamationTriangle, FaUserCheck, FaSync, FaPlus, FaArrowLeft } from 'react-icons/fa';
@@ -21,6 +22,7 @@ const Orders = () => {
   const [currentView, setCurrentView] = useState('list');
   const [notification, setNotification] = useState({ show: false, message: '', type: '' });
   const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
+  const [showClientProfileModal, setShowClientProfileModal] = useState(false);
 
   // ✅ NUEVOS ESTADOS PARA MANEJO DE ÓRDENES
   const [orders, setOrders] = useState([]);
@@ -325,7 +327,7 @@ const Orders = () => {
                   {canCreateValidation.actionMessage}
                 </p>
                 <button
-                  onClick={() => navigate('/dashboard/profile/client-info')}
+                  onClick={() => setShowClientProfileModal(true)}
                   className="inline-flex items-center px-3 py-1 border border-blue-300 text-sm font-medium rounded-md text-blue-700 bg-white hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                 >
                   <FaUserCheck className="mr-2" />
@@ -530,6 +532,22 @@ const Orders = () => {
           type={notification.type}
           onClose={() => setNotification({ show: false, message: '', type: '' })}
         />
+      )}
+
+      {/* Modal de perfil de cliente */}
+      {showClientProfileModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <ClientProfile
+            onClose={() => {
+              setShowClientProfileModal(false);
+              checkCanCreateStatus();
+            }}
+            onProfileUpdate={() => {
+              setShowClientProfileModal(false);
+              checkCanCreateStatus();
+            }}
+          />
+        </div>
       )}
 
       {/* Modal de confirmación de cancelación */}

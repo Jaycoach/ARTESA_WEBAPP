@@ -9,6 +9,7 @@ import OrderFileUpload from './OrderFileUpload';
 import { FaExclamationTriangle, FaTimes } from 'react-icons/fa';
 import Notification from '../../../../Components/ui/Notification';
 import { isColombianHoliday } from '../../../../utils/colombianHolidays';
+import ClientProfile from '../../ClientProfile/ClientProfile';
 
 const EditOrderForm = ({ onOrderUpdated }) => {
   const navigate = useNavigate();
@@ -30,6 +31,7 @@ const EditOrderForm = ({ onOrderUpdated }) => {
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [siteSettings, setSiteSettings] = useState({ orderTimeLimit: '18:00' });
   const [canEdit, setCanEdit] = useState(true);
+  const [showClientProfileModal, setShowClientProfileModal] = useState(false);
   const [editNotAllowedReason, setEditNotAllowedReason] = useState('');
   // ✅ NUEVOS ESTADOS PARA ZONA DE ENTREGA Y FECHAS DISPONIBLES
   const [deliveryZone, setDeliveryZone] = useState(null);
@@ -213,8 +215,11 @@ const EditOrderForm = ({ onOrderUpdated }) => {
 
             if (daysUntilDelivery <= 2) {
               const [limitHours, limitMinutes] = siteSettings.orderTimeLimit.split(':').map(Number);
-              
-              if (now.getHours() > limitHours || (now.getHours() === limitHours && now.getMinutes() >= limitMinutes)) {
+
+              // Usar hora Colombia (UTC-5)
+              const nowColombia = new Date(now.toLocaleString('en-US', { timeZone: 'America/Bogota' }));
+
+              if (nowColombia.getHours() > limitHours || (nowColombia.getHours() === limitHours && nowColombia.getMinutes() >= limitMinutes)) {
                 setCanEdit(false);
                 setEditNotAllowedReason(`No se puede editar después de las ${siteSettings.orderTimeLimit} cuando faltan ${daysUntilDelivery} días o menos para la entrega`);
                 return;
@@ -256,8 +261,11 @@ const EditOrderForm = ({ onOrderUpdated }) => {
             // Si faltan 2 días o menos, verificar hora límite
             if (daysUntilDelivery <= 2) {
               const [limitHours, limitMinutes] = siteSettings.orderTimeLimit.split(':').map(Number);
-              
-              if (now.getHours() > limitHours || (now.getHours() === limitHours && now.getMinutes() >= limitMinutes)) {
+
+              // Usar hora Colombia (UTC-5)
+              const nowColombia = new Date(now.toLocaleString('en-US', { timeZone: 'America/Bogota' }));
+
+              if (nowColombia.getHours() > limitHours || (nowColombia.getHours() === limitHours && nowColombia.getMinutes() >= limitMinutes)) {
                 setCanEdit(false);
                 setEditNotAllowedReason(`No se puede editar después de las ${siteSettings.orderTimeLimit} cuando faltan ${daysUntilDelivery} días o menos para la entrega`);
                 return;
@@ -790,7 +798,7 @@ const EditOrderForm = ({ onOrderUpdated }) => {
     
     let additionalDays = 2;
     const currentDay = today.getDay();
-    const currentHour = new Date().getHours();
+    const currentHour = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' })).getHours();
     const [limitHour] = orderTimeLimit.split(':').map(Number);
     
     if (currentHour >= limitHour && currentDay >= 1 && currentDay <= 5) {
@@ -1051,38 +1059,12 @@ const EditOrderForm = ({ onOrderUpdated }) => {
                   {orderDetails.map((detail, index) => (
                     <tr key={index}>
                       <td className="px-4 py-2">
-                        {detail.product_id && products.find(p => p.product_id.toString() === detail.product_id.toString()) ? (
-                          // Producto existente - solo mostrar
-                          <>
-                            <div className="text-sm font-medium text-gray-900">
-                              {detail.name || 'Producto sin nombre'}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              ID: {detail.product_id}
-                            </div>
-                          </>
-                        ) : (
-                          // Producto nuevo o no encontrado - permitir selección
-                          <select
-                            value={detail.product_id}
-                            onChange={(e) => handleProductChange(index, 'product_id', e.target.value)}
-                            className="w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
-                            required
-                          >
-                            <option value="">Seleccionar producto</option>
-                            {products.map(product => (
-                              <option
-                                key={product.product_id}
-                                value={product.product_id}
-                                disabled={orderDetails.some(
-                                  item => item !== detail && item.product_id === product.product_id.toString()
-                                )}
-                              >
-                                {product.name}
-                              </option>
-                            ))}
-                          </select>
-                        )}
+                        <div className="text-sm font-medium text-gray-900">
+                          {detail.name || 'Producto sin nombre'}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          SKU: {detail.product_id}
+                        </div>
                       </td>
                       <td className="px-4 py-2">
                         <input
@@ -1327,25 +1309,12 @@ const EditOrderForm = ({ onOrderUpdated }) => {
                 {orderDetails.map((detail, index) => (
                   <tr key={index}>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <select
-                        value={detail.product_id}
-                        onChange={(e) => handleProductChange(index, 'product_id', e.target.value)}
-                        className="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                        required
-                      >
-                        <option value="">Seleccionar producto</option>
-                        {products.map(product => (
-                          <option
-                            key={product.product_id}
-                            value={product.product_id}
-                            disabled={orderDetails.some(
-                              item => item !== detail && item.product_id === product.product_id.toString()
-                            )}
-                          >
-                            {product.name}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="text-sm font-medium text-gray-900">
+                        {detail.name || 'Producto sin nombre'}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        SKU: {detail.product_id}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <input
