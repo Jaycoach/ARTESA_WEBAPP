@@ -39,6 +39,7 @@ const EditOrderForm = ({ onOrderUpdated }) => {
   const [selectedBranch, setSelectedBranch] = useState(null);
   // Agregar este estado junto a los demás estados
   const [customerPoNumber, setCustomerPoNumber] = useState('');
+  const [availableProducts, setAvailableProducts] = useState([]);
 
   // Cargar configuración del sitio
   useEffect(() => {
@@ -401,8 +402,14 @@ const EditOrderForm = ({ onOrderUpdated }) => {
             } while (currentPage <= totalPages);
           }
 
+          // ✅ MAPEAR CAMPOS ANTES DE VALIDAR
+          const mappedProducts = allProducts.map(p => ({
+            ...p,
+            name: p.local_product_name || p.product_name || p.name || 'Producto sin nombre',
+          }));
+
           // ✅ VALIDAR PRODUCTOS CON PRECIOS VÁLIDOS
-          const validProducts = allProducts.filter(p => {
+          const validProducts = mappedProducts.filter(p => {
             const price = parseFloat(p.price || p.effective_price || p.price_list1 || 0);
             return price > 0 && p.product_id;
           });
@@ -1059,12 +1066,44 @@ const EditOrderForm = ({ onOrderUpdated }) => {
                   {orderDetails.map((detail, index) => (
                     <tr key={index}>
                       <td className="px-4 py-2">
-                        <div className="text-sm font-medium text-gray-900">
-                          {detail.name || 'Producto sin nombre'}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          SKU: {detail.product_id}
-                        </div>
+                        {detail.product_id === '' ? (
+                          <select
+                            value={detail.product_id}
+                            onChange={(e) => handleProductChange(index, 'product_id', e.target.value)}
+                            className="w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm text-gray-900"
+                            required
+                          >
+                            {loadingProducts ? (
+                              <option value="" disabled>Cargando productos...</option>
+                            ) : products.length === 0 ? (
+                              <option value="" disabled>Sin productos disponibles</option>
+                            ) : (
+                              <>
+                                <option value="">Seleccionar producto</option>
+                                {products.map(product => (
+                                  <option
+                                    key={product.product_id}
+                                    value={product.product_id}
+                                    disabled={orderDetails.some(
+                                      item => item !== detail && item.product_id === product.product_id.toString()
+                                    )}
+                                  >
+                                    {product.name}
+                                  </option>
+                                ))}
+                              </>
+                            )}
+                          </select>
+                        ) : (
+                          <>
+                            <div className="text-sm font-medium text-gray-900">
+                              {detail.name || 'Producto sin nombre'}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              SKU: {detail.product_id}
+                            </div>
+                          </>
+                        )}
                       </td>
                       <td className="px-4 py-2">
                         <input
@@ -1309,19 +1348,56 @@ const EditOrderForm = ({ onOrderUpdated }) => {
                 {orderDetails.map((detail, index) => (
                   <tr key={index}>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">
-                        {detail.name || 'Producto sin nombre'}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        SKU: {detail.product_id}
-                      </div>
+                      {detail.product_id === '' ? (
+                        <select
+                          value={detail.product_id}
+                          onChange={(e) => handleProductChange(index, 'product_id', e.target.value)}
+                          className="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm text-gray-900"
+                          required
+                        >
+                          {loadingProducts ? (
+                            <option value="" disabled>Cargando productos...</option>
+                          ) : products.length === 0 ? (
+                            <option value="" disabled>Sin productos disponibles</option>
+                          ) : (
+                            <>
+                              <option value="">Seleccionar producto</option>
+                              {products.map(product => (
+                                <option
+                                  key={product.product_id}
+                                  value={product.product_id}
+                                  disabled={orderDetails.some(
+                                    item => item !== detail && item.product_id === product.product_id.toString()
+                                  )}
+                                >
+                                  {product.name}
+                                </option>
+                              ))}
+                            </>
+                          )}
+                        </select>
+                      ) : (
+                        <>
+                          <div className="text-sm font-medium text-gray-900">
+                            {detail.name || 'Producto sin nombre'}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            SKU: {detail.product_id}
+                          </div>
+                        </>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <input
                         type="number"
                         min="1"
                         value={detail.quantity}
-                        onChange={(e) => handleProductChange(index, 'quantity', parseInt(e.target.value) || 1)}
+                        onChange={(e) => handleProductChange(index, 'quantity', e.target.value)}
+                        onBlur={(e) => {
+                          if (e.target.value === '' || parseInt(e.target.value) < 1) {
+                            handleProductChange(index, 'quantity', 1);
+                          }
+                        }}
                         className="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                         required
                       />
@@ -1366,18 +1442,7 @@ const EditOrderForm = ({ onOrderUpdated }) => {
             </div>
           )}
 
-          <div className="flex justify-between items-center">
-            <button
-              type="button"
-              onClick={handleAddProduct}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-indigo-700 bg-indigo-100 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Agregar Producto
-            </button>
-
+          <div className="flex justify-end items-center">
             <div className="text-xl font-bold">
               Total: ${calculateTotal()}
             </div>
