@@ -134,9 +134,10 @@ class PriceList {
       }
 
       const countQuery = `
-        SELECT COUNT(*) 
-        FROM price_lists pl 
-        ${whereClause};
+        SELECT COUNT(*)
+        FROM price_lists pl
+        ${whereClause}
+        AND pl.price > 0;
       `;
 
       const dataQuery = `
@@ -483,9 +484,10 @@ class PriceList {
       }
 
       const countQuery = `
-        SELECT COUNT(*) 
-        FROM price_lists pl 
-        ${whereClause};
+        SELECT COUNT(*)
+        FROM price_lists pl
+        ${whereClause}
+        AND pl.price > 0;
       `;
 
       const dataQuery = `
