@@ -475,6 +475,16 @@ class ProductImageController {
           const productImage = await ProductImage.getByProductCode(product.sap_code);
           imageUrl = productImage?.image_url;
         }
+        // Fallback: si no hay imagen en product_images, usar image_url del producto
+        if (!imageUrl) {
+          imageUrl = product.image_url;
+        }
+      }
+
+      // Regenerar URL firmada si es una URL de S3 con firma expirada o próxima a expirar
+      if (imageUrl && process.env.STORAGE_MODE === 's3' && imageUrl.includes('s3.amazonaws.com')) {
+        const S3UrlManager = require('../utils/S3UrlManager');
+        imageUrl = await S3UrlManager.refreshUrl(imageUrl, 'image_url');
       }
       
       if (!imageUrl) {
