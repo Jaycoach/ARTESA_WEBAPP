@@ -17,6 +17,7 @@ import Input from '../../../../Components/ui/Input';
 import Card from '../../../../Components/ui/Card';
 import Button from '../../../../Components/ui/Button';
 import ProductImage from './components/ProductImage';
+import { errorCache, successCache } from '../../../../hooks/useProductImage';
 import { AUTH_TYPES } from '../../../../constants/AuthTypes';
 import { orderService } from '../../../../services/orderService';
 import { isColombianHoliday } from '../../../../utils/colombianHolidays';
@@ -683,9 +684,15 @@ const Products = () => {
       console.log('🖼️ Resultado asignación:', assignResponse.data);
 
       if (assignResponse.data.success) {
-        showNotification('Imagen asignada exitosamente', 'success');
-        await fetchProducts();
-        return true;
+          const cacheKey = `${productId}-thumbnail`;
+          const cacheKeyMain = `${productId}-main`;
+          errorCache.delete(cacheKey);
+          errorCache.delete(cacheKeyMain);
+          successCache.delete(cacheKey);
+          successCache.delete(cacheKeyMain);
+          showNotification('Imagen asignada exitosamente', 'success');
+          await fetchProducts();
+          return true;
       } else {
         showNotification(assignResponse.data.message || 'Error en asignación', 'error');
         return false;

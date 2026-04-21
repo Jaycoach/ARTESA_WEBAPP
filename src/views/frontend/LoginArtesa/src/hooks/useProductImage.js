@@ -150,4 +150,4 @@ const useProductImage = (productId, imageType = 'thumbnail',  shouldLoad = true)
 };
 
 export default useProductImage;
-export { errorCache };
+export { errorCache, successCache };
