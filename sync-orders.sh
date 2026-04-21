@@ -1,7 +1,17 @@
 #!/bin/bash
-set -a
-source "$(dirname "$0")/.env.staging"
-set +a
+ENV_FILE="$(dirname "$0")/.env.staging"
+
+get_env() {
+  grep "^$1=" "$ENV_FILE" | head -1 | cut -d'=' -f2- | tr -d '"' | tr -d "'"
+}
+
+DB_HOST=$(get_env DB_HOST)
+DB_USER=$(get_env DB_USER)
+DB_PASSWORD=$(get_env DB_PASSWORD)
+DB_DATABASE=$(get_env DB_DATABASE)
+DB_PORT=$(get_env DB_PORT)
+INTERNAL_SYNC_KEY=$(get_env INTERNAL_SYNC_KEY)
+APP_HOST=$(get_env APP_HOST)
 
 LOG="$(dirname "$0")/logs/cron-sync.log"
 
