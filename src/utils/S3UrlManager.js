@@ -19,24 +19,42 @@ static async refreshUrl(url, keyField) {
     
     try {
       // Si no es una URL de S3 o es pública, devolverla tal cual
-      if (!url.includes('s3.amazonaws.com') || !url.includes('Signature=')) {
+      if (!url.includes('s3.amazonaws.com') || (!url.includes('Signature=') && !url.includes('X-Amz-Signature='))) {
         return url;
       }
       
       // Extraer fecha de expiración de la URL
       const urlObj = new URL(url);
+      // SDK V2: parámetro 'Expires' (unix timestamp absoluto)
+      // SDK V3: parámetros 'X-Amz-Date' (yyyymmddThhmmssZ) + 'X-Amz-Expires' (segundos relativos)
       const expiresParam = urlObj.searchParams.get('Expires');
-      
-      if (!expiresParam) {
-        // Si no se puede determinar la expiración, regenerar la URL
+      const amzDate = urlObj.searchParams.get('X-Amz-Date');
+      const amzExpires = urlObj.searchParams.get('X-Amz-Expires');
+
+      let expiresDate;
+
+      if (expiresParam) {
+        // Formato SDK V2
+        expiresDate = new Date(parseInt(expiresParam) * 1000);
+      } else if (amzDate && amzExpires) {
+        // Formato SDK V3: calcular timestamp absoluto de expiración
+        // X-Amz-Date formato: yyyymmddThhmmssZ
+        const y = amzDate.substring(0, 4);
+        const mo = amzDate.substring(4, 6);
+        const d = amzDate.substring(6, 8);
+        const h = amzDate.substring(9, 11);
+        const mi = amzDate.substring(11, 13);
+        const s = amzDate.substring(13, 15);
+        const createdAt = new Date(`${y}-${mo}-${d}T${h}:${mi}:${s}Z`);
+        expiresDate = new Date(createdAt.getTime() + parseInt(amzExpires) * 1000);
+      } else {
+        // Sin información de expiración: regenerar directamente
         const key = S3Service.extractKeyFromUrl(url);
         if (!key) return url;
-        
+
         logger.debug('Regenerando URL sin fecha de expiración', { keyField, key });
         return await S3Service.getSignedUrl('getObject', key);
       }
-      
-      const expiresDate = new Date(parseInt(expiresParam) * 1000);
       const now = new Date();
 
       // Obtener configuración de zona horaria
