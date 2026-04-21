@@ -63,7 +63,7 @@ class OrderScheduler {
     const [hours, minutes] = orderTimeLimit.split(':').map(Number);
     
     // Configurar tarea cron para ejecutarse 5 minutos después de la hora límite cada día
-    const cronExpression = `${minutes + 5} ${hours} * * 1-5`;
+    const cronExpression = `${minutes + 5} ${hours} * * *`;
     
     logger.info('Configurando tarea programada para actualizar estados de órdenes', {
       orderTimeLimit,

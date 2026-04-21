@@ -298,7 +298,7 @@ scheduleInvoiceCheckTask() {
       // Preparar datos para SAP
       const sapOrder = {
         CardCode: orderData.cardcode_sap,
-        DocDate: formatDate(orderData.order_date), 
+        DocDate: formatDate(new Date()),
         DocDueDate: formatDate(orderData.delivery_date),
         Comments: fullComments,
         U_WebOrderId: order.order_id.toString(),
