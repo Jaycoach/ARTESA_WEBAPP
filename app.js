@@ -459,6 +459,8 @@ app.use(`${API_PREFIX}/admin`, adminRoutes);
 app.use(`${API_PREFIX}/client-sync`, clientSyncRoutes);
 app.use(`${API_PREFIX}/price-lists`, require('./src/routes/priceListRoutes'));
 app.use(`${API_PREFIX}/images`, require('./src/routes/imageProxyRoutes'));
+// Ruta interna para sincronización programada (solo acceso con X-Internal-Key)
+app.use(`${API_PREFIX}/internal`, require('./src/routes/internalRoutes'));
 
 // Aplicamos fileUpload sólo a las rutas específicas que lo necesitan
 app.use(`${API_PREFIX}/upload`, fileUpload(fileUploadOptions), uploadRoutes);
