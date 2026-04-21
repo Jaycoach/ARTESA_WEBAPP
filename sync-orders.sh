@@ -1,5 +1,13 @@
 #!/bin/bash
-ENV_FILE="$(dirname "$0")/.env.staging"
+SCRIPT_DIR="$(dirname "$0")"
+if [ -f "$SCRIPT_DIR/.env.production" ]; then
+  ENV_FILE="$SCRIPT_DIR/.env.production"
+elif [ -f "$SCRIPT_DIR/.env.staging" ]; then
+  ENV_FILE="$SCRIPT_DIR/.env.staging"
+else
+  echo "$(date -u): ERROR - No se encontró archivo .env" >> "$(dirname "$0")/logs/cron-sync.log"
+  exit 1
+fi
 
 get_env() {
   grep "^$1=" "$ENV_FILE" | head -1 | cut -d'=' -f2- | tr -d '"' | tr -d "'"
@@ -13,7 +21,7 @@ DB_PORT=$(get_env DB_PORT)
 INTERNAL_SYNC_KEY=$(get_env INTERNAL_SYNC_KEY)
 APP_HOST=$(get_env APP_HOST)
 
-LOG="$(dirname "$0")/logs/cron-sync.log"
+LOG="$SCRIPT_DIR/logs/cron-sync.log"
 
 ORDER_TIME=$(PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -U "$DB_USER" -d "$DB_DATABASE" -p "$DB_PORT" --no-password -t -c "SELECT order_time_limit FROM admin_settings LIMIT 1;" 2>/dev/null | tr -d ' \n')
 
