@@ -67,8 +67,11 @@ const saveProductImage = async (file, productId, imageType) => {
     if (process.env.STORAGE_MODE === 's3') {
       // Subir a S3 usando la nueva estructura
       const key = `images/${uniqueFilename}`;
+      const fileBuffer = fileToSave.tempFilePath
+        ? fs.readFileSync(fileToSave.tempFilePath)
+        : fileToSave.data;
       const imageUrl = await S3Service.uploadFile(
-        fileToSave.data,
+        fileBuffer,
         key,
         fileToSave.mimetype,
         {
