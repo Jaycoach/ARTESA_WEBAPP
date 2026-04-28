@@ -1448,7 +1448,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     );
   }, [throttledSetVisibleOptions]);
 
-  const ImageTooltip = ({ productId, x, y }) => {
+  const ImageTooltip = ({ productId, x, y, imageUrl }) => {
     if (!productId) return null;
     return (
       <div
@@ -1461,6 +1461,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
             alt="Vista previa"
             className="w-40 h-40"
             shouldLoad={true}
+            directImageUrl={imageUrl || null}
           />
         </div>
       </div>
@@ -1765,7 +1766,8 @@ const CreateOrderForm = ({ onOrderCreated }) => {
                           setHoveredImage({
                             productId: parseInt(detail.product_id),
                             x: rect.right,
-                            y: rect.top + rect.height / 2
+                            y: rect.top + rect.height / 2,
+                            imageUrl: products.find(p => p.product_id === parseInt(detail.product_id))?.image_url || null
                           });
                         }
                       }}
@@ -2046,6 +2048,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
           productId={hoveredImage.productId}
           x={hoveredImage.x}
           y={hoveredImage.y}
+          imageUrl={hoveredImage.imageUrl || null}
         />
       )}
 
