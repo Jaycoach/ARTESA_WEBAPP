@@ -1779,6 +1779,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
                           alt={selectedProduct?.name || 'Producto'}
                           className="w-16 h-16"
                           shouldLoad={true}
+                          directImageUrl={selectedProduct?.image_url || null}
                         />
                       ) : (
                         <div className="w-16 h-16 flex items-center justify-center bg-gray-100 rounded-md border border-gray-300">
