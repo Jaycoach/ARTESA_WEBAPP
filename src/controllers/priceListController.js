@@ -179,6 +179,45 @@ class PriceListController {
         }
       }
 
+      // Agregar image_url y sap_code desde products
+      if (result.data && result.data.length > 0) {
+        try {
+          const pool = require('../config/db');
+          const productIds = result.data.map(item => parseInt(item.product_id)).filter(id => !isNaN(id));
+
+          if (productIds.length > 0) {
+            const placeholders = productIds.map((_, i) => `$${i + 1}`).join(',');
+            const imageQuery = `
+              SELECT p.product_id, p.sap_code,
+                COALESCE(pi.image_url, p.image_url) AS image_url
+              FROM products p
+              LEFT JOIN product_images pi ON pi.sap_code = p.sap_code
+              WHERE p.product_id IN (${placeholders})
+            `;
+            const imageResult = await pool.query(imageQuery, productIds);
+
+            const imageMap = {};
+            imageResult.rows.forEach(row => {
+              imageMap[row.product_id] = {
+                sap_code: row.sap_code,
+                image_url: row.image_url
+              };
+            });
+
+            result.data.forEach(product => {
+              if (product.product_id && imageMap[product.product_id]) {
+                product.sap_code = imageMap[product.product_id].sap_code;
+                product.image_url = imageMap[product.product_id].image_url;
+              }
+            });
+          }
+        } catch (imageError) {
+          logger.warn('Error obtaining image information for products', {
+            error: imageError.message
+          });
+        }
+      }
+
       res.status(200).json({
         success: true,
         priceListCode,
