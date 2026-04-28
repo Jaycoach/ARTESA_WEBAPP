@@ -472,7 +472,7 @@ app.use(`${API_PREFIX}/password`, passwordResetRoutes);
 app.use(`${API_PREFIX}/payments`, paymentRoutes);
 
 // Branch password reset routes
-app.use('/branch-password', require('./src/routes/branchPasswordResetRoutes'));
+app.use(`${API_PREFIX}/branch-password`, require('./src/routes/branchPasswordResetRoutes'));
 
 // Rutas para sucursales
 app.use(`${API_PREFIX}/branch-orders`, branchOrderRoutes);
