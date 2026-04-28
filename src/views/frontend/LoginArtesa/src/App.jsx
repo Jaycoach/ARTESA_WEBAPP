@@ -154,17 +154,9 @@ const router = createBrowserRouter([
     element: (
       <Suspense fallback={<LoadingScreen />}>
         <ErrorBoundary>
-          <ResetPassword />
-        </ErrorBoundary>
-      </Suspense>
-    ),
-  },
-  {
-    path: '/ResetPassword/:token',
-    element: (
-      <Suspense fallback={<LoadingScreen />}>
-        <ErrorBoundary>
-          <ResetPassword />
+          <RecaptchaWrapper>
+            <ResetPassword />
+          </RecaptchaWrapper>
         </ErrorBoundary>
       </Suspense>
     ),

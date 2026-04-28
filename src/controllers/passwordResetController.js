@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const userModel = require('../models/userModel');
 const PasswordReset = require('../models/PasswordReset');
 const { createContextLogger } = require('../config/logger');
@@ -435,13 +436,21 @@ class PasswordResetController {
     try {
       const { mail, newPassword, adminToken } = req.body;
       
-      // Token temporal de seguridad (cambiar por algo más seguro)
-      const TEMP_ADMIN_TOKEN = 'ARTESA_ADMIN_TEMP_2025';
-      
-      if (adminToken !== TEMP_ADMIN_TOKEN) {
+      // Verificar que sea un JWT válido de admin
+      let decodedAdmin;
+      try {
+        decodedAdmin = jwt.verify(adminToken, process.env.JWT_SECRET);
+      } catch (e) {
         return res.status(403).json({
           success: false,
           message: 'Token de administrador inválido'
+        });
+      }
+
+      if (!decodedAdmin || decodedAdmin.role !== 'ADMIN') {
+        return res.status(403).json({
+          success: false,
+          message: 'Se requiere rol de administrador'
         });
       }
       
