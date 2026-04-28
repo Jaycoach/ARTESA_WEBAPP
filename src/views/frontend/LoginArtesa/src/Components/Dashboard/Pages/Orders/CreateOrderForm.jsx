@@ -21,8 +21,10 @@ const adjustDateForTimezone = (dateString) => {
   return new Date(year, month - 1, day);
 };
 
-const ProductImageSmall = React.memo(({ productId, alt, className = "w-8 h-8", shouldLoad = true }) => {
-  const { imageUrl, loading, error } = useProductImage(productId, 'thumbnail', shouldLoad);
+const ProductImageSmall = React.memo(({ productId, alt, className = "w-8 h-8", shouldLoad = true, directImageUrl = null }) => {
+  const skipApiCall = !!directImageUrl;
+  const { imageUrl: hookImageUrl, loading, error } = useProductImage(productId, 'thumbnail', shouldLoad && !skipApiCall);
+  const imageUrl = directImageUrl || hookImageUrl;
 
   // Debug específico para productos problemáticos - MENOS VERBOSO
   useEffect(() => {
@@ -1325,6 +1327,7 @@ const CreateOrderForm = ({ onOrderCreated }) => {
           alt={label}
           className="w-8 h-8 mr-3"
           shouldLoad={shouldLoadImage}
+          directImageUrl={image || null}
         />
         <div className="flex-1 min-w-0">
           <div className="font-medium text-sm text-gray-800 leading-snug break-words whitespace-normal">
