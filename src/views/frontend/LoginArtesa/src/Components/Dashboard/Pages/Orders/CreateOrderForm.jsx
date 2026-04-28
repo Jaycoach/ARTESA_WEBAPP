@@ -53,6 +53,24 @@ const ProductImageSmall = React.memo(({ productId, alt, className = "w-8 h-8", s
     );
   }
 
+  // Si tenemos URL directa, renderizar sin esperar al hook
+  if (directImageUrl) {
+    return (
+      <img
+        src={directImageUrl}
+        alt={alt}
+        className={`object-cover rounded-md border border-gray-200 ${className}`}
+        onError={(e) => {
+          e.target.style.display = 'none';
+          const parent = e.target.parentNode;
+          if (parent && !parent.querySelector('.fallback-placeholder')) {
+            parent.innerHTML = `<div class="fallback-placeholder bg-gray-100 flex items-center justify-center rounded-md border border-gray-200 ${className}"><svg class="w-3 h-3 text-gray-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd" /></svg></div>`;
+          }
+        }}
+      />
+    );
+  }
+
   // Estado de carga
   if (loading) {
     return (
