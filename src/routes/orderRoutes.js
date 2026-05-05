@@ -28,6 +28,7 @@ const {
   getMonthlyStats,
   debugUserOrders,
   getProductPricesWithTax,
+  resetSapSync,
 } = require('../controllers/orderController');
 
 // Configuración para express-fileupload específica para órdenes
@@ -360,10 +361,27 @@ router.put('/orders/:orderId/cancel', verifyToken, cancelOrder);
  * @returns {object} 404 - Orden no encontrada
  * @returns {object} 500 - Error interno del servidor
  */
-router.post('/orders/:orderId/send-to-sap', 
-  verifyToken, 
+router.post('/orders/:orderId/send-to-sap',
+  verifyToken,
   checkRole([1]), // Solo administradores
   sendOrderToSap
+);
+
+/**
+ * Resetear intentos de sincronización SAP de una orden
+ * @route POST /orders/:orderId/reset-sap-sync
+ * @group Orders - Operaciones relacionadas con órdenes
+ * @param {number} orderId.path.required - ID de la orden
+ * @security bearerAuth
+ * @returns {object} 200 - Reset exitoso
+ * @returns {object} 400 - Orden ya sincronizada
+ * @returns {object} 404 - Orden no encontrada
+ * @returns {object} 500 - Error interno del servidor
+ */
+router.post('/orders/:orderId/reset-sap-sync',
+  verifyToken,
+  checkRole([1]), // Solo administradores
+  resetSapSync
 );
 
 /**

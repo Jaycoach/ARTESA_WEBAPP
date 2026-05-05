@@ -2890,7 +2890,49 @@ const getProductPricesWithTax = async (req, res) => {
   }
 };
 
-module.exports = { 
+/**
+ * Resetea los intentos de sincronización SAP de una orden
+ */
+const resetSapSync = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+
+    const { rows } = await pool.query(
+      'SELECT order_id, sap_synced, sap_sync_attempts, sap_sync_error FROM orders WHERE order_id = $1',
+      [orderId]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Orden no encontrada' });
+    }
+
+    if (rows[0].sap_synced) {
+      return res.status(400).json({ success: false, message: 'La orden ya fue sincronizada exitosamente con SAP' });
+    }
+
+    await pool.query(
+      'UPDATE orders SET sap_sync_attempts = 0, sap_sync_error = NULL WHERE order_id = $1',
+      [orderId]
+    );
+
+    logger.info('Reset de sincronización SAP realizado', { orderId, userId: req.user?.id });
+
+    res.status(200).json({ success: true, message: 'Intentos de sincronización reseteados exitosamente' });
+  } catch (error) {
+    logger.error('Error al resetear sincronización SAP', {
+      error: error.message,
+      stack: error.stack,
+      orderId: req.params?.orderId
+    });
+    res.status(500).json({
+      success: false,
+      message: 'Error al resetear sincronización SAP',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+module.exports = {
   createOrder,
   getOrderById,
   getUserOrders,
@@ -2913,5 +2955,6 @@ module.exports = {
   getTopSellingProducts,
   getMonthlyStats,
   debugUserOrders,
-  getProductPricesWithTax 
+  getProductPricesWithTax,
+  resetSapSync
 };

@@ -513,9 +513,12 @@ scheduleInvoiceCheckTask() {
           
           // Actualizar el estado de error en la orden
           try {
+            const sapErrorMsg = orderError.response?.data?.error?.message
+              || orderError.response?.data?.message
+              || orderError.message;
             await pool.query(
               'UPDATE orders SET sap_sync_error = $1, sap_sync_attempts = COALESCE(sap_sync_attempts, 0) + 1 WHERE order_id = $2',
-              [orderError.message.substring(0, 255), orderRow.order_id]
+              [sapErrorMsg.substring(0, 255), orderRow.order_id]
             );
           } catch (updateError) {
             this.logger.error('Error al actualizar estado de error en orden', {
