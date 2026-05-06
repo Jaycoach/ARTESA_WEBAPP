@@ -375,7 +375,8 @@ static async create(orderData) {
   static async getOrderById(order_id) {
     try {
       const query = `
-        SELECT o.*, u.name as user_name 
+        SELECT o.*, u.name as user_name,
+               (o.order_date AT TIME ZONE 'UTC' AT TIME ZONE 'America/Bogota')::date::timestamp as order_date
         FROM Orders o
         JOIN users u ON o.user_id = u.id
         WHERE o.order_id = $1
@@ -424,6 +425,7 @@ static async create(orderData) {
       // Obtener información básica de la orden
       const orderQuery = `
         SELECT o.*, u.name as user_name,
+              (o.order_date AT TIME ZONE 'UTC' AT TIME ZONE 'America/Bogota')::date::timestamp as order_date,
               o.delivered_quantity, o.total_quantity,
               o.invoice_doc_entry, o.invoice_doc_num,
               o.invoice_date, o.invoice_total, o.invoice_url,

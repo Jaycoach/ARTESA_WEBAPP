@@ -458,7 +458,7 @@ scheduleInvoiceCheckTask() {
         AND cp.cardcode_sap IS NOT NULL
         AND COALESCE(o.sap_sync_attempts, 0) < 3 -- Limitar intentos
         AND o.delivery_date IS NOT NULL  -- Solo órdenes con fecha de entrega definida
-        AND DATE(o.delivery_date) = DATE(CURRENT_DATE + INTERVAL '2 days')  -- Solo órdenes que se entregan en 2 días
+        AND DATE(o.delivery_date) = DATE((CURRENT_TIMESTAMP AT TIME ZONE 'America/Bogota') + INTERVAL '2 days')  -- Solo órdenes que se entregan en 2 días (fecha Colombia)
         ORDER BY o.created_at ASC
       `;
       
