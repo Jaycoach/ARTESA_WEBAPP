@@ -491,7 +491,8 @@ static async create(orderData) {
       logger.debug('Obteniendo órdenes del usuario', { userId });
       
       const query = `
-        SELECT o.*, 
+        SELECT o.*,
+              (o.order_date AT TIME ZONE 'UTC' AT TIME ZONE 'America/Bogota')::date::timestamp as order_date,
               COUNT(od.order_detail_id) as item_count, 
               SUM(od.quantity) as total_items,
               cb.branch_name,
