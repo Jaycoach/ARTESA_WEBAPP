@@ -274,8 +274,12 @@ scheduleInvoiceCheckTask() {
   
       // Formatear fecha en formato YYYY-MM-DD
       const formatDate = (date) => {
-        if (!date) return new Date().toISOString().split('T')[0];
-        return new Date(date).toISOString().split('T')[0];
+        const d = date ? new Date(date) : new Date();
+        const bogota = new Date(d.toLocaleString('en-US', { timeZone: 'America/Bogota' }));
+        const y = bogota.getFullYear();
+        const m = String(bogota.getMonth() + 1).padStart(2, '0');
+        const day = String(bogota.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
       };
   
       // Obtener información de la sucursal si está especificada
@@ -298,7 +302,7 @@ scheduleInvoiceCheckTask() {
       // Preparar datos para SAP
       const sapOrder = {
         CardCode: orderData.cardcode_sap,
-        DocDate: formatDate(new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' }))),
+        DocDate: formatDate(new Date()),
         DocDueDate: formatDate(orderData.delivery_date),
         Comments: fullComments,
         U_WebOrderId: order.order_id.toString(),
