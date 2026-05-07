@@ -109,8 +109,10 @@ class OrderScheduler {
           stack: error.stack
         });
       }
+    }, {
+      timezone: 'America/Bogota'
     });
-    
+
     // Almacenar la tarea para posible referencia futura
     this.tasks.push({
       name: 'dailyOrderStatusUpdate',

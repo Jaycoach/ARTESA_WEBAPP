@@ -798,12 +798,12 @@ static async create(orderData) {
       
       // Agregar condición de hora límite si no se ignora
       if (!ignoreTimeLimit) {
-        pendingWhereConditions.push(`TO_CHAR(NOW(), 'HH24:MI') >= $1`);
+        pendingWhereConditions.push(`TO_CHAR(NOW() AT TIME ZONE 'America/Bogota', 'HH24:MI') >= $1`);
       }
       
       // Agregar condición de fecha de entrega si no se ignora
       if (!ignoreDeliveryDate) {
-        pendingWhereConditions.push(`(delivery_date IS NOT NULL AND delivery_date >= CURRENT_DATE)`);
+        pendingWhereConditions.push(`(delivery_date IS NOT NULL AND DATE(delivery_date AT TIME ZONE 'America/Bogota') >= (CURRENT_TIMESTAMP AT TIME ZONE 'America/Bogota')::date)`);
       }
       
       // Construir consulta para actualización a "En Producción"
@@ -829,7 +829,7 @@ static async create(orderData) {
         SET status_id = 6, -- Cancelado
             last_status_update = CURRENT_TIMESTAMP
         WHERE status_id IN (1, 2)
-        AND ((delivery_date IS NOT NULL AND delivery_date < CURRENT_DATE) OR delivery_date IS NULL)
+        AND ((delivery_date IS NOT NULL AND DATE(delivery_date AT TIME ZONE 'America/Bogota') < (CURRENT_TIMESTAMP AT TIME ZONE 'America/Bogota')::date) OR delivery_date IS NULL)
         RETURNING order_id
       `;
       
