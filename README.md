@@ -784,6 +784,15 @@ npm run docker:stop
 - Script `setup-ssl.sh` para configuración de certificados.
 - Configuración de Nginx para HTTPS.
 - Redirección automática HTTP a HTTPS en producción.
+- **Producción** (`api.artesapanaderia.com`): certificado Let's Encrypt,
+  renovación automática vía `certbot` con authenticator `webroot` (ver
+  incidente y fix en [`docs/INFRA_SSL_CERTIFICATES.md`](docs/INFRA_SSL_CERTIFICATES.md)),
+  más un cron semanal de monitoreo independiente que alerta por correo si
+  quedan menos de 15 días para el vencimiento.
+- **Staging**: certificado autofirmado, sin renovación automática ni
+  monitoreo de expiración (no aplica el mismo riesgo — ver documento
+  arriba para el detalle).
+- Script de verificación: `scripts/tests/check-ssl-cert.sh`.
 
 ---
 
@@ -806,6 +815,7 @@ npm run docker:stop
 - [Documentación técnica de arquitectura](scripts/docs/ARCHITECTURE.md)
 - [Documentación de autenticación](scripts/docs/API_AUTHENTICATION.md)
 - [Estructura de base de datos](docs/database-structure.md)
+- [Certificados SSL — estado, incidentes y monitoreo](docs/INFRA_SSL_CERTIFICATES.md)
 - [Historial de cambios](CHANGELOG.md)
 - [Documentación de Swagger](http://localhost:3000/api-docs)
 - [Repositorio del proyecto](https://github.com/Jaycoach/ARTESA_WEBAPP)

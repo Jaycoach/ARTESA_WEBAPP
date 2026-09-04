@@ -2,6 +2,42 @@
 
 Este documento registra todos los cambios significativos en el proyecto LA ARTESA Web App.
 
+## [Infraestructura] - 2026-09-04
+
+### Incidente resuelto
+- **Certificado SSL de producción expirado** (`api.artesapanaderia.com`,
+  venció 2026-06-23, detectado 2026-09-04 como "Network Error" en el
+  portal). Causa raíz: la renovación automática de `certbot`
+  (`authenticator = standalone`) llevaba meses fallando en silencio porque
+  el puerto 80 lo ocupa permanentemente el contenedor
+  `artesa-nginx-production`, y el timer no lo reportaba como caído.
+
+### Corregido
+- Migrada la renovación de `api.artesapanaderia.com` a `authenticator =
+  webroot`, con bind mount `./certbot-webroot:/var/www/certbot` en el
+  servicio nginx de producción y `--deploy-hook` para recargar nginx tras
+  cada renovación. Certificado renovado, vence **2026-12-03**. Detalle
+  completo y verificación en
+  [`docs/INFRA_SSL_CERTIFICATES.md`](docs/INFRA_SSL_CERTIFICATES.md).
+
+### Añadido
+- **Monitoreo proactivo de expiración SSL** en producción: cron semanal
+  (`scripts/production/ssl-expiry-check-cron.sh`, lunes 7am) que alerta por
+  correo (AWS SES, vía el `EmailService` existente) si quedan menos de 15
+  días para el vencimiento, independiente de que `certbot` funcione o no.
+  No se instaló en staging (certificado autofirmado, no aplica el mismo
+  riesgo — ver documento de infraestructura para el detalle).
+- Scripts de aceptación `scripts/tests/check-ssl-cert.sh` y
+  `scripts/tests/check-ssl-monitor.sh` (DoD del proyecto: todo cambio de
+  infraestructura queda con un script de verificación ejecutable, no solo
+  documentado en prosa).
+
+### Pendiente
+- Capa de monitoreo externa (Better Stack) sobre el certificado de
+  producción — bloqueada hasta que se asigne acceso a la cuenta
+  `aws@artesapanaderia.com`. Pasos exactos documentados en
+  `docs/INFRA_SSL_CERTIFICATES.md`.
+
 ## [v1.3.0] - 2025-03-20
 
 ### Añadido
