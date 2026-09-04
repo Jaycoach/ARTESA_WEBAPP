@@ -21,6 +21,7 @@ node_modules/
 /scripts/*
 !/scripts/production/
 !scripts/update-product-images.js
+!/scripts/tests/
 
 # Implementaciones de seguridad
 /src/security/
