@@ -355,6 +355,48 @@ class EmailService {
           throw new Error(`Error al enviar el correo de reset: ${error.message}`);
       }
   }
+
+  /**
+   * Notifica a una sucursal su nueva contraseña generada por un admin de BackOffice.
+   * La contraseña viaja solo por este correo — nunca se devuelve en la respuesta de la API.
+   */
+  async sendBackofficePasswordResetEmail(email, newPassword, branchName, companyName) {
+      try {
+          const mailOptions = {
+              from: {
+                  name: 'La Artesa',
+                  address: process.env.SMTP_FROM
+              },
+              to: email,
+              subject: `Nueva contraseña asignada - Sucursal ${branchName}`,
+              html: `
+                  <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                      <h2>Nueva Contraseña Asignada</h2>
+                      <p><strong>Sucursal:</strong> ${branchName}</p>
+                      <p><strong>Cliente:</strong> ${companyName}</p>
+                      <p>Un administrador restableció la contraseña de acceso de esta sucursal. La nueva contraseña es:</p>
+                      <p style="font-size: 18px; font-weight: bold; letter-spacing: 1px;">${newPassword}</p>
+                      <p>Por seguridad, te recomendamos cambiarla después de iniciar sesión.</p>
+                      <p>Si no esperabas este cambio, contacta a soporte de inmediato.</p>
+                  </div>
+              `
+          };
+
+          const info = await this.transporter.sendMail(mailOptions);
+          logger.info('Correo de nueva contraseña de BackOffice enviado exitosamente', {
+              messageId: info.messageId,
+              response: info.response
+          });
+
+          return info;
+      } catch (error) {
+          logger.error('Error al enviar correo de nueva contraseña de BackOffice:', {
+              error: error.message,
+              stack: error.stack
+          });
+          throw new Error(`Error al enviar el correo de nueva contraseña: ${error.message}`);
+      }
+  }
 }
 
 

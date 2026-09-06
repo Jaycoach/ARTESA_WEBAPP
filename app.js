@@ -456,6 +456,7 @@ app.use(API_PREFIX, orderRoutes);
 app.use(`${API_PREFIX}/client-branches`, clientBranchRoutes);
 app.use(`${API_PREFIX}/sap`, sapSyncRoutes);
 app.use(`${API_PREFIX}/admin`, adminRoutes);
+app.use(`${API_PREFIX}/backoffice`, require('./src/routes/backofficeRoutes'));
 app.use(`${API_PREFIX}/client-sync`, clientSyncRoutes);
 app.use(`${API_PREFIX}/price-lists`, require('./src/routes/priceListRoutes'));
 app.use(`${API_PREFIX}/images`, require('./src/routes/imageProxyRoutes'));

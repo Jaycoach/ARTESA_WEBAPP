@@ -464,13 +464,13 @@ const checkRole = (allowedRoles) => {
         // Manejar diferentes formatos del nombre del rol
         const roleName = role.toUpperCase();
         
-        // Revisar si existe en nuestras constantes de ROLES
+        // Revisar si existe en nuestras constantes de ROLES (única fuente de verdad)
         if (ROLES[roleName] !== undefined) {
           return ROLES[roleName];
-        } 
-        
-        // Caso alternativo: convertir directamente según convención conocida
-        return roleName === 'ADMIN' ? 1 : (roleName === 'USER' ? 2 : (roleName === 'FUNCTIONAL_ADMIN' ? 3 : role));
+        }
+
+        // Rol desconocido: se deja tal cual (nunca coincidirá con un rol_id numérico)
+        return role;
       }
       return role;
     });

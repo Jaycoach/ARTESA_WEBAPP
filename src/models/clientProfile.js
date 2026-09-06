@@ -230,9 +230,53 @@ class ClientProfile {
       logger.debug('Perfiles de clientes obtenidos', { count: profiles.length });
       return profiles;
     } catch (error) {
-      logger.error('Error al obtener todos los perfiles de clientes', { 
+      logger.error('Error al obtener todos los perfiles de clientes', {
         error: error.message
       });
+      throw error;
+    }
+  }
+
+  /**
+   * Listado de clientes para el módulo BackOffice: incluye is_active y admite búsqueda.
+   * Método aditivo, independiente de getAll() (que ya se usa en la pantalla "Clientes"
+   * y no incluye is_active ni búsqueda) para no alterar su comportamiento actual.
+   * @async
+   * @param {Object} [options]
+   * @param {string} [options.search] - Filtra por razón social, NIT o CardCode (ILIKE)
+   * @returns {Promise<Array>} Lista de clientes con estado activo/inactivo
+   */
+  static async getAllForBackoffice({ search } = {}) {
+    try {
+      const params = [];
+      let whereClause = '';
+
+      if (search) {
+        params.push(`%${search}%`);
+        whereClause = `WHERE cp.company_name ILIKE $1 OR cp.tax_id ILIKE $1 OR cp.cardcode_sap ILIKE $1`;
+      }
+
+      const query = `
+        SELECT
+          cp.client_id,
+          cp.user_id,
+          cp.company_name AS "razonSocial",
+          cp.tax_id AS "nit",
+          cp.cardcode_sap,
+          cp.city AS "ciudad",
+          u.mail AS "email",
+          u.is_active
+        FROM client_profiles cp
+        JOIN users u ON cp.user_id = u.id
+        ${whereClause}
+        ORDER BY cp.company_name
+      `;
+
+      const { rows } = await pool.query(query, params);
+      logger.debug('Clientes BackOffice obtenidos', { count: rows.length, search });
+      return rows;
+    } catch (error) {
+      logger.error('Error al obtener clientes para BackOffice', { error: error.message, search });
       throw error;
     }
   }
