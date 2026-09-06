@@ -3,7 +3,7 @@ import { useAuth } from '../../../../hooks/useAuth';
 import backofficeService from '../../../../services/backofficeService';
 import {
   FaSearch, FaCheck, FaTimes, FaKey, FaShoppingCart, FaSync,
-  FaUsers, FaBuilding, FaTrash
+  FaUsers, FaBuilding, FaTrash, FaClipboardList, FaFilter
 } from 'react-icons/fa';
 import './BackofficePage.scss';
 
@@ -42,10 +42,17 @@ const BackofficePage = () => {
         >
           <FaShoppingCart /> Crear pedido a nombre de un cliente
         </button>
+        <button
+          className={activeTab === 'daily' ? 'tab active' : 'tab'}
+          onClick={() => setActiveTab('daily')}
+        >
+          <FaClipboardList /> Pedidos del día
+        </button>
       </div>
 
       {activeTab === 'clients' && <ClientsTab />}
       {activeTab === 'order' && <CreateOrderTab />}
+      {activeTab === 'daily' && <DailyOrdersTab />}
     </div>
   );
 };
@@ -258,6 +265,9 @@ const CreateOrderTab = () => {
   const [message, setMessage] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState(null);
+  const [lastOrderSummary, setLastOrderSummary] = useState(null);
+  const [clientOrders, setClientOrders] = useState([]);
+  const [clientOrdersLoading, setClientOrdersLoading] = useState(false);
 
   // El toast es fijo en la pantalla (no depende del scroll, a diferencia del banner
   // inline "message") — se necesita porque tras crear la orden el carrito se vacía y
@@ -275,16 +285,30 @@ const CreateOrderTab = () => {
     });
   }, []);
 
+  const loadClientOrders = useCallback((clientId) => {
+    if (!clientId) {
+      setClientOrders([]);
+      return;
+    }
+    setClientOrdersLoading(true);
+    backofficeService.getOrders({ client_id: clientId, order_origin: 'backoffice' })
+      .then(res => setClientOrders(res.data || []))
+      .catch(err => setMessage({ type: 'error', text: err.message || 'Error al cargar las órdenes del cliente' }))
+      .finally(() => setClientOrdersLoading(false));
+  }, []);
+
   useEffect(() => {
     setSelectedBranchId('');
     setBranches([]);
     setCart({});
+    setLastOrderSummary(null);
+    loadClientOrders(selectedClientId);
     if (!selectedClientId) return;
 
     backofficeService.getClientBranches(selectedClientId)
       .then(res => setBranches(res.data || []))
       .catch(err => setMessage({ type: 'error', text: err.message || 'Error al cargar sucursales' }));
-  }, [selectedClientId]);
+  }, [selectedClientId, loadClientOrders]);
 
   useEffect(() => {
     if (!selectedClientId) {
@@ -385,6 +409,20 @@ const CreateOrderTab = () => {
       unit_price: parseFloat(item.product.priceInfo?.effective_price || item.product.priceInfo?.price || 0)
     }));
 
+    const branch = branches.find(b => String(b.branch_id) === String(selectedBranchId));
+    // Se capturan los valores del carrito ANTES de limpiarlo, para poder mostrar el
+    // resumen de la orden recién creada (subtotal/IVA/Imp. Saludable/total) aunque
+    // el carrito ya esté vacío al momento de renderizar el resumen.
+    const summarySnapshot = {
+      subtotal: cartSubtotal,
+      ivaTotal,
+      impuestoSaludableTotal,
+      otroTotal,
+      total: cartTotal,
+      clientName: client.razonSocial,
+      branchName: branch?.branch_name || ''
+    };
+
     setSubmitting(true);
     setMessage(null);
     try {
@@ -396,10 +434,13 @@ const CreateOrderTab = () => {
         comments,
         customer_po_number: customerPoNumber || undefined
       });
-      setToast({ text: `Orden #${response.data?.order_id} creada exitosamente a nombre de ${client.razonSocial}` });
+      const orderId = response.data?.order_id;
+      setToast({ text: `Orden #${orderId} creada exitosamente a nombre de ${client.razonSocial}` });
+      setLastOrderSummary({ orderId, ...summarySnapshot });
       setCart({});
       setComments('');
       setCustomerPoNumber('');
+      loadClientOrders(selectedClientId);
     } catch (err) {
       setMessage({ type: 'error', text: err.message || 'Error al crear la orden' });
     } finally {
@@ -420,6 +461,30 @@ const CreateOrderTab = () => {
         <div className={`action-message ${message.type}`}>
           {message.text}
           <button className="close-btn" onClick={() => setMessage(null)}><FaTimes /></button>
+        </div>
+      )}
+
+      {lastOrderSummary && (
+        <div className="order-summary-card">
+          <div className="order-summary-header">
+            <h3>Orden #{lastOrderSummary.orderId} creada</h3>
+            <button className="close-btn" onClick={() => setLastOrderSummary(null)}><FaTimes /></button>
+          </div>
+          <p><strong>Cliente:</strong> {lastOrderSummary.clientName}</p>
+          <p><strong>Sucursal:</strong> {lastOrderSummary.branchName}</p>
+          <div className="order-summary-breakdown">
+            <div><span>Subtotal</span><span>${lastOrderSummary.subtotal.toLocaleString('es-CO')}</span></div>
+            {lastOrderSummary.ivaTotal > 0 && (
+              <div><span>IVA</span><span>${lastOrderSummary.ivaTotal.toLocaleString('es-CO')}</span></div>
+            )}
+            {lastOrderSummary.impuestoSaludableTotal > 0 && (
+              <div><span>Impuesto Saludable</span><span>${lastOrderSummary.impuestoSaludableTotal.toLocaleString('es-CO')}</span></div>
+            )}
+            {lastOrderSummary.otroTotal > 0 && (
+              <div><span>Otros impuestos</span><span>${lastOrderSummary.otroTotal.toLocaleString('es-CO')}</span></div>
+            )}
+            <div className="total"><span>Total</span><span>${lastOrderSummary.total.toLocaleString('es-CO')}</span></div>
+          </div>
         </div>
       )}
 
@@ -451,6 +516,38 @@ const CreateOrderTab = () => {
 
       {selectedClientId && (
         <>
+          <div className="client-orders-summary">
+            <h3>Órdenes BackOffice de este cliente</h3>
+            {clientOrdersLoading && <p>Cargando órdenes...</p>}
+            {!clientOrdersLoading && clientOrders.length === 0 && <p>Este cliente no tiene órdenes creadas desde BackOffice todavía.</p>}
+            {!clientOrdersLoading && clientOrders.length > 0 && (
+              <table className="backoffice-subtable">
+                <thead>
+                  <tr>
+                    <th>Orden</th>
+                    <th>Sucursal</th>
+                    <th>Estado</th>
+                    <th>Total</th>
+                    <th>Fecha</th>
+                    <th>Creada por</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {clientOrders.map(o => (
+                    <tr key={o.order_id}>
+                      <td>#{o.order_id}</td>
+                      <td>{o.branch_name}</td>
+                      <td>{o.status_name}</td>
+                      <td>${parseFloat(o.total_amount || 0).toLocaleString('es-CO')}</td>
+                      <td>{new Date(o.created_at).toLocaleDateString('es-CO')}</td>
+                      <td>{o.placed_by_name}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+
           {loading && <p>Cargando catálogo...</p>}
 
           {!loading && (
@@ -565,6 +662,151 @@ const CreateOrderTab = () => {
           <button className="btn-primary" onClick={handleSubmit} disabled={submitting}>
             {submitting ? <><FaSync className="spin" /> Creando orden...</> : 'Crear orden a nombre del cliente'}
           </button>
+        </>
+      )}
+    </div>
+  );
+};
+
+/* ------------------------------------------------------------------ */
+/* Tab: Pedidos del día (faceted search)                                */
+/* ------------------------------------------------------------------ */
+
+const TODAY = () => new Date().toISOString().split('T')[0];
+
+const ORDER_STATUS_OPTIONS = [
+  { value: '', label: 'Todos' },
+  { value: '1', label: 'Abierto' },
+  { value: '2', label: 'Confirmado' },
+  { value: '3', label: 'En Producción' },
+  { value: '4', label: 'Entregado completo' },
+  { value: '5', label: 'Cerrado' },
+  { value: '6', label: 'Cancelado' },
+  { value: '7', label: 'Entregado parcial' }
+];
+
+const DailyOrdersTab = () => {
+  const [dateFrom, setDateFrom] = useState(TODAY());
+  const [dateTo, setDateTo] = useState(TODAY());
+  const [orderOrigin, setOrderOrigin] = useState('');
+  const [statusId, setStatusId] = useState('');
+  const [clientSearch, setClientSearch] = useState('');
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const loadOrders = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    backofficeService.getOrders({
+      date_from: dateFrom || undefined,
+      date_to: dateTo || undefined,
+      order_origin: orderOrigin || undefined,
+      status_id: statusId || undefined
+    })
+      .then(res => setOrders(res.data || []))
+      .catch(err => setError(err.message || 'Error al cargar las órdenes'))
+      .finally(() => setLoading(false));
+  }, [dateFrom, dateTo, orderOrigin, statusId]);
+
+  useEffect(() => {
+    loadOrders();
+  }, [loadOrders]);
+
+  // Filtro de cliente/sucursal: en el propio navegador, sobre lo ya traído del backend
+  // (los demás facets sí van al backend porque cambian qué filas existen; este es solo
+  // texto libre sobre el resultado ya cargado, como el buscador tipo Google que se pidió).
+  const filteredOrders = clientSearch.trim()
+    ? orders.filter(o =>
+        (o.client_name || '').toLowerCase().includes(clientSearch.trim().toLowerCase()) ||
+        (o.branch_name || '').toLowerCase().includes(clientSearch.trim().toLowerCase())
+      )
+    : orders;
+
+  const totals = filteredOrders.reduce((acc, o) => {
+    acc.count += 1;
+    acc.total += parseFloat(o.total_amount || 0);
+    return acc;
+  }, { count: 0, total: 0 });
+
+  return (
+    <div className="backoffice-tab-content">
+      <div className="daily-orders-filters">
+        <label>
+          Desde
+          <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+        </label>
+        <label>
+          Hasta
+          <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+        </label>
+        <label>
+          Origen
+          <select value={orderOrigin} onChange={(e) => setOrderOrigin(e.target.value)}>
+            <option value="">Todos</option>
+            <option value="backoffice">BackOffice</option>
+            <option value="self_service">Autoservicio (cliente)</option>
+          </select>
+        </label>
+        <label>
+          Estado
+          <select value={statusId} onChange={(e) => setStatusId(e.target.value)}>
+            {ORDER_STATUS_OPTIONS.map(opt => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        </label>
+        <label className="search-label">
+          <FaFilter /> Cliente / sucursal
+          <input
+            type="text"
+            placeholder="Filtrar por nombre..."
+            value={clientSearch}
+            onChange={(e) => setClientSearch(e.target.value)}
+          />
+        </label>
+        <button className="btn-secondary" onClick={loadOrders}><FaSync /> Actualizar</button>
+      </div>
+
+      {error && <div className="action-message error">{error}</div>}
+      {loading && <p>Cargando órdenes...</p>}
+
+      {!loading && (
+        <>
+          <p className="daily-orders-count">{totals.count} órdenes — total ${totals.total.toLocaleString('es-CO')}</p>
+          <table className="backoffice-table">
+            <thead>
+              <tr>
+                <th>Orden</th>
+                <th>Cliente</th>
+                <th>Sucursal</th>
+                <th>Origen</th>
+                <th>Estado</th>
+                <th>Total</th>
+                <th>SAP</th>
+                <th>Fecha</th>
+                <th>Creada por</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredOrders.map(o => (
+                <tr key={o.order_id}>
+                  <td>#{o.order_id}</td>
+                  <td>{o.client_name}</td>
+                  <td>{o.branch_name}</td>
+                  <td>{o.order_origin === 'backoffice' ? 'BackOffice' : 'Autoservicio'}</td>
+                  <td>{o.status_name}</td>
+                  <td>${parseFloat(o.total_amount || 0).toLocaleString('es-CO')}</td>
+                  <td>{o.sap_synced ? `Sí (${o.sap_doc_entry ?? ''})` : 'No'}</td>
+                  <td>{new Date(o.created_at).toLocaleString('es-CO')}</td>
+                  <td>{o.placed_by_name || '—'}</td>
+                </tr>
+              ))}
+              {filteredOrders.length === 0 && (
+                <tr><td colSpan={9}>No se encontraron órdenes con estos filtros.</td></tr>
+              )}
+            </tbody>
+          </table>
         </>
       )}
     </div>

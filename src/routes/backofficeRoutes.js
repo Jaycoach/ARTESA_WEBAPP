@@ -22,6 +22,7 @@ router.post('/clients/:userId/deactivate', backofficeController.deactivateClient
 router.post('/branches/:branchId/reset-password', backofficeController.resetBranchPassword);
 router.post('/clients/:clientId/product-prices', backofficeController.getClientProductPrices);
 router.post('/orders', backofficeController.createOrderForClient);
+router.get('/orders', backofficeController.listOrders);
 router.get('/sap-sales-persons', backofficeController.listSapSalesPersons);
 router.patch('/users/:userId/sap-sales-employee-code', backofficeController.setSalesEmployeeMapping);
 

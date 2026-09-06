@@ -197,6 +197,75 @@ const resetBranchPassword = async (req, res) => {
 };
 
 /**
+ * GET /api/backoffice/orders
+ * Listado de órdenes con filtros tipo "faceted search": fecha, estado, origen,
+ * cliente, sucursal. Se usa tanto para la vista de "pedidos del día" como para el
+ * resumen de órdenes BackOffice de un cliente específico (pasando client_id +
+ * order_origin=backoffice, sin filtro de fecha).
+ */
+const listOrders = async (req, res) => {
+  try {
+    const { date_from, date_to, order_origin, status_id, client_id, branch_id } = req.query;
+
+    const conditions = [];
+    const params = [];
+
+    if (date_from) {
+      params.push(date_from);
+      conditions.push(`o.created_at::date >= $${params.length}`);
+    }
+    if (date_to) {
+      params.push(date_to);
+      conditions.push(`o.created_at::date <= $${params.length}`);
+    }
+    if (order_origin) {
+      params.push(order_origin);
+      conditions.push(`o.order_origin = $${params.length}`);
+    }
+    if (status_id) {
+      params.push(status_id);
+      conditions.push(`o.status_id = $${params.length}`);
+    }
+    if (client_id) {
+      params.push(client_id);
+      conditions.push(`cp.client_id = $${params.length}`);
+    }
+    if (branch_id) {
+      params.push(branch_id);
+      conditions.push(`o.branch_id = $${params.length}`);
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const query = `
+      SELECT
+        o.order_id, o.order_date, o.created_at, o.status_id, os.name AS status_name,
+        o.order_origin, o.subtotal, o.tax_amount, o.iva_amount, o.impuesto_saludable_amount,
+        o.total_amount, o.sap_synced, o.sap_doc_entry,
+        cp.client_id, cp.company_name AS client_name,
+        o.branch_id, cb.branch_name,
+        o.placed_by_user_id, pu.name AS placed_by_name
+      FROM orders o
+      JOIN users u ON o.user_id = u.id
+      JOIN client_profiles cp ON u.id = cp.user_id
+      LEFT JOIN client_branches cb ON o.branch_id = cb.branch_id
+      LEFT JOIN order_status os ON o.status_id = os.status_id
+      LEFT JOIN users pu ON o.placed_by_user_id = pu.id
+      ${whereClause}
+      ORDER BY o.created_at DESC
+      LIMIT 200
+    `;
+
+    const { rows } = await pool.query(query, params);
+
+    res.status(200).json({ success: true, data: rows });
+  } catch (error) {
+    logger.error('Error al listar órdenes en BackOffice', { error: error.message });
+    res.status(500).json({ success: false, message: 'Error al listar órdenes' });
+  }
+};
+
+/**
  * POST /api/backoffice/clients/:clientId/product-prices
  * Precios con impuestos para el cliente elegido (no el admin autenticado) — reutiliza
  * Order.getProductPricesWithTaxByClientId(), la misma función que ya usa el flujo de
@@ -375,6 +444,7 @@ module.exports = {
   resetBranchPassword,
   getClientProductPrices,
   createOrderForClient,
+  listOrders,
   listSapSalesPersons,
   setSalesEmployeeMapping
 };

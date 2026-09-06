@@ -92,6 +92,24 @@ export const backofficeService = {
       console.error('Error fetching products for backoffice:', error);
       throw error.response?.data || error;
     }
+  },
+
+  /**
+   * Listado de órdenes con filtros (faceted search): date_from, date_to, order_origin,
+   * status_id, client_id, branch_id. Todos opcionales.
+   */
+  async getOrders(filters = {}) {
+    try {
+      const params = {};
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') params[key] = value;
+      });
+      const response = await API.get('/backoffice/orders', { params });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching backoffice orders:', error);
+      throw error.response?.data || error;
+    }
   }
 };
 
