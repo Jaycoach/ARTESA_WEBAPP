@@ -183,7 +183,7 @@ const Home = () => {
 
 
         {/* VENTA ONLINE Section */}
-        <section className="relative overflow-hidden rounded-lg shadow-lg p-16 text-center flex flex-col items-center">
+        <section className="relative z-0 overflow-hidden rounded-lg shadow-lg p-16 text-center flex flex-col items-center">
           <video
             src={imgFondoVenta}
             autoPlay
