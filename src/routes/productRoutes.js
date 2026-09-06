@@ -94,9 +94,9 @@ router.use(sanitizeBody, sanitizeParams);
  * @returns {object} 401 - No autorizado
  * @returns {object} 500 - Error interno del servidor
  */
-router.get('/products', 
-  verifyToken, 
-  checkRole([1, 2, 3]), // Permitir acceso a todos los usuarios autenticados
+router.get('/products',
+  verifyToken,
+  checkRole([1, 2, 3, 4]), // Permitir acceso a todos los usuarios autenticados (incluye BackOffice, para el catálogo al crear orden a nombre de un cliente)
   productController.getProducts
 );
 

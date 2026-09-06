@@ -239,3 +239,23 @@ Confirmado contra `artesadb_dev` (staging), consultando los 3 usuarios con rol A
 ]
 ```
 **Ningún admin tiene el mapeo configurado todavía.** Consecuencia práctica: si el módulo BackOffice se usara hoy tal cual (una vez desplegado), toda orden creada por un admin sin mapeo viajaría a SAP **sin `SalesPersonCode`** (el campo se omite, SAP aplica su propio default) — no es un bug, es el comportamiento diseñado para "admin sin mapeo", pero implica que **nadie tiene vendedor asignado hasta que alguien corra el `PATCH` explícitamente** para cada admin que vaya a operar el módulo. Esto queda como pendiente operativo para Fase 5 (QA), no de código: antes de dar el módulo por completamente funcional en staging, correr el `PATCH` al menos para el admin de prueba que se use en el QA, para validar el caso "con mapeo" además del caso "sin mapeo".
+
+## 2026-09-06 — FASE 4: Frontend
+
+### Backend adicional necesario para habilitar el frontend (aditivo, mínimo)
+- `src/routes/productRoutes.js` (`GET /products`): se agregó el rol `4` (BACKOFFICE) al `checkRole([1,2,3])` existente → `checkRole([1,2,3,4])`. Cambio de una línea, no quita ningún rol existente, solo agrega acceso de lectura al catálogo para BackOffice (lo necesita para armar el carrito al crear una orden a nombre de un cliente). `GET /products/:productId` no se tocó (no lo usa el flujo actual).
+- `src/controllers/backofficeController.js` / `backofficeRoutes.js`: nuevo endpoint `POST /backoffice/clients/:clientId/product-prices`, que **reutiliza `Order.getProductPricesWithTaxByClientId()`** (ya existente, sin modificar) — necesario porque `GET /products` resuelve precios con la lista de precios del **admin autenticado**, no la del cliente elegido; para BackOffice hay que resolver precios con la lista de precios del cliente real.
+
+### Frontend
+- **Sidebar** (`Sidebar.jsx`): nuevo ítem "BackOffice" (`/dashboard/backoffice`, ícono `FaUserTie`), visible solo si `hasBackofficeAccess` (rol 1 o 4 — mismo criterio que el backend, `checkRole([1,4])`). Se agregó como bandera nueva (`backofficeOnly`) sin tocar la lógica existente de `adminOnly` ni el bug preexistente de `restricted` (fuera de alcance, ya reportado en Fase 0).
+- **Ruteo** (`App.jsx`): nueva ruta `backoffice` → `BackofficePage` (lazy-loaded, mismo patrón que `AdminPage`).
+- **`src/services/backofficeService.js`** (nuevo): wrapper sobre `API` (axios), mismo patrón que `adminService.js`. Incluye `hasBackofficePermission(user)` (rol 1 o 4).
+- **`src/Components/Dashboard/Pages/Backoffice/BackofficePage.jsx`** (nuevo): guard interno de acceso (mismo patrón "Acceso denegado" que `AdminPage.jsx`), con dos pestañas:
+  - **Clientes y sucursales**: búsqueda, tabla de clientes con estado activo/inactivo, botón activar/inactivar, expandir para ver sucursales del cliente y resetear contraseña por sucursal (la contraseña nunca se muestra en la UI — el backend solo confirma que se envió por correo).
+  - **Crear pedido a nombre de un cliente**: selección de cliente → sucursal (sin selector de cliente en `CreateOrderForm.jsx` existente, confirmado en Fase 0 — por eso es un componente nuevo, no una extensión de ese), catálogo de productos con precios resueltos para el cliente elegido (`getClientProductPrices`), carrito con cantidad editable, campos de comentarios/orden de compra, y envío a `POST /backoffice/orders`.
+- Reutilización deliberada (no reconstruida): el cálculo de impuestos/precio efectivo sigue viniendo 100% del backend (`Order.getProductPricesWithTaxByClientId` → mismo motor que ya usa el flujo de sucursales) — el frontend solo muestra `effective_price`, nunca calcula impuestos por su cuenta, el mismo principio ya aplicado en `CreateOrderForm.jsx` ("el frontend nunca decide" impuestos).
+
+### Validación de build (no es prueba de funcionalidad real en navegador)
+`npm run build` (Vite) en `src/views/frontend/LoginArtesa`: **exitoso**, 1208 módulos transformados, sin errores, con `BackofficePage-*.js`/`.css` generados correctamente en el bundle. **Esto confirma que el código compila y no tiene errores de sintaxis/import — no confirma que el flujo funcione en un navegador real** (esta sesión no tiene Playwright ni acceso a un navegador). Queda pendiente para Fase 5: abrir la app en staging real y probar el flujo completo (activar/inactivar, reset de password, crear orden) como usuario BackOffice real.
+
+### Estado: IMPLEMENTADO (build limpio), pendiente VALIDACIÓN EN STAGING junto con Fases 2 y 3.

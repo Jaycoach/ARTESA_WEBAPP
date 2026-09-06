@@ -197,6 +197,33 @@ const resetBranchPassword = async (req, res) => {
 };
 
 /**
+ * POST /api/backoffice/clients/:clientId/product-prices
+ * Precios con impuestos para el cliente elegido (no el admin autenticado) — reutiliza
+ * Order.getProductPricesWithTaxByClientId(), la misma función que ya usa el flujo de
+ * sucursales, sin duplicar el cálculo de impuestos.
+ */
+const getClientProductPrices = async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const { product_codes } = req.body;
+
+    if (!product_codes || !Array.isArray(product_codes) || product_codes.length === 0) {
+      return res.status(400).json({ success: false, message: 'Se requiere un array de códigos de productos' });
+    }
+
+    const pricesWithTax = await Order.getProductPricesWithTaxByClientId(clientId, product_codes);
+
+    res.status(200).json({ success: true, data: pricesWithTax });
+  } catch (error) {
+    logger.error('Error al obtener precios por cliente en BackOffice', {
+      error: error.message,
+      clientId: req.params.clientId
+    });
+    res.status(500).json({ success: false, message: 'Error al obtener precios' });
+  }
+};
+
+/**
  * POST /api/backoffice/orders
  * Crea una orden a nombre de un cliente elegido por el admin.
  * orders.user_id = cliente real (para que SapOrderService resuelva CardCode sin cambios).
@@ -346,6 +373,7 @@ module.exports = {
   activateClient,
   deactivateClient,
   resetBranchPassword,
+  getClientProductPrices,
   createOrderForClient,
   listSapSalesPersons,
   setSalesEmployeeMapping

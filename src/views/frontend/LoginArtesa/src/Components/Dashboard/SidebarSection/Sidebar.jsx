@@ -5,7 +5,7 @@ import { useAuth } from "../../../hooks/useAuth";
 import { AUTH_TYPES } from "../../../constants/AuthTypes";
 import {
   FaHome, FaListAlt, FaFileInvoiceDollar, FaBoxes, FaCog,
-  FaSignOutAlt, FaTools, FaUsers
+  FaSignOutAlt, FaTools, FaUsers, FaUserTie
 } from "react-icons/fa";
 
 const Sidebar = ({ collapsed, mobileMenuOpen, onCloseMobileMenu, onToggleCollapse }) => {
@@ -17,6 +17,7 @@ const Sidebar = ({ collapsed, mobileMenuOpen, onCloseMobileMenu, onToggleCollaps
   const { user, branch, authType, logout } = useAuth();
 
   const [hasAdminAccess, setHasAdminAccess] = useState(false);
+  const [hasBackofficeAccess, setHasBackofficeAccess] = useState(false);
 
   // *** MANTENIDO: Verificar permisos de administración (lógica original) ***
   useEffect(() => {
@@ -24,9 +25,10 @@ const Sidebar = ({ collapsed, mobileMenuOpen, onCloseMobileMenu, onToggleCollaps
     if (authType !== AUTH_TYPES.BRANCH && user) {
       const role = user.role || user.rol;
       let isAdmin = false;
+      let roleNumber = NaN;
 
       if (role !== undefined && role !== null) {
-        const roleNumber = parseInt(role);
+        roleNumber = parseInt(role);
         if (!isNaN(roleNumber)) {
           isAdmin = roleNumber === 1 || roleNumber === 3;
         } else {
@@ -42,8 +44,11 @@ const Sidebar = ({ collapsed, mobileMenuOpen, onCloseMobileMenu, onToggleCollaps
       }
 
       setHasAdminAccess(isAdmin);
+      // BackOffice: rol 4 (BACKOFFICE) o ADMIN (1, superadmin) — igual que el backend (checkRole([1,4]))
+      setHasBackofficeAccess(roleNumber === 1 || roleNumber === 4);
     } else {
       setHasAdminAccess(false);
+      setHasBackofficeAccess(false);
     }
   }, [user, authType]);
 
@@ -98,7 +103,8 @@ const Sidebar = ({ collapsed, mobileMenuOpen, onCloseMobileMenu, onToggleCollaps
         { path: "/dashboard/products", icon: FaBoxes, label: "Productos" },
         { path: "/dashboard/Users", icon: FaUsers, label: "Clientes", restricted: true },
         { path: "/dashboard/settings", icon: FaCog, label: "Configuración" },
-        { path: "/dashboard/admin", icon: FaTools, label: "Administración", adminOnly: true }
+        { path: "/dashboard/admin", icon: FaTools, label: "Administración", adminOnly: true },
+        { path: "/dashboard/backoffice", icon: FaUserTie, label: "BackOffice", backofficeOnly: true }
       ];
     }
   };
@@ -108,7 +114,10 @@ const Sidebar = ({ collapsed, mobileMenuOpen, onCloseMobileMenu, onToggleCollaps
   // *** MEJORADO: Filtrar ítems según permisos (usuarios principales únicamente) ***
   const filteredItems = authType === AUTH_TYPES.BRANCH
     ? menuItems // Para branch, mostrar todos los elementos
-    : menuItems.filter(item => !item.adminOnly || hasAdminAccess); // Para usuarios principales, filtrar por permisos
+    : menuItems.filter(item =>
+        (!item.adminOnly || hasAdminAccess) &&
+        (!item.backofficeOnly || hasBackofficeAccess)
+      ); // Para usuarios principales, filtrar por permisos
 
   return (
     // *** MANTENIDO: Estructura y clases originales exactas ***

@@ -30,6 +30,7 @@ const EditOrderForm       = lazy(() => import('./Components/Dashboard/Pages/Orde
 const Invoices            = lazy(() => import('./Components/Dashboard/Pages/Invoices/Invoices'));
 const Settings            = lazy(() => import('./Components/Dashboard/Pages/Settings/Settings'));
 const AdminPage           = lazy(() => import('./Components/Dashboard/Pages/Admin/AdminPage'));
+const BackofficePage      = lazy(() => import('./Components/Dashboard/Pages/Backoffice/BackofficePage'));
 const Users               = lazy(() => import('./Components/Dashboard/Pages/Users/ClientList'));
 const EmailVerification   = lazy(() => import('./Components/Register/EmailVerification'));
 const ResendVerification  = lazy(() => import('./Components/Register/ResendVerification'));
@@ -186,6 +187,7 @@ const router = createBrowserRouter([
       { path: 'invoices', element: <Suspense fallback={<LoadingScreen />}><Invoices /></Suspense> },
       { path: 'settings', element: <Suspense fallback={<LoadingScreen />}><Settings /></Suspense> },
       { path: 'admin', element: <Suspense fallback={<LoadingScreen />}><AdminPage /></Suspense> },
+      { path: 'backoffice', element: <Suspense fallback={<LoadingScreen />}><BackofficePage /></Suspense> },
       { path: 'users', element: <Suspense fallback={<LoadingScreen />}><Users /></Suspense> },
     ],
   },
