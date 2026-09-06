@@ -468,3 +468,10 @@ Se revisó cómo resuelven esto los dos catálogos existentes:
 - **CDN real (después de subir, con espera de propagación):** `index.html` referencia el bundle nuevo (`index-BwFePjzS.js`); el chunk `BackofficePage-UJa2pc11.js` descargado directo de CloudFront contiene el placeholder de búsqueda real. `aws s3 ls` confirma MP4 intactos.
 
 ### Estado: IMPLEMENTADO y VALIDADO EN STAGING (branch + contenido + CDN). **Sin verificación en navegador real** — esta sesión sigue sin Playwright/navegador disponible; se declara explícitamente en vez de afirmar una prueba no realizada. Pendiente: que el usuario confirme visualmente que la búsqueda filtra correctamente y que el límite de 30 resultados se respeta con términos de búsqueda amplios.
+
+### CONFIRMADO EN NAVEGADOR por el usuario — cerrado sin hallazgos
+- Búsqueda "chocolatine" → 3 resultados; búsqueda "pan" → confirmado por inspección de DOM que respeta el tope exacto de `MAX_PRODUCT_SEARCH_RESULTS = 30` (`role="option"`, ni uno más).
+- Selección → `addToCart` → cálculo de subtotal: sin regresión.
+- El resumen "Órdenes BackOffice de este cliente" (agregado en la ronda anterior junto al resumen de OV) ya cubre, sin pedirlo de nuevo, parte de lo solicitado como "Feature 1" de esa ronda — confirmado visible e integrado en la misma pantalla al elegir cliente.
+
+**Estado final: VALIDADO EN STAGING (3 capas + navegador real por el usuario). Sin pendientes de código en este punto.**
