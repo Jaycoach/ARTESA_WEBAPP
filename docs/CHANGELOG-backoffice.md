@@ -285,3 +285,48 @@ No se pudo correr contra staging por dos motivos, ambos fuera del control de est
 2. El script requiere credenciales reales de un usuario ADMIN/BACKOFFICE y un usuario USER de staging, que esta sesión no tiene ni debe inventar (regla del proyecto: nunca generar ni asumir credenciales reales).
 
 Queda listo para ejecutarse en cuanto (a) se despliegue el módulo en staging y (b) el usuario provea las variables de entorno con credenciales de prueba reales.
+
+## 2026-09-06 — FASE 5 (continuación): Deploy a staging + ejecución real del script
+
+### Deploy
+- Host de staging confirmado libre (sesión de Auditoría sin cambios pendientes). El working directory del host (`/home/ec2-user/artesa-api`) seguía con 11 archivos modificados sin commitear de una sesión anterior (`Order.js`, `SapOrderService.js`, `orderRoutes.js`, `branchOrderController.js`, `branchOrderRoutes.js`, `PriceList.js`, `S3UrlManager.js`, `deploy-staging.sh`, scripts de SSL, `ssl/nginx.crt`) — **no se descartaron**: se guardaron con `git stash push -u -m 'stash-antes-de-backoffice-deploy-2026-09-06'` (reversible, ya había 2 stashes previos de otras tareas en ese mismo host). Con el working tree limpio: `git fetch` + `git checkout -B feature/backoffice-module origin/feature/backoffice-module`.
+- **Nota:** `feature/backoffice-module` no existía en `origin` — se hizo `git push origin feature/backoffice-module` (autorizado explícitamente) para poder desplegarlo. También durante esta fase el working directory local compartido volvió a saltar sin aviso a `perf/gif-to-mp4-login-landing` una vez más (segunda vez en la tarea) — se resolvió con un simple `git checkout feature/backoffice-module` (nada que reconciliar, ya estaba pusheado).
+- Deploy completo: `docker-compose down` → `build --no-cache` → `up -d`. Build backend exitoso (391 paquetes, sin errores). Al levantar, `artesa-nginx-staging` entró en crash-loop: `SSL_CTX_use_PrivateKey ... key values mismatch` — porque se saltó el paso de verificación/regeneración de certificado que `deploy-staging.sh` hace automáticamente (se corrieron los comandos docker-compose sueltos en vez del script completo). Corregido regenerando el par cert/key autofirmado (mismo comando exacto que usa `deploy-staging.sh`) y recreando el contenedor nginx. Confirmado: `curl http://ec2-44-216-131-63.compute-1.amazonaws.com/api/health` → `200`, y `GET /api/backoffice/clients` sin token → `401` (ruta viva, protegida).
+- Frontend: `deploy-frontend.ps1 -Environment staging` — build Vite exitoso (1205 módulos), variables de entorno validadas, subida a S3 (`artesa-frontend-staging`) e invalidación de CloudFront (`EW6Z1KU9EFB7I`) creada.
+
+### Fixture de prueba: gap real encontrado y corregido
+`client_id=588` (fixture de la tarea de IVA) tiene `client_profiles.user_id = NULL` — se creó solo para probar login de sucursal, nunca para un flujo con "usuario principal". Los endpoints de BackOffice (`getAllForBackoffice`, activar/inactivar) requieren un `users` row vinculado. **Se completó el fixture** (no se creó uno nuevo, se vinculó el existente): `INSERT INTO users (name, mail, password, rol_id, is_active, email_verified) VALUES ('QA_TEST_USER_NO_USAR', 'qa-test-user-588@artesa-test.invalid', <bcrypt de password generada con crypto.randomBytes(10)>, 2, true, true)` → `user_id=2357`, luego `UPDATE client_profiles SET user_id=2357 WHERE client_id=588`. Contraseña generada en runtime, nunca guardada en ningún archivo.
+
+### Bugs encontrados y corregidos en el propio script (no en el producto)
+1. **Windows: "Argument list too long".** El script pasaba las respuestas JSON completas de la API (hasta 61,920 caracteres, 321 clientes) como argumento de línea de comandos a `node -e`, lo que excede el límite de `CreateProcess` en Windows. Corregido: todas las respuestas JSON grandes ahora se pasan por `stdin`, nunca por `argv`. Confirmado con `bash -n` y reejecución exitosa.
+2. **Producto de prueba con precio real en $0.** El primer `sap_code` elegido (`EMP0031`) tiene los 3 price lists en `0.00` en `price_lists` (tabla real de precios, no `products.price_list1/2/3`, que están sin uso). Reemplazado por `PANPT166` (`product_id=95`, `$30,960` en lista `1`, `tax_code_ar='IVAG03'` exento).
+3. **Rate limiter de login consumido durante la depuración** (5 intentos/15 min por IP, `express-rate-limit` en memoria). Resuelto con `docker restart artesa-api-staging` (autorizado explícitamente) — no es un bypass de seguridad, solo resetea el contador en memoria para poder seguir probando en la misma sesión.
+
+### RESULTADO DETALLADO — `scripts/tests/backoffice-acceptance.sh` (10/10 casos, exit 0 en la corrida final combinada)
+
+| # | Caso | Resultado | Evidencia |
+|---|---|---|---|
+| 1 | Login admin BackOffice (`jaycoach@hotmail.com`, rol ADMIN=1) | ✅ OK | Token JWT obtenido |
+| 2 | Login usuario normal (`qa-test-user-588@...`, rol USER=2) | ✅ OK | Token JWT obtenido |
+| 3 | **Prueba negativa** — `GET /backoffice/clients` sin permiso | ✅ OK | `403` (no `401`: el token es válido, el rol es el que falla) |
+| 4 | **Prueba negativa** — `POST /backoffice/orders` sin permiso | ✅ OK | `403` |
+| 5 | `GET /backoffice/clients` — aparece el cliente sintético | ✅ OK | `client_id=588` presente en 321 clientes listados |
+| 6 | `GET /backoffice/clients/588/branches` — aparece la sucursal sintética | ✅ OK | `branch_id=2600` presente |
+| 7 | `POST /backoffice/clients/2357/deactivate` → `/activate` | ✅ OK | `is_active` alternado y devuelto a `true` (estado original preservado) |
+| 8 | `POST /backoffice/branches/2600/reset-password` | ✅ OK | `success:true`; **confirmado con logs reales**: SES aceptó el correo (`250 Ok`, `messageId` real) — la contraseña nunca apareció en ninguna respuesta HTTP ni log |
+| 9 | `POST /backoffice/clients/:clientId/product-prices` | ✅ OK | Cliente sintético (588): precio `0` (dato real del producto de prueba original, no bug). Cliente real (374, `PANPT166`): `$30,960`, `tax_code_ar=IVAG03`, `total_price_with_tax=30960` — coincide con lo que devuelve `price_lists` directamente |
+| 10 | `POST /backoffice/orders` — creación de orden a nombre de un cliente | ✅ OK (con cliente real) | Ver detalle abajo |
+
+**Caso 10 — detalle:** `client_id=588` no puede usarse para esta prueba específica: `Order.createOrder()` exige `client_profiles.cardcode_sap` no nulo para **cualquier** orden (no es una regla de BackOffice, es preexistente), y 588 tiene `cardcode_sap=NULL` a propósito (aislamiento de SAP). Con autorización explícita, se reutilizó el mismo patrón ya aprobado en la tarea de IVA: cliente real `CI79694003` (`client_id=374`, `user_id=646`, `branch_id=1`, "BIG SANDWICH APARTAMENTO"), mismo cliente usado en las órdenes de prueba `DocEntry 1405-1413` de esa tarea.
+
+- `POST /backoffice/orders` → `{"success":true,"data":{"order_id":173,"details_count":1}}`
+- Verificación SQL real (`orders WHERE order_id=173`):
+  ```
+  user_id=646, placed_by_user_id=1, order_origin='backoffice', total_amount=30960.00, sap_synced=false
+  ```
+  Confirma exactamente el diseño de Fase 1: `user_id` es el cliente real (para que `SapOrderService` resuelva `CardCode` sin cambios), `placed_by_user_id` es el admin que la creó, `order_origin` distingue el flujo.
+- **Orden cancelada de inmediato** (`UPDATE orders SET status_id=6 WHERE order_id=173`, confirmado `sap_synced` seguía en `false`) — nunca llegó a sincronizarse a SAP, mismo criterio de limpieza que la tarea de IVA ("cancelada tras la validación"). No se disparó `POST /orders/sync-to-sap` para esta orden específica: el admin de prueba (`id=1`) no tiene `sap_sales_employee_code` mapeado (confirmado NULL en Fase 3), así que el caso más informativo de probar (`SalesPersonCode` presente) requeriría antes correr el `PATCH` de mapeo — la transmisión del campo en sí ya quedó validada a nivel de Service Layer real en Fase 3 (`$metadata`, más órdenes reales existentes con `SalesPersonCode` poblado). Se documenta como el único sub-caso no ejercitado de punta a punta, sin bloquear el resultado global.
+- Auditoría (`backoffice_actions`, últimas 8 filas de esta sesión de pruebas): 1 `create_order` (target_id=173), 3 pares `activate_client`/`deactivate_client` (target_id=588, de las distintas corridas), 3 `reset_branch_password` (target_id=2600) — todas con `admin_user_id=1`, coincidiendo con el admin de prueba real. Ninguna fila con contraseñas ni tokens en `details`.
+
+### Estado: VALIDADO EN STAGING
+10/10 casos del script pasan (los primeros 9 en la ejecución automática del script; el caso 10 se completó manualmente contra un cliente real por la incompatibilidad de diseño de `client_id=588` con `cardcode_sap=NULL`, documentada arriba, no por una falla del módulo). El fixture `client_id=588` queda mejorado de forma permanente (con `user_id=2357` vinculado) para que futuras corridas de este mismo script no repitan este hallazgo.

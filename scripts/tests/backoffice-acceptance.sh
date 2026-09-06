@@ -30,14 +30,19 @@ FAIL=0
 ORDER_ID=""
 
 json_get() {
-  # $1 = JSON string, $2 = ruta tipo data.order_id (dot-path simple)
-  node -e "
-    const data = JSON.parse(process.argv[1]);
-    const path = process.argv[2].split('.');
-    let cur = data;
-    for (const k of path) { cur = cur?.[k]; }
-    console.log(cur === undefined || cur === null ? '' : cur);
-  " "$1" "$2" 2>/dev/null
+  # $1 = JSON string (por stdin, nunca por argv — evita "Argument list too long"
+  # en Windows con respuestas grandes), $2 = ruta tipo data.order_id (dot-path simple)
+  printf '%s' "$1" | node -e "
+    let data = '';
+    process.stdin.on('data', d => data += d);
+    process.stdin.on('end', () => {
+      const obj = JSON.parse(data);
+      const path = process.argv[1].split('.');
+      let cur = obj;
+      for (const k of path) { cur = cur?.[k]; }
+      console.log(cur === undefined || cur === null ? '' : cur);
+    });
+  " "$2" 2>/dev/null
 }
 
 step() { echo ""; echo "== $1 =="; }
@@ -91,11 +96,15 @@ fi
 # --- Listar clientes y confirmar que el cliente sintético aparece ---
 step "GET /backoffice/clients — confirmar que el cliente de prueba ($TEST_CLIENT_ID) aparece"
 CLIENTS_RESP=$(curl -s "$BASE_URL/api/backoffice/clients" -H "Authorization: Bearer $ADMIN_TOKEN")
-FOUND_CLIENT=$(node -e "
-  const data = JSON.parse(process.argv[1]);
-  const found = (data.data || []).some(c => String(c.client_id) === process.argv[2]);
-  console.log(found);
-" "$CLIENTS_RESP" "$TEST_CLIENT_ID" 2>/dev/null)
+FOUND_CLIENT=$(printf '%s' "$CLIENTS_RESP" | node -e "
+  let data = '';
+  process.stdin.on('data', d => data += d);
+  process.stdin.on('end', () => {
+    const obj = JSON.parse(data);
+    const found = (obj.data || []).some(c => String(c.client_id) === process.argv[1]);
+    console.log(found);
+  });
+" "$TEST_CLIENT_ID" 2>/dev/null)
 if [ "$FOUND_CLIENT" = "true" ]; then
   ok "Cliente de prueba encontrado en el listado"
 else
@@ -105,11 +114,15 @@ fi
 # --- Listar sucursales del cliente y confirmar la sucursal sintética ---
 step "GET /backoffice/clients/$TEST_CLIENT_ID/branches — confirmar sucursal de prueba ($TEST_BRANCH_ID)"
 BRANCHES_RESP=$(curl -s "$BASE_URL/api/backoffice/clients/$TEST_CLIENT_ID/branches" -H "Authorization: Bearer $ADMIN_TOKEN")
-FOUND_BRANCH=$(node -e "
-  const data = JSON.parse(process.argv[1]);
-  const found = (data.data || []).some(b => String(b.branch_id) === process.argv[2]);
-  console.log(found);
-" "$BRANCHES_RESP" "$TEST_BRANCH_ID" 2>/dev/null)
+FOUND_BRANCH=$(printf '%s' "$BRANCHES_RESP" | node -e "
+  let data = '';
+  process.stdin.on('data', d => data += d);
+  process.stdin.on('end', () => {
+    const obj = JSON.parse(data);
+    const found = (obj.data || []).some(b => String(b.branch_id) === process.argv[1]);
+    console.log(found);
+  });
+" "$TEST_BRANCH_ID" 2>/dev/null)
 if [ "$FOUND_BRANCH" = "true" ]; then
   ok "Sucursal de prueba encontrada en el listado"
 else
@@ -119,11 +132,15 @@ fi
 # --- Ciclo de activar/inactivar ---
 step "POST /backoffice/clients/:userId/deactivate + /activate"
 # Necesitamos el user_id del cliente de prueba, no el client_id
-USER_ID_OF_CLIENT=$(node -e "
-  const data = JSON.parse(process.argv[1]);
-  const c = (data.data || []).find(c => String(c.client_id) === process.argv[2]);
-  console.log(c ? c.user_id : '');
-" "$CLIENTS_RESP" "$TEST_CLIENT_ID" 2>/dev/null)
+USER_ID_OF_CLIENT=$(printf '%s' "$CLIENTS_RESP" | node -e "
+  let data = '';
+  process.stdin.on('data', d => data += d);
+  process.stdin.on('end', () => {
+    const obj = JSON.parse(data);
+    const c = (obj.data || []).find(c => String(c.client_id) === process.argv[1]);
+    console.log(c ? c.user_id : '');
+  });
+" "$TEST_CLIENT_ID" 2>/dev/null)
 
 if [ -z "$USER_ID_OF_CLIENT" ]; then
   fail "No se pudo resolver el user_id del cliente de prueba — se omite ciclo activar/inactivar"
@@ -152,11 +169,15 @@ step "POST /backoffice/clients/$TEST_CLIENT_ID/product-prices"
 PRICES_RESP=$(curl -s -X POST "$BASE_URL/api/backoffice/clients/$TEST_CLIENT_ID/product-prices" \
   -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
   -d "{\"product_codes\":[\"$BACKOFFICE_TEST_PRODUCT_CODE\"]}")
-PRICE_VALUE=$(node -e "
-  const data = JSON.parse(process.argv[1]);
-  const p = (data.data || [])[0];
-  console.log(p ? (p.effective_price ?? p.price ?? '') : '');
-" "$PRICES_RESP" 2>/dev/null)
+PRICE_VALUE=$(printf '%s' "$PRICES_RESP" | node -e "
+  let data = '';
+  process.stdin.on('data', d => data += d);
+  process.stdin.on('end', () => {
+    const obj = JSON.parse(data);
+    const p = (obj.data || [])[0];
+    console.log(p ? (p.effective_price ?? p.price ?? '') : '');
+  });
+" 2>/dev/null)
 if [ -n "$PRICE_VALUE" ]; then
   ok "Precio con impuestos resuelto para el cliente de prueba: $PRICE_VALUE"
 else
@@ -166,11 +187,15 @@ fi
 # --- Resolver product_id real del sap_code de prueba (Order.createOrder lo exige) ---
 step "GET /api/products — resolver product_id de $BACKOFFICE_TEST_PRODUCT_CODE"
 PRODUCTS_RESP=$(curl -s "$BASE_URL/api/products" -H "Authorization: Bearer $ADMIN_TOKEN")
-TEST_PRODUCT_ID=$(node -e "
-  const data = JSON.parse(process.argv[1]);
-  const p = (data.data || []).find(p => p.sap_code === process.argv[2]);
-  console.log(p ? p.product_id : '');
-" "$PRODUCTS_RESP" "$BACKOFFICE_TEST_PRODUCT_CODE" 2>/dev/null)
+TEST_PRODUCT_ID=$(printf '%s' "$PRODUCTS_RESP" | node -e "
+  let data = '';
+  process.stdin.on('data', d => data += d);
+  process.stdin.on('end', () => {
+    const obj = JSON.parse(data);
+    const p = (obj.data || []).find(p => p.sap_code === process.argv[1]);
+    console.log(p ? p.product_id : '');
+  });
+" "$BACKOFFICE_TEST_PRODUCT_CODE" 2>/dev/null)
 [ -n "$TEST_PRODUCT_ID" ] && ok "product_id resuelto: $TEST_PRODUCT_ID" || fail "No se pudo resolver product_id para $BACKOFFICE_TEST_PRODUCT_CODE"
 
 # --- Creación de orden a nombre del cliente ---
