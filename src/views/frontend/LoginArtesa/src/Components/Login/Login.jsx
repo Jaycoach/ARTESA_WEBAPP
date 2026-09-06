@@ -13,7 +13,7 @@ import API from "../../api/config";
 import BranchVerificationFlow from './BranchVerificationFlow';
 
 // Import Assets
-import img from "../../LoginsAssets/principal_img.gif";
+import img from "../../LoginsAssets/principal_img.mp4";
 import logo from "../../LoginsAssets/logo_artesa_new.png";
 
 // Import Icons
@@ -701,9 +701,13 @@ const Login = () => {
             <div className="w-full max-w-4xl mx-auto bg-white rounded-xl shadow-2xl overflow-hidden">
                 <div className="flex flex-col lg:flex-row min-h-[500px]">
                     <div className="lg:w-1/2 h-48 lg:min-h-[500px] relative">
-                        <img
+                        <video
                             src={img}
-                            alt="Artesa Panadería"
+                            autoPlay
+                            loop
+                            muted
+                            playsInline
+                            aria-label="Artesa Panadería"
                             className="w-full h-full object-cover"
                         />
 

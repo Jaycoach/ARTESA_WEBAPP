@@ -6,7 +6,7 @@ import { useError } from "../../context/ErrorContext";
 import { useAuth } from "../../hooks/useAuth"; // ✅ AGREGAR
 import { AUTH_TYPES } from "../../constants/AuthTypes"; // ✅ AGREGAR
 import FormErrorMessage from "../ui/FormErrorMessage";
-import img from "../../LoginsAssets/principal_img.gif";
+import img from "../../LoginsAssets/principal_img.mp4";
 import logo from "../../LoginsAssets/logo_artesa_new.png";
 import { BsFillShieldLockFill, BsBuilding } from "react-icons/bs";
 import { TiArrowRightOutline } from "react-icons/ti";
@@ -160,11 +160,14 @@ const ResetPassword = () => {
           rounded-none md:rounded-l-2xl
           overflow-hidden
         `}>
-          <img
+          <video
             src={img}
-            alt="Reset Visual"
+            autoPlay
+            loop
+            muted
+            playsInline
+            aria-label="Reset Visual"
             className="absolute inset-0 w-full h-full object-cover"
-            draggable={false}
           />
         </div>
 
