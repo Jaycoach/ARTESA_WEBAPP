@@ -9,7 +9,7 @@ import imgVenta1 from "../../HomeAssets/Producto_1.png";
 import imgVenta2 from "../../HomeAssets/Producto_2.png";
 import imgVenta3 from "../../HomeAssets/Producto_3.png";
 import imgVenta4 from "../../HomeAssets/Producto_4.png";
-import imgFondoVenta from '../../HomeAssets/Venta_Online.gif';
+import imgFondoVenta from '../../HomeAssets/Venta_Online.mp4';
 import { FaMapMarkerAlt } from "react-icons/fa";
 import Footerico from '../../HomeAssets/Icolo_footer.png';
 import { FaInstagram, FaTiktok, FaFacebook, FaLinkedin } from "react-icons/fa";
@@ -183,14 +183,21 @@ const Home = () => {
 
 
         {/* VENTA ONLINE Section */}
-        <section
-          className="bg-cover bg-center p-16 rounded-lg shadow-lg text-center flex flex-col items-center"
-          style={{ backgroundImage: `url(${imgFondoVenta})` }}>
-          <h2 className="text-2xl font-semibold text-white">Productos pasteleros de alta calidad</h2>
-          <p className="mt-2 text-white">Programa tu pedido en línea con pago y transporte seguro.</p>
+        <section className="relative overflow-hidden rounded-lg shadow-lg p-16 text-center flex flex-col items-center">
+          <video
+            src={imgFondoVenta}
+            autoPlay
+            loop
+            muted
+            playsInline
+            aria-hidden="true"
+            className="absolute inset-0 w-full h-full object-cover -z-10"
+          />
+          <h2 className="relative text-2xl font-semibold text-white">Productos pasteleros de alta calidad</h2>
+          <p className="relative mt-2 text-white">Programa tu pedido en línea con pago y transporte seguro.</p>
           <button
             onClick={() => navigate('/')}
-            className="mt-4 bg-orange-500 text-white px-6 py-3 rounded-lg shadow-md hover:bg-orange-600 transition"
+            className="relative mt-4 bg-orange-500 text-white px-6 py-3 rounded-lg shadow-md hover:bg-orange-600 transition"
           >
             Realizar Pedido
           </button>

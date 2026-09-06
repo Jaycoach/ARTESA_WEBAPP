@@ -7,7 +7,6 @@ import btn_home_1_hover from '../../HomeAssets/btn_home_1_hover.png';
 import btn_home_2_hover from '../../HomeAssets/btn_home_2_hover.png';
 import Footerico from '../../HomeAssets/Icono_footer_new.png';
 import { FaInstagram, FaTiktok, FaFacebook, FaLinkedin } from "react-icons/fa";
-import imgFondoVenta from '../../HomeAssets/Venta_Online.gif';
 import imgLogo1 from "../../HomeAssets/logo_artesa_new.png";
 import iconPago from '../../HomeAssets/icon_pago.png';
 import iconCasa from '../../HomeAssets/icon_casa.png';

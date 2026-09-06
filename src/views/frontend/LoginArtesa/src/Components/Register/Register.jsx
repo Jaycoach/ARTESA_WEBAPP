@@ -7,7 +7,7 @@ import { useError } from "../../context/ErrorContext";
 import FormErrorMessage from "../ui/FormErrorMessage";
 
 // Import Assets
-import img from "../../LoginsAssets/principal_img.gif";
+import img from "../../LoginsAssets/principal_img.mp4";
 import logo from '../../LoginsAssets/logo_artesa_new.png';
 
 // Import Icons
@@ -144,7 +144,7 @@ const Register = () => {
         <div className="RegisterPage flex">
             <div className="container flex">
                 <div className="imgDiv">
-                    <img src={img} alt="registerImg" />
+                    <video src={img} autoPlay loop muted playsInline aria-label="registerImg" />
                     <div className="textDiv">
                         <h2 className="title"></h2>
                         <p></p>
