@@ -406,3 +406,29 @@ El banner de éxito (`action-message`) está al *inicio* del contenido de la pes
 - **CDN real (después de subir, con espera de propagación):** `index.html` de CloudFront referencia `index-D1ltDLnk.js`; el chunk `BackofficePage-D96JTw3W.js` descargado directo de CloudFront (13,857 bytes) contiene `"Impuesto Saludable"` y `"backoffice-toast"`. `aws s3 ls` confirma los MP4 siguen en el bucket.
 
 ### Estado: IMPLEMENTADO y VALIDADO EN STAGING (branch + contenido + CDN). **Sin verificación en navegador real** — esta sesión no tiene Playwright ni acceso a un navegador; se lo dije explícitamente al usuario en vez de afirmar una prueba que no hice. Queda pendiente que el usuario confirme visualmente el desglose de impuestos y el toast en su propio navegador.
+
+## 2026-09-06 — FASE 5 (continuación): pendientes repetidos ya resueltos + 2 features nuevas
+
+### Aclaración: los 4 pendientes de la ronda anterior ya estaban resueltos
+El usuario repitió instrucciones (cancelar orden, correr SQL de consistencia, desglose de impuestos, toast) que ya se habían completado en el turno anterior — probablemente un cruce de mensajes. Verificado de nuevo antes de tocar nada: `order_id=174` seguía en `status_id=6` (`sap_synced=false`), y el commit `870e100` (desglose + toast) seguía siendo el que servía `index-D1ltDLnk.js` en CloudFront, sin cambios. No se repitió trabajo ya hecho.
+
+### Contraseña de prueba fijada para QA_TEST_NO_USAR (branch_id=2600)
+El correo de reset va a un dominio inexistente (`@artesa-test.invalid`), a propósito — nunca llega. Se fijó una contraseña conocida directamente en BD (mismo patrón: `crypto.randomBytes(10)` + `bcrypt.hash(password, 10)` vía `bcryptjs`, script temporal ejecutado y borrado, nunca commiteado a ningún archivo) para que el usuario pueda iniciar sesión como esa sucursal y confirmar el flujo completo.
+
+### Feature nueva 1 — resumen de OV creadas
+- Tras crear una orden, se muestra de inmediato una tarjeta de resumen (`order_id`, cliente, sucursal, Subtotal/IVA/Impuesto Saludable/Total) — independiente del toast, no depende de scroll.
+- Al elegir un cliente en "Crear pedido", se lista su historial de órdenes creadas desde BackOffice (persistente, consulta real a `orders`, no solo estado de sesión).
+
+### Feature nueva 2 — pestaña "Pedidos del día" con faceted search
+Nueva pestaña con filtros: rango de fecha (default hoy-hoy), origen (`backoffice`/`self_service`), estado (nombres reales de la tabla `order_status`, no strings inventados — confirmado contra staging: `Abierto/Confirmado/En Producción/Entregado completo/Cerrado/Cancelado/Entregado parcial`), y texto libre de cliente/sucursal (filtrado en el propio navegador sobre lo ya traído, ya que es solo un refinamiento visual, no una faceta que cambie qué filas existen en BD). Muestra tanto órdenes de BackOffice como de autoservicio.
+
+### Backend: un solo endpoint nuevo, reutilizado por ambas features
+`GET /api/backoffice/orders` (`checkRole([1,4])`), filtros opcionales por `date_from`/`date_to`/`order_origin`/`status_id`/`client_id`/`branch_id`. Join con `order_status` (nombres reales) y con `users` dos veces (cliente dueño de la orden y `placed_by_user_id` si aplica). Sin esto no había forma de listar órdenes desde BackOffice — no existía antes.
+
+### Verificación (3 capas)
+- **Branch:** solo los archivos propios modificados (`backofficeController.js`, `backofficeRoutes.js`, `BackofficePage.jsx/scss`, `backofficeService.js`). Commit `9ab69c9`, pusheado.
+- **Contenido del bundle (antes de subir):** `grep -o "Pedidos del día"`, `"Órdenes BackOffice de este cliente"`, `"daily-orders-filters"` en el chunk local → presentes. MP4 de la otra sesión intactos.
+- **Backend real:** rebuild completo en el host (`git pull` a `9ab69c9`, `docker-compose down/build --no-cache/up`), contenedores sanos sin el problema de SSL de la vez anterior (no se tocó `ssl/`). `GET /api/backoffice/orders` sin token → `401` (ruta viva).
+- **CDN real (después de subir, con espera de propagación):** `index.html` referencia el bundle nuevo; el chunk `BackofficePage-XKkyJwk8.js` descargado directo de CloudFront contiene ambas features; `aws s3 ls` confirma MP4 intactos.
+
+### Estado: IMPLEMENTADO y VALIDADO EN STAGING (branch + backend real + contenido + CDN). Sin verificación en navegador real (misma limitación de siempre, declarada explícitamente). Queda para el usuario: confirmar visualmente las dos features nuevas, y usar la contraseña fijada para validar "Mis Pedidos" desde la sucursal.
