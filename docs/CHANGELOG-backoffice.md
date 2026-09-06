@@ -357,3 +357,27 @@ Otra sesión (`laartesa-80`, trabajando en `perf/gif-to-mp4-login-landing`) avis
 **Causa:** `deploy-frontend.ps1` hace `aws s3 sync --delete` contra un único bucket (`artesa-frontend-staging`) compartido entre branches. `feature/backoffice-module` parte de `master` **antes** de que el fix de GIFs se mergeara ahí, así que mi `dist/` no tiene el fix de esa sesión — cada vez que yo sincronizo, borro sus archivos nuevos y restauro los GIFs viejos (y viceversa cuando ellos redeploy).
 
 **Acción tomada:** confirmado con la otra sesión. **No se vuelve a correr `deploy-frontend.ps1` (staging) desde esta tarea hasta que `feature/backoffice-module` se mergee a `master`, o hasta coordinar explícitamente un redeploy conjunto.** El backend (Docker/EC2, distinto de este bucket) no tiene este problema — solo el frontend en S3/CloudFront está pausado.
+
+## 2026-09-06 — FASE 5 (cierre de la colisión): merge de master + redeploy conjunto
+
+Auditoría confirmó que `perf/gif-to-mp4-login-landing` (`8803c25`) ya está en `origin/master`. Se retomó el deploy con las tres capas de verificación pedidas.
+
+### Capa 1 — branch
+`git merge origin/master` (y luego `-s recursive`, y `-X no-renames`) **falló repetidamente** con `error: cannot stat 'src/views/frontend/LoginArtesa': Invalid argument` — confirmado con `GIT_TRACE=1` que el fallo ocurre en el paso interno `git stash create` (snapshot del working tree), **antes** de que el motor de merge compare nada contra `master`. Es un problema mecánico de este entorno (Windows + OneDrive Files-on-Demand sobre el directorio, `Attributes: Directory, Archive, ReparsePoint`), no un conflicto real de contenido: `git diff --name-status HEAD origin/master` mostró que los dos branches tocan archivos completamente disjuntos (mi branch: `App.jsx`, `Sidebar.jsx`, `BackofficePage.*`, `backofficeService.js`; el otro: `Home.jsx`, `home2.jsx`, `Login.jsx`, `Register.jsx`, `ResetPassword.jsx`, y el swap de assets GIF→MP4).
+
+**Resuelto sin la maquinaria de alto nivel de git:** se aplicaron los archivos exclusivos del otro branch uno por uno con `git checkout origin/master -- <path>` (que sí funciona, es una operación más angosta) y `git rm` para los GIFs viejos. Se verificó con `git diff --staged --name-status origin/master` que el árbol resultante es **idéntico** a `origin/master` salvo los archivos propios de BackOffice — cero diferencia real, cero pérdida de nada. Se construyó el commit de merge real (con **dos padres**, no un commit común) directamente con plumbing: `git write-tree` + `git commit-tree <tree> -p HEAD -p origin/master` + `git update-ref`. Resultado: `5bcd244`, con `git log --graph` mostrando la topología de merge correcta (`8803c25` como segundo padre). Pusheado a origin.
+
+### Capa 2 — contenido del bundle (antes de subir)
+Rebuild limpio (`rm -rf dist && npm run build:staging`, 1208 módulos). Verificado **antes** de tocar S3:
+- `grep -c "backoffice" dist/assets/index-fHRNVqYI.js` → `1`
+- `ls dist/assets/ | grep -i backoffice` → `BackofficePage-B3Rb31lI.js/.map/.css` presentes
+- `ls dist/assets/ | grep -iE "principal_img|venta_online"` → `principal_img-k2C86-hQ.mp4`, `Venta_Online-D-Y2jbPu.mp4` presentes, **ningún `.gif`**
+
+### Capa 3 — CDN/bucket real (después de subir)
+`deploy-frontend.ps1 -Environment staging` — el log de sync mostró `upload: BackofficePage-B3Rb31lI.js` + `upload: index-fHRNVqYI.js`, y una limpieza extensa de hashes obsoletos de ambos branches (esperado: build unificado, hashes de contenido nuevos para prácticamente todo). Verificado contra la infraestructura real, no local:
+- `curl https://d1bqegutwmfn98.cloudfront.net/index.html` → referencia `index-fHRNVqYI.js` / `index-DUBG8SX4.css`
+- Ese bundle contiene la cadena `backoffice`
+- `curl -o /dev/null .../BackofficePage-B3Rb31lI.js` → `200`
+- **Nota metodológica:** un `curl` a una ruta de asset inventada (`principal_img-DNrM5cKH.gif`, que nunca existió con ese hash) también devolvió `200` — falso positivo por el fallback SPA de CloudFront (todo 403/404 se reescribe a `index.html` con `200`). Verificación correcta: `aws s3 ls s3://artesa-frontend-staging/assets/ | grep -iE "principal_img|venta_online"` → solo `.mp4` (y el `.jpg` de poster, sin relación), **cero `.gif`** en el bucket real.
+
+### Estado: VALIDADO EN STAGING (frontend, con ambos fixes conviviendo) — colisión cerrada
