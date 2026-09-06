@@ -215,12 +215,17 @@ scheduleInvoiceCheckTask() {
         orderId: order.order_id
       });
   
-      // Consulta para obtener todos los datos necesarios para la orden
+      // Consulta para obtener todos los datos necesarios para la orden.
+      // LEFT JOIN con el admin que la creó (placed_by_user_id, órdenes BackOffice) para
+      // resolver el SalesPersonCode de SAP asociado a ese admin — nunca al cliente (o.user_id),
+      // que sigue resolviendo CardCode exactamente igual que antes de BackOffice.
       const orderResult = await pool.query(
-        `SELECT o.*, cp.cardcode_sap, u.name as user_name, o.customer_po_number
+        `SELECT o.*, cp.cardcode_sap, u.name as user_name, o.customer_po_number,
+                pu.sap_sales_employee_code
         FROM orders o
         JOIN users u ON o.user_id = u.id
         JOIN client_profiles cp ON u.id = cp.user_id
+        LEFT JOIN users pu ON o.placed_by_user_id = pu.id
         WHERE o.order_id = $1`,
         [order.order_id]
       );
@@ -333,6 +338,16 @@ scheduleInvoiceCheckTask() {
         Comments: fullComments,
         U_WebOrderId: order.order_id.toString(),
         NumAtCard: orderData.customer_po_number || null,
+        // SalesPersonCode (NO "SlpCode" — ese nombre no existe en este Service Layer,
+        // devuelve 400 "Property 'SlpCode' of 'Document' is invalid"; confirmado contra el
+        // $metadata real de PRUEBAS_ARTESA_14JUL, ver docs/CHANGELOG-backoffice.md Fase 3).
+        // Solo se envía si el admin que creó la orden (placed_by_user_id) tiene un
+        // SalesEmployeeCode de SAP mapeado en users.sap_sales_employee_code — nunca se asume
+        // -1 ("Ningún empleado") por defecto; si no hay mapeo, se omite el campo y SAP aplica
+        // su propio default. Las órdenes self-service (placed_by_user_id NULL) nunca lo incluyen.
+        ...(orderData.sap_sales_employee_code !== null && orderData.sap_sales_employee_code !== undefined
+          ? { SalesPersonCode: orderData.sap_sales_employee_code }
+          : {}),
         // TaxCode por línea = order_details.tax_code_ar, el snapshot tomado al crear la orden
         // (ver Order.js createOrder()) — nunca se vuelve a consultar products.tax_code_ar aquí,
         // para que la OV en SAP quede alineada exactamente con lo que se le cobró al cliente,

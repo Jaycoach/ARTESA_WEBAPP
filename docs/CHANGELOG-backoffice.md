@@ -175,3 +175,54 @@ Todos protegidos por `verifyToken` + `checkRole([1, 4])` (ADMIN o BACKOFFICE) + 
 
 ### Estado: IMPLEMENTADO, pendiente VALIDACIÓN EN STAGING
 `node --check` limpio en los 8 archivos tocados/creados. **No se desplegó a staging todavía**: el host de EC2 Staging (`/home/ec2-user/artesa-api`) tiene cambios locales sin commitear de otra sesión sobre `Order.js`, `SapOrderService.js`, `branchOrderController.js`, `orderRoutes.js`, SSL, entre otros — un rebuild ahora mezclaría ese trabajo no confirmado con el de BackOffice en la misma imagen. Decisión tomada con el usuario: esperar a que esa sesión termine/commitee antes de desplegar y correr el script de aceptación de Fase 2 contra staging real.
+
+## 2026-09-05/06 — FASE 3: Transmisión de SalesPersonCode a SAP
+
+### Hallazgo con evidencia real (obligatorio: "no asumas el nombre de campo")
+Se ejecutó una prueba diagnóstica de solo lectura contra el Service Layer real de staging usando el `SapBaseService` **ya desplegado** en el contenedor (sin rebuild, sin tocar código — solo un script temporal ejecutado con `docker exec ... node script.js`, borrado al terminar):
+
+```
+GET Orders?$select=DocEntry,CardCode,SlpCode,DocDate&$top=5
+→ 400 { "error": { "code": "-1000", "message": "Property 'SlpCode' of 'Document' is invalid" } }
+```
+
+**`SlpCode` NO es el nombre correcto del campo en este Service Layer.** Se descargó el `$metadata` real (EDMX), se ubicó el `EntitySet Name="Orders"` → `EntityType="SAPB1.Document"`, y dentro de ese bloque específico (no de otras entidades que también tienen campos "Slp"/"SalesEmployee", como `SalesPersons`) se encontró:
+```xml
+<Property Name="SalesPersonCode" Type="Edm.Int32"/>
+<NavigationProperty Name="SalesPerson" Partner="PurchaseRequests" Type="SAPB1.SalesPerson">
+  <ReferentialConstraint Property="SalesPersonCode" ReferencedProperty="SalesEmployeeCode"/>
+```
+Confirmado con datos reales (órdenes ya existentes en `PRUEBAS_ARTESA_14JUL`, las mismas usadas en la tarea de IVA):
+```
+GET Orders?$select=DocEntry,CardCode,SalesPersonCode,DocDate&$top=5&$orderby=DocEntry desc
+→ [{"DocEntry":1413,"CardCode":"CI79694003","SalesPersonCode":1}, ...]
+
+GET SalesPersons?$select=SalesEmployeeCode,SalesEmployeeName&$top=10
+→ [{"SalesEmployeeCode":-1,"SalesEmployeeName":"-Ningún empleado del departamento de ventas-"},
+   {"SalesEmployeeCode":1,"SalesEmployeeName":"LILIANA BETANCOURT MOLINA"},
+   {"SalesEmployeeCode":2,"SalesEmployeeName":"ANDRES FELIPE SILVA CALLEJAS"}, ...]
+```
+**Campo correcto: `SalesPersonCode` (Edm.Int32) en el recurso `Orders`**, referenciando `SalesEmployeeCode` de la entidad `SalesPersons` (maestro OSLP).
+
+### Decisión confirmada por el usuario: origen del código
+El `SalesPersonCode` de cada orden BackOffice se resuelve por **mapeo admin→vendedor SAP**, no por selección manual en cada orden. Un admin sin mapeo simplemente no envía el campo (nunca se asume `-1` como default).
+
+### DDL (aplicado y validado en staging)
+`db/migrations/2026-09-06_add-sap-sales-employee-code.sql`: `ALTER TABLE users ADD COLUMN IF NOT EXISTS sap_sales_employee_code INTEGER NULL`. Aditivo, no rompe nada de lo que corre hoy.
+
+**VALIDADO EN STAGING** (antes/después, vía la conexión de la app, sin credenciales expuestas):
+```
+before: []
+MIGRATION_OK
+after: [{"column_name":"sap_sales_employee_code","data_type":"integer","is_nullable":"YES"}]
+```
+
+### Código (IMPLEMENTADO, no desplegado — igual que Fase 2)
+- `src/services/SapOrderService.js` (`createOrderInSAP`): el `SELECT` ahora hace `LEFT JOIN users pu ON o.placed_by_user_id = pu.id` para traer `pu.sap_sales_employee_code`; el objeto `sapOrder` incluye `SalesPersonCode` solo si ese valor no es `NULL`/`undefined` (spread condicional). **`orders.user_id` y la resolución de `CardCode` no se tocan** — el vendedor viaja completamente separado del cliente real.
+  ⚠️ **Riesgo de colisión conocido**: este archivo tiene cambios sin commitear de otra sesión en el host de staging (ver Fase 2). El diff de Fase 3 aquí es pequeño y bien localizado (una línea en el `SELECT`, un bloque condicional en `sapOrder`), pero al desplegar habrá que reconciliar contra lo que esa otra sesión haya cambiado — nunca sobrescribir a ciegas, diff explícito antes de aplicar.
+- `src/services/SapSalesPersonService.js` (nuevo): wrapper de solo lectura sobre `SapBaseService` para `GET SalesPersons`.
+- `src/controllers/backofficeController.js` / `src/routes/backofficeRoutes.js`: dos endpoints nuevos —
+  - `GET /backoffice/sap-sales-persons` — lista vendedores de SAP para elegir el mapeo.
+  - `PATCH /backoffice/users/:userId/sap-sales-employee-code` — fija (o limpia con `null`) el mapeo de un usuario; registra `set_sales_employee_mapping` en `backoffice_actions`.
+
+`node --check` limpio en los 4 archivos. Pendiente de VALIDACIÓN EN STAGING junto con Fase 2, cuando el host quede libre (mismo criterio: desplegar y correr el script de aceptación real contra staging, incluyendo la creación de una orden BackOffice de prueba y su transmisión a SAP con `SalesPersonCode` correcto, sin tocar clientes/órdenes reales).

@@ -8,6 +8,7 @@ const Order = require('../models/Order');
 const AdminSettings = require('../models/AdminSettings');
 const BackofficeAction = require('../models/BackofficeAction');
 const EmailService = require('../services/EmailService');
+const SapSalesPersonService = require('../services/SapSalesPersonService');
 
 const logger = createContextLogger('BackofficeController');
 
@@ -282,11 +283,70 @@ const createOrderForClient = async (req, res) => {
   }
 };
 
+/**
+ * GET /api/backoffice/sap-sales-persons
+ * Lista los vendedores (SalesPersons) de SAP, para elegir el mapeo de un admin BackOffice.
+ */
+const listSapSalesPersons = async (req, res) => {
+  try {
+    const salesPersons = await SapSalesPersonService.getSalesPersons();
+    res.status(200).json({ success: true, data: salesPersons });
+  } catch (error) {
+    logger.error('Error al listar vendedores SAP en BackOffice', { error: error.message });
+    res.status(502).json({ success: false, message: 'Error al consultar vendedores en SAP' });
+  }
+};
+
+/**
+ * PATCH /api/backoffice/users/:userId/sap-sales-employee-code
+ * Mapea un admin BackOffice a un SalesEmployeeCode real de SAP (o lo limpia con null).
+ */
+const setSalesEmployeeMapping = async (req, res) => {
+  const { userId } = req.params;
+  const { sap_sales_employee_code } = req.body;
+
+  try {
+    const { rows } = await pool.query('SELECT id, rol_id FROM users WHERE id = $1', [userId]);
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+    }
+
+    const code = sap_sales_employee_code === null || sap_sales_employee_code === undefined
+      ? null
+      : parseInt(sap_sales_employee_code, 10);
+
+    await pool.query('UPDATE users SET sap_sales_employee_code = $1 WHERE id = $2', [code, userId]);
+
+    await BackofficeAction.log({
+      adminUserId: req.user.id,
+      actionType: 'set_sales_employee_mapping',
+      targetType: 'user',
+      targetId: parseInt(userId),
+      details: { sap_sales_employee_code: code }
+    });
+
+    logger.info('Mapeo de SalesEmployeeCode actualizado desde BackOffice', {
+      userId, code, adminId: req.user.id
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Mapeo actualizado exitosamente',
+      data: { userId: parseInt(userId), sap_sales_employee_code: code }
+    });
+  } catch (error) {
+    logger.error('Error al actualizar mapeo de SalesEmployeeCode', { error: error.message, userId });
+    res.status(500).json({ success: false, message: 'Error al actualizar el mapeo' });
+  }
+};
+
 module.exports = {
   listClients,
   listClientBranches,
   activateClient,
   deactivateClient,
   resetBranchPassword,
-  createOrderForClient
+  createOrderForClient,
+  listSapSalesPersons,
+  setSalesEmployeeMapping
 };
