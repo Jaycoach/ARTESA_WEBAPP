@@ -232,6 +232,40 @@ router.get('/orders', branchOrderController.getOrdersForBranch);
  */
 router.get('/products', branchOrderController.getProductsForBranch);
 
+/**
+ * @swagger
+ * /api/branch-orders/prices:
+ *   post:
+ *     summary: Obtener precios con desglose de impuestos para sucursal
+ *     description: Equivalente a POST /orders/prices para usuarios directos, resolviendo el price_list_code a partir del cliente principal de la sucursal autenticada
+ *     tags: [BranchOrders]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - product_codes
+ *             properties:
+ *               product_codes:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       200:
+ *         description: Precios con desglose de impuestos obtenidos exitosamente
+ *       400:
+ *         description: Faltan códigos de producto
+ *       401:
+ *         description: No autorizado - Token de sucursal inválido
+ *       500:
+ *         description: Error interno del servidor
+ */
+router.post('/prices', branchOrderController.getProductPricesForBranch);
+
 
 /**
  * @swagger

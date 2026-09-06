@@ -13,6 +13,7 @@
 
 const pool = require('../config/db');
 const { createContextLogger } = require('../config/logger');
+const { calculateOrderTaxes, calculateProductTax } = require('../utils/taxCalculator');
 
 // Crear una instancia del logger con contexto
 const logger = createContextLogger('OrderModel');
@@ -140,20 +141,32 @@ class Order {
     }
 
     const client = await pool.connect();
-    // Calcular totales con IVA
-    let calculatedSubtotal = 0;
-    let calculatedTax = 0;
-    let calculatedTotal = 0;
 
-    details.forEach(detail => {
-      const itemSubtotal = parseFloat(detail.unit_price) * parseInt(detail.quantity);
-      const itemTax = itemSubtotal * 0.19; // 19% IVA
-      
-      calculatedSubtotal += itemSubtotal;
-      calculatedTax += itemTax;
+    // Calcular totales de impuestos usando el catálogo centralizado (tax_codes sincronizado desde SAP)
+    const productIds = details.map(detail => detail.product_id);
+    const productTaxInfoResult = await pool.query(
+      'SELECT product_id, tax_code_ar, sap_code FROM products WHERE product_id = ANY($1)',
+      [productIds]
+    );
+    const productTaxInfoMap = new Map(productTaxInfoResult.rows.map(p => [p.product_id, p]));
+
+    const itemsForTax = details.map(detail => {
+      const productInfo = productTaxInfoMap.get(detail.product_id) || {};
+      return {
+        product_id: detail.product_id,
+        sap_code: productInfo.sap_code,
+        tax_code_ar: productInfo.tax_code_ar,
+        unit_price: detail.unit_price,
+        quantity: detail.quantity
+      };
     });
 
-    calculatedTotal = calculatedSubtotal + calculatedTax;
+    const orderTaxes = await calculateOrderTaxes(itemsForTax);
+    const calculatedSubtotal = orderTaxes.subtotal;
+    const calculatedTax = orderTaxes.totalTaxAmount;
+    const calculatedTotal = orderTaxes.total;
+    const ivaTotal = orderTaxes.taxBreakdownTotals.find(t => t.category === 'IVA')?.amount || 0;
+    const impuestoSaludableTotal = orderTaxes.taxBreakdownTotals.find(t => t.category === 'IMPUESTO_SALUDABLE')?.amount || 0;
 
     logger.debug('Totales calculados con IVA', {
       subtotal: calculatedSubtotal,
@@ -175,18 +188,20 @@ class Order {
 
       // Crear la orden principal con valores calculados
       const orderQuery = `
-        INSERT INTO orders (user_id, total_amount, subtotal, tax_amount, delivery_date, status_id, branch_id, comments, attachment_url, customer_po_number)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        INSERT INTO orders (user_id, total_amount, subtotal, tax_amount, iva_amount, impuesto_saludable_amount, delivery_date, status_id, branch_id, comments, attachment_url, customer_po_number)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         RETURNING order_id;
       `;
 
       const orderResult = await client.query(orderQuery, [
-        user_id, 
-        calculatedTotal, 
-        calculatedSubtotal, 
-        calculatedTax, 
-        delivery_date, 
-        status_id, 
+        user_id,
+        calculatedTotal,
+        calculatedSubtotal,
+        calculatedTax,
+        ivaTotal,
+        impuestoSaludableTotal,
+        delivery_date,
+        status_id,
         branch_id,
         comments,
         attachment_url,
@@ -199,21 +214,31 @@ class Order {
         detailsCount: details.length 
       });
 
-      // Insertar múltiples detalles en una sola consulta
+      // Insertar múltiples detalles en una sola consulta, con el snapshot de impuesto ya calculado arriba
       const detailValues = details.map((detail, index) => {
-        const offset = index * 4;
-        return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4})`;
+        const offset = index * 8;
+        return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8})`;
       }).join(', ');
 
-      const detailParams = details.flatMap(detail => [
-        order_id,
-        detail.product_id,
-        detail.quantity,
-        detail.unit_price
-      ]);
+      const detailParams = details.flatMap((detail, index) => {
+        const lineTax = orderTaxes.items[index];
+        const lineIva = lineTax?.taxBreakdown.find(t => t.category === 'IVA')?.amount || 0;
+        const lineImpuestoSaludable = lineTax?.taxBreakdown.find(t => t.category === 'IMPUESTO_SALUDABLE')?.amount || 0;
+
+        return [
+          order_id,
+          detail.product_id,
+          detail.quantity,
+          detail.unit_price,
+          lineTax?.taxCodeAr || null,
+          lineIva,
+          lineImpuestoSaludable,
+          lineTax?.totalTaxAmount || 0
+        ];
+      });
 
       const detailQuery = `
-        INSERT INTO Order_Details (order_id, product_id, quantity, unit_price)
+        INSERT INTO Order_Details (order_id, product_id, quantity, unit_price, tax_code_ar, iva_amount, impuesto_saludable_amount, tax_amount)
         VALUES ${detailValues};
       `;
 
@@ -281,41 +306,17 @@ static async create(orderData) {
     }
   });
 
-  // CALCULAR TOTALES CON IVA (19%)
-  let subtotal = 0;
-  let tax_amount = 0;
-  
-  const details = products.map(product => {
-    const quantity = parseInt(product.quantity);
-    const unitPrice = parseFloat(product.unit_price);
-    const lineSubtotal = unitPrice * quantity;
-    
-    subtotal += lineSubtotal;
-    
-    return {
-      product_id: product.product_id,
-      quantity: quantity,
-      unit_price: unitPrice
-    };
-  });
-
-  // Calcular IVA del 19% sobre el subtotal
-  tax_amount = subtotal * 0.19;
-  const total_amount = subtotal + tax_amount;
-
-  // Validar que el total sea positivo
-  if (total_amount <= 0) {
-    throw new Error('El total de la orden debe ser mayor a 0');
-  }
-
-  logger.debug('Totales calculados para orden', {
-    subtotal,
-    tax_amount,
-    total_amount,
-    productsCount: products.length
-  });
-
-  const insertParams = [user_id, branch_id, delivery_date, comments, subtotal, tax_amount, total_amount];
+  // El cálculo de impuestos (subtotal/tax_amount/total) se delega por completo a createOrder(),
+  // que es quien realmente consulta products.tax_code_ar y persiste el snapshot por línea —
+  // evita duplicar el SELECT a products y la llamada a calculateOrderTaxes en dos lugares.
+  // La validación de total > 0 ya no es necesaria aquí: quantity > 0 y unit_price > 0 por
+  // producto (validado arriba) garantizan subtotal > 0, y por lo tanto total > 0 sin importar
+  // la tasa de impuesto aplicada (incluso 0% para productos exentos).
+  const details = products.map(product => ({
+    product_id: product.product_id,
+    quantity: parseInt(product.quantity),
+    unit_price: parseFloat(product.unit_price)
+  }));
 
   // Validar productos
   if (!products || products.length === 0) {
@@ -336,10 +337,10 @@ static async create(orderData) {
   });
 
 
-  // Crear la orden usando el método existente
+  // Crear la orden usando el método existente (createOrder calcula y persiste el total real)
   const result = await this.createOrder(
     user_id,
-    total_amount,
+    null, // total_amount se recalcula internamente en createOrder(); no se duplica aquí
     details,
     delivery_date,
     1, // status_id por defecto (Abierto)
@@ -1300,59 +1301,116 @@ static async getMonthlyStats(userId, months = 6) {
     try {
       // Obtener el price_list_code del cliente
       const clientQuery = `
-        SELECT cp.price_list_code 
-        FROM client_profiles cp 
+        SELECT cp.price_list_code
+        FROM client_profiles cp
         WHERE cp.user_id = $1
       `;
-      
+
       const clientResult = await pool.query(clientQuery, [userId]);
-      
+
       if (clientResult.rows.length === 0) {
         logger.warn('Cliente no encontrado o sin price_list_code', { userId });
         return [];
       }
-      
-      const priceListCode = clientResult.rows[0].price_list_code || 'BRONCE'; // Valor por defecto
-      
-      // Obtener precios de la lista correspondiente
-      const PriceList = require('./PriceList');
-      const pricesData = await PriceList.getMultipleProductPrices(priceListCode, productCodes);
-      
-      // Calcular IVA (19%) y precio total
-      const productsWithTax = pricesData.map(product => {
-        const basePrice = parseFloat(product.price) || 0;
-        // Determinar tipo de impuesto según configuración del producto
-        const hasImpuestoSaludable = product.has_impuesto_saludable || false;
-        const taxRate = hasImpuestoSaludable ? 0.20 : 0.19; // 20% saludable o 19% IVA
-        const taxAmount = basePrice * taxRate;
-        const totalPrice = basePrice + taxAmount;
 
-        return {
-          ...product,
-          base_price: basePrice,
-          tax_rate: taxRate,
-          tax_type: hasImpuestoSaludable ? 'IMPUESTO_SALUDABLE' : 'IVA',
-          tax_amount: parseFloat(taxAmount.toFixed(2)),
-          total_price_with_tax: parseFloat(totalPrice.toFixed(2)),
-          has_impuesto_saludable: hasImpuestoSaludable
-        };
+      const priceListCode = clientResult.rows[0].price_list_code || 'BRONCE'; // Valor por defecto
+
+      const productsWithTax = await this._buildPricesWithTax(priceListCode, productCodes);
+
+      logger.debug('Precios con IVA calculados', {
+        userId,
+        priceListCode,
+        productCount: productsWithTax.length
       });
-      
-      logger.debug('Precios con IVA calculados', { 
-        userId, 
-        priceListCode, 
-        productCount: productsWithTax.length 
-      });
-      
+
       return productsWithTax;
     } catch (error) {
-      logger.error('Error obteniendo precios con IVA', { 
-        error: error.message, 
-        userId, 
-        productCodes 
+      logger.error('Error obteniendo precios con IVA', {
+        error: error.message,
+        userId,
+        productCodes
       });
       throw error;
     }
+  }
+
+  /**
+   * Obtiene precios con impuestos para un cliente de sucursal (branch auth), a partir de
+   * client_id en vez de user_id — misma resolución de price_list_code ya usada en
+   * branchOrderController.getProductsForBranch() (prioriza price_list sobre price_list_code,
+   * default '1'), para no introducir una tercera variante de esa lógica.
+   * @param {number} clientId - ID del cliente principal (client_profiles.client_id)
+   * @param {Array<string>} productCodes - Códigos de productos a consultar
+   * @returns {Promise<Array>} - Array de productos con precios e impuestos
+   */
+  static async getProductPricesWithTaxByClientId(clientId, productCodes) {
+    try {
+      const clientQuery = `
+        SELECT cp.price_list_code, cp.price_list
+        FROM client_profiles cp
+        WHERE cp.client_id = $1
+        LIMIT 1
+      `;
+
+      const clientResult = await pool.query(clientQuery, [clientId]);
+
+      if (clientResult.rows.length === 0) {
+        logger.warn('Cliente principal no encontrado para sucursal', { clientId });
+        return [];
+      }
+
+      const priceListCode = clientResult.rows[0].price_list
+        ? clientResult.rows[0].price_list.toString()
+        : (clientResult.rows[0].price_list_code || '1');
+
+      const productsWithTax = await this._buildPricesWithTax(priceListCode, productCodes);
+
+      logger.debug('Precios con impuestos calculados para sucursal', {
+        clientId,
+        priceListCode,
+        productCount: productsWithTax.length
+      });
+
+      return productsWithTax;
+    } catch (error) {
+      logger.error('Error obteniendo precios con impuestos para sucursal', {
+        error: error.message,
+        clientId,
+        productCodes
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Lógica compartida entre getProductPricesWithTax() y getProductPricesWithTaxByClientId():
+   * dado un price_list_code ya resuelto, trae los precios y calcula impuestos usando el
+   * catálogo centralizado (tax_codes sincronizado desde SAP).
+   * @param {string} priceListCode
+   * @param {Array<string>} productCodes
+   * @returns {Promise<Array>}
+   */
+  static async _buildPricesWithTax(priceListCode, productCodes) {
+    const PriceList = require('./PriceList');
+    const pricesData = await PriceList.getMultipleProductPrices(priceListCode, productCodes);
+
+    return Promise.all(pricesData.map(async product => {
+      const basePrice = parseFloat(product.price) || 0;
+      const tax = await calculateProductTax({
+        taxCodeAr: product.tax_code_ar,
+        subtotal: basePrice,
+        productId: product.real_product_id,
+        sapCode: product.sap_code
+      });
+
+      return {
+        ...product,
+        base_price: basePrice,
+        tax_amount: tax.totalTaxAmount,
+        tax_breakdown: tax.taxBreakdown,
+        total_price_with_tax: parseFloat((basePrice + tax.totalTaxAmount).toFixed(2))
+      };
+    }));
   }
 }
 

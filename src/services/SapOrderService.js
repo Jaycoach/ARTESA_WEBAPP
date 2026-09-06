@@ -282,6 +282,32 @@ scheduleInvoiceCheckTask() {
         return `${y}-${m}-${day}`;
       };
   
+      // Si alguna línea no tiene tax_code_ar snapshoteado, resolver dinámicamente un código
+      // con tasa 0% desde el catálogo tax_codes (sincronizado desde SAP) para enviarlo explícito.
+      // Necesario porque omitir el campo TaxCode no deja la línea "sin impuesto" en SAP: SAP
+      // cae de vuelta al ArTaxCode por defecto del maestro de artículos, reintroduciendo
+      // exactamente el problema que esta unificación buscaba resolver (confirmado empíricamente
+      // contra PRUEBAS_ARTESA_14JUL — ver docs/CHANGELOG-unificacion-iva.md, Fase 5). Si no existe
+      // ningún código con tasa 0% en el catálogo local, se bloquea la sincronización en vez de
+      // adivinar uno — la app no tiene autoridad para inventar cuál código usar.
+      const hasLineWithoutTaxCode = orderItemsResult.rows.some(item => !item.tax_code_ar);
+      let zeroRateTaxCode = null;
+      if (hasLineWithoutTaxCode) {
+        const zeroRateResult = await pool.query(
+          'SELECT code FROM tax_codes WHERE active = true AND valid_for_ar = true AND total_rate = 0 ORDER BY code LIMIT 1'
+        );
+        zeroRateTaxCode = zeroRateResult.rows[0]?.code || null;
+
+        if (!zeroRateTaxCode) {
+          throw new Error('No se encontró un código de impuesto con tasa 0% en el catálogo local (tax_codes) para transmitir a SAP productos sin tax_code_ar sincronizado');
+        }
+
+        this.logger.warn('Orden con línea(s) sin tax_code_ar: se usará el código de tasa 0% del catálogo para la OV en SAP', {
+          orderId: order.order_id,
+          zeroRateTaxCode
+        });
+      }
+
       // Obtener información de la sucursal si está especificada
       let shipToCode = null;
       if (orderData.branch_id) {
@@ -307,11 +333,29 @@ scheduleInvoiceCheckTask() {
         Comments: fullComments,
         U_WebOrderId: order.order_id.toString(),
         NumAtCard: orderData.customer_po_number || null,
-        DocumentLines: orderItemsResult.rows.map(item => ({
-          ItemCode: item.sap_code,
-          Quantity: parseFloat(item.quantity) || 1,
-          Price: parseFloat(item.unit_price) || 0
-        }))
+        // TaxCode por línea = order_details.tax_code_ar, el snapshot tomado al crear la orden
+        // (ver Order.js createOrder()) — nunca se vuelve a consultar products.tax_code_ar aquí,
+        // para que la OV en SAP quede alineada exactamente con lo que se le cobró al cliente,
+        // sin importar si el maestro de artículos cambió después. Validado contra
+        // PRUEBAS_ARTESA_14JUL (OV de prueba DocEntry 1405, cancelada tras la validación):
+        // un único TaxCode por línea es suficiente — SAP expande automáticamente los códigos
+        // compuestos (ej. IMSB+IVA) en sus dos LineTaxJurisdictions (IMSB 20% + IVAG01 19%),
+        // sin necesidad de líneas ni campos adicionales. Si tax_code_ar es NULL, se envía
+        // explícitamente zeroRateTaxCode (resuelto arriba) — omitir el campo NO deja la línea
+        // sin impuesto en SAP, hace que SAP aplique el ArTaxCode por defecto del maestro de
+        // artículos (confirmado empíricamente, ver changelog).
+        DocumentLines: orderItemsResult.rows.map(item => {
+          const line = {
+            ItemCode: item.sap_code,
+            Quantity: parseFloat(item.quantity) || 1,
+            Price: parseFloat(item.unit_price) || 0
+          };
+          const taxCode = item.tax_code_ar || zeroRateTaxCode;
+          if (taxCode) {
+            line.TaxCode = taxCode;
+          }
+          return line;
+        })
       };
 
       // Log para debugging de comentarios

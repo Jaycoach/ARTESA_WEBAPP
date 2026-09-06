@@ -82,6 +82,28 @@ const validateOrderData = (orderData, isMultipart, userContext) => {
 };
 
 export const orderService = {
+  // ✅ OBTENER PRECIOS CON DESGLOSE DE IMPUESTOS (calculado por el backend, nunca por el frontend)
+  // Usa el mismo detectUserContext() que createOrder() para elegir /orders/prices vs /branch-orders/prices
+  async getProductPricesWithTax(productCodes) {
+    const userContext = detectUserContext();
+
+    if (!userContext) {
+      throw new Error('No se pudo determinar el contexto de usuario');
+    }
+
+    if (!productCodes || productCodes.length === 0) {
+      return [];
+    }
+
+    const response = await API.post(`${userContext.endpoint}/prices`, { product_codes: productCodes });
+
+    if (response.data.success) {
+      return response.data.data;
+    }
+
+    throw new Error(response.data.message || 'Error al obtener precios con impuestos');
+  },
+
   // ✅ CREAR ORDEN ADAPTADA PARA DUAL CONTEXT
   async createOrder(orderData, isMultipart = false) {
     try {

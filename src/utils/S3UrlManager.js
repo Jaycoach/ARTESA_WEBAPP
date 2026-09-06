@@ -107,7 +107,9 @@ static async refreshUrl(url, keyField) {
         result[field] = await this.refreshUrl(obj[field], field);
       }
     }
-    
+
     return result;
   }
 }
+
+module.exports = S3UrlManager;

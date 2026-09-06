@@ -747,57 +747,82 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     return subtotal * IMPUESTO_SALUDABLE_RATE;
   };
 
+  // Desglose de impuestos por producto, calculado por el backend (tax_breakdown de
+  // /orders/prices o /branch-orders/prices según el contexto) — el frontend nunca decide
+  // la regla de negocio, solo aplica el rate ya confirmado al subtotal real de la línea
+  // (que puede incluir precio personalizado, por eso no se usa el monto absoluto del backend
+  // directamente, solo su rate por categoría).
+  const [taxBreakdownByProductId, setTaxBreakdownByProductId] = useState({});
+
+  useEffect(() => {
+    const productIds = [...new Set(orderDetails.map(d => parseInt(d.product_id)).filter(Boolean))];
+    const pendingIds = productIds.filter(id => !(id in taxBreakdownByProductId));
+
+    if (pendingIds.length === 0) return;
+
+    const sapCodeByProductId = {};
+    pendingIds.forEach(id => {
+      const product = products.find(p => p.product_id === id);
+      if (product?.sap_code) sapCodeByProductId[id] = product.sap_code;
+    });
+
+    const sapCodes = Object.values(sapCodeByProductId);
+    if (sapCodes.length === 0) return;
+
+    let cancelled = false;
+    orderService.getProductPricesWithTax(sapCodes)
+      .then(results => {
+        if (cancelled) return;
+        const breakdownBySapCode = {};
+        results.forEach(r => { breakdownBySapCode[r.sap_code] = r.tax_breakdown || []; });
+
+        setTaxBreakdownByProductId(prev => {
+          const next = { ...prev };
+          Object.entries(sapCodeByProductId).forEach(([id, sapCode]) => {
+            next[id] = breakdownBySapCode[sapCode] || [];
+          });
+          return next;
+        });
+      })
+      .catch(error => {
+        console.error('❌ Error obteniendo desglose de impuestos del backend:', error);
+      });
+
+    return () => { cancelled = true; };
+  }, [orderDetails, products]);
+
   const calculateTaxByProduct = (orderDetails) => {
     let ivaTotal = 0;
     let impuestoSaludableTotal = 0;
-    
-    console.log('📊 === INICIO CÁLCULO DE IMPUESTOS ===');
-    
+    let otroTotal = 0;
+
     orderDetails.forEach(detail => {
       const itemSubtotal = detail.quantity * detail.unit_price;
-      const product = products.find(p => p.product_id === parseInt(detail.product_id));
+      // No depender de products.find(): taxBreakdownByProductId ya está indexado por
+      // product_id y no debe depender de que el producto siga presente en la página/búsqueda
+      // actual del catálogo (ver bug real encontrado y corregido en Products.jsx, mismo patrón).
+      const breakdown = taxBreakdownByProductId[parseInt(detail.product_id)];
 
-      if (product && product.tax_code_ar) {
-        const taxCode = product.tax_code_ar;
-        
-        console.log(`📦 Producto: ${product.name} (ID: ${product.product_id})`);
-        console.log(`   - Código fiscal: ${taxCode}`);
-        console.log(`   - Subtotal: $${itemSubtotal.toFixed(2)}`);
-        
-        if (taxCode === 'IVAG03') {
-          // Sin impuestos para productos con IVAG03 (0%)
-          console.log(`   ✅ IVAG03 detectado - SIN IMPUESTOS`);
-        } else if (taxCode === 'IMSB+IVA') {
-          // 20% impuesto saludable + 19% IVA (calculados independientemente)
-          const impSaludable = itemSubtotal * 0.20;
-          const iva = itemSubtotal * IVA_RATE;
-          impuestoSaludableTotal += impSaludable;
-          ivaTotal += iva;
-          console.log(`   ✅ IMSB+IVA detectado - Imp. Saludable: $${impSaludable.toFixed(2)}, IVA: $${iva.toFixed(2)}`);
+      // Si el desglose todavía no llegó del backend (fetch en curso), esta línea aporta $0
+      // temporalmente — se recalcula solo en cuanto taxBreakdownByProductId se actualice.
+      (breakdown || []).forEach(component => {
+        const amount = itemSubtotal * component.rate;
+        if (component.category === 'IVA') {
+          ivaTotal += amount;
+        } else if (component.category === 'IMPUESTO_SALUDABLE') {
+          impuestoSaludableTotal += amount;
         } else {
-          // IVA normal (19%) para otros casos
-          const iva = itemSubtotal * IVA_RATE;
-          ivaTotal += iva;
-          console.log(`   ⚠️ Aplicando IVA por defecto (19%): $${iva.toFixed(2)}`);
+          otroTotal += amount;
         }
-      } else {
-        // Fallback: IVA normal si no se encuentra el producto
-        const iva = itemSubtotal * IVA_RATE;
-        ivaTotal += iva;
-        console.log(`   ❌ Producto no encontrado o sin tax_code_ar, aplicando IVA por defecto: $${iva.toFixed(2)}`);
-      }
+      });
     });
-    
-    console.log('📊 === RESUMEN DE IMPUESTOS ===');
-    console.log(`   - IVA Total: $${ivaTotal.toFixed(2)}`);
-    console.log(`   - Impuesto Saludable Total: $${impuestoSaludableTotal.toFixed(2)}`);
-    
-    return { ivaTotal, impuestoSaludableTotal };
+
+    return { ivaTotal, impuestoSaludableTotal, otroTotal };
   };
 
   const subtotal = calculateSubtotal();
-  const { ivaTotal, impuestoSaludableTotal } = calculateTaxByProduct(orderDetails);
-  const totalTaxes = ivaTotal + impuestoSaludableTotal;
+  const { ivaTotal, impuestoSaludableTotal, otroTotal } = calculateTaxByProduct(orderDetails);
+  const totalTaxes = ivaTotal + impuestoSaludableTotal + otroTotal;
   const shipping = calculateShipping(subtotal, totalTaxes);
   const total = shipping !== null ? subtotal + totalTaxes + shipping : subtotal + totalTaxes;
 
@@ -865,8 +890,8 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       return total + (isNaN(itemTotal) ? 0 : itemTotal);
     }, 0);
 
-    const { ivaTotal, impuestoSaludableTotal } = calculateTaxByProduct(orderDetails);
-    const totalTaxes = ivaTotal + impuestoSaludableTotal;
+    const { ivaTotal, impuestoSaludableTotal, otroTotal } = calculateTaxByProduct(orderDetails);
+    const totalTaxes = ivaTotal + impuestoSaludableTotal + otroTotal;
     const shipping = calculateShipping(subtotal, totalTaxes);
 
     return shipping !== null ? subtotal + totalTaxes + shipping : subtotal + totalTaxes;
@@ -932,8 +957,8 @@ const CreateOrderForm = ({ onOrderCreated }) => {
       setShowConfirmationModal(false);
 
       console.log('=== INICIANDO DEBUG handleConfirmCreateOrder ===');
-      const { ivaTotal, impuestoSaludableTotal } = calculateTaxByProduct(orderDetails);
-      const totalTaxes = ivaTotal + impuestoSaludableTotal;
+      const { ivaTotal, impuestoSaludableTotal, otroTotal } = calculateTaxByProduct(orderDetails);
+      const totalTaxes = ivaTotal + impuestoSaludableTotal + otroTotal;
       const totalAmount = parseFloat(calculateTotal());
 
       const isBranchUser = authType === AUTH_TYPES.BRANCH;
@@ -1924,6 +1949,14 @@ const CreateOrderForm = ({ onOrderCreated }) => {
               </div>
             )}
 
+            {/* Otros impuestos (ej. Impuesto al Consumo) */}
+            {otroTotal > 0 && (
+              <div className="flex justify-between items-center">
+                <span className="font-medium text-gray-700">Otros impuestos:</span>
+                <span className="font-semibold text-gray-800">{formatCurrencyCOP(otroTotal)}</span>
+              </div>
+            )}
+
             {/* Flete */}
             <div className="flex justify-between items-center">
               <span className="font-medium text-gray-700">Flete:</span>
@@ -2074,8 +2107,14 @@ const CreateOrderForm = ({ onOrderCreated }) => {
                 )}
                 {impuestoSaludableTotal > 0 && (
                   <div className="flex justify-between">
-                    <span>Impuesto Saludable (12%):</span>
+                    <span>Impuesto Saludable (20%):</span>
                     <span>{formatCurrencyCOP(impuestoSaludableTotal)}</span>
+                  </div>
+                )}
+                {otroTotal > 0 && (
+                  <div className="flex justify-between">
+                    <span>Otros impuestos:</span>
+                    <span>{formatCurrencyCOP(otroTotal)}</span>
                   </div>
                 )}
                 <div className="flex justify-between">

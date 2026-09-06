@@ -1,7 +1,7 @@
 # 🔐 ARTESA — Acceso a Ambientes y Monitoreo de Logs
 
 > **Proyecto:** La Artesa — Portal de Pedidos y Gestión de Clientes
-> **Referencia:** 20250207-01 | Cliente: MASORG
+> **Referencia:** 20250207-01 | Cliente: Artesa
 > **Actualizado:** Junio 2026
 
 ---

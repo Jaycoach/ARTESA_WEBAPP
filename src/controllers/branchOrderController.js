@@ -548,6 +548,46 @@ class BranchOrderController {
   }
 
   /**
+   * Obtener precios con desglose de impuestos para productos, en contexto de sucursal.
+   * Equivalente a POST /orders/prices para usuarios directos, pero resuelve el price_list_code
+   * a partir del cliente principal (client_id) en vez de un user_id de client_profiles directo,
+   * ya que un token de sucursal no tiene user_id — solo branch_id/client_id (ver req.branch).
+   */
+  async getProductPricesForBranch(req, res) {
+    try {
+      const { branch_id, client_id } = req.branch;
+      const { product_codes } = req.body;
+
+      if (!product_codes || !Array.isArray(product_codes) || product_codes.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Se requiere un array de códigos de productos'
+        });
+      }
+
+      const pricesWithTax = await Order.getProductPricesWithTaxByClientId(client_id, product_codes);
+
+      res.json({
+        success: true,
+        data: pricesWithTax,
+        message: 'Precios obtenidos exitosamente'
+      });
+    } catch (error) {
+      logger.error('Error obteniendo precios con impuestos para sucursal', {
+        error: error.message,
+        stack: error.stack,
+        branchId: req.branch?.branch_id
+      });
+
+      res.status(500).json({
+        success: false,
+        message: 'Error interno del servidor',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
+
+  /**
    * Actualizar el estado de una orden desde sucursal (solo ciertas transiciones permitidas)
    */
   async updateOrderStatus(req, res) {

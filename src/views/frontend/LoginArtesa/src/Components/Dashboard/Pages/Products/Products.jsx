@@ -268,22 +268,77 @@ const Products = () => {
     return subtotal * IMPUESTO_SALUDABLE_RATE;
   };
 
+  // Desglose de impuestos por producto, calculado por el backend (tax_breakdown de
+  // /orders/prices o /branch-orders/prices según el contexto) — el frontend nunca decide
+  // la regla de negocio, solo aplica el rate ya confirmado al subtotal real de la línea.
+  const [taxBreakdownByProductId, setTaxBreakdownByProductId] = useState({});
+
+  useEffect(() => {
+    const productIds = [...new Set(orderItems.map(d => parseInt(d.product_id)).filter(Boolean))];
+    const pendingIds = productIds.filter(id => !(id in taxBreakdownByProductId));
+
+    if (pendingIds.length === 0) return;
+
+    const sapCodeByProductId = {};
+    pendingIds.forEach(id => {
+      const product = products.find(p => p.product_id === id);
+      if (product?.sap_code) sapCodeByProductId[id] = product.sap_code;
+    });
+
+    const sapCodes = Object.values(sapCodeByProductId);
+    if (sapCodes.length === 0) return;
+
+    let cancelled = false;
+    orderService.getProductPricesWithTax(sapCodes)
+      .then(results => {
+        if (cancelled) return;
+        const breakdownBySapCode = {};
+        results.forEach(r => { breakdownBySapCode[r.sap_code] = r.tax_breakdown || []; });
+
+        setTaxBreakdownByProductId(prev => {
+          const next = { ...prev };
+          Object.entries(sapCodeByProductId).forEach(([id, sapCode]) => {
+            next[id] = breakdownBySapCode[sapCode] || [];
+          });
+          return next;
+        });
+      })
+      .catch(error => {
+        console.error('❌ Error obteniendo desglose de impuestos del backend:', error);
+      });
+
+    return () => { cancelled = true; };
+  }, [orderItems, products]);
+
   const calculateTaxByProduct = (orderDetails) => {
     let ivaTotal = 0;
     let impuestoSaludableTotal = 0;
+    let otroTotal = 0;
 
     orderDetails.forEach(detail => {
       const itemSubtotal = detail.quantity * detail.unit_price;
-      const product = products.find(p => p.product_id === parseInt(detail.product_id));
+      // No usar products.find() aquí: products es la página/búsqueda actual del catálogo
+      // (paginación server-side), no el catálogo completo — un producto ya agregado al
+      // carrito puede dejar de estar en products si el usuario busca otra cosa después,
+      // perdiendo su impuesto silenciosamente. taxBreakdownByProductId ya está indexado
+      // por product_id y no depende de qué página/búsqueda esté activa.
+      const breakdown = taxBreakdownByProductId[parseInt(detail.product_id)];
 
-      if (product && product.has_impuesto_saludable) {
-        impuestoSaludableTotal += itemSubtotal * IMPUESTO_SALUDABLE_RATE;
-      } else {
-        ivaTotal += itemSubtotal * IVA_RATE;
-      }
+      // Si el desglose todavía no llegó del backend (fetch en curso), esta línea aporta $0
+      // temporalmente — se recalcula solo en cuanto taxBreakdownByProductId se actualice.
+      (breakdown || []).forEach(component => {
+        const amount = itemSubtotal * component.rate;
+        if (component.category === 'IVA') {
+          ivaTotal += amount;
+        } else if (component.category === 'IMPUESTO_SALUDABLE') {
+          impuestoSaludableTotal += amount;
+        } else {
+          otroTotal += amount;
+        }
+      });
     });
 
-    return { ivaTotal, impuestoSaludableTotal };
+    return { ivaTotal, impuestoSaludableTotal, otroTotal };
   };
 
   const calculateIVA = useCallback((subtotal) => {
@@ -999,8 +1054,8 @@ const Products = () => {
 
     // ✅ CÁLCULOS FINANCIEROS CON IMPUESTOS SALUDABLES
     const subtotal = calculateSubtotal();
-    const { ivaTotal, impuestoSaludableTotal } = calculateTaxByProduct(orderItems);
-    const totalTaxes = ivaTotal + impuestoSaludableTotal;
+    const { ivaTotal, impuestoSaludableTotal, otroTotal } = calculateTaxByProduct(orderItems);
+    const totalTaxes = ivaTotal + impuestoSaludableTotal + otroTotal;
     const shipping = calculateShipping(subtotal, totalTaxes);
 
     // ✅ VALIDACIÓN: Monto mínimo
@@ -1220,11 +1275,11 @@ const Products = () => {
   const subtotal = calculateSubtotal();
 
   // ✅ USAR calculateTaxByProduct en lugar de calculateIVA simple
-  const { ivaTotal, impuestoSaludableTotal } = useMemo(() => {
+  const { ivaTotal, impuestoSaludableTotal, otroTotal } = useMemo(() => {
     return calculateTaxByProduct(orderItems);
   }, [orderItems, products, calculateTaxByProduct]);
 
-  const totalTaxes = ivaTotal + impuestoSaludableTotal;
+  const totalTaxes = ivaTotal + impuestoSaludableTotal + otroTotal;
   const shipping = calculateShipping(subtotal, totalTaxes);
   const total = shipping !== null ? subtotal + totalTaxes + shipping : subtotal + totalTaxes;
 
@@ -1700,7 +1755,11 @@ const Products = () => {
 
                       {/* ✅ NUEVO: MOSTRAR IMPUESTO SALUDABLE SOLO SI EXISTE */}
                       {impuestoSaludableTotal > 0 && (
-                        <div className="text-sm text-gray-600">Impuesto Saludable (10%): {formatCurrency(impuestoSaludableTotal)}</div>
+                        <div className="text-sm text-gray-600">Impuesto Saludable (20%): {formatCurrency(impuestoSaludableTotal)}</div>
+                      )}
+
+                      {otroTotal > 0 && (
+                        <div className="text-sm text-gray-600">Otros impuestos: {formatCurrency(otroTotal)}</div>
                       )}
 
                       <div className="text-sm text-gray-600">

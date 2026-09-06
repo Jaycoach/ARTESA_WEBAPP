@@ -330,7 +330,11 @@ router.put('/orders/:orderId', verifyToken, updateOrder);
  * @returns {object} 500 - Error interno del servidor
  */
 // Obtener precios con IVA para productos específicos
-router.post('/prices', verifyToken, sanitizeBody, getProductPricesWithTax);
+// Nota: esta ruta vivía como '/prices' (→ /api/prices), sin el prefijo /orders que llevan
+// todas sus rutas vecinas en este archivo y que su propio comentario @route ya documentaba.
+// Corregido para que coincida con la documentación real — seguro porque no tiene consumidores
+// (confirmado en docs/CHANGELOG-unificacion-iva.md, Fase 2).
+router.post('/orders/prices', verifyToken, sanitizeBody, getProductPricesWithTax);
 
 /**
  * Cancelar una orden

@@ -96,7 +96,17 @@ const EmailVerification = () => {
             return;
           }
 
-          errorMessage = apiMessage;
+          // Sin respuesta del servidor (red/timeout/certificado) o error 500 genérico:
+          // el mensaje crudo no ayuda al usuario, así que se sugiere la causa más probable
+          // en la práctica (enlace ya usado) en vez de un error técnico.
+          const noResponse = !error.response;
+          const isGenericServerError = error.response?.status === 500;
+
+          if (noResponse || isGenericServerError) {
+            errorMessage = 'El enlace ya fue utilizado o expiró. Si tu cuenta ya está activa, intenta iniciar sesión directamente.';
+          } else {
+            errorMessage = apiMessage;
+          }
         }
 
         setMessage(errorMessage);

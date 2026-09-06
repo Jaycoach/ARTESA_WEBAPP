@@ -272,14 +272,15 @@ class PriceList {
       
       // **BÚSQUEDA FLEXIBLE**: Por código O por nombre
       const query = `
-        SELECT 
+        SELECT
           pl.*,
-          p.product_id as real_product_id, 
+          p.product_id as real_product_id,
           pl.price_list_id,
           p.name as local_product_name,
           p.description as local_product_description,
           p.image_url,
-          p.sap_code
+          p.sap_code,
+          p.tax_code_ar
         FROM price_lists pl
         LEFT JOIN products p ON pl.product_code = p.sap_code
         WHERE (pl.price_list_code = $1 OR pl.price_list_name = $1)

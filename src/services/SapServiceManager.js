@@ -20,6 +20,8 @@ class SapServiceManager {
     this.orderService = SapOrderService;
     const SapPriceListService = require('./SapPriceListService');
     this.priceListService = new SapPriceListService();
+    const SapTaxCodeService = require('./SapTaxCodeService');
+    this.taxCodeService = new SapTaxCodeService();
   }
 
   /**
@@ -80,6 +82,20 @@ class SapServiceManager {
           .catch(error => {
             this.logger.error('Error inicializando servicio de listas de precios', {
               error: error.message
+            });
+          })
+      );
+
+      // Inicializar servicio de catálogo de códigos de impuesto (tax_codes)
+      initTasks.push(
+        this.taxCodeService.initialize()
+          .then(() => {
+            this.logger.info('Servicio de códigos de impuesto SAP inicializado correctamente');
+          })
+          .catch(error => {
+            this.logger.error('Error al inicializar servicio de códigos de impuesto SAP', {
+              error: error.message,
+              stack: error.stack
             });
           })
       );
@@ -151,6 +167,17 @@ class SapServiceManager {
       await this.initialize();
     }
     return this.productService.syncProductsByGroupCode(groupCode);
+  }
+
+  /**
+   * Sincroniza el catálogo de códigos de impuesto (tax_codes) desde SAP
+   * @returns {Promise<object>} - Resultado de la sincronización
+   */
+  async syncTaxCodes() {
+    if (!this.initialized) {
+      await this.initialize();
+    }
+    return this.taxCodeService.syncTaxCodesFromSAP();
   }
 
   /**
@@ -287,6 +314,19 @@ class SapServiceManager {
 
     cron.schedule(dailySchedule, async () => {
       this.logger.info('Iniciando sincronización nocturna unificada');
+
+      // 0. Catálogo de códigos de impuesto (tax_codes) — antes de productos, ya que
+      //    estos referencian tax_code_ar contra este catálogo.
+      try {
+        this.logger.info('[Noche] Sincronizando catálogo de códigos de impuesto desde SAP');
+        await this.taxCodeService.syncTaxCodesFromSAP();
+        this.logger.info('[Noche] Sincronización de códigos de impuesto finalizada');
+      } catch (error) {
+        this.logger.error('[Noche] Error al sincronizar códigos de impuesto', {
+          error: error.message,
+          stack: error.stack
+        });
+      }
 
       // 1. Productos (sync completo)
       try {
