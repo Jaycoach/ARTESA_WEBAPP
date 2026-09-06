@@ -328,5 +328,24 @@ Queda listo para ejecutarse en cuanto (a) se despliegue el módulo en staging y 
 - **Orden cancelada de inmediato** (`UPDATE orders SET status_id=6 WHERE order_id=173`, confirmado `sap_synced` seguía en `false`) — nunca llegó a sincronizarse a SAP, mismo criterio de limpieza que la tarea de IVA ("cancelada tras la validación"). No se disparó `POST /orders/sync-to-sap` para esta orden específica: el admin de prueba (`id=1`) no tiene `sap_sales_employee_code` mapeado (confirmado NULL en Fase 3), así que el caso más informativo de probar (`SalesPersonCode` presente) requeriría antes correr el `PATCH` de mapeo — la transmisión del campo en sí ya quedó validada a nivel de Service Layer real en Fase 3 (`$metadata`, más órdenes reales existentes con `SalesPersonCode` poblado). Se documenta como el único sub-caso no ejercitado de punta a punta, sin bloquear el resultado global.
 - Auditoría (`backoffice_actions`, últimas 8 filas de esta sesión de pruebas): 1 `create_order` (target_id=173), 3 pares `activate_client`/`deactivate_client` (target_id=588, de las distintas corridas), 3 `reset_branch_password` (target_id=2600) — todas con `admin_user_id=1`, coincidiendo con el admin de prueba real. Ninguna fila con contraseñas ni tokens en `details`.
 
-### Estado: VALIDADO EN STAGING
+### Estado: VALIDADO EN STAGING (backend + script)
 10/10 casos del script pasan (los primeros 9 en la ejecución automática del script; el caso 10 se completó manualmente contra un cliente real por la incompatibilidad de diseño de `client_id=588` con `cardcode_sap=NULL`, documentada arriba, no por una falla del módulo). El fixture `client_id=588` queda mejorado de forma permanente (con `user_id=2357` vinculado) para que futuras corridas de este mismo script no repitan este hallazgo.
+
+## 2026-09-06 — FASE 5 (corrección crítica): el frontend desplegado NO era el correcto
+
+### Hallazgo reportado por el usuario, confirmado real
+El usuario verificó directamente (`index.html` real vía fetch sin caché, `aws s3 ls`) que el bundle servido en staging (`index-BcwZHxmy.js`) **no tenía ninguna ruta de BackOffice** — `/dashboard/backoffice` daba 404 de React Router, cero llamadas a la API. El reporte anterior de "deploy exitoso" de esta misma fase estaba **mal fundamentado**: solo verifiqué que el *build local* compilara sin errores y que el *script* de deploy terminara con código de salida exitoso — nunca verifiqué que el *contenido* del bundle subido realmente incluyera el código de BackOffice.
+
+**Causa raíz confirmada:** el `dist/` que se subió a S3 la primera vez se construyó mientras el working directory local (compartido entre sesiones) había saltado — sin aviso, otra vez — al branch `perf/gif-to-mp4-login-landing` (el mismo problema de colisión de sesiones documentado antes en esta tarea, ocurrido una tercera vez). `deploy-frontend.ps1` no valida en qué branch/commit está parado antes de compilar — corre `npm run build:staging` sobre lo que sea que haya en el working directory en ese momento. Evidencia: `grep -c "backoffice" dist/assets/index-BcwZHxmy.js` → `0`, y no existía ningún chunk `BackofficePage-*.js` en ese `dist/`.
+
+### Corrección
+1. Confirmado `git branch --show-current` → `feature/backoffice-module` (correcto esta vez) antes de tocar nada.
+2. `rm -rf dist/` + `npm run build:staging` limpio.
+3. **Verificación de contenido ANTES de subir** (paso que faltó la primera vez): `grep -c "backoffice" dist/assets/index-CcjdA579.js` → `1` (`{path:"backoffice",element:...}` confirmado con contexto), chunk `BackofficePage-BTXYbMyT.js` presente con 2 referencias reales al componente.
+4. `deploy-frontend.ps1 -Environment staging` — el log de sync mostró explícitamente `delete: s3://artesa-frontend-staging/assets/index-BcwZHxmy.js` (el bundle viejo) y `upload: dist\assets\index-CcjdA579.js` (el nuevo, correcto), además de `upload BackofficePage-BTXYbMyT.js`.
+5. **Verificación post-deploy real** (no asumida): `aws s3 ls s3://artesa-frontend-staging/assets/` confirma `index-CcjdA579.js` (326,583 bytes, coincide exacto con el tamaño del build local). `curl https://d1bqegutwmfn98.cloudfront.net/index.html` (CloudFront real, no local) referencia `index-CcjdA579.js`. `curl .../assets/index-CcjdA579.js | grep backoffice` → encuentra la cadena. `curl -o /dev/null .../assets/BackofficePage-BTXYbMyT.js` → `200`.
+
+### Lección para el resto de la tarea
+Verificar que un script de deploy "terminó exitoso" **no es evidencia suficiente** cuando el working directory es compartido entre sesiones y puede cambiar de branch sin aviso (ya ocurrió 3 veces en esta misma tarea). De ahora en adelante, todo deploy de frontend en esta tarea se valida con el mismo patrón de 3 pasos: (a) confirmar branch antes de compilar, (b) `grep` del contenido esperado en el bundle *antes* de subir, (c) confirmar contra el CDN/bucket real *después* de subir — nunca solo el código de salida del script.
+
+### Estado: VALIDADO EN STAGING (frontend, corregido)
