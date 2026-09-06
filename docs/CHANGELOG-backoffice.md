@@ -259,3 +259,29 @@ Confirmado contra `artesadb_dev` (staging), consultando los 3 usuarios con rol A
 `npm run build` (Vite) en `src/views/frontend/LoginArtesa`: **exitoso**, 1208 módulos transformados, sin errores, con `BackofficePage-*.js`/`.css` generados correctamente en el bundle. **Esto confirma que el código compila y no tiene errores de sintaxis/import — no confirma que el flujo funcione en un navegador real** (esta sesión no tiene Playwright ni acceso a un navegador). Queda pendiente para Fase 5: abrir la app en staging real y probar el flujo completo (activar/inactivar, reset de password, crear orden) como usuario BackOffice real.
 
 ### Estado: IMPLEMENTADO (build limpio), pendiente VALIDACIÓN EN STAGING junto con Fases 2 y 3.
+
+## 2026-09-06 — FASE 5: Diseño del script de aceptación (mientras se libera el host de staging)
+
+### Incidente de branch detectado y resuelto durante esta fase
+Mientras se diseñaba este script, el working directory compartido (misma carpeta local usada por varias sesiones) apareció en el branch `perf/gif-to-mp4-login-landing` en vez de `feature/backoffice-module` — otra sesión lo dejó ahí tras optimizar GIFs a MP4. Al revisar el historial, `feature/backoffice-module` tenía ese mismo commit (`673cc16`) aplicado **encima** de la Fase 4 (`525fe13`), aparentemente porque esa sesión commiteó estando parada sobre mi branch por error, antes de crear su propio branch limpio (`perf/gif-to-mp4-login-landing`, con el mismo cambio como `8803c25`).
+- Confirmado con `git diff 673cc16 8803c25 -- <archivos tocados>`: contenido **idéntico** entre ambos commits — nada se perdía al descartarlo de mi branch.
+- Con confirmación del usuario, se corrigió con `git reset --hard 525fe13` sobre `feature/backoffice-module`, dejando el branch limpio, solo con commits de BackOffice. El cambio de GIFs sigue intacto en `perf/gif-to-mp4-login-landing`, sin tocar.
+- Ninguno de mis commits de BackOffice se perdió ni se reescribió — el reset solo quitó el commit ajeno del final.
+
+### Script: `scripts/tests/backoffice-acceptance.sh`
+Sigue el patrón de scripts de aceptación real del proyecto (curl a través de nginx contra staging, nunca contra local). Cubre:
+1. Login como admin BackOffice y como usuario normal (rol USER) — ninguna credencial hardcodeada, todo por variables de entorno (`BACKOFFICE_TEST_ADMIN_EMAIL`/`PASSWORD`, `BACKOFFICE_TEST_USER_EMAIL`/`PASSWORD`, `BACKOFFICE_TEST_PRODUCT_CODE`).
+2. **Prueba negativa explícita** (pedida en el alcance original): el usuario sin permiso de BackOffice debe recibir 403 en `GET /backoffice/clients` y `POST /backoffice/orders`.
+3. Listado de clientes/sucursales, confirmando que el fixture sintético (`client_id=588`/`branch_id=2600`, reutilizando el mismo patrón ya usado en la tarea de IVA) aparece.
+4. Ciclo inactivar→activar de un cliente (vuelve al estado original al terminar, no deja el fixture inactivo).
+5. Reset de password de sucursal (solo valida `success:true` — la contraseña nunca viaja en la respuesta, por diseño; confirmar el correo es un paso manual).
+6. Resolución de precios con impuestos para el cliente vía `getClientProductPrices`, y resolución del `product_id` real a partir de un `sap_code` de prueba (`GET /products`).
+7. Creación de la orden BackOffice de punta a punta, capturando `order_id`.
+8. Al final, imprime las queries SQL pendientes de correr manualmente por PGAdmin (metodología del proyecto: nunca `psql` directo para verificación de negocio) para confirmar `placed_by_user_id`/`order_origin` en la orden creada, las filas en `backoffice_actions`, y el disparo manual de `POST /orders/sync-to-sap` + verificación de `SalesPersonCode` contra el Service Layer real.
+
+### Estado: IMPLEMENTADO (sintaxis verificada con `bash -n`), **no ejecutado todavía**
+No se pudo correr contra staging por dos motivos, ambos fuera del control de esta sesión:
+1. El módulo BackOffice (Fases 2-4) sigue sin desplegarse — el script fallaría en cada request.
+2. El script requiere credenciales reales de un usuario ADMIN/BACKOFFICE y un usuario USER de staging, que esta sesión no tiene ni debe inventar (regla del proyecto: nunca generar ni asumir credenciales reales).
+
+Queda listo para ejecutarse en cuanto (a) se despliegue el módulo en staging y (b) el usuario provea las variables de entorno con credenciales de prueba reales.
