@@ -445,3 +445,26 @@ Al probar el flujo completo (admin en una pestaña, sucursal en otra, mismo nave
 `order_id=173` y `order_id=174` confirmadas `status_id=6` (Cancelado), `sap_synced=false` — ninguna llegó a SAP. Ya estaban así desde los cierres anteriores de esta misma fase; no fue necesaria ninguna acción adicional en esta ronda.
 
 ### Estado: FASE 5 — QA de navegador del usuario cerrado sin hallazgos de código pendientes. Las dos falsas alarmas de esta ronda (carrito ausente por caché, desglose ausente por producto exento) quedan documentadas para que no se reabran sin evidencia nueva.
+
+## 2026-09-06 — Mejora de UX: buscador tipo autocompletar en el catálogo de BackOffice
+
+### Hallazgo de usabilidad (QA del usuario)
+La pestaña "Crear pedido a nombre de un cliente" renderizaba los ~500 productos del catálogo completo en una tabla estática (+16.000px de scroll confirmado), sin campo de búsqueda — incómodo de usar y un problema real de rendimiento (500 filas de DOM siempre, se use o no la mayoría).
+
+### Investigación previa (obligatoria antes de escribir código)
+Se revisó cómo resuelven esto los dos catálogos existentes:
+- `Products.jsx`: input de texto con búsqueda **server-side** (`/price-lists/:priceListCode/products?search=...`, paginado). Descartado como base de reuso: ese endpoint valida `req.user.clientProfile.price_list_code === priceListCode` — para un admin BackOffice (sin `clientProfile`) esa validación completa se salta (`if (req.user && req.user.clientProfile)` nunca entra), lo cual es un hallazgo de seguridad preexistente y no deseable construir sobre él sin corregirlo primero; fuera de alcance de esta mejora puntual de UX.
+- `CreateOrderForm.jsx`: usa `react-select` (ya es dependencia del proyecto) con un `MenuList` personalizado que hace lazy-loading de **imágenes** por producto vía `IntersectionObserver` — no aplica aquí (BackOffice no muestra miniaturas), habría sido complejidad sin beneficio real.
+
+**Decisión:** reutilizar `react-select` (la librería, ya usada en el proyecto — cero dependencias nuevas) con una implementación propia y más simple: filtrado 100% cliente sobre el array `products` ya cargado (nombre, `sap_code`, descripción), capado a `MAX_PRODUCT_SEARCH_RESULTS = 30` resultados sin importar cuántos coincidan — el catálogo completo nunca se renderiza, ni de entrada ni tras cada tecla.
+
+### Cambio
+- `BackofficePage.jsx`: la tabla completa de productos se reemplaza por un `<Select>` (`onInputChange` alimenta un `useMemo` que filtra+ordena+corta a 30, `filterOption={() => true}` porque el filtrado ya se hizo afuera, `isOptionDisabled` para productos sin `priceInfo` resuelto).
+- **`addToCart()` no cambia** — cada opción trae el mismo objeto `product` (con `.priceInfo`/`tax_breakdown`) que ya devuelve `getClientProductPrices`; solo cambió cómo se encuentra el producto, no cómo se agrega ni cómo se calculan precios/impuestos.
+
+### Verificación (3 capas)
+- **Branch:** solo `BackofficePage.jsx`/`.scss` modificados. Commit `f0d1a18`, pusheado.
+- **Contenido del bundle (antes de subir):** `grep` del placeholder de búsqueda y del mensaje "sin resultados" en el chunk local → presentes. `react-select` se separó en su propio chunk compartido (`react-select.esm-*.js`), confirmando que se reutilizó la instancia ya usada por el proyecto, no una nueva. MP4 de la otra sesión intactos.
+- **CDN real (después de subir, con espera de propagación):** `index.html` referencia el bundle nuevo (`index-BwFePjzS.js`); el chunk `BackofficePage-UJa2pc11.js` descargado directo de CloudFront contiene el placeholder de búsqueda real. `aws s3 ls` confirma MP4 intactos.
+
+### Estado: IMPLEMENTADO y VALIDADO EN STAGING (branch + contenido + CDN). **Sin verificación en navegador real** — esta sesión sigue sin Playwright/navegador disponible; se declara explícitamente en vez de afirmar una prueba no realizada. Pendiente: que el usuario confirme visualmente que la búsqueda filtra correctamente y que el límite de 30 resultados se respeta con términos de búsqueda amplios.
