@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import Select from 'react-select';
 import { useAuth } from '../../../../hooks/useAuth';
 import backofficeService from '../../../../services/backofficeService';
 import {
@@ -6,6 +7,8 @@ import {
   FaUsers, FaBuilding, FaTrash, FaClipboardList, FaFilter
 } from 'react-icons/fa';
 import './BackofficePage.scss';
+
+const MAX_PRODUCT_SEARCH_RESULTS = 30;
 
 const BackofficePage = () => {
   const { user } = useAuth();
@@ -266,6 +269,7 @@ const CreateOrderTab = () => {
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState(null);
   const [lastOrderSummary, setLastOrderSummary] = useState(null);
+  const [productSearchTerm, setProductSearchTerm] = useState('');
   const [clientOrders, setClientOrders] = useState([]);
   const [clientOrdersLoading, setClientOrdersLoading] = useState(false);
 
@@ -341,6 +345,41 @@ const CreateOrderTab = () => {
         quantity: (prev[product.product_id]?.quantity || 0) + 1
       }
     }));
+  };
+
+  // Búsqueda 100% cliente sobre el mismo array `products` ya cargado (nombre/código
+  // SAP/descripción) — nunca se le pasan a react-select más de MAX_PRODUCT_SEARCH_RESULTS
+  // opciones, así el catálogo completo (~500 productos) nunca se renderiza de entrada ni
+  // tras cada tecla. No duplica cálculo de precios/impuestos: cada opción trae el mismo
+  // `product` (con `.priceInfo`) que ya resuelve `getClientProductPrices`.
+  const productSelectOptions = useMemo(() => {
+    const term = productSearchTerm.trim().toLowerCase();
+    const matches = term
+      ? products.filter(p =>
+          (p.name || '').toLowerCase().includes(term) ||
+          (p.sap_code || '').toLowerCase().includes(term) ||
+          (p.description || '').toLowerCase().includes(term)
+        )
+      : products;
+
+    return matches
+      .slice()
+      .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+      .slice(0, MAX_PRODUCT_SEARCH_RESULTS)
+      .map(p => ({
+        value: p.product_id,
+        label: `${p.name} (${p.sap_code})`,
+        hasPrice: !!p.priceInfo,
+        priceLabel: p.priceInfo
+          ? `$${parseFloat(p.priceInfo.effective_price || p.priceInfo.price || 0).toLocaleString('es-CO')}`
+          : 'Sin precio',
+        productData: p
+      }));
+  }, [products, productSearchTerm]);
+
+  const handleProductSelect = (option) => {
+    if (!option || !option.hasPrice) return;
+    addToCart(option.productData);
   };
 
   const updateQuantity = (productId, quantity) => {
@@ -551,34 +590,33 @@ const CreateOrderTab = () => {
           {loading && <p>Cargando catálogo...</p>}
 
           {!loading && (
-            <table className="backoffice-table">
-              <thead>
-                <tr>
-                  <th>Producto</th>
-                  <th>Código SAP</th>
-                  <th>Precio con impuestos</th>
-                  <th>Acción</th>
-                </tr>
-              </thead>
-              <tbody>
-                {products.map(p => (
-                  <tr key={p.product_id}>
-                    <td>{p.name}</td>
-                    <td>{p.sap_code}</td>
-                    <td>
-                      {p.priceInfo
-                        ? `$${parseFloat(p.priceInfo.effective_price || p.priceInfo.price || 0).toLocaleString('es-CO')}`
-                        : 'No disponible'}
-                    </td>
-                    <td>
-                      <button className="btn-secondary" onClick={() => addToCart(p)} disabled={!p.priceInfo}>
-                        <FaShoppingCart /> Agregar
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="product-search">
+              <label>Buscar producto para agregar</label>
+              <Select
+                classNamePrefix="product-search-select"
+                placeholder="Busca por nombre, código SAP o descripción..."
+                options={productSelectOptions}
+                value={null}
+                onChange={handleProductSelect}
+                onInputChange={(value) => setProductSearchTerm(value)}
+                filterOption={() => true}
+                isOptionDisabled={(option) => !option.hasPrice}
+                formatOptionLabel={(option) => (
+                  <div className="product-option">
+                    <span>{option.label}</span>
+                    <span className={option.hasPrice ? 'product-option-price' : 'product-option-price unavailable'}>
+                      {option.priceLabel}
+                    </span>
+                  </div>
+                )}
+                noOptionsMessage={() =>
+                  products.length === 0 ? 'Cargando catálogo...' : 'Sin resultados para esa búsqueda'
+                }
+              />
+              <p className="product-search-hint">
+                {products.length} productos en el catálogo — mostrando hasta {MAX_PRODUCT_SEARCH_RESULTS} coincidencias a la vez.
+              </p>
+            </div>
           )}
 
           <h3>Carrito</h3>
