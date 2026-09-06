@@ -226,3 +226,16 @@ after: [{"column_name":"sap_sales_employee_code","data_type":"integer","is_nulla
   - `PATCH /backoffice/users/:userId/sap-sales-employee-code` — fija (o limpia con `null`) el mapeo de un usuario; registra `set_sales_employee_mapping` en `backoffice_actions`.
 
 `node --check` limpio en los 4 archivos. Pendiente de VALIDACIÓN EN STAGING junto con Fase 2, cuando el host quede libre (mismo criterio: desplegar y correr el script de aceptación real contra staging, incluyendo la creación de una orden BackOffice de prueba y su transmisión a SAP con `SalesPersonCode` correcto, sin tocar clientes/órdenes reales).
+
+### ⚠️ Limitación conocida: hoy nadie tiene el mapeo configurado
+`users.sap_sales_employee_code` se puebla **exclusivamente de forma manual**, vía `PATCH /backoffice/users/:userId/sap-sales-employee-code` (un admin con acceso llama este endpoint eligiendo un código de `GET /backoffice/sap-sales-persons`). **No hay ninguna sincronización automática desde SAP** — a diferencia de `client_profiles.cardcode_sap` o `products.tax_code_ar`, que sí se sincronizan por job, este mapeo no tiene contraparte en `SapServiceManager`/`SapClientService`; es una asignación puntual, esperada para un puñado de admins, no un catálogo masivo.
+
+Confirmado contra `artesadb_dev` (staging), consultando los 3 usuarios con rol ADMIN/FUNCTIONAL_ADMIN existentes hoy (aún no hay ningún usuario con rol BACKOFFICE creado):
+```json
+[
+  {"id":1,"name":"Jayco Devs SAS","rol_id":1,"sap_sales_employee_code":null},
+  {"id":538,"name":"MARIA CAMILA MARTINEZ LARA","rol_id":3,"sap_sales_employee_code":null},
+  {"id":1144,"name":"juanpan","rol_id":3,"sap_sales_employee_code":null}
+]
+```
+**Ningún admin tiene el mapeo configurado todavía.** Consecuencia práctica: si el módulo BackOffice se usara hoy tal cual (una vez desplegado), toda orden creada por un admin sin mapeo viajaría a SAP **sin `SalesPersonCode`** (el campo se omite, SAP aplica su propio default) — no es un bug, es el comportamiento diseñado para "admin sin mapeo", pero implica que **nadie tiene vendedor asignado hasta que alguien corra el `PATCH` explícitamente** para cada admin que vaya a operar el módulo. Esto queda como pendiente operativo para Fase 5 (QA), no de código: antes de dar el módulo por completamente funcional en staging, correr el `PATCH` al menos para el admin de prueba que se use en el QA, para validar el caso "con mapeo" además del caso "sin mapeo".
