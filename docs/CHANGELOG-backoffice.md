@@ -432,3 +432,16 @@ Nueva pestaña con filtros: rango de fecha (default hoy-hoy), origen (`backoffic
 - **CDN real (después de subir, con espera de propagación):** `index.html` referencia el bundle nuevo; el chunk `BackofficePage-XKkyJwk8.js` descargado directo de CloudFront contiene ambas features; `aws s3 ls` confirma MP4 intactos.
 
 ### Estado: IMPLEMENTADO y VALIDADO EN STAGING (branch + backend real + contenido + CDN). Sin verificación en navegador real (misma limitación de siempre, declarada explícitamente). Queda para el usuario: confirmar visualmente las dos features nuevas, y usar la contraseña fijada para validar "Mis Pedidos" desde la sucursal.
+
+## 2026-09-06 — FASE 5 (cierre de QA de navegador): desglose confirmado + limitación de sesión documentada
+
+### Falsa alarma descartada: desglose de impuestos SÍ funciona
+El usuario reportó que el desglose de IVA/Impuesto Saludable nunca aparecía en el carrito. Antes de tocar código, se verificó el endpoint real (`POST /backoffice/clients/374/product-prices`) con varios productos: `PANPT166`/`CHOCOLATINE X3` (`tax_code_ar='IVAG03'`, confirmado en BD — **0% real, exento**) vs. `PASPT07`/`PASPT10` (`tax_code_ar='IMSB+IVA'`, 20%+19% reales). La condición `ivaTotal > 0 && (...)` del carrito es correcta por diseño (mismo patrón que `CreateOrderForm.jsx`): oculta filas de impuesto en $0, no las inventa. El usuario reprobó con `PASPT07`/`PASPT10` y confirmó: "el carrito muestra Subtotal → IVA ($10.267,6) → Impuesto Saludable ($10.808) → Total ($75.115,6), coincidiendo exactamente con el endpoint". **Cerrado, sin cambios de código** — la orden `#174` (CHOCOLATINE X3) nunca tuvo impuesto que mostrar, por eso parecía "no funcionar".
+
+### Limitación conocida encontrada por el usuario: sesión compartida por origen (localStorage)
+Al probar el flujo completo (admin en una pestaña, sucursal en otra, mismo navegador), cerrar sesión en una pestaña cerró también la sesión de la otra — comportamiento esperado de `localStorage` (compartido por origen entre pestañas del mismo navegador, a diferencia de `sessionStorage`). **No es un bug de BackOffice ni de esta tarea** — es una característica preexistente del mecanismo de autenticación del portal completo (ya usado por `AuthContext.jsx`/`useAuth`, sin relación con el módulo nuevo). Se documenta aquí como limitación operativa conocida para el caso de uso específico de BackOffice ("admin quiere ver la sesión del cliente en paralelo a la suya"): hoy requiere una ventana de incógnito separada o un navegador distinto. **No se resuelve en esta tarea** (implicaría migrar el manejo de tokens de todo el portal, no solo de BackOffice — fuera de alcance) — queda registrado para que quien priorice trabajo futuro lo evalúe con contexto completo.
+
+### Confirmación final de limpieza
+`order_id=173` y `order_id=174` confirmadas `status_id=6` (Cancelado), `sap_synced=false` — ninguna llegó a SAP. Ya estaban así desde los cierres anteriores de esta misma fase; no fue necesaria ninguna acción adicional en esta ronda.
+
+### Estado: FASE 5 — QA de navegador del usuario cerrado sin hallazgos de código pendientes. Las dos falsas alarmas de esta ronda (carrito ausente por caché, desglose ausente por producto exento) quedan documentadas para que no se reabran sin evidencia nueva.
