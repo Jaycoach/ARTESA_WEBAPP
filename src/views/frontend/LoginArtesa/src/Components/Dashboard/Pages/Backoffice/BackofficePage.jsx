@@ -257,6 +257,17 @@ const CreateOrderTab = () => {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  // El toast es fijo en la pantalla (no depende del scroll, a diferencia del banner
+  // inline "message") — se necesita porque tras crear la orden el carrito se vacía y
+  // el contenido de la página se encoge, así que un aviso solo-inline puede quedar
+  // fuera de la vista si el usuario estaba con scroll hacia abajo en el botón de envío.
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 6000);
+    return () => clearTimeout(timer);
+  }, [toast]);
 
   useEffect(() => {
     backofficeService.getClients('').then(res => setClients(res.data || [])).catch(err => {
@@ -329,10 +340,28 @@ const CreateOrderTab = () => {
   };
 
   const cartItems = Object.values(cart);
-  const cartTotal = cartItems.reduce((sum, item) => {
+  const cartSubtotal = cartItems.reduce((sum, item) => {
     const unitPrice = parseFloat(item.product.priceInfo?.effective_price || item.product.priceInfo?.price || 0);
     return sum + unitPrice * item.quantity;
   }, 0);
+
+  // Desglose de impuestos por categoría, igual que CreateOrderForm.jsx: se usa el
+  // tax_breakdown que ya devuelve el backend (getClientProductPrices -> Order.
+  // getProductPricesWithTaxByClientId) — nunca se recalculan tasas en el frontend.
+  const { ivaTotal, impuestoSaludableTotal, otroTotal } = cartItems.reduce((acc, item) => {
+    const unitPrice = parseFloat(item.product.priceInfo?.effective_price || item.product.priceInfo?.price || 0);
+    const lineSubtotal = unitPrice * item.quantity;
+    const breakdown = item.product.priceInfo?.tax_breakdown || [];
+    breakdown.forEach(component => {
+      const amount = lineSubtotal * (parseFloat(component.rate) || 0);
+      if (component.category === 'IVA') acc.ivaTotal += amount;
+      else if (component.category === 'IMPUESTO_SALUDABLE') acc.impuestoSaludableTotal += amount;
+      else acc.otroTotal += amount;
+    });
+    return acc;
+  }, { ivaTotal: 0, impuestoSaludableTotal: 0, otroTotal: 0 });
+
+  const cartTotal = cartSubtotal + ivaTotal + impuestoSaludableTotal + otroTotal;
 
   const handleSubmit = async () => {
     if (!selectedClientId || !selectedBranchId) {
@@ -367,7 +396,7 @@ const CreateOrderTab = () => {
         comments,
         customer_po_number: customerPoNumber || undefined
       });
-      setMessage({ type: 'success', text: `Orden #${response.data?.order_id} creada exitosamente a nombre de ${client.razonSocial}` });
+      setToast({ text: `Orden #${response.data?.order_id} creada exitosamente a nombre de ${client.razonSocial}` });
       setCart({});
       setComments('');
       setCustomerPoNumber('');
@@ -380,6 +409,13 @@ const CreateOrderTab = () => {
 
   return (
     <div className="backoffice-tab-content">
+      {toast && (
+        <div className="backoffice-toast success">
+          <FaCheck /> {toast.text}
+          <button className="close-btn" onClick={() => setToast(null)}><FaTimes /></button>
+        </div>
+      )}
+
       {message && (
         <div className={`action-message ${message.type}`}>
           {message.text}
@@ -485,6 +521,28 @@ const CreateOrderTab = () => {
                 })}
               </tbody>
               <tfoot>
+                <tr>
+                  <td colSpan={2}>Subtotal</td>
+                  <td colSpan={2}>${cartSubtotal.toLocaleString('es-CO')}</td>
+                </tr>
+                {ivaTotal > 0 && (
+                  <tr>
+                    <td colSpan={2}>IVA</td>
+                    <td colSpan={2}>${ivaTotal.toLocaleString('es-CO')}</td>
+                  </tr>
+                )}
+                {impuestoSaludableTotal > 0 && (
+                  <tr>
+                    <td colSpan={2}>Impuesto Saludable</td>
+                    <td colSpan={2}>${impuestoSaludableTotal.toLocaleString('es-CO')}</td>
+                  </tr>
+                )}
+                {otroTotal > 0 && (
+                  <tr>
+                    <td colSpan={2}>Otros impuestos</td>
+                    <td colSpan={2}>${otroTotal.toLocaleString('es-CO')}</td>
+                  </tr>
+                )}
                 <tr>
                   <td colSpan={2}><strong>Total</strong></td>
                   <td colSpan={2}><strong>${cartTotal.toLocaleString('es-CO')}</strong></td>

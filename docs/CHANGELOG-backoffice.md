@@ -381,3 +381,28 @@ Rebuild limpio (`rm -rf dist && npm run build:staging`, 1208 módulos). Verifica
 - **Nota metodológica:** un `curl` a una ruta de asset inventada (`principal_img-DNrM5cKH.gif`, que nunca existió con ese hash) también devolvió `200` — falso positivo por el fallback SPA de CloudFront (todo 403/404 se reescribe a `index.html` con `200`). Verificación correcta: `aws s3 ls s3://artesa-frontend-staging/assets/ | grep -iE "principal_img|venta_online"` → solo `.mp4` (y el `.jpg` de poster, sin relación), **cero `.gif`** en el bucket real.
 
 ### Estado: VALIDADO EN STAGING (frontend, con ambos fixes conviviendo) — colisión cerrada
+
+## 2026-09-06 — FASE 5 (QA de navegador del usuario): falsa alarma de bug + 2 hallazgos reales
+
+### Falsa alarma descartada (confirmado por el propio usuario)
+El usuario reportó que el carrito/checkout de "Crear pedido a nombre de un cliente" no aparecía en absoluto. Antes de tocar código, verifiqué que tanto el código fuente como el bundle servido en CloudFront (descargado directo, no local) ya tenían el carrito completo — coincidía con lo reportado como "listo" en el turno anterior. Pedí al usuario reintentar con hard-refresh antes de asumir un bug. **Confirmado: era caché de su pestaña/navegador, no un bug real.** Aplica la misma lección que ya dejamos documentada sobre CloudFront: la propagación/caché puede dar falsos negativos que no son responsabilidad del código.
+
+### Hallazgo real 1 — orden de prueba creada por el usuario, cancelada
+El usuario, probando manualmente, creó `order_id=174` (cliente real `CI79694003`/`client_id=374`, sucursal `BIG SANDWICH APARTAMENTO`, 1x CHOCOLATINE X3, subtotal `$16,480`, `tax_code_ar=IVAG03`). Confirmado por consulta SQL directa contra staging (pedida explícitamente antes de cualquier prueba de navegador):
+```json
+{"order_id":174,"user_id":646,"placed_by_user_id":1,"order_origin":"backoffice","subtotal":"16480.00","tax_code_ar":"IVAG03", ...}
+```
+Trazabilidad correcta (mismo patrón que `order_id=173` de esta sesión). Cancelada de inmediato (`UPDATE orders SET status_id=6 WHERE order_id=174`), confirmado `sap_synced` seguía en `false` — nunca llegó a SAP.
+
+### Hallazgo real 2 — falta desglose de impuestos en el carrito de BackOffice
+`CreateOrderTab` solo mostraba Subtotal/Total, sin separar IVA/Impuesto Saludable como sí hace `CreateOrderForm.jsx` (el flujo del cliente final). Corregido en `BackofficePage.jsx`: se agregó un `reduce` que agrupa `item.product.priceInfo.tax_breakdown` (ya expuesto por `POST /backoffice/clients/:clientId/product-prices`, sin recalcular nada) por `category` (`IVA`, `IMPUESTO_SALUDABLE`, otro), replicando exactamente el patrón de `calculateTaxByProduct()` de `CreateOrderForm.jsx` (multiplicar `rate` por el subtotal de línea, no usar el `amount` precalculado que es por-unidad y no escala con la cantidad). El `tfoot` del carrito ahora muestra Subtotal → IVA (si >0) → Impuesto Saludable (si >0) → Otros impuestos (si >0) → Total. `total_amount` enviado al backend pasa a ser el total con impuestos (antes solo era el subtotal) — más correcto semánticamente, aunque el backend igual recalcula todo desde `tax_codes` al crear la orden.
+
+### Hallazgo real 3 — falta feedback visual tras crear la orden
+El banner de éxito (`action-message`) está al *inicio* del contenido de la pestaña; si el usuario tenía scroll hacia el botón de envío (más abajo), el aviso podía quedar fuera de la vista sin que el usuario lo notara. Se agregó un **toast fijo** (`position: fixed`, esquina superior derecha, `z-index` alto, auto-dismiss a los 6 segundos, cerrable a mano) específicamente para la confirmación de orden creada, con el `order_id` real. El banner inline de errores (`message`) se mantiene igual, sin cambios — solo el caso de éxito de creación de orden pasa a usar el toast.
+
+### Verificación (3 capas, igual que las veces anteriores)
+- **Branch:** `feature/backoffice-module` limpio, solo los 2 archivos tocados (`BackofficePage.jsx`, `BackofficePage.scss`).
+- **Contenido del bundle (antes de subir):** `grep -o "Impuesto Saludable"` y `grep -o "backoffice-toast"` en el chunk `BackofficePage-D96JTw3W.js` local → ambos presentes. `ls dist/assets/ | grep -iE "principal_img|venta_online"` → MP4 intactos (no se tocó el fix de la otra sesión).
+- **CDN real (después de subir, con espera de propagación):** `index.html` de CloudFront referencia `index-D1ltDLnk.js`; el chunk `BackofficePage-D96JTw3W.js` descargado directo de CloudFront (13,857 bytes) contiene `"Impuesto Saludable"` y `"backoffice-toast"`. `aws s3 ls` confirma los MP4 siguen en el bucket.
+
+### Estado: IMPLEMENTADO y VALIDADO EN STAGING (branch + contenido + CDN). **Sin verificación en navegador real** — esta sesión no tiene Playwright ni acceso a un navegador; se lo dije explícitamente al usuario en vez de afirmar una prueba que no hice. Queda pendiente que el usuario confirme visualmente el desglose de impuestos y el toast en su propio navegador.

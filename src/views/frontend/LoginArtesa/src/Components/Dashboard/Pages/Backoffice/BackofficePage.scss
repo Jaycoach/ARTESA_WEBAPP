@@ -86,6 +86,30 @@
   }
 }
 
+.backoffice-toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  max-width: 420px;
+
+  &.success { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+
+  .close-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: inherit;
+    margin-left: auto;
+  }
+}
+
 .backoffice-table, .backoffice-subtable {
   width: 100%;
   border-collapse: collapse;
