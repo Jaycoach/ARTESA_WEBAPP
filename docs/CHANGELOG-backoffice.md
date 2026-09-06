@@ -84,3 +84,71 @@ Se comparó el contenido real (`docker exec artesa-api-staging cat ...`) de los 
 - `placed_by_user_id` y `order_origin` se adoptan como nombres de columna (ya anticipados por el propio proyecto), sin `sales_rep_assignments` (no hay evidencia de que se haya diseñado ni se necesite para este alcance).
 - El reset de contraseña de BackOffice es una función nueva (contraseña aleatoria + bcrypt), no una reutilización de `enableBranchLogin` ni de los flujos de token self-service.
 - La creación de orden a nombre de un cliente se hace por un **endpoint nuevo**, no reutilizando `POST /orders` tal cual (ese endpoint ya tiene un hueco de autorización preexistente que no se hereda al flujo BackOffice).
+
+### Decisiones confirmadas por el usuario (2026-09-05)
+- **Permiso BackOffice: rol numérico nuevo `rol_id = 4` (`BACKOFFICE`)**, no una bandera sobre roles existentes. Esto implica corregir en la misma tarea el mapeo hoy duplicado/incompleto entre `src/constants/roles.js` (le falta `FUNCTIONAL_ADMIN` y le faltará `BACKOFFICE`) y `src/middleware/auth.js` (`checkRole`, que tiene el mapeo hardcodeado por separado).
+- **Sin tabla `sales_rep_assignments`**: BackOffice puede operar sobre cualquier cliente activo, sin restricción de "clientes asignados a este admin". Coincide con el alcance del PROMPT.
+
+## 2026-09-05 — FASE 1: Diseño de datos y permisos
+
+DDL completo en `db/migrations/2026-09-05_create-backoffice-module.sql` (no aplicado aún — pendiente de confirmación explícita del usuario antes de correr contra `artesadb_dev` en staging).
+
+**Resumen del diseño:**
+- `roles`: `INSERT` de la fila `(4, 'BACKOFFICE', ...)`. **Pendiente de confirmar por PGAdmin** que `id=4` está libre en `artesadb_dev` antes de aplicar (no se asume, se valida — mismo criterio que con `TaxCode` en la tarea de IVA).
+- `orders`: nuevas columnas `placed_by_user_id` (FK a `users.id`, nullable) y `order_origin` (`'self_service'` | `'backoffice'`, default `'self_service'`, con `CHECK` constraint). `orders.user_id` **no se toca** — sigue siendo el cliente real, para que `SapOrderService.createOrderInSAP()` siga resolviendo `CardCode` sin cambios.
+- `backoffice_actions`: tabla de auditoría nueva, `target_type`/`target_id` polimórficos (sin FK real, ya que apunta a `client_profiles`, `client_branches` u `orders` según la acción). `details` es JSONB y **nunca** debe llevar contraseñas en texto plano — solo metadata (ids, resultado).
+- **Pendiente de confirmación de permisos por endpoint** (ver pregunta al usuario): si los endpoints nuevos deben aceptar `checkRole([4])` únicamente, o `checkRole([1, 4])` para que el rol `ADMIN` (1) retenga acceso total como superadmin, consistente con el patrón ya usado en el resto de rutas del proyecto (`adminRoutes.js` casi siempre incluye el 1 explícitamente).
+- Fuera del DDL, Fase 1 también deja identificado el trabajo de corrección de `src/constants/roles.js` + `src/middleware/auth.js` (agregar `FUNCTIONAL_ADMIN: 3` y `BACKOFFICE: 4` de forma consistente en ambos archivos) como parte del alcance de Fase 2, no como refactor separado.
+
+### Decisiones confirmadas por el usuario (2026-09-05, continuación)
+- Permiso por endpoint: **`checkRole([1, 4])`** — `ADMIN` (1) retiene acceso total como superadmin (consistente con el patrón ya usado en `adminRoutes.js`), `BACKOFFICE` (4) es el rol operativo específico para este módulo.
+- Aplicar la migración contra staging inmediatamente tras confirmar que `id=4` estaba libre.
+
+### VALIDADO EN STAGING — Fase 1
+
+**Confirmación de `id=4` libre antes de aplicar** (query real vía la propia conexión de la app, sin exponer credenciales — `docker exec artesa-api-staging node -e "...pool.query('SELECT id, nombre, description FROM roles ORDER BY id')..."`):
+```json
+[{"id":1,"nombre":"ADMIN",...},{"id":2,"nombre":"USER",...},{"id":3,"nombre":"FUNCTIONAL_ADMIN",...}]
+```
+Confirmado: no existía fila con `id=4`.
+
+**Estado ANTES de migrar** (mismo mecanismo, contra `artesadb_dev`):
+```
+orders_cols_before []
+backoffice_actions_before [{"exists":null}]
+```
+
+**Aplicación de la migración** (`db/migrations/2026-09-05_create-backoffice-module.sql`, copiado a `/tmp` dentro del contenedor `artesa-api-staging` y ejecutado como una sola `pool.query(sql)` con el pool de conexión ya configurado de la app — sin credenciales nuevas ni hardcodeadas):
+```
+MIGRATION_OK
+```
+
+**Estado DESPUÉS de migrar** (mismo mecanismo):
+```json
+roles_after: [
+  {"id":1,"nombre":"ADMIN", ...},
+  {"id":2,"nombre":"USER", ...},
+  {"id":3,"nombre":"FUNCTIONAL_ADMIN", ...},
+  {"id":4,"nombre":"BACKOFFICE","description":"Gestión de clientes/sucursales y creación de pedidos a nombre de un cliente, sin sucursales propias asociadas"}
+]
+orders_cols_after: [
+  {"column_name":"order_origin","data_type":"character varying","is_nullable":"NO","column_default":"'self_service'::character varying"},
+  {"column_name":"placed_by_user_id","data_type":"integer","is_nullable":"YES","column_default":null}
+]
+check_constraint: [{"conname":"chk_orders_order_origin"}]
+backoffice_actions_cols: [
+  {"column_name":"id","data_type":"integer"},
+  {"column_name":"admin_user_id","data_type":"integer"},
+  {"column_name":"action_type","data_type":"character varying"},
+  {"column_name":"target_type","data_type":"character varying"},
+  {"column_name":"target_id","data_type":"integer"},
+  {"column_name":"details","data_type":"jsonb"},
+  {"column_name":"created_at","data_type":"timestamp with time zone"}
+]
+```
+
+Migración exit 0, esquema confirmado tal como se diseñó. Archivo temporal de migración limpiado del host (`/tmp` en el EC2); el residual dentro del contenedor `/tmp` no es persistente (se pierde al recrear el contenedor, y no requiere `docker-compose down`/`up` porque no se tocó ninguna variable de entorno ni configuración de contenedor — solo datos vía SQL).
+
+**Puntos de llamada revisados por el cambio en `orders`** (ver metodología de objetos compartidos del proyecto): `Order.js` (`createOrder`, `create`, `getUserOrders`, `getOrderById`, `getOrderWithDetails`) y `SapOrderService.js` (`createOrderInSAP`) no seleccionan `SELECT *` en ningún punto crítico que se vea afectado por columnas nuevas con default — se revisarán explícitamente al tocar cada uno en Fase 2, ya que las columnas nuevas no rompen ninguna inserción existente (tienen `DEFAULT`/son `NULL`-ables).
+
+**FASE 1: cerrada.** Pendiente confirmación del usuario para continuar a Fase 2 (backend: endpoints + corrección de `roles.js`/`auth.js` + registro en `backoffice_actions`).
