@@ -349,3 +349,11 @@ El usuario verificó directamente (`index.html` real vía fetch sin caché, `aws
 Verificar que un script de deploy "terminó exitoso" **no es evidencia suficiente** cuando el working directory es compartido entre sesiones y puede cambiar de branch sin aviso (ya ocurrió 3 veces en esta misma tarea). De ahora en adelante, todo deploy de frontend en esta tarea se valida con el mismo patrón de 3 pasos: (a) confirmar branch antes de compilar, (b) `grep` del contenido esperado en el bundle *antes* de subir, (c) confirmar contra el CDN/bucket real *después* de subir — nunca solo el código de salida del script.
 
 ### Estado: VALIDADO EN STAGING (frontend, corregido)
+
+### ⚠️ Colisión confirmada en el bucket S3 compartido — deploy de frontend PAUSADO
+
+Otra sesión (`laartesa-80`, trabajando en `perf/gif-to-mp4-login-landing`) avisó que mi redeploy de este mismo turno sobrescribió su fix ya desplegado (commit `8803c25`, reemplazo de `principal_img.gif`/`Venta_Online.gif` por MP4, -98% peso). Confirmado con `aws s3 ls`: `Venta_Online-Bx4pzTLs.gif` (23.7 MB) y `principal_img-Bbjfp0ll.gif` (22.2 MB) están de vuelta en el bucket — mis archivos MP4 optimizados de esa otra rama desaparecieron.
+
+**Causa:** `deploy-frontend.ps1` hace `aws s3 sync --delete` contra un único bucket (`artesa-frontend-staging`) compartido entre branches. `feature/backoffice-module` parte de `master` **antes** de que el fix de GIFs se mergeara ahí, así que mi `dist/` no tiene el fix de esa sesión — cada vez que yo sincronizo, borro sus archivos nuevos y restauro los GIFs viejos (y viceversa cuando ellos redeploy).
+
+**Acción tomada:** confirmado con la otra sesión. **No se vuelve a correr `deploy-frontend.ps1` (staging) desde esta tarea hasta que `feature/backoffice-module` se mergee a `master`, o hasta coordinar explícitamente un redeploy conjunto.** El backend (Docker/EC2, distinto de este bucket) no tiene este problema — solo el frontend en S3/CloudFront está pausado.
