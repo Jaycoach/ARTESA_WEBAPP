@@ -282,37 +282,10 @@ class Order {
         throw schemaError;
       }
 
-      if (error.code === '23503') {
-        // foreign_key_violation
-        logger.error('ERROR DE INTEGRIDAD REFERENCIAL', {
-          context: 'OrderModel',
-          pgCode: error.code,
-          errorFull: error.message,
-          user_id
-        });
-
-        const fkError = new Error('Referencia inválida: sucursal o producto no válido');
-        fkError.statusCode = 400;
-        fkError.userMessage = 'No se pudo procesar: verifica que la sucursal y los productos sean válidos.';
-        throw fkError;
-      }
-
-      if (error.code === '23505') {
-        // unique_violation
-        logger.error('VIOLACIÓN DE CONSTRAINT ÚNICO', {
-          context: 'OrderModel',
-          pgCode: error.code,
-          errorFull: error.message,
-          user_id
-        });
-
-        const uniqueError = new Error('Orden duplicada detectada');
-        uniqueError.statusCode = 409;
-        uniqueError.userMessage = 'Esta orden ya existe. Revisa tus pedidos pendientes.';
-        throw uniqueError;
-      }
-
-      // Error desconocido: no anotamos statusCode/userMessage, el controller cae al 500 genérico
+      // Otros errores (incluye 23503/23505: no se manejan aparte porque son inalcanzables
+      // desde la API pública hoy — orderController ya valida la sucursal antes del INSERT,
+      // y orders no tiene ningún UNIQUE constraint. Ver docs/INCIDENTE-2026-09-07-CLOSURE.md.
+      // No se anota statusCode/userMessage, el controller cae al 500 genérico.
       logger.error('ERROR DESCONOCIDO EN CREATEORDER', {
         context: 'OrderModel',
         errorType: error.constructor.name,
