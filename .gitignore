@@ -54,6 +54,11 @@ npm-debug.log*
 .idea/
 .vscode/
 
+# Herramientas locales (Claude Code / Playwright MCP) - no forman parte del proyecto
+.github/skills/
+.playwright-mcp/
+.mcp.json
+
 # Builds y coverage
 /dist/
 /build/

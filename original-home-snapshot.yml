@@ -1,0 +1,112 @@
+- generic [ref=f1e3]:
+  - link [ref=f1e4] [cursor=pointer]:
+    - /url: https://wa.me/573001234567
+  - generic [ref=f1e7]: PIDE TU DOMICILIO ARTESA AQUÍ
+  - banner [ref=f1e9]:
+    - generic [ref=f1e11]:
+      - textbox "¿Tengo antojos de...?" [ref=f1e12]
+      - button "🔍" [ref=f1e13] [cursor=pointer]
+    - img "Panadería Logo" [ref=f1e15]
+  - navigation [ref=f1e22]:
+    - link "Productos" [ref=f1e23] [cursor=pointer]:
+      - /url: "#productos"
+    - link "Quienes somos" [ref=f1e24] [cursor=pointer]:
+      - /url: "#blog"
+    - link "Contáctanos" [ref=f1e25] [cursor=pointer]:
+      - /url: "#contacto"
+    - link "Iniciar sesión" [ref=f1e26] [cursor=pointer]:
+      - /url: /
+  - img "Imagen destacada" [ref=f1e28]
+  - img "Imagen destacada" [ref=f1e30]
+  - main [ref=f1e31]:
+    - generic [ref=f1e32]:
+      - generic [ref=f1e35]:
+        - heading "Panadería Gourmet" [level=3] [ref=f1e36]
+        - paragraph [ref=f1e37]: Pan artesanal con ingredientes frescos y naturales.
+        - generic [ref=f1e38]: "Valoraciones de clientes:"
+        - generic [ref=f1e50]:
+          - button "Detalles" [ref=f1e51] [cursor=pointer]
+          - button "Añadir" [ref=f1e52] [cursor=pointer]
+      - generic [ref=f1e55]:
+        - heading "Repostería Fina" [level=3] [ref=f1e56]
+        - paragraph [ref=f1e57]: Recetas tradicionales.
+        - generic [ref=f1e58]: "Valoraciones de clientes:"
+        - generic [ref=f1e70]:
+          - button "Detalles" [ref=f1e71] [cursor=pointer]
+          - button "Añadir" [ref=f1e72] [cursor=pointer]
+      - generic [ref=f1e75]:
+        - heading "Pastelería Exclusiva" [level=3] [ref=f1e76]
+        - paragraph [ref=f1e77]: Deliciosos pasteles para cada ocasión especial.
+        - generic [ref=f1e78]: "Valoraciones de clientes:"
+        - generic [ref=f1e90]:
+          - button "Detalles" [ref=f1e91] [cursor=pointer]
+          - button "Añadir" [ref=f1e92] [cursor=pointer]
+      - generic [ref=f1e95]:
+        - heading "Bollería Artesanal" [level=3] [ref=f1e96]
+        - paragraph [ref=f1e97]: Bollos y panes con recetas tradicionales de calidad.
+        - generic [ref=f1e98]: "Valoraciones de clientes:"
+        - generic [ref=f1e110]:
+          - button "Detalles" [ref=f1e111] [cursor=pointer]
+          - button "Añadir" [ref=f1e112] [cursor=pointer]
+    - generic [ref=f1e113]:
+      - heading "Productos pasteleros de alta calidad" [level=2] [ref=f1e115]
+      - paragraph [ref=f1e116]: Programa tu pedido en línea con pago y transporte seguro.
+      - button "Realizar Pedido" [ref=f1e117] [cursor=pointer]
+    - generic [ref=f1e118]:
+      - heading "Visítanos y disfruta un festín de sabor." [level=2] [ref=f1e119]
+      - paragraph [ref=f1e120]: "Cuatro sedes, una sola pasión: brindarte la mejor experiencia."
+      - generic [ref=f1e121]:
+        - generic [ref=f1e124]:
+          - heading "Santa Paula" [level=3] [ref=f1e127]
+          - button "Ver Ubicación" [ref=f1e129] [cursor=pointer]
+        - generic [ref=f1e132]:
+          - heading "Cedritos" [level=3] [ref=f1e135]
+          - button "Ver Ubicación" [ref=f1e137] [cursor=pointer]
+        - generic [ref=f1e140]:
+          - heading "Colina Campestre" [level=3] [ref=f1e143]
+          - button "Ver Ubicación" [ref=f1e145] [cursor=pointer]
+        - generic [ref=f1e148]:
+          - heading "Punto de fabrica" [level=3] [ref=f1e151]
+          - button "Ver Ubicación" [ref=f1e153] [cursor=pointer]
+  - contentinfo [ref=f1e154]:
+    - generic [ref=f1e156]:
+      - img "Logo Artesa" [ref=f1e157]
+      - paragraph [ref=f1e158]: Encuéntranos en nuestras redes sociales.
+      - generic [ref=f1e159]:
+        - link [ref=f1e160] [cursor=pointer]:
+          - /url: https://www.instagram.com/artesapanaderia/
+        - link [ref=f1e163] [cursor=pointer]:
+          - /url: https://www.tiktok.com/@artesapanaderia
+        - link [ref=f1e166] [cursor=pointer]:
+          - /url: https://web.facebook.com/artesapanaderia
+        - link [ref=f1e169] [cursor=pointer]:
+          - /url: https://www.linkedin.com/company/artesa-panaderia/
+    - generic [ref=f1e173]:
+      - generic [ref=f1e174]:
+        - heading "Escríbenos" [level=3] [ref=f1e175]
+        - list [ref=f1e176]:
+          - listitem [ref=f1e177]:
+            - link "Contacto" [ref=f1e178] [cursor=pointer]:
+              - /url: "#"
+          - listitem [ref=f1e179]:
+            - link "Soporte" [ref=f1e180] [cursor=pointer]:
+              - /url: "#"
+      - generic [ref=f1e181]:
+        - heading "Pedidos" [level=3] [ref=f1e182]
+        - list [ref=f1e183]:
+          - listitem [ref=f1e184]:
+            - link "Realizar un Pedido" [ref=f1e185] [cursor=pointer]:
+              - /url: "#"
+          - listitem [ref=f1e186]:
+            - link "Seguimiento" [ref=f1e187] [cursor=pointer]:
+              - /url: "#"
+      - generic [ref=f1e188]:
+        - heading "Cliente" [level=3] [ref=f1e189]
+        - list [ref=f1e190]:
+          - listitem [ref=f1e191]:
+            - link "Preguntas Frecuentes" [ref=f1e192] [cursor=pointer]:
+              - /url: "#"
+          - listitem [ref=f1e193]:
+            - link "Política de Privacidad" [ref=f1e194] [cursor=pointer]:
+              - /url: "#"
+    - paragraph [ref=f1e196]: © 2025 Artesa - Todos los derechos reservados.
