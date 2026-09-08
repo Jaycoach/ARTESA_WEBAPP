@@ -2,6 +2,12 @@
 
 Este documento registra todos los cambios significativos en el proyecto LA ARTESA Web App.
 
+## [Herramientas de QA] - 2026-09-06
+
+### Añadido
+- **Ajuste de tooling para la Auditoría Integral (`docs/AUDITORIA-INTEGRAL-2026-09-05.md`):** el MCP de Playwright usado para validar pantallas reales en staging se configuró con `--ignore-https-errors` (`.mcp.json`) porque el backend de staging (`ec2-44-216-131-63.compute-1.amazonaws.com`) usa un certificado SSL autofirmado, que un navegador real rechaza (`net::ERR_CERT_AUTHORITY_INVALID`) y bloquea por completo el login y cualquier pantalla autenticada al probarlas end-to-end. Este ajuste es **solo para las herramientas de prueba** — no cambia nada en el backend ni en el certificado real de staging, y **no aplica a producción** (producción usa Let's Encrypt válido, ver incidente de 2026-09-04 abajo).
+- El certificado autofirmado de staging queda registrado como **hallazgo de infraestructura separado** en la auditoría integral (no bloqueante para producción, mejora a evaluar después — fuera del alcance de esa auditoría arreglarlo ahora).
+
 ## [Infraestructura] - 2026-09-04
 
 ### Incidente resuelto
