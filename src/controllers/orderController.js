@@ -405,16 +405,31 @@ const createOrder = async (req, res) => {
       data: result
     });
   } catch (error) {
+    const statusCode = error.statusCode || 500;
+    const userMessage = error.userMessage ||
+      (statusCode === 503
+        ? 'Sistema en mantenimiento. Intenta nuevamente en unos momentos.'
+        : statusCode === 400
+        ? 'Datos incompletos. Verifica tu información.'
+        : statusCode === 409
+        ? 'Esta orden ya existe.'
+        : 'No se pudo procesar tu pedido. Nuestro equipo ha sido notificado.');
+
     logger.error('Error al crear la orden:', {
-      error: error.message,
-      stack: error.stack,
-      userId: req.body?.user_id
+      context: 'OrderController',
+      statusCode,
+      errorMessage: error.message,
+      errorType: error.constructor.name,
+      userId: req.body?.user_id,
+      ...(process.env.NODE_ENV === 'development' && { stack: error.stack })
     });
-    
-    res.status(500).json({
+
+    return res.status(statusCode).json({
       success: false,
-      message: 'Error al crear la orden',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: userMessage,
+      ...(process.env.NODE_ENV === 'development' && {
+        debug: { errorCode: error.statusCode, errorMessage: error.message }
+      })
     });
   }
 };

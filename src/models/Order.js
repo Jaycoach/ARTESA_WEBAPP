@@ -261,11 +261,67 @@ class Order {
       };
     } catch (error) {
       await client.query('ROLLBACK');
-      logger.error('Error en createOrder', { 
-        error: error.message, 
-        user_id, 
-        stack: error.stack 
+
+      // error.code es el SQLSTATE que expone node-postgres — más confiable que
+      // parsear error.message, que puede variar de redacción entre versiones de PG.
+      if (error.code === '42703') {
+        // undefined_column: columna no existe (desincronización app/esquema, como este incidente)
+        const missingColumn = error.message.match(/column "(\w+)"/)?.[1] || 'unknown';
+
+        logger.error('DESINCRONIZACIÓN DE ESQUEMA: columna faltante en BD', {
+          context: 'OrderModel',
+          missingColumn,
+          pgCode: error.code,
+          errorFull: error.message,
+          user_id
+        });
+
+        const schemaError = new Error(`[SCHEMA_ERROR] Columna faltante en BD: ${missingColumn}`);
+        schemaError.statusCode = 503; // Service Unavailable
+        schemaError.userMessage = 'El sistema está en mantenimiento. Por favor intenta en unos momentos.';
+        throw schemaError;
+      }
+
+      if (error.code === '23503') {
+        // foreign_key_violation
+        logger.error('ERROR DE INTEGRIDAD REFERENCIAL', {
+          context: 'OrderModel',
+          pgCode: error.code,
+          errorFull: error.message,
+          user_id
+        });
+
+        const fkError = new Error('Referencia inválida: sucursal o producto no válido');
+        fkError.statusCode = 400;
+        fkError.userMessage = 'No se pudo procesar: verifica que la sucursal y los productos sean válidos.';
+        throw fkError;
+      }
+
+      if (error.code === '23505') {
+        // unique_violation
+        logger.error('VIOLACIÓN DE CONSTRAINT ÚNICO', {
+          context: 'OrderModel',
+          pgCode: error.code,
+          errorFull: error.message,
+          user_id
+        });
+
+        const uniqueError = new Error('Orden duplicada detectada');
+        uniqueError.statusCode = 409;
+        uniqueError.userMessage = 'Esta orden ya existe. Revisa tus pedidos pendientes.';
+        throw uniqueError;
+      }
+
+      // Error desconocido: no anotamos statusCode/userMessage, el controller cae al 500 genérico
+      logger.error('ERROR DESCONOCIDO EN CREATEORDER', {
+        context: 'OrderModel',
+        errorType: error.constructor.name,
+        pgCode: error.code || null,
+        errorMessage: error.message,
+        errorStack: error.stack,
+        user_id
       });
+
       throw error;
     } finally {
       client.release();
