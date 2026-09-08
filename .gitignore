@@ -105,3 +105,4 @@ ARTESA-DOCUMENTATION.md
 # Metodologia interna de trabajo con Claude Code (no es un entregable del proyecto)
 /src/.claude/
 /src/brief-claude-code-ssl-loop-engineering.md
+.claude/settings.local.json
