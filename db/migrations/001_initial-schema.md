@@ -13,6 +13,7 @@ Formato: `YYYY-MM-DD_descripción.sql`
 | `2026-09-05_add-tax-snapshot-columns.sql` | Aplicada (2026-09-05) | **NO estaba aplicada** hasta 2026-09-08 — causa raíz del incidente de órdenes bloqueadas del 2026-09-07 13:05. Aplicada el 2026-09-08. |
 | `2026-09-05_create-backoffice-module.sql` | Aplicada | Reportado por Jonathan como no aplicable/no pendiente en el contexto del incidente del 2026-09-07 — **no verificado directamente por Claude Code contra el esquema real de producción, confirmar antes de asumir** |
 | `2026-09-06_add-sap-sales-employee-code.sql` | Aplicada | Idem — mismo estado sin verificar directamente |
+| `2026-09-11_add-sap-sync-status-column.sql` | Aplicada (2026-09-11) | Aplicada (2026-09-11) — candado de idempotencia para sincronización de pedidos a SAP, corrige duplicación del 2026-09-09 (ver commit `ad2e494`) |
 
 ## Próximas a crear
 
