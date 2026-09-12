@@ -38,9 +38,6 @@ class SapOrderService extends SapBaseService {
       this.logger.info('Registrando callback para sincronización posterior a actualización automática');
       orderScheduler.registerPostUpdateCallback(this.syncOrdersToSAP.bind(this));
       
-      // Iniciar sincronización programada diaria de órdenes (verifica qué órdenes deben sincronizarse 2 días antes de entrega)
-      this.scheduleSyncTask();
-      
       // Añadir una segunda tarea programada para consultar órdenes entregadas
       this.scheduleDeliveryCheckTask();
 
@@ -103,37 +100,6 @@ class SapOrderService extends SapBaseService {
       this.syncSchedule = '30 18 * * *';
       this.orderTimeLimit = '18:00';
     }
-  }
-
-  /**
-   * Programa tarea para sincronización periódica de órdenes
-   */
-  scheduleSyncTask() {
-    // Validar formato de programación cron
-    if (!cron.validate(this.syncSchedule)) {
-      this.logger.error('Formato de programación inválido', {
-        schedule: this.syncSchedule
-      });
-      throw new Error(`Formato de programación cron inválido: ${this.syncSchedule}`);
-    }
-
-    this.logger.info('Programando sincronización periódica de órdenes', {
-      schedule: this.syncSchedule
-    });
-
-    // Programar tarea cron
-    this.syncTasks.orderSync = cron.schedule(this.syncSchedule, async () => {
-      try {
-        this.logger.info('Iniciando sincronización programada de órdenes');
-        await this.syncOrdersToSAP();
-        this.logger.info('Sincronización programada de órdenes completada exitosamente');
-      } catch (error) {
-        this.logger.error('Error en sincronización programada de órdenes', {
-          error: error.message,
-          stack: error.stack
-        });
-      }
-    });
   }
 
   /**
@@ -331,7 +297,7 @@ scheduleInvoiceCheckTask() {
         DocDate: formatDate(new Date()),
         DocDueDate: formatDate(orderData.delivery_date),
         Comments: fullComments,
-        U_WebOrderId: order.order_id.toString(),
+        U_JZ_WebOrderId: order.order_id.toString(),
         NumAtCard: orderData.customer_po_number || null,
         // TaxCode por línea = order_details.tax_code_ar, el snapshot tomado al crear la orden
         // (ver Order.js createOrder()) — nunca se vuelve a consultar products.tax_code_ar aquí,
@@ -397,14 +363,43 @@ scheduleInvoiceCheckTask() {
         LineItems: sapOrder.DocumentLines.length
       });
   
+      // Verificación previa: ¿ya existe una OV en SAP para este pedido? (U_JZ_WebOrderId
+      // vincula la OV de SAP con el order_id del portal). Evita crear una OV duplicada si
+      // esta ejecución llega a correr sobre un pedido que otra ejecución ya sincronizó
+      // exitosamente en SAP pero cuyo resultado no llegó a reflejarse en la tabla `orders`
+      // (ej. la app se cayó justo después del POST y antes del UPDATE de abajo).
+      const existingCheck = await this.request(
+        'GET',
+        `Orders?$filter=U_JZ_WebOrderId eq '${order.order_id}'&$select=DocEntry,DocNum`
+      );
+      if (existingCheck && existingCheck.value && existingCheck.value.length > 0) {
+        const existing = existingCheck.value[0];
+        this.logger.warn('Orden ya existe en SAP por U_JZ_WebOrderId, adoptando DocEntry existente en vez de crear una nueva', {
+          orderId: order.order_id,
+          sapDocEntry: existing.DocEntry,
+          sapDocNum: existing.DocNum
+        });
+        await pool.query(
+          'UPDATE orders SET sap_doc_entry = $1, docnum_sap = $2, sap_synced = true, sap_sync_status = NULL, sap_sync_date = CURRENT_TIMESTAMP WHERE order_id = $3',
+          [existing.DocEntry, existing.DocNum, order.order_id]
+        );
+        return {
+          success: true,
+          sapDocEntry: existing.DocEntry,
+          sapDocNum: existing.DocNum,
+          orderId: order.order_id,
+          adopted: true
+        };
+      }
+
       // Enviar la orden a SAP
       const endpoint = 'Orders';
       const result = await this.request('POST', endpoint, sapOrder);
-  
+
       if (result && result.DocEntry) {
         // Actualizar orden en base de datos con el DocEntry y DocNum de SAP
         await pool.query(
-          'UPDATE orders SET sap_doc_entry = $1, docnum_sap = $2, sap_synced = true, sap_sync_date = CURRENT_TIMESTAMP WHERE order_id = $3',
+          'UPDATE orders SET sap_doc_entry = $1, docnum_sap = $2, sap_synced = true, sap_sync_status = NULL, sap_sync_date = CURRENT_TIMESTAMP WHERE order_id = $3',
           [result.DocEntry, result.DocNum, order.order_id]
         );
         
@@ -542,6 +537,23 @@ scheduleInvoiceCheckTask() {
       // Para cada orden, intentar crearla en SAP
       for (const orderRow of rows) {
         try {
+          // Candado atómico: solo procede si esta invocación logra reclamar la fila.
+          // Evita que dos disparos concurrentes procesen la misma orden.
+          const claim = await pool.query(
+            `UPDATE orders
+             SET sap_sync_status = 'processing'
+             WHERE order_id = $1
+               AND (sap_synced = false OR sap_synced IS NULL)
+               AND sap_sync_status IS DISTINCT FROM 'processing'
+             RETURNING order_id`,
+            [orderRow.order_id]
+          );
+          if (claim.rowCount === 0) {
+            stats.skipped++;
+            this.logger.info('Orden ya reclamada por otra ejecución concurrente, se omite', { orderId: orderRow.order_id });
+            continue;
+          }
+
           await this.createOrderInSAP({ order_id: orderRow.order_id });
           stats.created++;
 
@@ -565,7 +577,7 @@ scheduleInvoiceCheckTask() {
               || orderError.response?.data?.message
               || orderError.message;
             await pool.query(
-              'UPDATE orders SET sap_sync_error = $1, sap_sync_attempts = COALESCE(sap_sync_attempts, 0) + 1 WHERE order_id = $2',
+              'UPDATE orders SET sap_sync_error = $1, sap_sync_attempts = COALESCE(sap_sync_attempts, 0) + 1, sap_sync_status = NULL WHERE order_id = $2',
               [sapErrorMsg.substring(0, 255), orderRow.order_id]
             );
           } catch (updateError) {
@@ -1244,18 +1256,9 @@ scheduleInvoiceCheckTask() {
           oldSchedule: this.syncSchedule
         });
         
-        // Detener tareas existentes
-        if (this.syncTasks.orderSync) {
-          this.syncTasks.orderSync.stop();
-          this.syncTasks.orderSync = null;
-        }
-        
         // Reconfigurar con nuevos settings
         await this.configureScheduleFromSettings();
-        
-        // Reiniciar programación
-        this.scheduleSyncTask();
-        
+
         this.logger.info('Programación de sincronización reconfigurada exitosamente', {
           newOrderTimeLimit: this.orderTimeLimit,
           newSchedule: this.syncSchedule
