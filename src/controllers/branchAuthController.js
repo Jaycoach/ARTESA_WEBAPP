@@ -7,6 +7,7 @@ const BranchAuth = require('../models/BranchAuth');
 const crypto = require('crypto');
 const emailService = require('../services/EmailService');
 const AuditService = require('../services/AuditService');
+const { DEFAULT_PRICE_LIST_CODE } = require('../config/priceListDefaults');
 
 const logger = createContextLogger('BranchAuthController');
 
@@ -342,9 +343,13 @@ class BranchAuthController {
                 });
             }
             
-            // Priorizar price_list, si no existe usar price_list_code, si no existe usar '1'
-            const priceListCode = rows[0].price_list ? rows[0].price_list.toString() : 
-                                (rows[0].price_list_code || '1');
+            // Priorizar price_list, si no existe usar price_list_code, si no existe usar el default.
+            // TODO post-fix: una vez confirmado (ver plan de validación) que TODO
+            // client_profiles.price_list_code sincronizado por SAP coincide 1:1 con
+            // price_list, esta expresión puede simplificarse a una sola columna fuente
+            // de verdad.
+            const priceListCode = rows[0].price_list ? rows[0].price_list.toString() :
+                                (rows[0].price_list_code || DEFAULT_PRICE_LIST_CODE);
 
             logger.debug('Price list code determinado para sucursal', {
                 branchId: req.branch.branch_id,

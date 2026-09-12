@@ -14,6 +14,7 @@
 const pool = require('../config/db');
 const { createContextLogger } = require('../config/logger');
 const { calculateOrderTaxes, calculateProductTax } = require('../utils/taxCalculator');
+const { DEFAULT_PRICE_LIST_CODE } = require('../config/priceListDefaults');
 
 // Crear una instancia del logger con contexto
 const logger = createContextLogger('OrderModel');
@@ -1342,7 +1343,14 @@ static async getMonthlyStats(userId, months = 6) {
         return [];
       }
 
-      const priceListCode = clientResult.rows[0].price_list_code || 'BRONCE'; // Valor por defecto
+      let priceListCode = clientResult.rows[0].price_list_code;
+      if (!priceListCode) {
+        logger.warn('Cliente sin price_list_code, usando fallback', {
+          userId,
+          fallback: DEFAULT_PRICE_LIST_CODE
+        });
+        priceListCode = DEFAULT_PRICE_LIST_CODE;
+      }
 
       const productsWithTax = await this._buildPricesWithTax(priceListCode, productCodes);
 
@@ -1390,7 +1398,7 @@ static async getMonthlyStats(userId, months = 6) {
 
       const priceListCode = clientResult.rows[0].price_list
         ? clientResult.rows[0].price_list.toString()
-        : (clientResult.rows[0].price_list_code || '1');
+        : (clientResult.rows[0].price_list_code || DEFAULT_PRICE_LIST_CODE);
 
       const productsWithTax = await this._buildPricesWithTax(priceListCode, productCodes);
 
