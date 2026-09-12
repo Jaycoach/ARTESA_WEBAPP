@@ -1,6 +1,7 @@
 const pool = require('../config/db');
 const Order = require('../models/Order');
 const { createContextLogger } = require('../config/logger');
+const { DEFAULT_PRICE_LIST_CODE } = require('../config/priceListDefaults');
 
 const logger = createContextLogger('BranchOrderController');
 
@@ -434,9 +435,11 @@ class BranchOrderController {
           companyName: clientRows[0]?.company_name
       });
       
-      // Priorizar price_list, si no existe usar price_list_code, si no existe usar '1'
-      const priceListCode = clientRows[0]?.price_list ? clientRows[0].price_list.toString() : 
-                          (clientRows[0]?.price_list_code || '1');
+      // Priorizar price_list, si no existe usar price_list_code, si no existe usar el default.
+      // TODO post-fix: mismo comentario que en branchAuthController.getClientPriceListCode —
+      // candidata a simplificar a una sola columna una vez confirmada la consistencia.
+      const priceListCode = clientRows[0]?.price_list ? clientRows[0].price_list.toString() :
+                          (clientRows[0]?.price_list_code || DEFAULT_PRICE_LIST_CODE);
 
       logger.debug('Price list determinado para productos de sucursal', {
           branchId: branch_id,
