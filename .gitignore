@@ -100,3 +100,8 @@ ARTESA-DOCUMENTATION.md
 # Metodologia interna de trabajo con Claude Code (no es un entregable del proyecto)
 /src/.claude/
 /src/brief-claude-code-ssl-loop-engineering.md
+
+# Herramientas locales de desarrollo (no son parte del proyecto)
+/.github/skills/
+/.mcp.json
+/.playwright-mcp/
