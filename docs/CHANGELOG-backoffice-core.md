@@ -58,6 +58,26 @@ Documentada en Fase 0/1 para aplicarse en Fase 2, sin excepciones y sin usar `NU
 
 **Estado: en progreso**, con checkpoint por archivo (ver conversación).
 
+### 6f — `clientsController.js`
+
+- **Definición de "pedido pendiente" (dos conteos, sin inventar estados):**
+  - `pending_orders` = `status_id` fuera de `Order.FINAL_ORDER_STATES` (Entregado/Cerrado/Cancelado).
+  - `pending_orders_not_synced` = lo mismo, **y además** `sap_synced` no es `true` (`SapOrderService.js:499`).
+  Se separan porque un pedido cancelado/cerrado nunca marcado como sincronizado no debe
+  contarse como "pendiente" solo por el flag de sync.
+- **`Order.FINAL_ORDER_STATES`** (`Order.js`, propiedad estática, `Object.freeze([4,5,6])`)
+  se expone de forma aditiva. Las constantes locales `nonModifiableStates` (`Order.js:598`)
+  y `finalStates` (`Order.js:927`) **no se tocaron** — siguen igual, con el mismo valor.
+- **Nuevo listado:** `GET /api/backoffice/clients/without-profile` — usuarios rol 2 sin
+  `client_profiles` (el `getAll()`/`getAllProfiles` que alimenta `ClientList.jsx` no los
+  trae, por su `JOIN` con `client_profiles`). Necesario para poder inactivar/reactivar a
+  cualquier cliente, tenga o no perfil.
+- **Verificación de `ClientProfile.getAll()`:** único llamador (`clientProfileController.js:298`
+  dentro de `getAllProfiles`), montado en una única ruta (`GET /api/client-profiles`,
+  `checkRole([1,3])`) — nunca accesible para rol 2 ni para sucursales. Se agregaron
+  `u.is_active`, `u.deactivated_manually`, `u.deactivated_at`, `u.deactivation_reason` de
+  forma aditiva (4 claves nuevas; `ClientList.jsx` sigue leyendo exactamente las mismas de antes).
+
 ### 6f — D7.2: bloqueo de sucursales cuando el cliente padre está inactivo
 
 `BranchAuth.findByEmail`/`findById` ahora traen `COALESCE(u.is_active, false) AS parent_is_active`
