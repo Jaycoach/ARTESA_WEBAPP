@@ -57,3 +57,19 @@ Documentada en Fase 0/1 para aplicarse en Fase 2, sin excepciones y sin usar `NU
 ## Fase 2 — Backend
 
 **Estado: en progreso**, con checkpoint por archivo (ver conversación).
+
+### Archivos 1-2: `src/constants/roles.js` + `src/middleware/auth.js`
+
+Commit `68260d56c87287bb10c5bd8b83d24fb323ca3467`. Ambos archivos quedaron byte-idénticos a
+`origin/feature/backoffice-module` (`git diff` vacío contra esa rama tras aplicar). Verificado
+con `git grep -nE "(checkRole|authorize)\("` sobre `master` y el branch pausado (~60 llamadas)
+que ningún archivo pasa un nombre de rol en texto salvo el hallazgo siguiente.
+
+### Hallazgo registrado: `checkRole(['ADMIN', 'MANAGER'])` en `priceListRoutes.js:763-765`
+
+`'MANAGER'` no existe en `ROLES` ni en ningún otro archivo del proyecto (confirmado por grep
+global en Fase 0). Con el fallback viejo *y* con el nuevo, `'MANAGER'` nunca resuelve a un
+`rol_id` numérico — el comportamiento de esa ruta **no cambia** con la limpieza de `auth.js`
+(en la práctica, esa ruta ya era ADMIN-only de facto). No se toca ahora. Se resuelve en el
+archivo 9 del plan de Fase 2, cuando esa ruta migre a `requirePermission` según la matriz de
+permisos — ahí se reemplaza por el permiso correcto en vez de dejar el string `'MANAGER'` muerto.
