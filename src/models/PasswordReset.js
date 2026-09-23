@@ -9,6 +9,7 @@
  */
 
 const pool = require('../config/db');
+const crypto = require('crypto');
 const { createContextLogger } = require('../config/logger');
 
 // Crear una instancia del logger con contexto
@@ -69,6 +70,66 @@ class PasswordReset {
         userId
       });
       throw new Error('Error al generar token de recuperación: ' + error.message);
+    }
+  }
+
+  /**
+   * Crea un token de recuperación DENTRO de una transacción externa.
+   * Reutiliza la misma invalidación de tokens previos y el mismo esquema de
+   * inserción que createToken() (ver paridad verificada en el checkpoint de
+   * Fase 2, archivo 6b), pero participa en la transacción del llamador y
+   * respeta el expiresAt recibido (createToken() lo ignora, ver Fase 2/6i).
+   * @async
+   * @param {import('pg').PoolClient} dbClient - Cliente de una transacción ya iniciada (BEGIN)
+   * @param {number} userId - ID del usuario
+   * @param {Date} expiresAt - Fecha y hora de expiración exacta a respetar (debe ser futura)
+   * @returns {Promise<PasswordResetToken>} - Fila insertada (incluye .token)
+   * @throws {Error} Si expiresAt/dbClient son inválidos, o si ocurre un error de BD
+   *   (preserva error.code: 40P01, 55P03, 23505, etc. para que el llamador lo traduzca)
+   */
+  static async createTokenWithClient(dbClient, userId, expiresAt) {
+    if (!(expiresAt instanceof Date) || Number.isNaN(expiresAt.getTime()) || expiresAt <= new Date()) {
+      throw new Error('createTokenWithClient: expiresAt debe ser una fecha válida y futura');
+    }
+    if (!dbClient || typeof dbClient.query !== 'function') {
+      throw new Error('createTokenWithClient: dbClient debe ser un cliente de transacción con método query() (no el pool)');
+    }
+
+    try {
+      logger.debug('Iniciando creación de token de recuperación (transaccional)', { userId });
+
+      // Misma invalidación que createToken(), con el dbClient de la transacción
+      await dbClient.query(
+        `UPDATE password_resets
+        SET used = true
+        WHERE user_id = $1 AND used = false`,
+        [userId]
+      );
+
+      const token = crypto.randomBytes(32).toString('hex');
+      const now = new Date();
+
+      const query = `
+        INSERT INTO password_resets (user_id, token, expires_at, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $4)
+        RETURNING *
+      `;
+      const { rows } = await dbClient.query(query, [userId, token, expiresAt, now]);
+
+      logger.info('Token de recuperación creado exitosamente (transaccional)', {
+        userId,
+        tokenId: rows[0].id,
+        expiresAt
+      });
+
+      return rows[0];
+    } catch (error) {
+      logger.error('Error al crear token de recuperación (transaccional)', {
+        error: error.message,
+        code: error.code,
+        userId
+      });
+      throw error;
     }
   }
 
