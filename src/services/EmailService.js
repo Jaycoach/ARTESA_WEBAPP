@@ -4,6 +4,17 @@ const { createContextLogger } = require('../config/logger');
 // Crear una instancia del logger con contexto
 const logger = createContextLogger('EmailService');
 
+// Escapa caracteres HTML especiales antes de interpolar valores de usuario en un template.
+// No existía ningún helper equivalente en el proyecto (verificado con git grep).
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 class EmailService {
   constructor() {
     logger.debug('Inicializando EmailService con AWS SES (Capa Gratuita)', {
@@ -354,6 +365,79 @@ class EmailService {
           });
           throw new Error(`Error al enviar el correo de reset: ${error.message}`);
       }
+  }
+
+  /**
+   * Envía la invitación de un usuario de plataforma nuevo (ADMIN/FUNCTIONAL_ADMIN) para
+   * definir su contraseña. Reutiliza la misma ruta de finalización que sendPasswordResetEmail
+   * (/reset-password/:token) — el token vive en password_resets, no hace falta pantalla nueva.
+   * NUNCA loguea el token ni la URL de invitación (el token permite definir una contraseña
+   * de ADMIN); los logs solo llevan { to, type: 'platform_user_invitation' }.
+   * @param {string} userEmail
+   * @param {string} userName
+   * @param {string} invitationToken
+   * @param {string} roleName
+   * @param {number} expiryHours - horas de expiración a mostrar en el correo (ver
+   *   src/constants/backofficeCore.js INVITATION_EXPIRY_HOURS, fuente única de verdad)
+   */
+  async sendPlatformUserInvitationEmail(userEmail, userName, invitationToken, roleName, expiryHours) {
+    try {
+      const invitationUrl = `${process.env.FRONTEND_URL}/reset-password/${invitationToken}`;
+
+      logger.info('Intentando enviar correo de invitación de usuario de plataforma', {
+        to: userEmail,
+        type: 'platform_user_invitation'
+      });
+
+      const safeUserName = escapeHtml(userName);
+      const safeRoleName = escapeHtml(roleName);
+
+      const mailOptions = {
+        from: {
+          name: 'La Artesa',
+          address: process.env.SMTP_FROM
+        },
+        to: userEmail,
+        subject: 'Invitación al BackOffice - La Artesa',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h1 style="color: #333;">Bienvenido al BackOffice de La Artesa</h1>
+            <p>Hola ${safeUserName},</p>
+            <p>Se creó una cuenta para ti en el BackOffice de La Artesa con el rol <strong>${safeRoleName}</strong>.</p>
+            <p>Para activarla, define tu contraseña con el siguiente enlace:</p>
+            <a href="${invitationUrl}"
+               style="display: inline-block; padding: 10px 20px;
+                      background-color: #007bff; color: white;
+                      text-decoration: none; border-radius: 5px;">
+              Definir mi contraseña
+            </a>
+            <p>Este enlace expirará en ${expiryHours} horas.</p>
+            <p>Si no esperabas esta invitación, puedes ignorar este correo.</p>
+            <hr>
+            <p style="color: #666; font-size: 12px;">
+              Este es un correo automático, por favor no respondas a este mensaje.
+            </p>
+          </div>
+        `
+      };
+
+      const info = await this.transporter.sendMail(mailOptions);
+      logger.info('Correo de invitación de usuario de plataforma enviado exitosamente', {
+        messageId: info.messageId,
+        response: info.response,
+        to: userEmail,
+        type: 'platform_user_invitation'
+      });
+
+      return info;
+    } catch (error) {
+      logger.error('Error al enviar correo de invitación de usuario de plataforma:', {
+        error: error.message,
+        stack: error.stack,
+        type: 'platform_user_invitation'
+      });
+      throw new Error(`Error al enviar el correo de invitación: ${error.message}`);
+    }
   }
 }
 
