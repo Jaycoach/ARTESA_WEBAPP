@@ -200,6 +200,10 @@ class ClientProfile {
           cp.anexos_adicionales AS "anexosAdicionales",
           cp.created_at,
           cp.updated_at,
+          u.is_active,
+          u.deactivated_manually,
+          u.deactivated_at,
+          u.deactivation_reason,
           u.name AS user_name
         FROM client_profiles cp
 		    JOIN users u ON cp.user_id = u.id

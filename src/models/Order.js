@@ -25,6 +25,13 @@ const logger = createContextLogger('OrderModel');
  */
 class Order {
   /**
+   * Estados finales de una orden (Entregado, Cerrado, Cancelado). Fuente única de verdad,
+   * ya usada internamente como const local en updateOrder() y cancelOrder() (líneas 598, 927);
+   * se expone aquí de forma aditiva para que otros módulos no la reescriban a mano.
+   */
+  static FINAL_ORDER_STATES = Object.freeze([4, 5, 6]);
+
+  /**
    * Obtiene el último ID de orden generado
    * @async
    * @returns {Promise<number>} - Último ID de orden generado
