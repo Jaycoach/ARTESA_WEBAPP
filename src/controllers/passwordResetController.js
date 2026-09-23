@@ -135,7 +135,7 @@ class PasswordResetController {
 
       // En desarrollo, mostrar el token para pruebas
       if (process.env.NODE_ENV === 'development') {
-        logger.info('Token generado para pruebas', { token: resetToken });
+        logger.info('Token generado para pruebas');
         return res.json({ 
           message: 'Token generado (modo desarrollo)',
           token: resetToken

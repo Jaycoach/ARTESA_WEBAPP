@@ -109,8 +109,7 @@ class EmailService {
         const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
         
         logger.info('Intentando enviar correo de recuperación', {
-            to: userEmail,
-            resetUrl: resetUrl
+            to: userEmail
         });
 
         const mailOptions = {
@@ -164,8 +163,7 @@ class EmailService {
   async sendVerificationEmail(userEmail, verificationToken, verificationUrl) {
     try {
       logger.info('Intentando enviar correo de verificación', {
-        to: userEmail,
-        verificationUrl: verificationUrl
+        to: userEmail
       });
   
       const mailOptions = {

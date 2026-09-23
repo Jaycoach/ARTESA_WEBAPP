@@ -58,14 +58,13 @@ Documentada en Fase 0/1 para aplicarse en Fase 2, sin excepciones y sin usar `NU
 
 **Estado: en progreso**, con checkpoint por archivo (ver conversación).
 
-### Hallazgo pendiente para checkpoint 6j (no corregido todavía)
+### 6j — RESUELTO: logs que exponían el token/URL completo de recuperación
 
-Logs que exponen el token/URL completo de recuperación de contraseña:
-- `src/services/EmailService.js:100-102` (`sendPasswordResetEmail`) — `logger.info(..., { to, resetUrl })`, siempre (no solo en dev).
-- `src/services/EmailService.js:155-157` (`sendVerificationEmail`) — `logger.info(..., { to, verificationUrl })`, siempre.
-- `src/controllers/passwordResetController.js:137-138` — `logger.info('Token generado para pruebas', { token: resetToken })`, dentro de `if (NODE_ENV === 'development')`.
+- `src/services/EmailService.js` (`sendPasswordResetEmail`) — se quitó `resetUrl` del `logger.info`, queda solo `{ to }`.
+- `src/services/EmailService.js` (`sendVerificationEmail`) — se quitó `verificationUrl` del `logger.info`, queda solo `{ to }`.
+- `src/controllers/passwordResetController.js` — se quitó `{ token: resetToken }` del `logger.info('Token generado para pruebas')` (dentro de `NODE_ENV === 'development'`).
 
-Corrección propuesta para 6j: quitar solo el campo `resetUrl`/`verificationUrl`/`token` de esas 3 líneas de log, sin cambiar nada más del comportamiento (el correo se sigue enviando igual, la respuesta HTTP de desarrollo no se toca).
+Sin cambios de comportamiento: el correo se sigue enviando igual y la respuesta HTTP de desarrollo (que sí incluye el token en el body, no en logs) no se tocó. Los tokens que ya estaban en logs históricos no se limpian (ya expiraron).
 
 ### Archivo 6d: `src/services/backofficeCore/userStatusService.js`
 
