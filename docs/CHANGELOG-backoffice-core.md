@@ -58,6 +58,24 @@ Documentada en Fase 0/1 para aplicarse en Fase 2, sin excepciones y sin usar `NU
 
 **Estado: en progreso**, con checkpoint por archivo (ver conversación).
 
+### 6f — D7.2: bloqueo de sucursales cuando el cliente padre está inactivo
+
+`BranchAuth.findByEmail`/`findById` ahora traen `COALESCE(u.is_active, false) AS parent_is_active`
+(`LEFT JOIN users u ON cp.user_id = u.id`). Se revisa en 3 puntos: `branchAuthController.js`
+(`login`, después de validar la contraseña — no cuenta como intento fallido ni bloquea la
+sucursal), `middleware/auth.js` `verifyBranchToken` (bloquea instantáneamente cualquier token
+ya emitido) y `verifyAnyToken`.
+
+- **(a)** `verifyAnyToken` (`middleware/auth.js:123-249`) es una función que decodifica y
+  acepta tokens de sucursal de forma **independiente** de `verifyBranchToken` (su propio
+  `jwt.verify` + su propio `BranchAuth.findById`). Confirmado con `git grep -n "verifyAnyToken" -- src`
+  (excluyendo `auth.js`): **0 referencias** — no la monta ningún route ni controller hoy. Se
+  cubrió preventivamente con el mismo chequeo para que, si alguien la usa en el futuro, no
+  quede como un bypass silencioso. No se eliminó (conserva el código existente).
+- **(b)** `BranchAuth.findByEmail` sigue comparando `b.email_branch = $1` **exacto** (sin
+  `LOWER()`). Pasa a comparación case-insensitive en el checkpoint 6h (D12), junto con el
+  resto de comparaciones de correo del sistema.
+
 ### 6j — RESUELTO: logs que exponían el token/URL completo de recuperación
 
 - `src/services/EmailService.js` (`sendPasswordResetEmail`) — se quitó `resetUrl` del `logger.info`, queda solo `{ to }`.

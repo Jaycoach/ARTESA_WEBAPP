@@ -8,11 +8,13 @@ class BranchAuth {
     static async findByEmail(email) {
         try {
             const { rows } = await pool.query(
-                `SELECT b.branch_id, b.client_id, b.email_branch, b.branch_name, b.password, 
-                        b.manager_name, b.is_login_enabled, b.email_verified, b.failed_login_attempts, 
-                        b.locked_until, b.last_login, cp.company_name, cp.nit_number, cp.verification_digit
-                 FROM client_branches b 
-                 LEFT JOIN client_profiles cp ON b.client_id = cp.client_id 
+                `SELECT b.branch_id, b.client_id, b.email_branch, b.branch_name, b.password,
+                        b.manager_name, b.is_login_enabled, b.email_verified, b.failed_login_attempts,
+                        b.locked_until, b.last_login, cp.company_name, cp.nit_number, cp.verification_digit,
+                        COALESCE(u.is_active, false) AS parent_is_active
+                 FROM client_branches b
+                 LEFT JOIN client_profiles cp ON b.client_id = cp.client_id
+                 LEFT JOIN users u ON cp.user_id = u.id
                  WHERE b.email_branch = $1 AND b.is_login_enabled = true`,
                 [email]
             );
@@ -26,9 +28,11 @@ class BranchAuth {
     static async findById(branchId) {
         try {
             const { rows } = await pool.query(
-                `SELECT b.*, cp.company_name, cp.nit_number, cp.verification_digit
-                 FROM client_branches b 
-                 LEFT JOIN client_profiles cp ON b.client_id = cp.client_id 
+                `SELECT b.*, cp.company_name, cp.nit_number, cp.verification_digit,
+                        COALESCE(u.is_active, false) AS parent_is_active
+                 FROM client_branches b
+                 LEFT JOIN client_profiles cp ON b.client_id = cp.client_id
+                 LEFT JOIN users u ON cp.user_id = u.id
                  WHERE b.branch_id = $1`,
                 [branchId]
             );

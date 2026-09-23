@@ -132,6 +132,23 @@ class BranchAuthController {
                 });
             }
 
+            // D7.2: contraseña correcta, pero el cliente padre está inactivo. No cuenta
+            // como intento fallido (no se llama recordFailedAttempt) ni bloquea la sucursal.
+            if (!branch.parent_is_active) {
+                await BranchAuth.logLoginAttempt(
+                    branch.branch_id,
+                    req.ip,
+                    'failed',
+                    'Cliente padre inactivo',
+                    req.headers['user-agent']
+                );
+
+                return res.status(401).json({
+                    success: false,
+                    message: 'Cuenta de cliente inactiva. Contacte al administrador.'
+                });
+            }
+
             // Login exitoso: generar token
             const token = await this.generateToken(branch);
             

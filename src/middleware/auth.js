@@ -38,7 +38,16 @@ const verifyBranchToken = async (req, res, next) => {
         message: 'Sucursal no encontrada o deshabilitada'
       });
     }
-    
+
+    // D7.2: bloquea INSTANTÁNEAMENTE todos los tokens de sucursal ya emitidos si el
+    // cliente padre está inactivo — no requiere revocar nada, se revisa en cada request.
+    if (!branch.parent_is_active) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Cuenta de cliente inactiva. Contacte al administrador.'
+      });
+    }
+
     req.branch = {
       branch_id: decoded.branch_id,
       email: decoded.email,
@@ -143,7 +152,16 @@ const verifyAnyToken = async (req, res, next) => {
           message: 'Sucursal no encontrada o deshabilitada'
         });
       }
-      
+
+      // D7.2: mismo chequeo que verifyBranchToken (esta función hoy no la monta
+      // ningún route, pero si algo la usara en el futuro debe quedar cubierta igual).
+      if (!branch.parent_is_active) {
+        return res.status(401).json({
+          status: 'error',
+          message: 'Cuenta de cliente inactiva. Contacte al administrador.'
+        });
+      }
+
       req.branch = {
         branch_id: decoded.branch_id,
         email: decoded.email,
