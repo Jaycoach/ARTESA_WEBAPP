@@ -66,31 +66,34 @@ class TokenRevocation {
      * Revoca todos los tokens de un usuario
      * @param {number} userId - ID del usuario
      * @param {string} reason - Razón de la revocación
+     * @param {import('pg').Pool|import('pg').PoolClient} [client=pool] - Cliente de una
+     *   transacción externa ya iniciada (BEGIN). Si se omite, usa el pool por defecto
+     *   (comportamiento idéntico al existente para todos los llamadores actuales).
      * @returns {Promise<boolean>} - true si se revocaron exitosamente
      */
-    static async revokeAllUserTokens(userId, reason = 'security_measure') {
+    static async revokeAllUserTokens(userId, reason = 'security_measure', client = pool) {
         try {
             // ✅ SOLUCIÓN CRÍTICA: Usar tiempo actual de la base de datos como referencia
-            const { rows: timeRows } = await pool.query('SELECT NOW() as current_time');
+            const { rows: timeRows } = await client.query('SELECT NOW() as current_time');
             const dbCurrentTime = new Date(timeRows[0].current_time);
-            
+
             // ✅ Marcar como revocados SOLO los tokens anteriores al momento actual
             const revokeBeforeTime = new Date(dbCurrentTime.getTime() - 2000); // 2 segundos de margen
-            
+
             const query = `
                 INSERT INTO revoked_tokens (token_hash, user_id, revoked_at, expires_at, revocation_reason, revoke_all_before)
                 VALUES ($1, $2, NOW(), NOW() + INTERVAL '30 days', $3, $4)
-                ON CONFLICT (token_hash) 
-                DO UPDATE SET 
+                ON CONFLICT (token_hash)
+                DO UPDATE SET
                     revoked_at = NOW(),
                     expires_at = NOW() + INTERVAL '30 days',
                     revocation_reason = $3,
                     revoke_all_before = $4
             `;
-            
+
             const tokenHash = `all_tokens_${userId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-            
-            await pool.query(query, [tokenHash, userId, reason, revokeBeforeTime]);
+
+            await client.query(query, [tokenHash, userId, reason, revokeBeforeTime]);
             
             logger.info('Tokens anteriores del usuario revocados', { 
                 userId,

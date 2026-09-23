@@ -58,6 +58,21 @@ Documentada en Fase 0/1 para aplicarse en Fase 2, sin excepciones y sin usar `NU
 
 **Estado: en progreso**, con checkpoint por archivo (ver conversación).
 
+### Archivo 6c: `tokenRevocation.js` y `BackofficeAction.js` — parámetro `client` opcional
+
+Ambos aceptan ahora un `client = pool` opcional al final de su firma, para participar en
+transacciones externas (`userStatusService.js`). Verificado con `git grep` que **ningún
+llamador existente** pasa ese argumento, así que todos siguen usando `pool` por defecto —
+comportamiento idéntico al actual para `authController.js:216`, `logoutController.js:125,204`
+y los 5 usos de `BackofficeAction.log` en `backofficeController.js` del branch pausado.
+
+**`BackofficeAction.js` deja de ser byte-idéntico a `origin/feature/backoffice-module`**
+(diff: se agregó el parámetro `client`). Aceptado explícitamente: en la Fase 7, cuando el
+branch pausado rebase sobre `master`, se toma la versión del núcleo (con `client`) en vez de
+la del branch pausado, y sus 5 llamadores en `backofficeController.js` (clase B2/C que
+permanece ahí) simplemente no pasan el segundo argumento — sin cambios de comportamiento
+para ellos tampoco.
+
 ### Archivos 1-2: `src/constants/roles.js` + `src/middleware/auth.js`
 
 Commit `68260d56c87287bb10c5bd8b83d24fb323ca3467`. Ambos archivos quedaron byte-idénticos a

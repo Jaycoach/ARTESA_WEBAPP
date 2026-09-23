@@ -16,16 +16,19 @@ class BackofficeAction {
    * @param {string} params.targetType - 'client_profile' | 'client_branch' | 'order'
    * @param {number} params.targetId
    * @param {Object} [params.details]
+   * @param {import('pg').Pool|import('pg').PoolClient} [client=pool] - Cliente de una
+   *   transacción externa ya iniciada (BEGIN). Si se omite, usa el pool por defecto
+   *   (comportamiento idéntico al existente para todos los llamadores actuales).
    * @returns {Promise<Object>} Fila insertada
    */
-  static async log({ adminUserId, actionType, targetType, targetId, details = null }) {
+  static async log({ adminUserId, actionType, targetType, targetId, details = null }, client = pool) {
     try {
       const query = `
         INSERT INTO backoffice_actions (admin_user_id, action_type, target_type, target_id, details)
         VALUES ($1, $2, $3, $4, $5)
         RETURNING id, created_at
       `;
-      const { rows } = await pool.query(query, [adminUserId, actionType, targetType, targetId, details]);
+      const { rows } = await client.query(query, [adminUserId, actionType, targetType, targetId, details]);
 
       logger.info('Acción de BackOffice registrada', {
         adminUserId, actionType, targetType, targetId
