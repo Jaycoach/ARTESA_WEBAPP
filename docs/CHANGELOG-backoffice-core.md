@@ -58,6 +58,17 @@ Documentada en Fase 0/1 para aplicarse en Fase 2, sin excepciones y sin usar `NU
 
 **Estado: en progreso**, con checkpoint por archivo (ver conversación).
 
+### Archivo 6d: `src/services/backofficeCore/userStatusService.js`
+
+`action_type` finales usados en `backoffice_actions` (no se editó la migración ya aplicada;
+estos nombres son valores libres en `VARCHAR(40)`, no un enum de BD):
+- `deactivate_user` — `details.scope` distingue `'platform_user'` vs `'client'`; `details.previous_state`
+  distingue `'active'` (inactivación normal, con revocación de tokens) vs `'inactive_not_manual'`
+  (solo se marca `deactivated_manually`, sin tocar `is_active` ni revocar tokens).
+- `activate_user` — única vía de reactivación válida; solo actúa si `deactivated_manually = true`.
+- `change_user_role` — solo entre ADMIN(1) y FUNCTIONAL_ADMIN(3); revoca tokens siempre
+  (incondicional, inofensivo si el usuario estaba inactivo).
+
 ### Archivo 6c: `tokenRevocation.js` y `BackofficeAction.js` — parámetro `client` opcional
 
 Ambos aceptan ahora un `client = pool` opcional al final de su firma, para participar en
