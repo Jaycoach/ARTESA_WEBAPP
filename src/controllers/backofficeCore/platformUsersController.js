@@ -1,6 +1,7 @@
 const pool = require('../../config/db');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
+const validator = require('validator'); // mismo paquete que usa authValidators.js
 const { createContextLogger } = require('../../config/logger');
 const ROLES = require('../../constants/roles');
 const { INVITATION_EXPIRY_HOURS } = require('../../constants/backofficeCore');
@@ -78,6 +79,11 @@ const createPlatformUser = async (req, res) => {
     // req.body.mail ya viene normalizado a minúsculas por AuthValidators.validateEmail
     const normalizedMail = String(mail).trim().toLowerCase();
 
+    // Verificación defensiva por si la ruta se monta sin AuthValidators.validateEmail
+    if (!validator.isEmail(normalizedMail)) {
+      return res.status(400).json({ success: false, message: 'Formato de correo inválido' });
+    }
+
     if (cleanName.length > NAME_MAX_LENGTH) {
       return res.status(400).json({ success: false, message: `El nombre no puede superar ${NAME_MAX_LENGTH} caracteres` });
     }
@@ -124,8 +130,11 @@ const createPlatformUser = async (req, res) => {
       await client.query('COMMIT');
     } catch (error) {
       try { await client.query('ROLLBACK'); } catch (_) { /* noop */ }
-      if (error.code === '23505' || error.code === '22001') {
+      if (error.code === '23505') {
         return res.status(409).json({ success: false, message: 'Ya existe un usuario con ese correo' });
+      }
+      if (error.code === '22001') {
+        return res.status(400).json({ success: false, message: 'El nombre o el correo exceden la longitud permitida' });
       }
       throw error;
     } finally {
