@@ -645,6 +645,47 @@ Casos agregados durante la Fase 2, a ejecutar cuando arranque la Fase 5 formal:
 - 6i: token de reset de contraseña de usuario usado a los 61 minutos de generado → rechazado
   (`INVALID_TOKEN`, antes seguía siendo válido hasta las 24h).
 
+### Fase 5 — Scripts de QA (IMPLEMENTADO, pendiente de que Jonathan los corra)
+
+Dos scripts nuevos, complementarios a `scripts/tests/backoffice-core-regression.sh` (Fase 2-R,
+que valida la matriz de acceso) — estos validan que las reglas de negocio nuevas realmente
+funcionan:
+
+- **`scripts/tests/qa-backoffice-core-cases.sh`**: QA funcional por caso, agrupado por
+  decisión (D12, D5, alta/baja de usuario de plataforma con motivo obligatorio, doble
+  inactivación rechazada con 409, D3 — FUNCTIONAL_ADMIN sin acceso a `platform-users`,
+  `uploads.delete` restringido a ADMIN). Crea su propio usuario de plataforma de prueba
+  (correo `qa-backoffice-<random>@invalid.local`, nunca hardcodeado) y lo deja inactivo/activo
+  según el flujo — no toca cuentas reales. Los casos D12/D5/4 requieren que Jonathan defina
+  variables de entorno apuntando a datos de PRUEBA existentes (`LOGIN_TEST_EMAIL_LOWER`,
+  `DEACTIVATED_TEST_TOKEN`, `CLIENT_TEST_USER_ID`) — si no se definen, esos casos se omiten
+  explícitamente en la salida (no fallan en falso). Imprime PASA/FALLA por caso y termina con
+  código de salida 1 si algo falló.
+  - Verificado: `bash -n scripts/tests/qa-backoffice-core-cases.sh` → sin errores de sintaxis.
+  - Verificadas contra el código real las rutas/campos usados: `POST /api/backoffice/platform-users`
+    responde `201` con `data.id` (`platformUsersController.js:156-161`); doble inactivación
+    responde `409` (`platformUsersController.js:185`); `DELETE /api/upload/:fileName` es la ruta
+    real de `deleteImage` (`uploadRoutes.js:143-148`, montada en `/api/upload` por `app.js:473`);
+    `GET /api/auth/verify-email/:token` usa parámetro de ruta, no query string
+    (`authRoutes.js` ~325).
+- **`scripts/tests/qa-backoffice-core-readonly.sql`**: verificación de solo lectura (ningún
+  `UPDATE`/`INSERT`/`DELETE`) — segura de correr en Producción en cualquier momento. Confirma:
+  cero duplicados de correo por mayúsculas (D12), existencia de los índices `uk_*_lower`,
+  columnas de inactivación manual en `users` (Fase 1), roles 3/4, esquema de
+  `backoffice_actions`, historial de fusiones D13 y que las cuentas absorbidas quedaron
+  correctamente inactivas con el correo liberado, que ningún usuario inactivado manualmente
+  quedó con `is_active=true` (caso de inconsistencia que señalaría un bug real en las guardas
+  D5/Fase 3), vigencia de tokens de reset (~1h tras 6i), y censo de usuarios en rol 4
+  (BACKOFFICE, sin capacidades activas en este núcleo).
+- **Instrucciones para Jonathan (orden sugerido):**
+  1. Antes de nada: `psql -f scripts/tests/qa-backoffice-core-readonly.sql` contra Staging para
+     tener una foto del estado actual (debe mostrar 0 en los casos "esperado: 0 filas").
+  2. Aplicar D13 (`db/scripts/merge-duplicate-users-staging-synthetic-test.sql` primero, luego
+     el real si aplica) y D12 (migración, ya `VALIDADO EN STAGING`) si aún no están aplicados ahí.
+  3. Correr `qa-backoffice-core-cases.sh` con los tokens de Staging.
+  4. Volver a correr el SQL de solo lectura y comparar contra el paso 1.
+  5. Cualquier `FALLA` o fila inesperada en el SQL: no avanzar a Fase 6/Producción sin revisarlo.
+
 ## D12 — Datos de duplicados por mayúsculas (ejecutados por Jonathan, 23/24-sep-2026)
 
 - **Producción (`laartesa`):** `users` tiene 1 duplicado por mayúsculas (ids 48 y 1505,
