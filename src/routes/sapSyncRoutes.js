@@ -3,7 +3,9 @@ const router = express.Router();
 const sapSyncController = require('../controllers/sapSyncController');
 const { syncPriceListMapping } = require('../controllers/sapPriceListMappingController');
 const { testSapData } = require('../controllers/testSapDataController');
-const { verifyToken, checkRole } = require('../middleware/auth');
+const { verifyToken } = require('../middleware/auth');
+const requirePermission = require('../middleware/requirePermission');
+const { PERMISSIONS } = require('../constants/permissions');
 const { sanitizeParams } = require('../middleware/security');
 
 /**
@@ -16,6 +18,9 @@ const { sanitizeParams } = require('../middleware/security');
 // Aplicar middleware de autenticación y seguridad a todas las rutas
 router.use(verifyToken);
 router.use(sanitizeParams);
+// Red de seguridad (fail-closed): todas las rutas de este archivo son solo ADMIN.
+// Cada ruta conserva además su capacidad explícita más abajo (sap_sync.view/execute).
+router.use(requirePermission(PERMISSIONS.SAP_SYNC_VIEW));
 /**
  * @swagger
  * /api/sap/test:
@@ -35,8 +40,8 @@ router.use(sanitizeParams);
  *       500:
  *         description: Error de conexión con SAP B1
  */
-router.get('/test', 
-  checkRole([1]), // Solo administradores
+router.get('/test',
+  requirePermission(PERMISSIONS.SAP_SYNC_VIEW),
   sapSyncController.testSapConnection
 );
 /**
@@ -58,8 +63,8 @@ router.get('/test',
  *       500:
  *         description: Error interno del servidor
  */
-router.post('/sync', 
-  checkRole([1]), // Solo administradores
+router.post('/sync',
+  requirePermission(PERMISSIONS.SAP_SYNC_EXECUTE),
   sapSyncController.startSync
 );
 
@@ -82,8 +87,8 @@ router.post('/sync',
  *       500:
  *         description: Error interno del servidor
  */
-router.get('/status', 
-  checkRole([1]), // Solo administradores
+router.get('/status',
+  requirePermission(PERMISSIONS.SAP_SYNC_VIEW),
   sapSyncController.getSyncStatus
 );
 /**
@@ -103,8 +108,8 @@ router.get('/status',
  *       500:
  *         description: Error al analizar vista
  */
-router.get('/analyze-view', 
-  checkRole([1]), // Solo administradores
+router.get('/analyze-view',
+  requirePermission(PERMISSIONS.SAP_SYNC_VIEW),
   sapSyncController.analyzeView
 );
 /**
@@ -142,8 +147,8 @@ router.get('/analyze-view',
  *       500:
  *         description: Error al obtener productos
  */
-router.get('/products/direct', 
-  checkRole([1]), // Solo administradores
+router.get('/products/direct',
+  requirePermission(PERMISSIONS.SAP_SYNC_VIEW),
   sapSyncController.getProductsDirectQuery
 );
 /**
@@ -183,8 +188,8 @@ router.get('/products/direct',
  *       500:
  *         description: Error interno del servidor
  */
-router.post('/update-description', 
-  checkRole([1]), // Solo administradores
+router.post('/update-description',
+  requirePermission(PERMISSIONS.SAP_SYNC_EXECUTE),
   sapSyncController.updateProductDescription
 );
 /**
@@ -227,8 +232,8 @@ router.post('/update-description',
  *       500:
  *         description: Error interno del servidor
  */
-router.post('/sync/group/:groupCode', 
-  checkRole([1]), // Solo administradores
+router.post('/sync/group/:groupCode',
+  requirePermission(PERMISSIONS.SAP_SYNC_EXECUTE),
   sapSyncController.syncProductsByGroup
 );
 
@@ -251,8 +256,8 @@ router.post('/sync/group/:groupCode',
  *       500:
  *         description: Error interno del servidor
  */
-router.post('/sync/price-list-mapping', 
-  checkRole([1]), // Solo administradores
+router.post('/sync/price-list-mapping',
+  requirePermission(PERMISSIONS.SAP_SYNC_EXECUTE),
   syncPriceListMapping
 );
 
@@ -273,8 +278,8 @@ router.post('/sync/price-list-mapping',
  *       500:
  *         description: Error interno del servidor
  */
-router.get('/test-data', 
-  checkRole([1]), // Solo administradores
+router.get('/test-data',
+  requirePermission(PERMISSIONS.SAP_SYNC_VIEW),
   testSapData
 );
 
@@ -284,8 +289,8 @@ router.get('/test-data',
  * @group SAP - Sincronización con SAP B1
  * @security bearerAuth
  */
-router.get('/sync/orders/schedule', 
-  checkRole([1]), // Solo administradores
+router.get('/sync/orders/schedule',
+  requirePermission(PERMISSIONS.SAP_SYNC_VIEW),
   sapSyncController.getOrderSyncSchedule
 );
 /**
@@ -333,7 +338,7 @@ router.get('/sync/orders/schedule',
  *         description: Error interno del servidor
  */
 router.put('/sync/tax-codes/:groupCode',
-  checkRole([1]), // Solo administradores
+  requirePermission(PERMISSIONS.SAP_SYNC_EXECUTE),
   sapSyncController.updateGroupTaxCodes
 );
 
