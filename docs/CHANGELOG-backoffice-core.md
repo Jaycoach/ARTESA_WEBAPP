@@ -441,6 +441,41 @@ PUT /products/:productId/image | verifyToken > requirePermission(products.manage
 DELETE /products/:productId | verifyToken > requirePermission(products.manage) > bound deleteProduct
 ```
 
+### Archivo 9 — `clientProfileRoutes.js` (commit `bed58d5`)
+
+Tabla completa (2 call-sites de los 68; el archivo tiene 13 rutas en total, las otras 11 nunca
+tuvieron `checkRole`, solo `verifyToken`, sin cambio):
+
+| línea | ruta | protección actual | capacidad nueva | ¿cambia? |
+|---|---|---|---|---|
+| `:187` | `GET /` | `checkRole([1,3])` | `clients.view` | Cambia |
+| `:556` | `DELETE /user/:userId` | `checkRole([1])` | `clients.delete` | Cambia |
+
+Riesgo verificado (condición 5): `deleteProfileByUserId` (`clientProfileController.js:1681-1720`)
+acotado a `userId`, con salvaguarda que rechaza si el cliente tiene órdenes asociadas.
+
+```
+$ node --check src/routes/clientProfileRoutes.js
+SINTAXIS OK
+$ grep -c "checkRole" src/routes/clientProfileRoutes.js
+0
+$ node -e "...script de verificacion..."
+TOTAL: 13
+GET / | verifyToken > requirePermission(clients.view) > getAllProfiles
+GET /user/:userId | verifyToken > getProfileByUserId
+POST / | verifyToken > createProfile
+PUT /user/:userId | verifyToken > updateProfileByUserId
+DELETE /user/:userId | verifyToken > requirePermission(clients.delete) > deleteProfileByUserId
+GET /user/:userId/documents | verifyToken > listDocuments
+GET /user/:userId/file/:fileType | verifyToken > getFileByUserId
+GET /user/:userId/download/:fileType | verifyToken > downloadDocument
+POST /:userId/documents/:documentType | verifyToken > uploadProfileDocument
+POST /debug/test-sap-sync | verifyToken > <anonymous>
+POST /debug/sap-connection | verifyToken > <anonymous>
+POST /debug/sap-lead-only | verifyToken > <anonymous>
+GET /debug/sap-groupcode | verifyToken > <anonymous>
+```
+
 ## Fase 5 — Plan de QA acumulado (pendiente de ejecutar contra Staging real)
 
 Casos agregados durante la Fase 2, a ejecutar cuando arranque la Fase 5 formal:
