@@ -528,6 +528,34 @@ GET /sap/validate/:priceListNo | verifyToken > ... > validatePriceListInSap
 POST /update-product-prices | verifyToken > requirePermission(sap_sync.execute) > updateProductPricesFromLists
 ```
 
+### Archivo 9 — `productImageRoutes.js` (commit `4cd34ba`)
+
+Tabla completa (2 call-sites; el archivo tiene 4 rutas en total):
+
+| línea | ruta | protección actual | capacidad nueva | ¿cambia? |
+|---|---|---|---|---|
+| `:111` | `POST /products/:productId/images/:imageType` | `checkRole([1,3])` | `product_images.manage` | Cambia (mismos roles) |
+| `:130` | `GET /products/images/:productId/:imageType` | solo `verifyToken` | — | Sin cambio |
+| `:147` | `GET /products/:productId/images` | solo `verifyToken` | — | Sin cambio |
+| `:168` | `DELETE /products/images/:productId/:imageType` | `checkRole([1,3])` | `product_images.manage` | Cambia (mismos roles) |
+
+Riesgo verificado: `deleteProductImage` (`productImageController.js:798-...`) acotado a
+`productId`/`imageType`, resuelve `image_url` desde el registro del producto, sin clave
+arbitraria.
+
+```
+$ node --check src/routes/productImageRoutes.js
+SINTAXIS OK
+$ grep -n "checkRole\|authorize" src/routes/productImageRoutes.js
+(sin resultados)
+$ node -e "...script de verificacion..."
+TOTAL: 4
+POST /products/:productId/images/:imageType | verifyToken > requirePermission(product_images.manage) > sanitizeParams > uploadProductImage
+GET /products/images/:productId/:imageType | verifyToken > sanitizeParams > getProductImage
+GET /products/:productId/images | verifyToken > sanitizeParams > listProductImages
+DELETE /products/images/:productId/:imageType | verifyToken > requirePermission(product_images.manage) > sanitizeParams > deleteProductImage
+```
+
 ## Fase 5 — Plan de QA acumulado (pendiente de ejecutar contra Staging real)
 
 Casos agregados durante la Fase 2, a ejecutar cuando arranque la Fase 5 formal:
