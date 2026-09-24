@@ -58,6 +58,38 @@ Documentada en Fase 0/1 para aplicarse en Fase 2, sin excepciones y sin usar `NU
 
 **Estado: en progreso**, con checkpoint por archivo (ver conversación).
 
+### Hallazgo: `sanitizeBody`/`validateQueryParams` de nivel router se ejecutan en cascada
+
+`userRoutes.js:8` (`sanitizeBody, sanitizeParams, validateQueryParams`) y `productRoutes.js:86`
+(`sanitizeBody, sanitizeParams`) están montados en `/api` **a secas** (`app.js:453,456`), así
+que su `router.use(...)` se ejecuta para **toda** petición `/api/*` registrada después de
+ellos que no tenga ya una respuesta enviada — incluido `/api/backoffice/*` y `/api/admin/*`.
+`validator.escape()` (usado por ambos, vía `sanitizeString`) **no es idempotente**
+(`&` → `&amp;` → `&amp;amp;` en una segunda pasada).
+
+**Tabla de cadenas efectivas (paridad lograda):**
+
+| Ruta | Pasadas de `sanitizeBody` | Detalle |
+|---|---|---|
+| (a) `POST /api/auth/register` | 2 | `userRoutes.js:8` + `authRoutes.js:260` (responde antes de llegar a `productRoutes`) |
+| (b) `POST /api/admin/settings` (original) | 3 | `userRoutes.js:8` + `productRoutes.js:86` + `adminRoutes.js:23` (router-level) |
+| (c) `POST /api/backoffice/settings` | 3 | igual que (b) — ya en paridad, sin cambios |
+| (d) `POST /api/backoffice/platform-users` y demás (antes de la corrección) | 3 | 1 de más vs. (a) |
+| (d) — **corregido** (`4a8dfb6`) | 2 | se quitó el `sanitizeBody` propio de esos 4 endpoints; ahora depende de `userRoutes.js:8`+`productRoutes.js:86`, misma paridad que (a) |
+
+**Hallazgo preexistente, fuera de alcance (no se corrige en esta tarea):** el patrón de
+`router.use(sanitizeBody/validateQueryParams)` sin scoping en routers montados en `/api` a
+secas se aplica también a rutas de otros routers no relacionados, con dos consecuencias:
+(1) multi-escape de HTML en cualquier ruta mo suficientemente "profunda" en el orden de
+montaje (3+ pasadas en vez de 1); (2) `validateQueryParams` podría rechazar (403) texto
+legítimo que casualmente calce con el patrón de SQL-injection, en rutas que nunca pidieron
+esa protección. **Cómo se corregiría en una tarea aparte:** mover `sanitizeBody`/
+`sanitizeParams`/`validateQueryParams` de `userRoutes.js`/`productRoutes.js` de
+`router.use(...)` global a middlewares por-ruta (como ya hace la mayoría del proyecto en
+otros routers), o montar esos dos routers en subrutas propias en vez de `/api` a secas —
+cualquiera de las dos requiere revisar el comportamiento actual de esas rutas existentes
+antes de tocarlas, por eso queda fuera de esta tarea.
+
 ### 6g/7 — hallazgos registrados
 
 - **Dos objetos `fileUploadOptions` distintos, mismo nombre:** `adminRoutes.js` (antes de
