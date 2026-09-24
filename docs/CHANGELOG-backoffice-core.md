@@ -851,6 +851,100 @@ Con esto, los 5 caminos de D5 quedan cubiertos: #1-3 (Fase 2, commit `d79e5fb`) 
   5. Si hay `[NO EXPLICADA]`, no avanzar a la Fase 5 sin revisarlo primero.
 - `bash -n` sobre ambos scripts: sintaxis OK.
 
+## Fase 4 — Frontend (IMPLEMENTADO, pendiente `npm run build` de Jonathan en su propio entorno de validación final y QA visual)
+
+### Qué se reutilizó de `feature/backoffice-module` (clase A) vs. qué es nuevo
+
+- **Reutilizado (patrón, no código con lógica de clase C):** el patrón de ruta lazy-loaded bajo
+  `/dashboard/*` en `App.jsx` (mismo estilo `lazy(() => import(...))` + `<Suspense>`) y el patrón
+  de filtrado de items del `Sidebar.jsx` por rol/capacidad — se tomaron como referencia (`git diff`
+  contra `origin/feature/backoffice-module`) pero **no se hizo checkout de esos archivos**, porque
+  ambos ya tenían cambios propios en esta rama (Login/Sidebar) — se aplicaron ediciones puntuales.
+- **Nuevo (no existía en la rama pausada, es parte del núcleo D1-D14):** todo el árbol
+  `Components/Dashboard/Pages/Backoffice/` (4 pestañas + shell), `services/backofficeCoreService.js`,
+  `constants/backofficePermissions.js`. Nombrado deliberadamente distinto del `backofficeService.js`
+  de la rama pausada para evitar colisión en un futuro rebase de Fase 7 (cuando se publique la
+  clase B2/C).
+
+### Archivos modificados (ediciones puntuales, no checkout)
+
+- **`App.jsx`**: import lazy de `BackofficePage` + 2 rutas (`backoffice`, `backoffice/*`) bajo
+  `/dashboard`, mismo patrón `Suspense`/`LoadingScreen` que el resto de rutas del dashboard.
+- **`Login.jsx`**: se agregó `user` a la desestructuración de `useAuth()`. El `useEffect` de
+  redirección post-login ahora calcula `defaultPath`: roles 1/3/4 → `/dashboard/backoffice`,
+  cualquier otro rol (incluye rol 2 y sucursales) → `/dashboard` sin cambios. Se respeta primero
+  cualquier `from` de deep-link ya existente — el default de BackOffice solo aplica si no hay
+  deep-link pendiente.
+- **`Sidebar.jsx`**: ícono `FaUserTie` nuevo; constante de módulo `LEGACY_ADMIN_UI` leída de
+  `import.meta.env.VITE_LEGACY_ADMIN_UI === 'true'` (default `false` si la env var no está
+  definida); estado `hasBackofficeAccess` (roles 1/3/4); los items "Clientes" y "Administración"
+  se marcaron `legacyOnly: true` — **no se borraron**, quedan ocultos por defecto y reaparecen si
+  se define `VITE_LEGACY_ADMIN_UI=true` en el build; nuevo item "BackOffice" (`backofficeOnly: true`)
+  apuntando a `/dashboard/backoffice`.
+
+### Archivos nuevos
+
+- `constants/backofficePermissions.js` — espejo de solo-lectura de `src/constants/permissions.js`
+  del backend (17 capacidades, `ROLES`, `roleHasPermission`). El backend sigue siendo la única
+  fuente de verdad para la autorización real; este archivo solo controla qué se muestra u oculta
+  en la UI.
+- `services/backofficeCoreService.js` — wrapper de axios sobre las 20 rutas de
+  `/api/backoffice/*` (usuarios de plataforma, clientes, settings, sync), con un helper `wrap()`
+  que normaliza `{ success, data }` / `{ success: false, error }` para que los componentes no
+  manejen `try/catch` repetido.
+- `Components/Dashboard/Pages/Backoffice/BackofficePage.jsx` — shell de pestañas, filtra pestañas
+  visibles por `roleHasPermission`, deniega acceso si el rol no es 1/3/4 o si no hay ninguna
+  pestaña habilitada. Para ADMIN (rol 1), consulta `GET /client-profiles/user/:id` y, si existe
+  perfil de cliente, muestra un enlace "Ver portal de cliente" hacia `/dashboard` (no cambia el rol,
+  solo navegación).
+- `Components/Dashboard/Pages/Backoffice/PlatformUsersTab.jsx` — listado, alta con invitación,
+  reenvío de invitación, activar/inactivar (con motivo obligatorio), cambio de rol inline
+  (solo ADMIN↔FUNCTIONAL_ADMIN, igual que la regla de backend en `userStatusService.changeRole`).
+- `Components/Dashboard/Pages/Backoffice/ClientsTab.jsx` — sub-pestañas "Con perfil" / "Registros
+  sin perfil"; modal de vista previa de inactivación (pedidos pendientes, pedidos pendientes sin
+  sincronizar, sucursales, sucursales con login habilitado — mismos campos que
+  `getDeactivationPreview` del backend); motivo obligatorio; botones de acción ocultos si el rol
+  no tiene `clients.manage_status`.
+- `Components/Dashboard/Pages/Backoffice/SettingsTab.jsx` — formulario de hora de cierre + banner
+  (multipart/FormData); sección de login de sucursal (habilitar/deshabilitar) visible solo con
+  `branch_login.manage`.
+- `Components/Dashboard/Pages/Backoffice/SyncTab.jsx` — estado y pendientes de sincronización;
+  botones de disparo manual (clientes/sucursales/productos) visibles solo con `sap_sync.execute`.
+- `Components/Dashboard/Pages/Backoffice/BackofficePage.scss` — utilidades compactas
+  (`.bo-card`, `.bo-table`, `.bo-badge`, `.bo-btn`, `.bo-form-row`, `.bo-alert`,
+  `.backoffice-page__tabs`) para no depender de un sistema de diseño nuevo.
+
+### Bandera `VITE_LEGACY_ADMIN_UI`
+
+- Permite ocultar las pantallas legacy "Clientes"/"Administración" del sidebar sin borrar ni
+  una línea de esas pantallas — quedan intactas y accesibles por URL directa si alguien las
+  necesita durante la transición. Si no se define la variable en el build, el valor por defecto
+  es `false` (oculto) — es decir, el comportamiento por defecto post-deploy ya prioriza la UI
+  nueva de BackOffice, y Jonathan puede revertir visualmente el sidebar a la vista legacy con un
+  solo build flag si hiciera falta, sin tocar código.
+
+### Validación — `npm run build`
+
+Comando ejecutado: `npm run build` (equivale a `vite build`) dentro de
+`src/views/frontend/LoginArtesa/`. Resultado: **build exitoso**, 1213 módulos transformados,
+sin errores. Salida resumida (rutas relevantes al núcleo):
+
+```
+✓ 1213 modules transformed.
+dist/assets/BackofficePage-C690swxD.css            2.04 kB │ gzip:   0.72 kB
+dist/assets/BackofficePage-mltXYO3T.js             17.55 kB │ gzip:   4.55 kB
+✓ built in 23.51s
+```
+
+No se reportaron errores de compilación, imports rotos, ni warnings nuevos atribuibles al
+núcleo (el único warning de la corrida es el ya preexistente de Tailwind sobre features
+experimentales, no relacionado con este trabajo).
+
+- Estado: **IMPLEMENTADO**. Falta que Jonathan valide visualmente en su propio entorno (QA
+  manual: login por rol 1/3/4, navegación entre pestañas, flags `VITE_LEGACY_ADMIN_UI`) y, en
+  Staging, que el flujo de extremo a extremo (crear usuario de plataforma → invitación →
+  activar cuenta → cambio de rol) funcione contra el backend real ya desplegado.
+
 ## Fase 6 — Plan de despliegue a Producción (borrador acumulado)
 
 ### REGLA CRÍTICA — orden de despliegue obligatorio

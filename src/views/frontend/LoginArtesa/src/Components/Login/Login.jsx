@@ -29,6 +29,7 @@ const Login = () => {
     const {
     isAuthenticated,
     authType: currentAuthType,
+    user,
     login,
     clearError,
     isLoading: authLoading,
@@ -100,13 +101,22 @@ const Login = () => {
     useEffect(() => {
         if (isAuthenticated && currentAuthType) {
             const from = location.state?.from?.pathname;
-            const redirectPath = from && from !== '/login'
-                ? from
-                : currentAuthType === AUTH_TYPES.BRANCH ? '/dashboard-branch' : '/dashboard';
+            let defaultPath = '/dashboard';
+            if (currentAuthType === AUTH_TYPES.BRANCH) {
+                defaultPath = '/dashboard-branch';
+            } else if (user) {
+                // D2: roles 1 (ADMIN), 3 (FUNCTIONAL_ADMIN) y 4 (BACKOFFICE) van al BackOffice;
+                // rol 2 (USER) sigue al portal de siempre.
+                const roleNumber = parseInt(user.role ?? user.rol, 10);
+                if (roleNumber === 1 || roleNumber === 3 || roleNumber === 4) {
+                    defaultPath = '/dashboard/backoffice';
+                }
+            }
+            const redirectPath = from && from !== '/login' ? from : defaultPath;
 
             navigate(redirectPath, { replace: true });
         }
-    }, [isAuthenticated, currentAuthType, navigate, location.state]);
+    }, [isAuthenticated, currentAuthType, user, navigate, location.state]);
 
     // Sincronizar errores del contexto
     useEffect(() => {

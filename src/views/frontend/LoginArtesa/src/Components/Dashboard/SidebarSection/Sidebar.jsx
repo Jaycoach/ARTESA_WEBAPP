@@ -5,8 +5,13 @@ import { useAuth } from "../../../hooks/useAuth";
 import { AUTH_TYPES } from "../../../constants/AuthTypes";
 import {
   FaHome, FaListAlt, FaFileInvoiceDollar, FaBoxes, FaCog,
-  FaSignOutAlt, FaTools, FaUsers
+  FaSignOutAlt, FaTools, FaUsers, FaUserTie
 } from "react-icons/fa";
+
+// D1/Fase 4: las funciones administrativas viejas del portal (Administración, Clientes)
+// se ocultan por defecto porque ahora viven en el BackOffice. Flag de build para
+// reactivarlas si el BackOffice falla en producción — no se borra nada, solo se oculta.
+const LEGACY_ADMIN_UI = import.meta.env.VITE_LEGACY_ADMIN_UI === 'true';
 
 const Sidebar = ({ collapsed, mobileMenuOpen, onCloseMobileMenu, onToggleCollapse }) => {
   const navigate = useNavigate();
@@ -17,6 +22,7 @@ const Sidebar = ({ collapsed, mobileMenuOpen, onCloseMobileMenu, onToggleCollaps
   const { user, branch, authType, logout } = useAuth();
 
   const [hasAdminAccess, setHasAdminAccess] = useState(false);
+  const [hasBackofficeAccess, setHasBackofficeAccess] = useState(false);
 
   // *** MANTENIDO: Verificar permisos de administración (lógica original) ***
   useEffect(() => {
@@ -24,9 +30,10 @@ const Sidebar = ({ collapsed, mobileMenuOpen, onCloseMobileMenu, onToggleCollaps
     if (authType !== AUTH_TYPES.BRANCH && user) {
       const role = user.role || user.rol;
       let isAdmin = false;
+      let roleNumber = NaN;
 
       if (role !== undefined && role !== null) {
-        const roleNumber = parseInt(role);
+        roleNumber = parseInt(role);
         if (!isNaN(roleNumber)) {
           isAdmin = roleNumber === 1 || roleNumber === 3;
         } else {
@@ -42,8 +49,11 @@ const Sidebar = ({ collapsed, mobileMenuOpen, onCloseMobileMenu, onToggleCollaps
       }
 
       setHasAdminAccess(isAdmin);
+      // D1/D2: BackOffice es para roles 1 (ADMIN), 3 (FUNCTIONAL_ADMIN) y 4 (BACKOFFICE).
+      setHasBackofficeAccess(roleNumber === 1 || roleNumber === 3 || roleNumber === 4);
     } else {
       setHasAdminAccess(false);
+      setHasBackofficeAccess(false);
     }
   }, [user, authType]);
 
@@ -96,9 +106,10 @@ const Sidebar = ({ collapsed, mobileMenuOpen, onCloseMobileMenu, onToggleCollaps
         { path: "/dashboard/orders", icon: FaListAlt, label: "Pedidos" },
         { path: "/dashboard/invoices", icon: FaFileInvoiceDollar, label: "Facturas" },
         { path: "/dashboard/products", icon: FaBoxes, label: "Productos" },
-        { path: "/dashboard/Users", icon: FaUsers, label: "Clientes", restricted: true },
+        { path: "/dashboard/Users", icon: FaUsers, label: "Clientes", restricted: true, adminOnly: true, legacyOnly: true },
         { path: "/dashboard/settings", icon: FaCog, label: "Configuración" },
-        { path: "/dashboard/admin", icon: FaTools, label: "Administración", adminOnly: true }
+        { path: "/dashboard/admin", icon: FaTools, label: "Administración", adminOnly: true, legacyOnly: true },
+        { path: "/dashboard/backoffice", icon: FaUserTie, label: "BackOffice", backofficeOnly: true }
       ];
     }
   };
@@ -106,9 +117,15 @@ const Sidebar = ({ collapsed, mobileMenuOpen, onCloseMobileMenu, onToggleCollaps
   const menuItems = getMenuItems();
 
   // *** MEJORADO: Filtrar ítems según permisos (usuarios principales únicamente) ***
+  // legacyOnly: solo se muestra si VITE_LEGACY_ADMIN_UI está encendido (D1: esas
+  // funciones ya viven en /dashboard/backoffice; no se borran, solo se ocultan).
   const filteredItems = authType === AUTH_TYPES.BRANCH
     ? menuItems // Para branch, mostrar todos los elementos
-    : menuItems.filter(item => !item.adminOnly || hasAdminAccess); // Para usuarios principales, filtrar por permisos
+    : menuItems.filter(item =>
+        (!item.adminOnly || hasAdminAccess) &&
+        (!item.legacyOnly || LEGACY_ADMIN_UI) &&
+        (!item.backofficeOnly || hasBackofficeAccess)
+      ); // Para usuarios principales, filtrar por permisos
 
   return (
     // *** MANTENIDO: Estructura y clases originales exactas ***
