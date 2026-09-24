@@ -18,7 +18,7 @@ const requirePermission = (permission) => {
     throw new Error(`requirePermission: capacidad desconocida "${permission}"`);
   }
 
-  return (req, res, next) => {
+  const middleware = (req, res, next) => {
     try {
       if (!req.user) {
         logger.warn('Intento de acceso sin autenticación', { ip: req.ip, path: req.path, permission });
@@ -53,6 +53,12 @@ const requirePermission = (permission) => {
       });
     }
   };
+
+  // Nombra la función para que la cadena de middlewares de una ruta sea auditable
+  // (por ejemplo, con router.stack[i].route.stack.map(s => s.name)), en vez de 'anon'.
+  Object.defineProperty(middleware, 'name', { value: `requirePermission(${permission})` });
+
+  return middleware;
 };
 
 module.exports = requirePermission;

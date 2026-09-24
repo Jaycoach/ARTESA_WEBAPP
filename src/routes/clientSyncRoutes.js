@@ -1,7 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const clientSyncController = require('../controllers/clientSyncController');
-const { verifyToken, checkRole } = require('../middleware/auth');
+const { verifyToken } = require('../middleware/auth');
+const requirePermission = require('../middleware/requirePermission');
+const { PERMISSIONS } = require('../constants/permissions');
 const pool = require('../config/db');
 
 /**
@@ -14,8 +16,10 @@ const pool = require('../config/db');
 // Aplicar middleware de autenticación a todas las rutas
 router.use(verifyToken);
 
-// Solo los administradores pueden acceder a estas rutas
-router.use(checkRole([1]));
+// Guard de nivel router equivalente al gate anterior de solo-ADMIN: red de seguridad
+// para cualquier ruta futura sin requirePermission propio. Ninguna ruta de este archivo
+// depende de él como su única protección — cada una lleva su capacidad explícita más abajo.
+router.use(requirePermission(PERMISSIONS.SAP_SYNC_VIEW));
 
 /**
  * @swagger
@@ -36,7 +40,7 @@ router.use(checkRole([1]));
  *       500:
  *         description: Error interno del servidor
  */
-router.get('/status', clientSyncController.getSyncStatus);
+router.get('/status', requirePermission(PERMISSIONS.SAP_SYNC_VIEW), clientSyncController.getSyncStatus);
 
 /**
  * @swagger
@@ -57,7 +61,7 @@ router.get('/status', clientSyncController.getSyncStatus);
  *       500:
  *         description: Error interno del servidor
  */
-router.post('/sync', clientSyncController.syncClients);
+router.post('/sync', requirePermission(PERMISSIONS.SAP_SYNC_EXECUTE), clientSyncController.syncClients);
 
 /**
  * @swagger
@@ -78,7 +82,7 @@ router.post('/sync', clientSyncController.syncClients);
  *       500:
  *         description: Error interno del servidor
  */
-router.get('/clients/pending', clientSyncController.getPendingClients);
+router.get('/clients/pending', requirePermission(PERMISSIONS.SAP_SYNC_VIEW), clientSyncController.getPendingClients);
 
 /**
  * Sincronizar manualmente un cliente específico con SAP
@@ -92,9 +96,9 @@ router.get('/clients/pending', clientSyncController.getPendingClients);
  * @returns {object} 404 - Cliente no encontrado
  * @returns {object} 500 - Error interno del servidor
  */
-router.post('/client/:userId/sync', 
-  verifyToken, 
-  checkRole([1]), // Solo administradores
+router.post('/client/:userId/sync',
+  verifyToken,
+  requirePermission(PERMISSIONS.SAP_SYNC_EXECUTE),
   clientSyncController.syncClient
 );
 
@@ -126,7 +130,7 @@ router.post('/client/:userId/sync',
  *       500:
  *         description: Error interno del servidor
  */
-router.post('/client/:userId/activate', checkRole([1]), clientSyncController.activateClient);
+router.post('/client/:userId/activate', requirePermission(PERMISSIONS.PLATFORM_USERS_MANAGE), clientSyncController.activateClient);
 
 /**
  * @swagger
@@ -206,8 +210,8 @@ router.post('/client/:userId/activate', checkRole([1]), clientSyncController.act
  *       500:
  *         description: Error interno del servidor
  */
-router.post('/client/:userId/simulate-sync', 
-  checkRole([1]), // Solo administradores
+router.post('/client/:userId/simulate-sync',
+  requirePermission(PERMISSIONS.SAP_SYNC_EXECUTE),
   clientSyncController.simulateSapSync
 );
 
@@ -230,8 +234,8 @@ router.post('/client/:userId/simulate-sync',
  *       500:
  *         description: Error interno del servidor
  */
-router.get('/sap-diagnosis', 
-  checkRole([1]), // Solo administradores
+router.get('/sap-diagnosis',
+  requirePermission(PERMISSIONS.SAP_SYNC_VIEW),
   clientSyncController.sapDiagnosis
 );
 
@@ -363,8 +367,8 @@ router.get('/sap-diagnosis',
  *                   type: string
  *                   example: "Error de autenticación con SAP B1: Invalid company user"
  */
-router.post('/sync-institutional', 
-  checkRole([1]), // Solo administradores
+router.post('/sync-institutional',
+  requirePermission(PERMISSIONS.SAP_SYNC_EXECUTE),
   clientSyncController.syncInstitutionalClients
 );
 /**
@@ -432,8 +436,8 @@ router.post('/sync-institutional',
  *       500:
  *         description: Error interno del servidor
  */
-router.get('/list-ci-clients', 
-  checkRole([1]), // Solo administradores
+router.get('/list-ci-clients',
+  requirePermission(PERMISSIONS.SAP_SYNC_VIEW),
   clientSyncController.listCIClients
 );
 
@@ -460,8 +464,8 @@ router.get('/list-ci-clients',
  *       
  *       **Nota:** Ejecuta automáticamente a las 3 AM todos los días.
  */
-router.post('/sync-all', 
-  checkRole([1]), // Solo administradores
+router.post('/sync-all',
+  requirePermission(PERMISSIONS.SAP_SYNC_EXECUTE),
   clientSyncController.syncAllClients
 );
 
@@ -543,8 +547,8 @@ router.post('/sync-all',
  *       500:
  *         description: Error interno del servidor
  */
-router.get('/branches/validate', 
-  checkRole([1]), // Solo administradores
+router.get('/branches/validate',
+  requirePermission(PERMISSIONS.SAP_SYNC_VIEW),
   clientSyncController.validateClientBranches
 );
 /**
@@ -576,8 +580,8 @@ router.get('/branches/validate',
  *       500:
  *         description: Error interno del servidor
  */
-router.get('/client/:cardCode/branches/validate', 
-  checkRole([1]), // Solo administradores
+router.get('/client/:cardCode/branches/validate',
+  requirePermission(PERMISSIONS.SAP_SYNC_VIEW),
   clientSyncController.validateSpecificClientBranches
 );
 /**
@@ -648,8 +652,8 @@ router.get('/client/:cardCode/branches/validate',
  *       500:
  *         description: Error interno del servidor
  */
-router.post('/branches/sync', 
-  checkRole([1]), // Solo administradores
+router.post('/branches/sync',
+  requirePermission(PERMISSIONS.SAP_SYNC_EXECUTE),
   clientSyncController.syncClientBranches
 );
 
@@ -681,8 +685,8 @@ router.post('/branches/sync',
  *       500:
  *         description: Error interno del servidor
  */
-router.post('/client/:cardCode/branches/sync', 
-  checkRole([1]), // Solo administradores
+router.post('/client/:cardCode/branches/sync',
+  requirePermission(PERMISSIONS.SAP_SYNC_EXECUTE),
   async (req, res) => {
     try {
       const { cardCode } = req.params;
@@ -760,11 +764,11 @@ router.post('/client/:cardCode/branches/sync',
  *       500:
  *         description: Error al enviar correo
  */
-router.post('/test-email-ses', 
-  checkRole([1]), // Solo administradores
+router.post('/test-email-ses',
+  requirePermission(PERMISSIONS.SYSTEM_DIAGNOSTICS),
   clientSyncController.testEmailSes
 );
 
-router.get('/debug/client/:userId', checkRole([1]), clientSyncController.debugClientStatus);
+router.get('/debug/client/:userId', requirePermission(PERMISSIONS.SYSTEM_DIAGNOSTICS), clientSyncController.debugClientStatus);
 
 module.exports = router;
