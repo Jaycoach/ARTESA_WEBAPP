@@ -58,6 +58,17 @@ Documentada en Fase 0/1 para aplicarse en Fase 2, sin excepciones y sin usar `NU
 
 **Estado: en progreso**, con checkpoint por archivo (ver conversación).
 
+### 6g — `settingsController.js` / `syncController.js`: auditoría de mejor esfuerzo
+
+A diferencia de la auditoría de usuarios (`userStatusService.js`, transaccional, con el
+mismo `dbClient` del `BEGIN`/`COMMIT`), la auditoría de los 9 handlers **delegados** desde
+`settingsController.js`/`syncController.js` es de **mejor esfuerzo**: corre fuera de
+cualquier transacción del controller original (`withAudit`, vía `Promise.resolve().then(...)`
+después de interceptar la respuesta) y, si falla, solo se registra en el log — nunca
+cambia el status code ni el body que recibe el cliente. Es el costo aceptado de no
+modificar los controllers existentes (`adminController.js`, `clientSyncController.js`,
+`sapSyncController.js`).
+
 ### 6f — `clientsController.js`
 
 - **Definición de "pedido pendiente" (dos conteos, sin inventar estados):**
