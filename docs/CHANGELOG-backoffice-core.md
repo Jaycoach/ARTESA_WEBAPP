@@ -66,14 +66,10 @@ Documentada en Fase 0/1 para aplicarse en Fase 2, sin excepciones y sin usar `NU
   Se extrajo a `src/config/adminFileUploadOptions.js` **solo el de `adminRoutes.js`** (5MB).
   El de `app.js` no se tocó — son configuraciones deliberadamente distintas para rutas
   distintas, no se unifican.
-- **Pendiente de confirmar (no bloqueante):** `sanitizeBody` (`security.js:23-60`) aplica
-  `validator.escape()` a los strings del body (excepto campos URL/imagen). `register`
-  (`authRoutes.js:258-264`) ya usa este middleware, así que los `users.name` existentes
-  con `&`/`<`/`>`/`"`/`'` deberían estar guardados con entidades HTML — no se confirmó
-  contra datos reales. Consulta de solo lectura para verificar cuando Jonathan tenga un
-  momento: `SELECT id, name FROM users WHERE name ~ '&(amp|lt|gt|quot|#x27|#39);' LIMIT 10;`.
-  Los endpoints nuevos del núcleo ya aplican el mismo middleware, así que la convención
-  queda consistente independientemente del resultado de esa consulta.
+- **RESUELTO:** `SELECT id, name FROM users WHERE name ~ '&(amp|lt|gt|quot|#x27|#39);'`
+  ejecutada por Jonathan en Producción → **0 filas**. Ningún `users.name` existente tiene
+  entidades HTML. La convención de `sanitizeBody` en los endpoints nuevos del núcleo no
+  cambia (ya aplicado en el archivo 7).
 
 ### 6g — `settingsController.js` / `syncController.js`: auditoría de mejor esfuerzo
 
