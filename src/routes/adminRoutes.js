@@ -3,7 +3,8 @@ const router = express.Router();
 const fileUpload = require('express-fileupload');
 const adminController = require('../controllers/adminController');
 const { verifyToken } = require('../middleware/auth');
-const authorize = require('../middleware/authorize');
+const requirePermission = require('../middleware/requirePermission');
+const { PERMISSIONS } = require('../constants/permissions');
 const { sanitizeBody } = require('../middleware/security');
 
 /**
@@ -26,17 +27,17 @@ router.use(sanitizeBody);
 router.get('/settings', adminController.getSettings);
 
 // Actualizar configuración del portal - solo administradores (roles 1 y 3)
-router.post('/settings', 
-  authorize([1, 3]), // Solo administradores pueden actualizar
-  fileUpload(fileUploadOptions), 
+router.post('/settings',
+  requirePermission(PERMISSIONS.SETTINGS_MANAGE),
+  fileUpload(fileUploadOptions),
   adminController.updateSettings);
   // Gestión de login de sucursales - solo administradores
-router.post('/branches/:branchId/enable-login', 
-  authorize([1]), // Solo administradores principales
+router.post('/branches/:branchId/enable-login',
+  requirePermission(PERMISSIONS.BRANCH_LOGIN_MANAGE),
   adminController.enableBranchLogin);
 
-router.post('/branches/:branchId/disable-login', 
-  authorize([1]), // Solo administradores principales
+router.post('/branches/:branchId/disable-login',
+  requirePermission(PERMISSIONS.BRANCH_LOGIN_MANAGE),
   adminController.disableBranchLogin);
 
 module.exports = router;
