@@ -613,6 +613,25 @@ GET /users/:id | verifyToken > getUserById
 PUT /users/:id | verifyToken > updateUser
 ```
 
+### Archivo 9 — CERRADO: reconciliación final y grep global
+
+**62 call-sites migrados** = `clientSyncRoutes(14) + sapSyncRoutes(11) + orderRoutes(9) +
+uploadRoutes(9) + productRoutes(7) + clientProfileRoutes(2) + clientBranchRoutes(1) +
+priceListRoutes(3) + productImageRoutes(2) + adminRoutes(3) + userRoutes(1) = 62`, coincide con
+`68 − 6 (secureProductRoutes.js, desmontado) = 62`.
+
+```
+$ grep -rn "checkRole\|authorize" src/routes/*.js
+```
+Resultado: solo quedan `productRoutes.js:101,118` y `uploadRoutes.js:184,218`
+(`checkRole([1,2,3])`/`checkRole([1,2])`, sin cambio, incluyen USER — fuera de la matriz por
+diseño), los 6 de `secureProductRoutes.js` (desmontado, inalcanzable), y 2 menciones en
+comentarios de `backofficeCoreRoutes.js` (no llamadas reales).
+
+**Hallazgo menor, sin tocar:** `paymentRoutes.js:3` importa `checkRole` pero nunca lo usa en
+ninguna de sus 2 rutas — import muerto preexistente, nunca tuvo una llamada real (por eso no
+apareció en el inventario de 68 de la Fase 0). Fuera de alcance del archivo 9.
+
 ## Fase 5 — Plan de QA acumulado (pendiente de ejecutar contra Staging real)
 
 Casos agregados durante la Fase 2, a ejecutar cuando arranque la Fase 5 formal:
