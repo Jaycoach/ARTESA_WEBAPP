@@ -6,6 +6,8 @@ const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const fs = require('fs');
 const { verifyToken, checkRole } = require('../middleware/auth');
+const requirePermission = require('../middleware/requirePermission');
+const { PERMISSIONS } = require('../constants/permissions');
 const uploadController = require('../controllers/uploadController');
 
 // Asegurar que el directorio de uploads exista
@@ -105,7 +107,7 @@ const handleMulterErrors = (err, req, res, next) => {
 router.post(
   '/images',
   verifyToken,
-  checkRole([1, 3]), // Permitir tanto a administradores como admins funcionales
+  requirePermission(PERMISSIONS.UPLOADS_MANAGE),
   uploadController.uploadImage
 );
 
@@ -116,7 +118,7 @@ router.post(
 router.post(
   '/',
   verifyToken,
-  checkRole([1, 3]), // Permitir tanto a administradores como admins funcionales
+  requirePermission(PERMISSIONS.UPLOADS_MANAGE),
   uploadController.uploadImage
 );
 
@@ -141,7 +143,7 @@ router.post(
 router.delete(
   '/:fileName',
   verifyToken,
-  checkRole([1]), // Solo administradores
+  requirePermission(PERMISSIONS.UPLOADS_DELETE),
   uploadController.deleteImage
 );
 /**
@@ -161,7 +163,7 @@ router.delete(
  */
 router.post('/test-s3',
   verifyToken,
-  checkRole([1]), // Solo administradores
+  requirePermission(PERMISSIONS.SYSTEM_DIAGNOSTICS),
   uploadController.testS3Configuration
 );
 /**
@@ -242,7 +244,7 @@ router.get('/list',
  */
 router.get('/duplicates',
   verifyToken,
-  checkRole([1]), // Solo administradores
+  requirePermission(PERMISSIONS.UPLOADS_MANAGE),
   uploadController.findDuplicates
 );
 
@@ -279,7 +281,7 @@ router.get('/duplicates',
  */
 router.delete('/bulk-delete',
   verifyToken,
-  checkRole([1]), // Solo administradores
+  requirePermission(PERMISSIONS.UPLOADS_BULK_DELETE),
   uploadController.bulkDeleteFiles
 );
 
@@ -300,7 +302,7 @@ router.delete('/bulk-delete',
  */
 router.post('/verify-iam',
   verifyToken,
-  checkRole([1]), // Solo administradores
+  requirePermission(PERMISSIONS.SYSTEM_DIAGNOSTICS),
   uploadController.verifyIAMCredentials
 );
 module.exports = router;
