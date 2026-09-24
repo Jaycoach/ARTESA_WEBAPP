@@ -643,6 +643,18 @@ Casos agregados durante la Fase 2, a ejecutar cuando arranque la Fase 5 formal:
   - cliente A consultando `can-create` de B → 403;
   - ADMIN consultando `can-create` de cualquiera → 200.
 
+## D12 — Datos de duplicados por mayúsculas (ejecutados por Jonathan, 23/24-sep-2026)
+
+- **Producción (`laartesa`):** `users` tiene 1 duplicado por mayúsculas (ids 48 y 1505,
+  ALIANZA JIMENEZ SAS — se resuelve con la fusión D13 antes del despliegue). `client_branches`:
+  `UNIQUE (email_branch)` exacto ya existe, **0 correos repetidos** (ni exactos ni por
+  mayúsculas), 15 sucursales tienen mayúsculas en el correo.
+- **Staging (`artesadb_dev`):** `users` sin duplicados. `client_branches`: igual que
+  Producción, 0 repetidos, 16 sucursales con mayúsculas.
+- **Hallazgo menor, no corregido:** en ambos ambientes existe además
+  `idx_client_branches_email_branch`, redundante con la constraint única existente. Se
+  conserva (no se elimina nada).
+
 ## Fase 6 — Plan de despliegue a Producción (borrador acumulado)
 
 ### REGLA CRÍTICA — orden de despliegue obligatorio
