@@ -28,8 +28,11 @@ router.get('/platform-users',
   requirePermission(PERMISSIONS.PLATFORM_USERS_MANAGE),
   platformUsersController.listPlatformUsers
 );
+// Sin sanitizeBody propio a propósito: el body ya pasa por el sanitizeBody de nivel router
+// de userRoutes.js:8 y productRoutes.js:86 (montados en /api a secas ANTES de este router
+// en app.js). Total 2 pasadas = misma paridad que POST /api/auth/register.
+// Si se reordena app.js, revisar esta paridad (ver CHANGELOG, hallazgo multi-escape).
 router.post('/platform-users',
-  sanitizeBody, // misma política que register (authRoutes.js:258-264)
   requirePermission(PERMISSIONS.PLATFORM_USERS_MANAGE),
   AuthValidators.validateEmail, // misma validación/normalización que register (authRoutes.js:262)
   platformUsersController.createPlatformUser
@@ -42,13 +45,13 @@ router.post('/platform-users/:id/activate',
   requirePermission(PERMISSIONS.PLATFORM_USERS_MANAGE),
   platformUsersController.activatePlatformUser
 );
+// Sin sanitizeBody propio a propósito (ver nota en POST /platform-users, arriba): 2 pasadas
+// vía userRoutes.js:8 + productRoutes.js:86, misma paridad que POST /api/auth/register.
 router.post('/platform-users/:id/deactivate',
-  sanitizeBody, // recibe { reason } en el body
   requirePermission(PERMISSIONS.PLATFORM_USERS_MANAGE),
   platformUsersController.deactivatePlatformUser
 );
 router.post('/platform-users/:id/role',
-  sanitizeBody, // recibe { newRoleId } en el body
   requirePermission(PERMISSIONS.PLATFORM_USERS_MANAGE),
   platformUsersController.changePlatformUserRole
 );
@@ -69,8 +72,9 @@ router.get('/clients/:userId/deactivation-preview',
   requirePermission(PERMISSIONS.CLIENTS_MANAGE_STATUS),
   clientsController.getDeactivationPreview
 );
+// Sin sanitizeBody propio a propósito (ver nota en POST /platform-users, arriba): 2 pasadas
+// vía userRoutes.js:8 + productRoutes.js:86, misma paridad que POST /api/auth/register.
 router.post('/clients/:userId/deactivate',
-  sanitizeBody, // recibe { reason } en el body
   requirePermission(PERMISSIONS.CLIENTS_MANAGE_STATUS),
   clientsController.deactivateClient
 );
