@@ -642,6 +642,8 @@ Casos agregados durante la Fase 2, a ejecutar cuando arranque la Fase 5 formal:
   - cliente A consultando `can-create` de A → 200;
   - cliente A consultando `can-create` de B → 403;
   - ADMIN consultando `can-create` de cualquiera → 200.
+- 6i: token de reset de contraseña de usuario usado a los 61 minutos de generado → rechazado
+  (`INVALID_TOKEN`, antes seguía siendo válido hasta las 24h).
 
 ## D12 — Datos de duplicados por mayúsculas (ejecutados por Jonathan, 23/24-sep-2026)
 
@@ -772,6 +774,25 @@ $ git grep -nE "(mail|email_branch) = \$[0-9]" -- src/
   existente responderá `500` por el índice nuevo (el prechequeo exacto no lo detecta, pero el
   `INSERT` sí choca con `uk_users_mail_lower`). Es esperado y temporal — en Producción, migración
   y código se despliegan juntos (ver REGLA CRÍTICA de la Fase 6), así que este caso no ocurre ahí.
+
+## 6i — RESUELTO: bug de `PasswordReset.createToken()` (sombreado de `expiresAt`)
+
+**Único llamador real:** `passwordResetController.js:119,122` (`requestReset`), pasa
+`new Date(Date.now() + 3600000)` = 1 hora. El correo (`EmailService.sendPasswordResetEmail`)
+ya decía "expirará en 1 hora". El bug forzaba 24h reales pese al mensaje. Corregido quitando
+la redeclaración de `expiresAt` dentro de `createToken()` (`PasswordReset.js`).
+
+**Restricción intencional de seguridad:** el enlace de recuperación de contraseña de un
+usuario normal ahora expira realmente en 1 hora (antes eran 24h reales). Diferencia esperada
+en la comparación de la Fase 2-R.
+
+**`BranchPasswordReset.createToken()` (`BranchPasswordReset.js:14-43`): NO tiene el mismo bug**
+— usa el `expiresAt` recibido directamente, sin redeclararlo. No se tocó.
+
+```
+$ node --check src/models/PasswordReset.js
+SINTAXIS OK
+```
 
 ## Fase 6 — Plan de despliegue a Producción (borrador acumulado)
 

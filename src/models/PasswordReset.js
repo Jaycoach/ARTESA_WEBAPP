@@ -44,9 +44,10 @@ class PasswordReset {
       logger.debug('Tokens previos desactivados', { userId });
   
       // Luego, inserta el nuevo token
-      // Calcular created_at y expires_at con base en el mismo momento
+      // Bug corregido (6i): antes se ignoraba el expiresAt recibido y se sombreaba con un
+      // valor fijo de 24h. Único llamador real (passwordResetController.js:119,122) ya pasaba
+      // 1 hora -- ahora se respeta, coincidiendo con el mensaje del correo ("expira en 1 hora").
       const now = new Date();
-      const expiresAt = new Date(now.getTime() + (24 * 60 * 60 * 1000)); // 24 horas después
 
       const query = `
         INSERT INTO password_resets (user_id, token, expires_at, created_at, updated_at)
