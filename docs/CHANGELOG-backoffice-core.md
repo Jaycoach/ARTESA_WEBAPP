@@ -1001,3 +1001,66 @@ despliega primero, cada `UPDATE users ... WHERE ... AND deactivated_manually = f
 con `42703` (`undefined_column`) — y eso rompe, en producción real: `verifyEmail` (nadie podría
 verificar su correo), `activateClient` (activación manual de clientes), `simulateSapSync`, y los
 2 crons de sincronización SAP de `SapClientService.js` (Fase 3, aún no aplicados a este archivo).
+
+Detalle completo del plan de despliegue (pasos, comandos, rollback, puntos de decisión
+pendientes): `docs/DEPLOY-backoffice-core.md`.
+
+## Cierre — Estado DoD por fase (2026-09-24)
+
+| Fase | Contenido | Estado |
+|---|---|---|
+| 0 | Investigación y decisiones D1-D14 | **IMPLEMENTADO** (checkpoint aprobado) |
+| 1 | Git (tags, rama) + migración núcleo | **VALIDADO EN STAGING** |
+| 2 | Backend: roles/permisos, usuarios de plataforma, clientes, settings, sync, D5, D7.2, D12 (código), archivo 9, hallazgos de seguridad (deleteImage, doble-escape) | **IMPLEMENTADO** — código completo, sin ejecutar contra Staging como conjunto |
+| D12 (migración) | Índices únicos `LOWER()` | **VALIDADO EN STAGING** (código D12 sigue IMPLEMENTADO) |
+| 6i | Fix `PasswordReset.createToken()` | **IMPLEMENTADO** |
+| 3 | Guardas D5 #4-5 en `SapClientService.js` | **IMPLEMENTADO** |
+| D13 | Script de fusión de duplicados | **IMPLEMENTADO** — script listo, sin ejecutar (ni ensayo ni real) |
+| 2-R | Línea base de regresión + comparador | **IMPLEMENTADO** — scripts listos, sin correr contra Staging |
+| 4 | Frontend (BackOffice UI, 4 pestañas, redirección por rol, flag legacy) | **IMPLEMENTADO** — `npm run build` pasa, sin QA visual manual de Jonathan |
+| 5 | Scripts de QA por caso (curl + SQL de solo lectura) | **IMPLEMENTADO** — sin correr |
+| 6 | `docs/DEPLOY-backoffice-core.md` | **IMPLEMENTADO** (es un documento, no requiere validación en Staging) |
+
+**Ninguna fase de código quedó en VALIDADO EN STAGING ni en APROBADO PARA PRODUCCIÓN** — solo
+las dos migraciones (Fase 1 y D12) fueron aplicadas y confirmadas por Jonathan directamente.
+Todo el código del núcleo está escrito, compilado/verificado localmente (`node --check` en
+cada archivo backend, `npm run build` en el frontend) y pusheado a
+`origin/feature/backoffice-core`, pero **no se ha ejecutado ningún ciclo real contra Staging
+desplegado** ni contra Producción.
+
+### Qué debe correr Jonathan, y en qué orden, antes de pedir el PR a `master`
+
+1. Desplegar `feature/backoffice-core` en Staging (backend + frontend).
+2. `scripts/tests/backoffice-core-regression.sh` contra Staging **antes** del deploy → línea
+   base; de nuevo **después** → comparar con `compare-regression-results.sh`.
+3. Aplicar (si no están aplicadas ya en ese Staging) las migraciones de Fase 1 y D12 — ya
+   validadas individualmente, pero confirmar que el código desplegado las usa correctamente.
+4. Ensayar D13 con el script sintético
+   (`db/scripts/merge-duplicate-users-staging-synthetic-test.sql`), luego, si hay un caso real
+   de prueba, el script real en modo ensayo (`ROLLBACK`) antes que en modo real.
+5. Correr `scripts/tests/qa-backoffice-core-cases.sh` y
+   `scripts/tests/qa-backoffice-core-readonly.sql` contra ese mismo Staging.
+6. QA visual manual del frontend: login con rol 1/3/4, navegación de las 4 pestañas, flujo
+   completo de alta de usuario de plataforma (crear → invitación real recibida → activar
+   cuenta con el link del correo → cambio de rol), inactivación/activación de cliente con
+   motivo, toggle de `VITE_LEGACY_ADMIN_UI`.
+7. Si todo lo anterior pasa sin `[NO EXPLICADA]` ni `FALLA`: pasar Fase 2, D12(código), 6i,
+   Fase 3, D13(script), 2-R y Fase 4/5 a **VALIDADO EN STAGING** en este mismo documento, con
+   la evidencia real pegada (no un resumen).
+8. Solo entonces seguir `docs/DEPLOY-backoffice-core.md` para Producción.
+
+### Riesgos u hallazgos abiertos, sin resolver todavía
+
+- El bucket S3 de `deploy:production` del frontend (`package.json:19`) parece un placeholder
+  (`s3://tu-bucket-production`) — confirmar el real antes de cualquier deploy a Producción.
+- La fusión D13 del caso conocido de Producción (ALIANZA JIMENEZ SAS, ids 48/1505) sigue sin
+  ejecutarse — es un bloqueante para aplicar el índice único D12 en Producción (Paso 2b/3 del
+  plan de despliegue).
+- Nadie ha confirmado aún si el primer despliegue a Producción debe salir con
+  `VITE_LEGACY_ADMIN_UI=true` (transición gradual) o sin ella — ver Fase 6, sección 4.
+
+### Próximo paso que requiere detenerse y preguntar (por instrucción explícita del prompt de cierre autónomo)
+
+**No se crea Pull Request hacia `master` en esta sesión.** Cuando Jonathan confirme que el
+ciclo de Staging (pasos 1-7 arriba) quedó limpio, se debe pedir su aprobación explícita antes
+de abrir el PR — ese es uno de los 5 puntos de parada del prompt de cierre autónomo.
