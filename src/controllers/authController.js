@@ -392,7 +392,7 @@ class AuthController {
                 FROM users u
                 JOIN roles r ON u.rol_id = r.id
                 LEFT JOIN client_profiles cp ON u.id = cp.user_id
-                WHERE u.mail = $1
+                WHERE LOWER(u.mail) = LOWER($1)
             `;
             
             const result = await pool.query(query, [mailField]);
@@ -651,7 +651,7 @@ class AuthController {
 
             // 1. Verificar si el usuario ya existe
             const userExists = await pool.query(
-                'SELECT id FROM users WHERE mail = $1',
+                'SELECT id FROM users WHERE LOWER(mail) = LOWER($1)',
                 [mail]
             );
 
@@ -659,7 +659,7 @@ class AuthController {
                 logger.warn('Intento de registro con correo existente', { mail });
                 return res.status(400).json({
                     success: false,
-                    message: 'El correo electrónico ya está registrado'
+                    message: 'El correo electrónico ya está registrado. Si es tuyo, usa "Olvidé mi contraseña" para recuperar el acceso.'
                 });
             }
 
@@ -747,14 +747,25 @@ class AuthController {
             });
 
         } catch (error) {
+            if (error.code === '23505' && ['uk_users_mail', 'uk_users_mail_lower'].includes(error.constraint)) {
+                logger.warn('Registro rechazado por índice único (condición de carrera)', {
+                    mail: req.body.mail,
+                    constraint: error.constraint
+                });
+                return res.status(400).json({
+                    success: false,
+                    message: 'El correo electrónico ya está registrado. Si es tuyo, usa "Olvidé mi contraseña" para recuperar el acceso.'
+                });
+            }
+
             logger.error('Error en el proceso de registro', {
                 error: error.message,
                 stack: error.stack,
                 mail: req.body.mail
             });
 
-            const errorMessage = process.env.NODE_ENV === 'development' 
-                ? error.message 
+            const errorMessage = process.env.NODE_ENV === 'development'
+                ? error.message
                 : 'Error interno del servidor';
 
             return res.status(500).json({
@@ -905,7 +916,7 @@ class AuthController {
         
         // Verificar si el usuario existe y necesita verificación
         const { rows } = await pool.query(
-            'SELECT id, email_verified FROM users WHERE mail = $1',
+            'SELECT id, email_verified FROM users WHERE LOWER(mail) = LOWER($1)',
             [mail]
         );
         

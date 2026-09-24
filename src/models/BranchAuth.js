@@ -15,7 +15,7 @@ class BranchAuth {
                  FROM client_branches b
                  LEFT JOIN client_profiles cp ON b.client_id = cp.client_id
                  LEFT JOIN users u ON cp.user_id = u.id
-                 WHERE b.email_branch = $1 AND b.is_login_enabled = true`,
+                 WHERE LOWER(b.email_branch) = LOWER($1) AND b.is_login_enabled = true`,
                 [email]
             );
             return rows[0] || null;

@@ -362,7 +362,7 @@ class AdminController {
 
       // Verificar que el email no esté en uso
       const { rows: emailRows } = await pool.query(
-        'SELECT branch_id FROM client_branches WHERE email_branch = $1 AND branch_id != $2',
+        'SELECT branch_id FROM client_branches WHERE LOWER(email_branch) = LOWER($1) AND branch_id != $2',
         [email, branchId]
       );
 

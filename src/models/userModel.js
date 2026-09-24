@@ -82,8 +82,8 @@ const findByEmail = async (mail) => {
             SELECT 
             id AS user_id, 
             mail 
-            FROM users 
-            WHERE mail = $1;
+            FROM users
+            WHERE LOWER(mail) = LOWER($1);
         `;
         const values = [mail];
         const { rows } = await pool.query(query, values);

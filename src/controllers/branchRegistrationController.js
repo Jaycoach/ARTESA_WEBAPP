@@ -22,14 +22,14 @@ class BranchRegistrationController {
             // Buscar sucursal por email
             const { rows } = await pool.query(
                 `SELECT 
-                    branch_id, 
-                    branch_name, 
-                    email_branch, 
+                    branch_id,
+                    branch_name,
+                    email_branch,
                     password,
                     manager_name,
                     is_login_enabled
-                 FROM client_branches 
-                 WHERE email_branch = $1`,
+                 FROM client_branches
+                 WHERE LOWER(email_branch) = LOWER($1)`,
                 [email]
             );
 
@@ -101,7 +101,7 @@ class BranchRegistrationController {
 
             // Buscar sucursal por email
             const { rows: branchRows } = await pool.query(
-                'SELECT branch_id, email_branch, password, branch_name FROM client_branches WHERE email_branch = $1',
+                'SELECT branch_id, email_branch, password, branch_name FROM client_branches WHERE LOWER(email_branch) = LOWER($1)',
                 [email]
             );
 

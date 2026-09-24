@@ -425,14 +425,14 @@ class BranchAuthController {
             // Buscar sucursal por email
             const { rows } = await pool.query(
                 `SELECT 
-                    branch_id, 
-                    branch_name, 
-                    email_branch, 
+                    branch_id,
+                    branch_name,
+                    email_branch,
                     password,
                     is_login_enabled,
                     email_verified
-                 FROM client_branches 
-                 WHERE email_branch = $1`,
+                 FROM client_branches
+                 WHERE LOWER(email_branch) = LOWER($1)`,
                 [email]
             );
 
@@ -513,17 +513,17 @@ class BranchAuthController {
             // Buscar sucursal por email
             const { rows } = await pool.query(
                 `SELECT 
-                    branch_id, 
-                    branch_name, 
-                    email_branch, 
+                    branch_id,
+                    branch_name,
+                    email_branch,
                     password,
                     is_login_enabled,
                     email_verified,
                     verification_token,
                     verification_expires,
                     client_id
-                 FROM client_branches 
-                 WHERE email_branch = $1`,
+                 FROM client_branches
+                 WHERE LOWER(email_branch) = LOWER($1)`,
                 [email]
             );
 
@@ -811,9 +811,9 @@ class BranchAuthController {
 
             // Verificar si la sucursal existe
             const { rows } = await pool.query(
-                `SELECT branch_id, email_verified, is_login_enabled, branch_name, 
-                    client_id, email_branch 
-                FROM client_branches WHERE email_branch = $1`,
+                `SELECT branch_id, email_verified, is_login_enabled, branch_name,
+                    client_id, email_branch
+                FROM client_branches WHERE LOWER(email_branch) = LOWER($1)`,
                 [email]
             );
 

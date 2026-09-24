@@ -106,7 +106,7 @@ class BranchPasswordResetController {
                 cp.company_name
          FROM client_branches cb
          LEFT JOIN client_profiles cp ON cb.client_id = cp.client_id
-         WHERE cb.email_branch = $1`,
+         WHERE LOWER(cb.email_branch) = LOWER($1)`,
         [mail]
       );
 
