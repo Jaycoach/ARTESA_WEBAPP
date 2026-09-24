@@ -831,6 +831,26 @@ Con esto, los 5 caminos de D5 quedan cubiertos: #1-3 (Fase 2, commit `d79e5fb`) 
 - Estado: **IMPLEMENTADO**. Falta que Jonathan lo ejecute en Staging (primero el sintético, luego
   el ensayo/real con datos reales si aplica) y, en Producción, en el orden de la REGLA CRÍTICA.
 
+## Fase 2-R — Línea base de regresión (IMPLEMENTADO, pendiente de que Jonathan la corra)
+
+- `scripts/tests/backoffice-core-regression.sh`: `curl` contra `BASE_URL` parametrizable, con
+  `ADMIN_TOKEN`/`FUNCTIONAL_ADMIN_TOKEN`/`USER_TOKEN`/`BRANCH_TOKEN` por variable de entorno
+  (nunca hardcodeados). Solo endpoints **sin efectos** (todos `GET`, salvo el `POST` sin clave
+  a `/api/internal/*` que se espera rechazado). Cubre: portal de cliente, rutas `[1,3]` y `[1]`
+  representativas, las 19 rutas de `/api/backoffice/*`, las diferencias ya documentadas (9-bis,
+  D6, 6h), sucursal, y `/api/internal/*` sin clave.
+- `scripts/tests/compare-regression-results.sh`: compara dos salidas (antes/después) y marca
+  cada diferencia como `[ESPERADA]` (con la razón, tomada de una tabla de decisiones ya
+  documentadas: 9-bis, D6, matriz D3) o `[NO EXPLICADA]` — sale con código 1 si hay alguna sin
+  explicar.
+- **Instrucciones para Jonathan:**
+  1. Correr contra el Staging **actual** (sin el núcleo desplegado) → línea base `antes.txt`.
+  2. Desplegar `feature/backoffice-core` en Staging.
+  3. Correr de nuevo → `despues.txt`.
+  4. `./scripts/tests/compare-regression-results.sh antes.txt despues.txt`.
+  5. Si hay `[NO EXPLICADA]`, no avanzar a la Fase 5 sin revisarlo primero.
+- `bash -n` sobre ambos scripts: sintaxis OK.
+
 ## Fase 6 — Plan de despliegue a Producción (borrador acumulado)
 
 ### REGLA CRÍTICA — orden de despliegue obligatorio
