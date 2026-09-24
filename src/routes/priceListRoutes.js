@@ -2,7 +2,9 @@
 const express = require('express');
 const router = express.Router();
 const priceListController = require('../controllers/priceListController');
-const { verifyToken, checkRole } = require('../middleware/auth');
+const { verifyToken } = require('../middleware/auth');
+const requirePermission = require('../middleware/requirePermission');
+const { PERMISSIONS } = require('../constants/permissions');
 const { sanitizeBody, sanitizeParams } = require('../middleware/security');
 const { body, param, query } = require('express-validator');
 
@@ -497,7 +499,7 @@ router.get('/:priceListCode/statistics',
  */
 router.post('/sync',
   verifyToken,
-  checkRole([1]), // Solo administradores
+  requirePermission(PERMISSIONS.SAP_SYNC_EXECUTE),
   [
     body('priceListNo')
       .optional()
@@ -576,7 +578,7 @@ router.post('/sync',
  */
 router.get('/sync/summary',
   verifyToken,
-  checkRole([1]), // Solo administradores
+  requirePermission(PERMISSIONS.SAP_SYNC_VIEW),
   priceListController.getSyncSummary
 );
 
@@ -760,7 +762,7 @@ router.get('/sap/validate/:priceListNo',
  */
 router.post('/update-product-prices',
   verifyToken,
-  checkRole(['ADMIN', 'MANAGER']),
+  requirePermission(PERMISSIONS.SAP_SYNC_EXECUTE),
   priceListController.updateProductPricesFromLists
 );
 
