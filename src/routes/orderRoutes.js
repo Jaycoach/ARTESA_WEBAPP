@@ -1,7 +1,9 @@
 const express = require('express');
 const pool = require('../config/db');
 const Order = require('../models/Order');
-const { verifyToken, checkRole } = require('../middleware/auth');
+const { verifyToken } = require('../middleware/auth');
+const requirePermission = require('../middleware/requirePermission');
+const { PERMISSIONS } = require('../constants/permissions');
 const fileUpload = require('express-fileupload');
 const { sanitizeBody } = require('../middleware/security');
 const { 
@@ -112,7 +114,7 @@ router.get('/orders/delivery-date', verifyToken, calculateDeliveryDate);
  * @returns {object} 500 - Error interno del servidor
  */
 // Ruta para actualizar manualmente órdenes pendientes
-router.post('/orders/process-pending', verifyToken, checkRole([1]), updatePendingOrders);
+router.post('/orders/process-pending', verifyToken, requirePermission(PERMISSIONS.ORDERS_MAINTENANCE), updatePendingOrders);
 
 /**
  * Sincronizar manualmente órdenes con SAP
@@ -124,9 +126,9 @@ router.post('/orders/process-pending', verifyToken, checkRole([1]), updatePendin
  * @returns {object} 403 - No tiene permisos para realizar esta acción
  * @returns {object} 500 - Error interno del servidor
  */
-router.post('/orders/sync-to-sap', 
-  verifyToken, 
-  checkRole([1]), // Solo administradores
+router.post('/orders/sync-to-sap',
+  verifyToken,
+  requirePermission(PERMISSIONS.SAP_SYNC_EXECUTE),
   syncOrdersToSap
 );
 
@@ -139,9 +141,9 @@ router.post('/orders/sync-to-sap',
  * @returns {object} 401 - No autorizado
  * @returns {object} 500 - Error interno del servidor
  */
-router.get('/orders/verify-trm', 
-  verifyToken, 
-  checkRole([1]), // Solo administradores
+router.get('/orders/verify-trm',
+  verifyToken,
+  requirePermission(PERMISSIONS.ORDERS_MAINTENANCE),
   verifyTRM
 );
 
@@ -155,9 +157,9 @@ router.get('/orders/verify-trm',
  * @returns {object} 403 - No tiene permisos para realizar esta acción
  * @returns {object} 500 - Error interno del servidor
  */
-router.post('/orders/update-status-from-sap', 
-  verifyToken, 
-  checkRole([1]), // Solo administradores
+router.post('/orders/update-status-from-sap',
+  verifyToken,
+  requirePermission(PERMISSIONS.SAP_SYNC_EXECUTE),
   updateOrderStatusFromSap
 );
 
@@ -284,7 +286,7 @@ router.get('/orders/user-branches', verifyToken, getUserBranches);
  * @returns {object} 403 - Solo administradores pueden usar esta función
  * @returns {object} 500 - Error interno del servidor
  */
-router.get('/orders/debug/:userId', verifyToken, checkRole([1]), debugUserOrders);
+router.get('/orders/debug/:userId', verifyToken, requirePermission(PERMISSIONS.SYSTEM_DIAGNOSTICS), debugUserOrders);
 
 /**
  * Obtener una orden específica
@@ -367,7 +369,7 @@ router.put('/orders/:orderId/cancel', verifyToken, cancelOrder);
  */
 router.post('/orders/:orderId/send-to-sap',
   verifyToken,
-  checkRole([1]), // Solo administradores
+  requirePermission(PERMISSIONS.SAP_SYNC_EXECUTE),
   sendOrderToSap
 );
 
@@ -384,7 +386,7 @@ router.post('/orders/:orderId/send-to-sap',
  */
 router.post('/orders/:orderId/reset-sap-sync',
   verifyToken,
-  checkRole([1]), // Solo administradores
+  requirePermission(PERMISSIONS.SAP_SYNC_EXECUTE),
   resetSapSync
 );
 
@@ -398,9 +400,9 @@ router.post('/orders/:orderId/reset-sap-sync',
  * @returns {object} 403 - No tiene permisos para realizar esta acción
  * @returns {object} 500 - Error interno del servidor
  */
-router.post('/orders/check-delivered', 
-  verifyToken, 
-  checkRole([1]), // Solo administradores
+router.post('/orders/check-delivered',
+  verifyToken,
+  requirePermission(PERMISSIONS.SAP_SYNC_EXECUTE),
   checkDeliveredOrders
 );
 
@@ -414,9 +416,9 @@ router.post('/orders/check-delivered',
  * @returns {object} 403 - No tiene permisos suficientes
  * @returns {object} 500 - Error interno del servidor
  */
-router.post('/orders/check-invoiced', 
-  verifyToken, 
-  checkRole([1]), // Solo administradores
+router.post('/orders/check-invoiced',
+  verifyToken,
+  requirePermission(PERMISSIONS.SAP_SYNC_EXECUTE),
   checkInvoicedOrders
 );
 
