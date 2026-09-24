@@ -26,8 +26,12 @@ const PERMISSIONS = Object.freeze({
   // Subir/eliminar imágenes de producto (ya existente, productImageRoutes).
   PRODUCT_IMAGES_MANAGE: 'product_images.manage',
 
-  // Ver/gestionar archivos subidos (uploadRoutes.js) — subida y borrado individual.
+  // Subir archivos (uploadRoutes.js: POST /images, POST /).
   UPLOADS_MANAGE: 'uploads.manage',
+
+  // Borrado individual por clave S3 arbitraria (deleteImage acepta ?key= sin validar prefijo,
+  // puede borrar documentos de clientes). Solo ADMIN; ver CHANGELOG.
+  UPLOADS_DELETE: 'uploads.delete',
 
   // Borrado masivo de archivos subidos — destructivo, solo ADMIN.
   UPLOADS_BULK_DELETE: 'uploads.bulk_delete',
@@ -75,6 +79,7 @@ const ROLE_PERMISSIONS = Object.freeze({
   [PERMISSIONS.SECURITY_TOKENS_MANAGE]: Object.freeze([ROLES.ADMIN]),
   [PERMISSIONS.AUDIT_VIEW]: Object.freeze([ROLES.ADMIN]),
   [PERMISSIONS.UPLOADS_MANAGE]: Object.freeze([ROLES.ADMIN, ROLES.FUNCTIONAL_ADMIN]),
+  [PERMISSIONS.UPLOADS_DELETE]: Object.freeze([ROLES.ADMIN]),
   [PERMISSIONS.UPLOADS_BULK_DELETE]: Object.freeze([ROLES.ADMIN]),
   [PERMISSIONS.PRODUCTS_MANAGE]: Object.freeze([ROLES.ADMIN, ROLES.FUNCTIONAL_ADMIN]),
   [PERMISSIONS.CLIENTS_DELETE]: Object.freeze([ROLES.ADMIN]),
