@@ -636,7 +636,8 @@ class SapClientService extends SapBaseService {
       errors: 0,
       skipped: 0,
       cardTypeChanges: 0,
-      leadsToClients: 0
+      leadsToClients: 0,
+      omitidos_por_inactivacion_manual: 0
     };
 
     try {
@@ -963,15 +964,28 @@ class SapClientService extends SapBaseService {
           }
 
           // Si el cliente ya no es Lead en SAP (CardType !== 'cLid'), activar el usuario si no está activo
+          // D5 #4: nunca reactiva a un usuario inactivado manualmente desde el BackOffice.
           if (sapClient.CardType !== 'cLid' && !profile.is_active) {
-            await dbClient.query('UPDATE users SET is_active = true WHERE id = $1', [profile.user_id]);
-            
-            this.logger.info('Usuario activado porque ya no es Lead en SAP', {
-              userId: profile.user_id,
-              clientId: profile.client_id,
-              cardCode: sapClient.CardCode,
-              cardType: sapClient.CardType
-            });
+            const activationResult = await dbClient.query(
+              'UPDATE users SET is_active = true WHERE id = $1 AND deactivated_manually = false',
+              [profile.user_id]
+            );
+
+            if (activationResult.rowCount > 0) {
+              this.logger.info('Usuario activado porque ya no es Lead en SAP', {
+                userId: profile.user_id,
+                clientId: profile.client_id,
+                cardCode: sapClient.CardCode,
+                cardType: sapClient.CardType
+              });
+            } else {
+              stats.omitidos_por_inactivacion_manual++;
+              this.logger.warn('Activación omitida: usuario inactivado manualmente', {
+                userId: profile.user_id,
+                clientId: profile.client_id,
+                cardCode: sapClient.CardCode
+              });
+            }
           }
             
             await dbClient.query('COMMIT');
@@ -1036,7 +1050,8 @@ class SapClientService extends SapBaseService {
       errors: 0,
       skipped: 0,
       cardTypeChanges: 0,
-      leadsToClients: 0
+      leadsToClients: 0,
+      omitidos_por_inactivacion_manual: 0
     };
 
     try {
@@ -1262,17 +1277,30 @@ class SapClientService extends SapBaseService {
                             sapClient.CardType !== 'cLid' && 
                             sapClient.CardType !== 'Lead';
 
+          // D5 #5: nunca reactiva a un usuario inactivado manualmente desde el BackOffice.
           if (isNotLead && !profile.is_active) {
-            await dbClient.query('UPDATE users SET is_active = true WHERE id = $1', [profile.user_id]);
-            
-            this.logger.info('Usuario activado porque ya no es Lead en SAP', {
-              userId: profile.user_id,
-              clientId: profile.client_id,
-              cardCode: sapClient.CardCode,
-              cardType: sapClient.CardType
-            });
-            
-            stats.activated++;
+            const activationResult = await dbClient.query(
+              'UPDATE users SET is_active = true WHERE id = $1 AND deactivated_manually = false',
+              [profile.user_id]
+            );
+
+            if (activationResult.rowCount > 0) {
+              this.logger.info('Usuario activado porque ya no es Lead en SAP', {
+                userId: profile.user_id,
+                clientId: profile.client_id,
+                cardCode: sapClient.CardCode,
+                cardType: sapClient.CardType
+              });
+
+              stats.activated++;
+            } else {
+              stats.omitidos_por_inactivacion_manual++;
+              this.logger.warn('Activación omitida: usuario inactivado manualmente', {
+                userId: profile.user_id,
+                clientId: profile.client_id,
+                cardCode: sapClient.CardCode
+              });
+            }
           }
           
           await dbClient.query('COMMIT');

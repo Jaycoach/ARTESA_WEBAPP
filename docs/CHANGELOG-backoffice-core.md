@@ -794,6 +794,22 @@ $ node --check src/models/PasswordReset.js
 SINTAXIS OK
 ```
 
+## Fase 3 — RESUELTO: guardas D5 #4-5 en `SapClientService.js`
+
+- `syncAllClientsWithSAP()` (línea ~967): `UPDATE ... WHERE id=$1 AND deactivated_manually = false`;
+  si `rowCount=0`, incrementa `stats.omitidos_por_inactivacion_manual` y loguea `warn`.
+- `syncClientsWithSAP()` (línea ~1280): mismo patrón; el contador solo se incrementa cuando
+  la reactivación se omite (no cuando se aplica, que sigue sumando `stats.activated` igual que antes).
+- Sin conflicto con `fix/price-list-sync-unification` (confirmado en el archivo 9: esa rama
+  solo toca `SapOrderService.js` y migraciones, nunca `SapClientService.js`).
+
+```
+$ node --check src/services/SapClientService.js
+SINTAXIS OK
+```
+
+Con esto, los 5 caminos de D5 quedan cubiertos: #1-3 (Fase 2, commit `d79e5fb`) + #4-5 (Fase 3, este commit).
+
 ## Fase 6 — Plan de despliegue a Producción (borrador acumulado)
 
 ### REGLA CRÍTICA — orden de despliegue obligatorio
