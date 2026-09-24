@@ -655,13 +655,123 @@ Casos agregados durante la Fase 2, a ejecutar cuando arranque la Fase 5 formal:
   `idx_client_branches_email_branch`, redundante con la constraint única existente. Se
   conserva (no se elimina nada).
 
-### D12 — CERRADO (commit `926ae95`)
+### D12 — código: CERRADO (commit `926ae95`) — migración: VALIDADO EN STAGING
 
-Migración `db/migrations/2026-09-24_mail-case-insensitive.sql` + las 12 comparaciones de
-correo migradas a `LOWER()` + los 2 cambios de `register()` (mensaje con sugerencia de
-"Olvidé mi contraseña", verificado con `git grep` que el frontend no compara ese texto exacto;
-catch de `23505` con verificación de `constraint` en `['uk_users_mail', 'uk_users_mail_lower']`).
-`git grep -nE "(mail|email_branch) = \$[0-9]" src/` → 0 resultados.
+**Evidencia pegada — verificación de frontend (punto 1, mensaje de `register`):**
+```
+$ git grep -n "ya está registrado\|already" -- src/views/frontend
+src/views/frontend/LoginArtesa/src/Components/Register/EmailVerification.jsx:88:            apiMessage.includes('already verified') ||
+```
+Ningún componente compara el texto `"ya está registrado"` — seguro cambiar el mensaje directo.
+
+**Evidencia pegada — las 12 comparaciones migradas a `LOWER()`:**
+```
+$ git grep -n "LOWER(" -- src/controllers/authController.js src/models/userModel.js \
+  src/models/BranchAuth.js src/controllers/branchAuthController.js \
+  src/controllers/branchPasswordResetController.js src/controllers/adminController.js \
+  src/controllers/branchRegistrationController.js
+src/controllers/adminController.js:365:        'SELECT branch_id FROM client_branches WHERE LOWER(email_branch) = LOWER($1) AND branch_id != $2',
+src/controllers/authController.js:395:                WHERE LOWER(u.mail) = LOWER($1)
+src/controllers/authController.js:654:                'SELECT id FROM users WHERE LOWER(mail) = LOWER($1)',
+src/controllers/authController.js:919:            'SELECT id, email_verified FROM users WHERE LOWER(mail) = LOWER($1)',
+src/controllers/branchAuthController.js:435:                 WHERE LOWER(email_branch) = LOWER($1)`,
+src/controllers/branchAuthController.js:526:                 WHERE LOWER(email_branch) = LOWER($1)`,
+src/controllers/branchAuthController.js:816:                FROM client_branches WHERE LOWER(email_branch) = LOWER($1)`,
+src/controllers/branchPasswordResetController.js:109:         WHERE LOWER(cb.email_branch) = LOWER($1)`,
+src/controllers/branchRegistrationController.js:32:                 WHERE LOWER(email_branch) = LOWER($1)`,
+src/controllers/branchRegistrationController.js:104:                'SELECT branch_id, email_branch, password, branch_name FROM client_branches WHERE LOWER(email_branch) = LOWER($1)',
+src/models/BranchAuth.js:18:                 WHERE LOWER(b.email_branch) = LOWER($1) AND b.is_login_enabled = true`,
+src/models/userModel.js:86:            WHERE LOWER(mail) = LOWER($1);
+```
+
+**Evidencia pegada — cero comparaciones exactas restantes:**
+```
+$ git grep -nE "(mail|email_branch) = \$[0-9]" -- src/
+(sin resultados)
+```
+
+**Evidencia pegada — diff completo de `register()` (`authController.js`):**
+```diff
+@@ -392,7 +392,7 @@ class AuthController {
+                 FROM users u
+                 JOIN roles r ON u.rol_id = r.id
+                 LEFT JOIN client_profiles cp ON u.id = cp.user_id
+-                WHERE u.mail = $1
++                WHERE LOWER(u.mail) = LOWER($1)
+             `;
+             
+             const result = await pool.query(query, [mailField]);
+@@ -651,7 +651,7 @@ class AuthController {
+ 
+             // 1. Verificar si el usuario ya existe
+             const userExists = await pool.query(
+-                'SELECT id FROM users WHERE mail = $1',
++                'SELECT id FROM users WHERE LOWER(mail) = LOWER($1)',
+                 [mail]
+             );
+ 
+@@ -659,7 +659,7 @@ class AuthController {
+                 logger.warn('Intento de registro con correo existente', { mail });
+                 return res.status(400).json({
+                     success: false,
+-                    message: 'El correo electrónico ya está registrado'
++                    message: 'El correo electrónico ya está registrado. Si es tuyo, usa "Olvidé mi contraseña" para recuperar el acceso.'
+                 });
+             }
+ 
+@@ -747,14 +747,25 @@ class AuthController {
+             });
+ 
+         } catch (error) {
++            if (error.code === '23505' && ['uk_users_mail', 'uk_users_mail_lower'].includes(error.constraint)) {
++                logger.warn('Registro rechazado por índice único (condición de carrera)', {
++                    mail: req.body.mail,
++                    constraint: error.constraint
++                });
++                return res.status(400).json({
++                    success: false,
++                    message: 'El correo electrónico ya está registrado. Si es tuyo, usa "Olvidé mi contraseña" para recuperar el acceso.'
++                });
++            }
++
+             logger.error('Error en el proceso de registro', {
+                 error: error.message,
+                 stack: error.stack,
+                 mail: req.body.mail
+             });
+ 
+-            const errorMessage = process.env.NODE_ENV === 'development' 
+-                ? error.message 
++            const errorMessage = process.env.NODE_ENV === 'development'
++                ? error.message
+                 : 'Error interno del servidor';
+ 
+             return res.status(500).json({
+@@ -905,7 +916,7 @@ class AuthController {
+         
+         // Verificar si el usuario existe y necesita verificación
+         const { rows } = await pool.query(
+-            'SELECT id, email_verified FROM users WHERE mail = $1',
++            'SELECT id, email_verified FROM users WHERE LOWER(mail) = LOWER($1)',
+             [mail]
+         );
+```
+
+### D12 — migración VALIDADO EN STAGING (aplicada por Jonathan en `artesadb_dev`)
+
+- Precondición verificada: 0 duplicados por `LOWER()` en `users` y en `client_branches`.
+- Aplicación en una sola transacción: código de salida 0.
+- Índices creados (confirmados):
+  - `uk_users_mail_lower` → `CREATE UNIQUE INDEX ... ON users USING btree (lower((mail)::text))`
+  - `uk_client_branches_email_lower` → `CREATE UNIQUE INDEX ... ON client_branches USING btree (lower((email_branch)::text))`
+- **Estado:** la migración queda **VALIDADO EN STAGING**; el código D12 (las 12 comparaciones +
+  cambios de `register()`) sigue **IMPLEMENTADO** hasta que la Fase 5 lo valide con evidencia real.
+- **Nota temporal, no aplica a Producción:** mientras el host de Staging compartido corra un
+  branch sin el código D12 (hoy `fix/price-list-sync-unification`, la migración ya aplicada pero
+  el código aún sin desplegar ahí), un `register` con una variante de mayúsculas de un correo
+  existente responderá `500` por el índice nuevo (el prechequeo exacto no lo detecta, pero el
+  `INSERT` sí choca con `uk_users_mail_lower`). Es esperado y temporal — en Producción, migración
+  y código se despliegan juntos (ver REGLA CRÍTICA de la Fase 6), así que este caso no ocurre ahí.
 
 ## Fase 6 — Plan de despliegue a Producción (borrador acumulado)
 
