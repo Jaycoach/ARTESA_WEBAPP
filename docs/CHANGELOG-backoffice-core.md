@@ -496,6 +496,38 @@ GET /client/:clientId | verifyToken > requirePermission(clients.view) > getBranc
 GET /user/:userId | verifyToken > getBranchesByUserId
 ```
 
+### Archivo 9 — `priceListRoutes.js` (commit `cf4da7a`) — cierra el hallazgo de `MANAGER`
+
+Tabla completa (3 call-sites de los 68; el archivo tiene 10 rutas en total):
+
+| línea | ruta | protección actual | capacidad nueva | ¿cambia? |
+|---|---|---|---|---|
+| `:500` | `POST /sync` | `checkRole([1])` | `sap_sync.execute` | Cambia |
+| `:579` | `GET /sync/summary` | `checkRole([1])` | `sap_sync.view` | Cambia |
+| `:763` | `POST /update-product-prices` | `checkRole(['ADMIN','MANAGER'])` | `sap_sync.execute` | Cambia — **cierra el hallazgo del `MANAGER` muerto** (Fase 0/archivo 2) |
+
+Riesgo verificado: `updateProductPricesFromLists` (`priceListController.js:504-535`) es un sync
+masivo legítimo de precios desde SAP, alcance esperado de una acción `sap_sync.execute`.
+
+```
+$ node --check src/routes/priceListRoutes.js
+SINTAXIS OK
+$ grep -c "checkRole\|authorize" src/routes/priceListRoutes.js
+0
+$ node -e "...script de verificacion..."
+TOTAL: 10
+GET / | verifyToken > <anonymous>
+GET /:priceListCode/products | verifyToken > ... > <anonymous>
+GET /:priceListCode/products/:productCode/price | verifyToken > ... > getProductPrice
+POST /:priceListCode/products/prices | verifyToken > ... > getMultipleProductPrices
+GET /:priceListCode/statistics | verifyToken > ... > getPriceListStatistics
+POST /sync | verifyToken > requirePermission(sap_sync.execute) > ... > syncPriceListsFromSap
+GET /sync/summary | verifyToken > requirePermission(sap_sync.view) > getSyncSummary
+GET /sap/search | verifyToken > ... > searchProductsInSap
+GET /sap/validate/:priceListNo | verifyToken > ... > validatePriceListInSap
+POST /update-product-prices | verifyToken > requirePermission(sap_sync.execute) > updateProductPricesFromLists
+```
+
 ## Fase 5 — Plan de QA acumulado (pendiente de ejecutar contra Staging real)
 
 Casos agregados durante la Fase 2, a ejecutar cuando arranque la Fase 5 formal:
