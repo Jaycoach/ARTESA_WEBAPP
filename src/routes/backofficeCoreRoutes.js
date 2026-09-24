@@ -1,0 +1,128 @@
+// src/routes/backofficeCoreRoutes.js
+// Montado en /api/backoffice (app.js, archivo 8). Núcleo del BackOffice: usuarios de
+// plataforma, clientes (D7), configuración y sincronizaciones — todo por delegación o
+// lógica propia del núcleo, nunca lógica de pedidos (clase C, permanece en el branch
+// pausado). Cada ruta replica EXACTAMENTE la cadena de middlewares de su ruta original
+// (fileUpload/sanitizeBody/sanitizeParams), reemplazando solo la autorización
+// (checkRole/authorize) por verifyToken + requirePermission.
+const express = require('express');
+const router = express.Router();
+const fileUpload = require('express-fileupload');
+
+const { verifyToken } = require('../middleware/auth');
+const requirePermission = require('../middleware/requirePermission');
+const { sanitizeBody, sanitizeParams } = require('../middleware/security');
+const AuthValidators = require('../validators/authValidators');
+const { PERMISSIONS } = require('../constants/permissions');
+const fileUploadOptions = require('../config/adminFileUploadOptions');
+
+const platformUsersController = require('../controllers/backofficeCore/platformUsersController');
+const clientsController = require('../controllers/backofficeCore/clientsController');
+const settingsController = require('../controllers/backofficeCore/settingsController');
+const syncController = require('../controllers/backofficeCore/syncController');
+
+router.use(verifyToken);
+
+// --- Usuarios de plataforma ---
+router.get('/platform-users',
+  requirePermission(PERMISSIONS.PLATFORM_USERS_MANAGE),
+  platformUsersController.listPlatformUsers
+);
+router.post('/platform-users',
+  sanitizeBody, // misma política que register (authRoutes.js:258-264)
+  requirePermission(PERMISSIONS.PLATFORM_USERS_MANAGE),
+  AuthValidators.validateEmail, // misma validación/normalización que register (authRoutes.js:262)
+  platformUsersController.createPlatformUser
+);
+router.post('/platform-users/:id/resend-invitation',
+  requirePermission(PERMISSIONS.PLATFORM_USERS_MANAGE),
+  platformUsersController.resendInvitation
+);
+router.post('/platform-users/:id/activate',
+  requirePermission(PERMISSIONS.PLATFORM_USERS_MANAGE),
+  platformUsersController.activatePlatformUser
+);
+router.post('/platform-users/:id/deactivate',
+  sanitizeBody, // recibe { reason } en el body
+  requirePermission(PERMISSIONS.PLATFORM_USERS_MANAGE),
+  platformUsersController.deactivatePlatformUser
+);
+router.post('/platform-users/:id/role',
+  sanitizeBody, // recibe { newRoleId } en el body
+  requirePermission(PERMISSIONS.PLATFORM_USERS_MANAGE),
+  platformUsersController.changePlatformUserRole
+);
+
+// --- Clientes (D7, activación/inactivación) ---
+// GET /clients: misma cadena que clientProfileRoutes.js:8 (sanitizeParams a nivel de
+// router) + :409-413 (verifyToken + checkRole([1,3]), reemplazado por requirePermission).
+router.get('/clients',
+  sanitizeParams,
+  requirePermission(PERMISSIONS.CLIENTS_VIEW),
+  clientsController.listClients
+);
+router.get('/clients/without-profile',
+  requirePermission(PERMISSIONS.CLIENTS_VIEW),
+  clientsController.listClientsWithoutProfile
+);
+router.get('/clients/:userId/deactivation-preview',
+  requirePermission(PERMISSIONS.CLIENTS_MANAGE_STATUS),
+  clientsController.getDeactivationPreview
+);
+router.post('/clients/:userId/deactivate',
+  sanitizeBody, // recibe { reason } en el body
+  requirePermission(PERMISSIONS.CLIENTS_MANAGE_STATUS),
+  clientsController.deactivateClient
+);
+router.post('/clients/:userId/activate',
+  requirePermission(PERMISSIONS.CLIENTS_MANAGE_STATUS),
+  clientsController.activateClient
+);
+
+// --- Configuración (adminRoutes.js:antigua 27-28/30-31: verifyToken + sanitizeBody a nivel de router) ---
+router.get('/settings',
+  sanitizeBody,
+  requirePermission(PERMISSIONS.SETTINGS_MANAGE),
+  settingsController.getSettings
+);
+router.post('/settings',
+  sanitizeBody,
+  requirePermission(PERMISSIONS.SETTINGS_MANAGE),
+  fileUpload(fileUploadOptions), // mismo middleware y opciones que adminRoutes.js (POST /settings)
+  settingsController.updateSettings
+);
+router.post('/settings/branches/:branchId/enable-login',
+  sanitizeBody,
+  requirePermission(PERMISSIONS.BRANCH_LOGIN_MANAGE),
+  settingsController.enableBranchLogin
+);
+router.post('/settings/branches/:branchId/disable-login',
+  sanitizeBody,
+  requirePermission(PERMISSIONS.BRANCH_LOGIN_MANAGE),
+  settingsController.disableBranchLogin
+);
+
+// --- Sincronizaciones ---
+router.get('/sync/status',
+  requirePermission(PERMISSIONS.SAP_SYNC_VIEW),
+  syncController.getSyncStatus
+);
+router.get('/sync/clients/pending',
+  requirePermission(PERMISSIONS.SAP_SYNC_VIEW),
+  syncController.getPendingClients
+);
+router.post('/sync/clients/all',
+  requirePermission(PERMISSIONS.SAP_SYNC_EXECUTE),
+  syncController.syncAllClients
+);
+router.post('/sync/branches',
+  requirePermission(PERMISSIONS.SAP_SYNC_EXECUTE),
+  syncController.syncClientBranches
+);
+router.post('/sync/products',
+  sanitizeParams, // mismo middleware que sapSyncRoutes.js (router-level)
+  requirePermission(PERMISSIONS.SAP_SYNC_EXECUTE),
+  syncController.syncProducts
+);
+
+module.exports = router;

@@ -13,15 +13,8 @@ const { sanitizeBody } = require('../middleware/security');
  *   description: Endpoints para administración del portal
  */
 
-// Configuración para express-fileupload
-const fileUploadOptions = {
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
-  useTempFiles: true,
-  tempFileDir: './tmp/',
-  createParentPath: true,
-  abortOnLimit: true,
-  responseOnLimit: 'El archivo excede el límite de 5MB.'
-};
+// Configuración para express-fileupload (compartida con backofficeCoreRoutes.js)
+const fileUploadOptions = require('../config/adminFileUploadOptions');
 
 // Aplicar middleware de autenticación a todas las rutas
 router.use(verifyToken);

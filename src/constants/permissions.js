@@ -19,6 +19,10 @@ const PERMISSIONS = Object.freeze({
   // Ver listado de clientes y descargar sus documentos (ya existente, ClientList).
   CLIENTS_VIEW: 'clients.view',
 
+  // Activar/inactivar clientes (rol 2) — D7. Necesaria ya (no en el archivo 9) porque
+  // backofficeCoreRoutes.js/clientsController.js la usan desde el archivo 7.
+  CLIENTS_MANAGE_STATUS: 'clients.manage_status',
+
   // Subir/eliminar imágenes de producto (ya existente, productImageRoutes).
   PRODUCT_IMAGES_MANAGE: 'product_images.manage',
 
@@ -46,6 +50,7 @@ const ROLE_PERMISSIONS = Object.freeze({
   [PERMISSIONS.SETTINGS_MANAGE]: Object.freeze([ROLES.ADMIN, ROLES.FUNCTIONAL_ADMIN]),
   [PERMISSIONS.BRANCH_LOGIN_MANAGE]: Object.freeze([ROLES.ADMIN]),
   [PERMISSIONS.CLIENTS_VIEW]: Object.freeze([ROLES.ADMIN, ROLES.FUNCTIONAL_ADMIN]),
+  [PERMISSIONS.CLIENTS_MANAGE_STATUS]: Object.freeze([ROLES.ADMIN]),
   [PERMISSIONS.PRODUCT_IMAGES_MANAGE]: Object.freeze([ROLES.ADMIN, ROLES.FUNCTIONAL_ADMIN]),
   [PERMISSIONS.SAP_SYNC_EXECUTE]: Object.freeze([ROLES.ADMIN]),
   [PERMISSIONS.SAP_SYNC_VIEW]: Object.freeze([ROLES.ADMIN]),
