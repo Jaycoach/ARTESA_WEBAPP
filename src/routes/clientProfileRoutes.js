@@ -2,7 +2,9 @@
 const express = require('express');
 const router = express.Router();
 const clientProfileController = require('../controllers/clientProfileController');
-const { verifyToken, checkRole } = require('../middleware/auth');
+const { verifyToken } = require('../middleware/auth');
+const requirePermission = require('../middleware/requirePermission');
+const { PERMISSIONS } = require('../constants/permissions');
 const { sanitizeParams } = require('../middleware/security');
 
 // Aplicar middleware de sanitización a todas las rutas
@@ -180,9 +182,9 @@ router.use(sanitizeParams);
  *       500:
  *         description: Error interno del servidor
  */
-router.get('/', 
-  verifyToken, 
-  checkRole([1, 3]), // Solo administradores
+router.get('/',
+  verifyToken,
+  requirePermission(PERMISSIONS.CLIENTS_VIEW),
   clientProfileController.getAllProfiles
 );
 
@@ -549,9 +551,9 @@ router.put('/user/:userId',
  *       500:
  *         description: Error interno del servidor
  */
-router.delete('/user/:userId', 
+router.delete('/user/:userId',
   verifyToken,
-  checkRole([1]), // Solo administradores pueden eliminar
+  requirePermission(PERMISSIONS.CLIENTS_DELETE),
   clientProfileController.deleteProfileByUserId
 );
 /**
