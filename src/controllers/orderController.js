@@ -1133,7 +1133,22 @@ const getOrdersByStatus = async (req, res) => {
 const checkUserCanCreateOrders = async (req, res) => {
   try {
     const { userId } = req.params;
-    
+    const user = req.user;
+
+    // Verificar permisos - solo el dueño o un administrador pueden consultar (mismo patrón que getUserOrders:562)
+    if (parseInt(userId) !== user.id && user.rol_id !== 1) {
+      logger.warn('Intento de acceso no autorizado a verificación de creación de órdenes', {
+        targetUserId: userId,
+        requestingUserId: user.id,
+        requestingUserRole: user.rol_id
+      });
+
+      return res.status(403).json({
+        success: false,
+        message: 'No tienes permiso para ver esta información'
+      });
+    }
+
     // Verificar si el usuario existe y está activo
     const userQuery = 'SELECT is_active FROM users WHERE id = $1';
     const userResult = await pool.query(userQuery, [userId]);
