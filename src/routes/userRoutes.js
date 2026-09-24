@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const { verifyToken, checkRole } = require('../middleware/auth');
+const { verifyToken } = require('../middleware/auth');
+const requirePermission = require('../middleware/requirePermission');
+const { PERMISSIONS } = require('../constants/permissions');
 const { sanitizeBody, sanitizeParams, validateQueryParams } = require('../middleware/security');
 const { getUsers, getUserById, updateUser } = require('../controllers/userController');
 
@@ -41,7 +43,7 @@ router.use(sanitizeBody, sanitizeParams, validateQueryParams);
  * @returns {object} 403 - No tiene permisos suficientes
  * @returns {object} 500 - Error interno del servidor
  */
-router.get('/users', verifyToken, checkRole([1]), getUsers);
+router.get('/users', verifyToken, requirePermission(PERMISSIONS.PLATFORM_USERS_MANAGE), getUsers);
 
 /**
  * Obtener usuario por ID
