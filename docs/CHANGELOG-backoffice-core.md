@@ -655,6 +655,14 @@ Casos agregados durante la Fase 2, a ejecutar cuando arranque la Fase 5 formal:
   `idx_client_branches_email_branch`, redundante con la constraint única existente. Se
   conserva (no se elimina nada).
 
+### D12 — CERRADO (commit `926ae95`)
+
+Migración `db/migrations/2026-09-24_mail-case-insensitive.sql` + las 12 comparaciones de
+correo migradas a `LOWER()` + los 2 cambios de `register()` (mensaje con sugerencia de
+"Olvidé mi contraseña", verificado con `git grep` que el frontend no compara ese texto exacto;
+catch de `23505` con verificación de `constraint` en `['uk_users_mail', 'uk_users_mail_lower']`).
+`git grep -nE "(mail|email_branch) = \$[0-9]" src/` → 0 resultados.
+
 ## Fase 6 — Plan de despliegue a Producción (borrador acumulado)
 
 ### REGLA CRÍTICA — orden de despliegue obligatorio
