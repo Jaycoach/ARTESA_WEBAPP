@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const productController = require('../controllers/productController');
 const { verifyToken, checkRole } = require('../middleware/auth');
+const requirePermission = require('../middleware/requirePermission');
+const { PERMISSIONS } = require('../constants/permissions');
 const { sanitizeBody, sanitizeParams } = require('../middleware/security');
 
 /**
@@ -14,9 +16,9 @@ const { sanitizeBody, sanitizeParams } = require('../middleware/security');
  * @returns {object} 403 - No tiene permisos suficientes
  * @returns {object} 500 - Error interno del servidor
  */
-router.get('/products/sap/pending', 
-  verifyToken, 
-  checkRole([1]), // Solo administradores
+router.get('/products/sap/pending',
+  verifyToken,
+  requirePermission(PERMISSIONS.SAP_SYNC_VIEW),
   productController.getPendingSyncProducts
 );
 
@@ -129,9 +131,9 @@ router.get('/products/:productId',
  * @returns {object} 403 - No tiene permisos suficientes
  * @returns {object} 500 - Error interno del servidor
  */
-router.post('/products', 
-  verifyToken, 
-  checkRole([1, 3]), // Solo administradores 
+router.post('/products',
+  verifyToken,
+  requirePermission(PERMISSIONS.PRODUCTS_MANAGE),
   productController.createProduct
 );
 
@@ -149,9 +151,9 @@ router.post('/products',
  * @returns {object} 404 - Producto no encontrado
  * @returns {object} 500 - Error interno del servidor
  */
-router.put('/products/:productId', 
-  verifyToken, 
-  checkRole([1, 3]), 
+router.put('/products/:productId',
+  verifyToken,
+  requirePermission(PERMISSIONS.PRODUCTS_MANAGE),
   productController.updateProduct
 );
 
@@ -169,9 +171,9 @@ router.put('/products/:productId',
  * @returns {object} 404 - Producto no encontrado
  * @returns {object} 500 - Error interno del servidor
  */
-router.put('/products/:productId/image', 
-  verifyToken, 
-  checkRole([1, 3]), 
+router.put('/products/:productId/image',
+  verifyToken,
+  requirePermission(PERMISSIONS.PRODUCTS_MANAGE),
   productController.updateProductImage
 );
 
@@ -187,9 +189,9 @@ router.put('/products/:productId/image',
  * @returns {object} 404 - Producto no encontrado
  * @returns {object} 500 - Error interno del servidor
  */
-router.delete('/products/:productId', 
-  verifyToken, 
-  checkRole([1, 3]), 
+router.delete('/products/:productId',
+  verifyToken,
+  requirePermission(PERMISSIONS.PRODUCTS_MANAGE),
   productController.deleteProduct
 );
 
