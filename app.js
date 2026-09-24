@@ -410,7 +410,10 @@ const healthRoutes = require('./src/routes/healthRoutes');
 const userRoutes = require('./src/routes/userRoutes');
 const authRoutes = require('./src/routes/authRoutes');
 const productRoutes = require('./src/routes/productRoutes');
-const secureProductRoutes = require('./src/routes/secureProductRoutes');
+// @deprecated D6 (2026-09-23): desmontado, 0 peticiones a /api/secure/* en Producción
+// (25-mar a 23-sep-2026) y en Staging (29-may-2025 a 23-sep-2026), 0 referencias en el
+// frontend. Archivo conservado (docs/CHANGELOG-backoffice-core.md), no se borra.
+// const secureProductRoutes = require('./src/routes/secureProductRoutes');
 const orderRoutes = require('./src/routes/orderRoutes');
 const passwordResetRoutes = require('./src/routes/passwordResetRoutes');
 const paymentRoutes = require('./src/routes/paymentRoutes');
@@ -451,7 +454,8 @@ app.use(API_PREFIX, userRoutes);
 app.use(`${API_PREFIX}/auth`, authRoutes);
 app.use(`${API_PREFIX}/branch-auth`, require('./src/routes/branchAuthRoutes'));
 app.use(API_PREFIX, productRoutes);
-app.use(API_PREFIX, secureProductRoutes);
+// @deprecated D6 (2026-09-23): ver comentario junto al require, más arriba.
+// app.use(API_PREFIX, secureProductRoutes);
 app.use(API_PREFIX, orderRoutes);
 app.use(`${API_PREFIX}/client-branches`, clientBranchRoutes);
 app.use(`${API_PREFIX}/sap`, sapSyncRoutes);
@@ -461,6 +465,9 @@ app.use(`${API_PREFIX}/price-lists`, require('./src/routes/priceListRoutes'));
 app.use(`${API_PREFIX}/images`, require('./src/routes/imageProxyRoutes'));
 // Ruta interna para sincronización programada (solo acceso con X-Internal-Key)
 app.use(`${API_PREFIX}/internal`, require('./src/routes/internalRoutes'));
+
+// Núcleo del BackOffice (roles ADMIN/FUNCTIONAL_ADMIN/BACKOFFICE) — feature/backoffice-core
+app.use(`${API_PREFIX}/backoffice`, require('./src/routes/backofficeCoreRoutes'));
 
 // Aplicamos fileUpload sólo a las rutas específicas que lo necesitan
 app.use(`${API_PREFIX}/upload`, fileUpload(fileUploadOptions), uploadRoutes);

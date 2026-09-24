@@ -1,3 +1,11 @@
+/**
+ * @deprecated Desde 2026-09-23 (D6, feature/backoffice-core). Desmontado de app.js:
+ * 0 peticiones a /api/secure/* en Producción (25-mar a 23-sep-2026) y en Staging
+ * (29-may-2025 a 23-sep-2026); 0 referencias en el frontend (git grep). Duplicaba
+ * 1:1 los mismos endpoints/controllers de productRoutes.js (/api/products). Se
+ * conserva el archivo (no se borra) por si hiciera falta reactivarlo; ver
+ * docs/CHANGELOG-backoffice-core.md.
+ */
 const express = require('express');
 const productController = require('../controllers/productController');
 const { verifyToken, checkRole } = require('../middleware/auth');
