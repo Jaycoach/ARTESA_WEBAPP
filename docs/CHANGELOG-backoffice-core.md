@@ -58,6 +58,26 @@ Documentada en Fase 0/1 para aplicarse en Fase 2, sin excepciones y sin usar `NU
 
 **Estado: en progreso**, con checkpoint por archivo (ver conversación).
 
+### Archivo 9 — tabla antes/después, reconciliación y conflictos
+
+- **Reconciliación:** 68 call-sites totales de `checkRole`/`authorize` en `master` (Fase 0) =
+  62 migrados a `requirePermission` (archivo 9) + 6 de `secureProductRoutes.js` (código
+  muerto, ya desmontado en el archivo 8, no se migra). `62 + 6 = 68` ✓.
+- **5 accesos que gana FUNCTIONAL_ADMIN** (antes ADMIN-only, ahora `[ADMIN, FUNCTIONAL_ADMIN]`
+  por la regla por defecto de la categoría "OTRA"; ningún rol pierde acceso en ningún caso):
+  1. `clientBranchRoutes.js:178` — `GET /client-branches/client/:clientId` → `clients.view`.
+  2. `orderRoutes.js:115` — `POST /orders/process-pending` → `orders.maintenance`.
+  3. `orderRoutes.js:144` — `GET /orders/verify-trm` → `orders.maintenance`.
+  4. `uploadRoutes.js:144` — `DELETE` individual de un archivo → `uploads.manage`.
+  5. `uploadRoutes.js:245` — `GET /upload/duplicates` → `uploads.manage`.
+- **Conflictos:** `fix/price-list-sync-unification` vs `master` solo toca
+  `db/migrations/001_initial-schema.md`, `2026-09-11_add-sap-sync-status-column.sql` y
+  `src/services/SapOrderService.js` — **sin intersección** con los 11 archivos de rutas del
+  archivo 9 ni con `SapClientService.js` (Fase 3). `feature/backoffice-module` vs `master`
+  solo toca `src/routes/productRoutes.js` en la línea de `GET /products`
+  (`checkRole([1,2,3])→[1,2,3,4]`), que el archivo 9 **no toca** (queda fuera del alcance,
+  incluye USER) — sin conflicto, el rebase futuro de la Fase 7 aplica limpio.
+
 ### Hallazgo: `sanitizeBody`/`validateQueryParams` de nivel router se ejecutan en cascada
 
 `userRoutes.js:8` (`sanitizeBody, sanitizeParams, validateQueryParams`) y `productRoutes.js:86`
