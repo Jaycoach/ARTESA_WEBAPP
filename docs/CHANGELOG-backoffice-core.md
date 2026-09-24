@@ -58,6 +58,23 @@ Documentada en Fase 0/1 para aplicarse en Fase 2, sin excepciones y sin usar `NU
 
 **Estado: en progreso**, con checkpoint por archivo (ver conversación).
 
+### 6g/7 — hallazgos registrados
+
+- **Dos objetos `fileUploadOptions` distintos, mismo nombre:** `adminRoutes.js` (antes de
+  esta edición) usaba uno local de 5MB; `app.js:158-168` usa otro de 10MB con
+  `parseNested`/`safeFileNames`/`debug`, para `/upload`, `/client-profiles`, `/images`.
+  Se extrajo a `src/config/adminFileUploadOptions.js` **solo el de `adminRoutes.js`** (5MB).
+  El de `app.js` no se tocó — son configuraciones deliberadamente distintas para rutas
+  distintas, no se unifican.
+- **Pendiente de confirmar (no bloqueante):** `sanitizeBody` (`security.js:23-60`) aplica
+  `validator.escape()` a los strings del body (excepto campos URL/imagen). `register`
+  (`authRoutes.js:258-264`) ya usa este middleware, así que los `users.name` existentes
+  con `&`/`<`/`>`/`"`/`'` deberían estar guardados con entidades HTML — no se confirmó
+  contra datos reales. Consulta de solo lectura para verificar cuando Jonathan tenga un
+  momento: `SELECT id, name FROM users WHERE name ~ '&(amp|lt|gt|quot|#x27|#39);' LIMIT 10;`.
+  Los endpoints nuevos del núcleo ya aplican el mismo middleware, así que la convención
+  queda consistente independientemente del resultado de esa consulta.
+
 ### 6g — `settingsController.js` / `syncController.js`: auditoría de mejor esfuerzo
 
 A diferencia de la auditoría de usuarios (`userStatusService.js`, transaccional, con el
