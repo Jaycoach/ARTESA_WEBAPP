@@ -642,3 +642,19 @@ Casos agregados durante la Fase 2, a ejecutar cuando arranque la Fase 5 formal:
   - cliente A consultando `can-create` de A → 200;
   - cliente A consultando `can-create` de B → 403;
   - ADMIN consultando `can-create` de cualquiera → 200.
+
+## Fase 6 — Plan de despliegue a Producción (borrador acumulado)
+
+### REGLA CRÍTICA — orden de despliegue obligatorio
+
+Las guardas D5 (`authController.js` `verifyEmail`, `clientSyncController.js` `activateClient`
+y `simulateSapSync`, commit `d79e5fb`) y las de la Fase 3 (`SapClientService.js`, pendientes)
+consultan `users.deactivated_manually`. **Esta columna no existe en Producción** hasta que se
+aplique la migración del núcleo (`db/migrations/2026-09-23_backoffice-core.sql`, ya
+`VALIDADO EN STAGING`, ver Fase 1).
+
+**La migración DEBE aplicarse en Producción ANTES de desplegar este código.** Si el código se
+despliega primero, cada `UPDATE users ... WHERE ... AND deactivated_manually = false` fallará
+con `42703` (`undefined_column`) — y eso rompe, en producción real: `verifyEmail` (nadie podría
+verificar su correo), `activateClient` (activación manual de clientes), `simulateSapSync`, y los
+2 crons de sincronización SAP de `SapClientService.js` (Fase 3, aún no aplicados a este archivo).
