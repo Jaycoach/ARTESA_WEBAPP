@@ -1064,3 +1064,27 @@ desplegado** ni contra Producción.
 **No se crea Pull Request hacia `master` en esta sesión.** Cuando Jonathan confirme que el
 ciclo de Staging (pasos 1-7 arriba) quedó limpio, se debe pedir su aprobación explícita antes
 de abrir el PR — ese es uno de los 5 puntos de parada del prompt de cierre autónomo.
+
+### Verificación puntual — ítem "Clientes" del sidebar sí quedó marcado `legacyOnly`
+
+Jonathan pidió verificar contra el archivo real (no el resumen del CHANGELOG) si el ítem
+"Clientes" (`/dashboard/Users`) tiene `legacyOnly: true`, dado que la Fase 4 solo mencionó
+"Clientes" y "Administración" como marcados así sin pegar el diff completo de ese archivo.
+
+**Evidencia — `grep` contra el estado real de `Sidebar.jsx` (commit `1997104`, ya pusheado):**
+```
+$ grep -n "legacyOnly\|restricted\|backofficeOnly" src/views/frontend/LoginArtesa/src/Components/Dashboard/SidebarSection/Sidebar.jsx
+109:        { path: "/dashboard/Users", icon: FaUsers, label: "Clientes", restricted: true, adminOnly: true, legacyOnly: true },
+111:        { path: "/dashboard/admin", icon: FaTools, label: "Administración", adminOnly: true, legacyOnly: true },
+112:        { path: "/dashboard/backoffice", icon: FaUserTie, label: "BackOffice", backofficeOnly: true }
+120:  // legacyOnly: solo se muestra si VITE_LEGACY_ADMIN_UI está encendido (D1: esas
+126:        (!item.legacyOnly || LEGACY_ADMIN_UI) &&
+127:        (!item.backofficeOnly || hasBackofficeAccess)
+```
+
+**Conclusión: (a) — el código ya estaba correcto, no hacía falta ningún cambio.** El ítem
+"Clientes" sí tiene `legacyOnly: true` desde el commit original de la Fase 4
+(`1997104`, `git log` confirmado). No se hizo ningún commit adicional para este punto porque
+no había nada que corregir — se deja esta entrada como constancia de la verificación pedida
+y su resultado, ya que el CHANGELOG de la Fase 4 no había pegado el fragmento textual del
+array de ítems y por eso no era auto-verificable sin volver al archivo real.
