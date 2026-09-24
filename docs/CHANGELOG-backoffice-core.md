@@ -58,16 +58,78 @@ Documentada en Fase 0/1 para aplicarse en Fase 2, sin excepciones y sin usar `NU
 
 **Estado: en progreso**, con checkpoint por archivo (ver conversación).
 
-### Hallazgo lateral (solo lectura, NO corregido): `GET /orders/can-create/:userId` sin restricción por dueño
+### Archivo 9 — evidencia DoD: `orderRoutes.js` (commit `65ca0a4`)
 
-`checkUserCanCreateOrders` (`src/controllers/orderController.js:1133`) no compara `req.params.userId`
-contra `req.user.id`/`req.user.rol_id` en ningún punto de la función — a diferencia de las otras 10
-rutas "sin cambio" de `orderRoutes.js` (todas verificadas con evidencia de línea exacta, todas
-restringen correctamente al rol 2 a sus propios datos). Cualquier usuario rol 2 autenticado puede
-consultar, para **cualquier otro `userId`**: `isActive`, `hasProfile`, `hasCardCode`, `canCreate`.
-Es información de estado de cuenta de otro cliente, no datos de pedidos. **No se corrige en esta
-tarea** — queda pendiente de decisión de Jonathan (fuera del alcance del archivo 9, que solo migra
-protección de rol/capacidad, no corrige lógica de negocio existente).
+```
+$ node -e "...script de verificacion..."
+TOTAL: 24
+GET /orders/statuses | verifyToken > getOrderStatuses
+GET /orders/delivery-date | verifyToken > calculateDeliveryDate
+POST /orders/process-pending | verifyToken > requirePermission(orders.maintenance) > updatePendingOrders
+POST /orders/sync-to-sap | verifyToken > requirePermission(sap_sync.execute) > syncOrdersToSap
+GET /orders/verify-trm | verifyToken > requirePermission(orders.maintenance) > verifyTRM
+POST /orders/update-status-from-sap | verifyToken > requirePermission(sap_sync.execute) > updateOrderStatusFromSap
+GET /orders/byDeliveryDate | verifyToken > getOrdersByDeliveryDate
+GET /orders/status/:statusId | verifyToken > getOrdersByStatus
+GET /orders/user/:userId | verifyToken > getUserOrders
+GET /orders/can-create/:userId | verifyToken > checkUserCanCreateOrders
+GET /orders/invoices | verifyToken > getInvoicesByUser
+GET /orders/top-products | verifyToken > getTopSellingProducts
+GET /orders/monthly-stats | verifyToken > getMonthlyStats
+GET /orders/user-branches | verifyToken > getUserBranches
+GET /orders/debug/:userId | verifyToken > requirePermission(system.diagnostics) > debugUserOrders
+GET /orders/:orderId | verifyToken > getOrderById
+PUT /orders/:orderId | verifyToken > updateOrder
+POST /orders/prices | verifyToken > sanitizeBody > getProductPricesWithTax
+PUT /orders/:orderId/cancel | verifyToken > cancelOrder
+POST /orders/:orderId/send-to-sap | verifyToken > requirePermission(sap_sync.execute) > sendOrderToSap
+POST /orders/:orderId/reset-sap-sync | verifyToken > requirePermission(sap_sync.execute) > resetSapSync
+POST /orders/check-delivered | verifyToken > requirePermission(sap_sync.execute) > checkDeliveredOrders
+POST /orders/check-invoiced | verifyToken > requirePermission(sap_sync.execute) > checkInvoicedOrders
+POST /orders | verifyToken > <anonymous> > createOrder
+$ grep -c "checkRole" src/routes/orderRoutes.js
+0
+$ node --check src/routes/orderRoutes.js
+SINTAXIS OK
+```
+
+### Hallazgo lateral: controles de "todas las órdenes" escritos a mano con `rol_id !== 1`
+
+Varios controllers de pedidos usan `rol_id !== 1` (comparación literal, no `requirePermission`) para
+decidir quién ve datos de todos los usuarios vs. solo los propios: `getOrdersByDeliveryDate:1675`,
+`getOrdersByStatus:1044`, `getUserOrders:562`, `getInvoicesByUser:2372`, `getTopSellingProducts:2549`,
+`getMonthlyStats:2678`, `getOrderById:486`. Con esto, **FUNCTIONAL_ADMIN (rol 3) se trata igual que
+un cliente** en estas 7 rutas — solo ve sus propios pedidos (rol 3 no es dueño de ningún pedido en la
+práctica hoy, así que en los hechos ve una lista vacía, no un error). **Sin cambio ahora** — la matriz
+de permisos del núcleo no cubre pedidos (clase C, pausada); relevante cuando se publique la gestión de
+pedidos del BackOffice y haya que decidir si FUNCTIONAL_ADMIN/BACKOFFICE deben ver todos los pedidos.
+
+### Checkpoint 9-bis — `GET /orders/can-create/:userId` (commit `cb026a2`)
+
+**Restricción intencional por seguridad**, no una regresión: antes, cualquier usuario autenticado
+podía consultar el estado de cuenta (`isActive`/`hasProfile`/`hasCardCode`/`canCreate`) de **cualquier
+otro `userId`**. Ahora exige ser el dueño o ADMIN, mismo patrón que `getUserOrders:562`. Verificado
+con `git grep "can-create"` en `src/views/frontend`: los 3 puntos de llamada
+(`Orders.jsx:154`, `useOrderFormValidation.js:44`, `useUserActivation.js:128`) usan siempre
+`user.id` propio — ningún flujo legítimo del frontend cambia de comportamiento. **En la comparación
+de la Fase 2-R**, la diferencia `200 → 403` para el caso "cliente consultando el `can-create` de otro
+usuario" queda explicada por esta decisión, no es un hallazgo de regresión.
+
+```
+$ node --check src/controllers/orderController.js
+SINTAXIS OK
+```
+
+### Hallazgo lateral: `GET /orders/can-create/:userId` — RESUELTO en el checkpoint 9-bis (ver arriba)
+
+Tabla completa de las 11 rutas "sin cambio" de `orderRoutes.js` verificadas por restricción de dueño
+(las 2 filas que faltaban en el primer pase):
+
+| ruta | controller:línea | ¿restringe? | evidencia | riesgo |
+|---|---|---|---|---|
+| `PUT /orders/:orderId` | `updateOrder:739` | Sí | `771`: `if (user.rol_id === 1) { hasPermission = true }`; `774`: `else if (currentOrder.user_id === user.id)`; `~782-796`: también permite a un usuario de la misma sucursal (`client_branches`) del dueño de la orden | Ninguno |
+| `PUT /orders/:orderId/cancel` | `cancelOrder:1505` | Sí | `1534`: `if (order.user_id !== user.id && user.rol_id !== 1)` → 403 | Ninguno |
+| `GET /orders/can-create/:userId` | `checkUserCanCreateOrders:1133` | Ahora sí (antes no) | Ver checkpoint 9-bis arriba, commit `cb026a2` | Resuelto |
 
 ### Archivo 9 — evidencia DoD: `clientSyncRoutes.js` (commit `bff72e6`)
 
@@ -281,3 +343,14 @@ global en Fase 0). Con el fallback viejo *y* con el nuevo, `'MANAGER'` nunca res
 (en la práctica, esa ruta ya era ADMIN-only de facto). No se toca ahora. Se resuelve en el
 archivo 9 del plan de Fase 2, cuando esa ruta migre a `requirePermission` según la matriz de
 permisos — ahí se reemplaza por el permiso correcto en vez de dejar el string `'MANAGER'` muerto.
+
+## Fase 5 — Plan de QA acumulado (pendiente de ejecutar contra Staging real)
+
+Casos agregados durante la Fase 2, a ejecutar cuando arranque la Fase 5 formal:
+
+- Con token de FUNCTIONAL_ADMIN: `GET /api/backoffice/settings` → 200; `GET /api/backoffice/sync/status` → 403
+  (detecta cualquier interferencia de otro router en el montaje del núcleo).
+- `GET /orders/can-create/:userId`:
+  - cliente A consultando `can-create` de A → 200;
+  - cliente A consultando `can-create` de B → 403;
+  - ADMIN consultando `can-create` de cualquiera → 200.
