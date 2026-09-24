@@ -810,6 +810,27 @@ SINTAXIS OK
 
 Con esto, los 5 caminos de D5 quedan cubiertos: #1-3 (Fase 2, commit `d79e5fb`) + #4-5 (Fase 3, este commit).
 
+## D13 — Script de fusión de cuentas duplicadas (IMPLEMENTADO, pendiente de que Jonathan lo ejecute)
+
+- `db/scripts/merge-duplicate-users.sql`: parametrizado (`canonical_id`, `absorbed_id`, `admin_id`
+  vía `psql -v`), una sola transacción, sigue exactamente D13 del CHANGELOG: copia el hash de
+  contraseña de la absorbida a la canónica, libera el correo de la absorbida
+  (`fusionado-en-<canonico>.<local>@invalid.local`), la marca `deactivated_manually=true` con
+  motivo (incluye el correo original), revoca tokens de ambas cuentas (mismo esquema que
+  `TokenRevocation.revokeAllUserTokens`), audita `merge_user_accounts` (target absorbida) y
+  `password_replaced_by_merge` (target canónica), y verifica al final 0 duplicados por
+  `LOWER(mail)` (aborta con `RAISE EXCEPTION` si falla). SQL inverso documentado al final del
+  archivo (con marcadores a rellenar desde `backoffice_actions.details`). Ninguna fila se borra.
+- **Modo ensayo:** misma invocación con `sed 's/^COMMIT;$/ROLLBACK;/'` sin editar el archivo.
+- **Para Producción (ALIANZA JIMENEZ SAS):** `canonical_id=48`, `absorbed_id=1505`, `admin_id=1`.
+- `db/scripts/merge-duplicate-users-staging-synthetic-test.sql`: prueba end-to-end en Staging sin
+  tocar datos reales — baja `uk_users_mail_lower` (D12), crea un par sintético con el mismo correo
+  en distinta capitalización, **recrea el índice**, corre la fusión completa inline, verifica login
+  con ambas capitalizaciones y 0 duplicados, y termina en `ROLLBACK` — DDL es transaccional en
+  PostgreSQL, así que el índice nunca deja de existir de verdad para nadie fuera de esta transacción.
+- Estado: **IMPLEMENTADO**. Falta que Jonathan lo ejecute en Staging (primero el sintético, luego
+  el ensayo/real con datos reales si aplica) y, en Producción, en el orden de la REGLA CRÍTICA.
+
 ## Fase 6 — Plan de despliegue a Producción (borrador acumulado)
 
 ### REGLA CRÍTICA — orden de despliegue obligatorio
