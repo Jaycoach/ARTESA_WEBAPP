@@ -120,6 +120,32 @@ $ node --check src/controllers/orderController.js
 SINTAXIS OK
 ```
 
+### Archivo 9 — evidencia DoD: `uploadRoutes.js` (commits `996e114`, `7e419f9`)
+
+```
+$ node --check src/routes/uploadRoutes.js
+SINTAXIS OK
+$ grep -c "checkRole" src/routes/uploadRoutes.js
+3
+$ grep -n "checkRole" src/routes/uploadRoutes.js
+8:const { verifyToken, checkRole } = require('../middleware/auth');
+184:  checkRole([1, 2]), // Administradores y usuarios normales
+218:  checkRole([1, 2]), // Administradores y usuarios normales
+$ node -e "...script de verificacion..."
+TOTAL: 9
+POST /images | verifyToken > requirePermission(uploads.manage) > uploadImage
+POST / | verifyToken > requirePermission(uploads.manage) > uploadImage
+DELETE /:fileName | verifyToken > requirePermission(uploads.delete) > deleteImage
+POST /test-s3 | verifyToken > requirePermission(system.diagnostics) > testS3Configuration
+GET /s3-status | verifyToken > <anonymous> > getS3Status
+GET /list | verifyToken > <anonymous> > listFiles
+GET /duplicates | verifyToken > requirePermission(uploads.manage) > findDuplicates
+DELETE /bulk-delete | verifyToken > requirePermission(uploads.bulk_delete) > bulkDeleteFiles
+POST /verify-iam | verifyToken > requirePermission(system.diagnostics) > verifyIAMCredentials
+```
+`grep -c` da 3 (no 2): 1 es la línea del `require` (sigue en uso real por `:184`/`:218`), los otros
+2 son exactamente las rutas `[1,2]` sin cambio.
+
 ### Hallazgo lateral: `GET /orders/can-create/:userId` — RESUELTO en el checkpoint 9-bis (ver arriba)
 
 Tabla completa de las 11 rutas "sin cambio" de `orderRoutes.js` verificadas por restricción de dueño
@@ -185,13 +211,49 @@ quedaron íntegras con su handler original correcto, sin líneas cortadas ni des
 - **Reconciliación:** 68 call-sites totales de `checkRole`/`authorize` en `master` (Fase 0) =
   62 migrados a `requirePermission` (archivo 9) + 6 de `secureProductRoutes.js` (código
   muerto, ya desmontado en el archivo 8, no se migra). `62 + 6 = 68` ✓.
-- **5 accesos que gana FUNCTIONAL_ADMIN** (antes ADMIN-only, ahora `[ADMIN, FUNCTIONAL_ADMIN]`
-  por la regla por defecto de la categoría "OTRA"; ningún rol pierde acceso en ningún caso):
+- **4 accesos que gana FUNCTIONAL_ADMIN** (corregido: eran 5, ahora 4 — `DELETE /upload/:fileName`
+  sale de la lista por el hallazgo de seguridad de `deleteImage`, ver más abajo; queda ADMIN-only
+  vía `uploads.delete`). Antes ADMIN-only, ahora `[ADMIN, FUNCTIONAL_ADMIN]` por la regla por
+  defecto de la categoría "OTRA"; ningún rol pierde acceso en ningún caso:
   1. `clientBranchRoutes.js:178` — `GET /client-branches/client/:clientId` → `clients.view`.
   2. `orderRoutes.js:115` — `POST /orders/process-pending` → `orders.maintenance`.
   3. `orderRoutes.js:144` — `GET /orders/verify-trm` → `orders.maintenance`.
-  4. `uploadRoutes.js:144` — `DELETE` individual de un archivo → `uploads.manage`.
-  5. `uploadRoutes.js:245` — `GET /upload/duplicates` → `uploads.manage`.
+  4. `uploadRoutes.js:245` — `GET /upload/duplicates` → `uploads.manage`.
+
+### Hallazgo preexistente, NO corregido: `DELETE /api/upload/bulk-delete` inalcanzable
+
+`DELETE /:fileName` (`uploadRoutes.js:141`, antes del cambio de este archivo) está registrada
+**antes** que `DELETE /bulk-delete` (`:280`) en el mismo router. Express matchea rutas en orden
+de registro, y `/:fileName` acepta cualquier segmento único — incluido literalmente `bulk-delete`.
+Confirmado programáticamente (`layer.regexp.test('/bulk-delete')` sobre el `router.stack` real,
+en orden): la primera capa que matchea es `/:fileName`, no `/bulk-delete`. Es decir, hoy
+`DELETE /api/upload/bulk-delete` llega a `deleteImage` (con `fileName='bulk-delete'`), nunca a
+`bulkDeleteFiles` — el borrado masivo está sombreado e inalcanzable en la práctica.
+**No se corrige aquí**: reordenar las rutas activaría un endpoint de borrado masivo hoy inerte,
+lo cual es una decisión de producto/seguridad aparte, no parte del archivo 9 (que solo migra
+protección de rol, no cambia comportamiento). La capacidad `uploads.bulk_delete` ya se aplicó
+a `:280` para que quede correcta el día que se decida corregir el orden.
+
+### Hallazgo preexistente, NO corregido (seguridad): `deleteImage` borra cualquier clave S3
+
+`uploadController.js:413-464` (`deleteImage`, detrás de `DELETE /api/upload/:fileName`) acepta
+`?key=<clave literal>` y llama `S3Service.deleteFile(fileKey)` **sin validar ningún prefijo** —
+solo cuando `key` está ausente cae al default `general/${fileName}`. Los documentos de clientes
+(cédula, RUT, anexos) se guardan en el mismo bucket/mecanismo, con clave
+`client-profiles/{userId}/{documentType}/{timestamp}{ext}` (`clientProfileController.js:81`,
+borrados también vía `S3Service.deleteFile` en `clientProfileController.js:962`). Un token de
+ADMIN comprometido (o un ADMIN malicioso) podría borrar documentos de clientes con esta ruta,
+**sin ninguna auditoría** (esta ruta no pasa por `backoffice_actions`).
+
+**Resolución adoptada para este archivo (Opción A):** capacidad nueva `uploads.delete` → `[ADMIN]`
+únicamente (`permissions.js`, commit `996e114`), separada de `uploads.manage`. Se conserva
+exactamente el comportamiento actual (ADMIN-only); FUNCTIONAL_ADMIN **no** gana este acceso.
+
+**Propuesta de tarea aparte** (no incluida en el archivo 9):
+1. Inventariar en el frontend quién llama `DELETE /api/upload/:fileName` y con qué valores de `key`.
+2. Restringir `deleteImage` a una lista de prefijos permitidos (nunca `client-profiles/*`).
+3. Auditar la acción en `backoffice_actions` cuando se delegue bajo `/api/backoffice`.
+4. Solo después de 1-3, evaluar si abrir `uploads.delete` a FUNCTIONAL_ADMIN tiene sentido.
 - **Conflictos:** `fix/price-list-sync-unification` vs `master` solo toca
   `db/migrations/001_initial-schema.md`, `2026-09-11_add-sap-sync-status-column.sql` y
   `src/services/SapOrderService.js` — **sin intersección** con los 11 archivos de rutas del
