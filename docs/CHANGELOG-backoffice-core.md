@@ -58,6 +58,66 @@ Documentada en Fase 0/1 para aplicarse en Fase 2, sin excepciones y sin usar `NU
 
 **Estado: en progreso**, con checkpoint por archivo (ver conversación).
 
+### Hallazgo lateral (solo lectura, NO corregido): `GET /orders/can-create/:userId` sin restricción por dueño
+
+`checkUserCanCreateOrders` (`src/controllers/orderController.js:1133`) no compara `req.params.userId`
+contra `req.user.id`/`req.user.rol_id` en ningún punto de la función — a diferencia de las otras 10
+rutas "sin cambio" de `orderRoutes.js` (todas verificadas con evidencia de línea exacta, todas
+restringen correctamente al rol 2 a sus propios datos). Cualquier usuario rol 2 autenticado puede
+consultar, para **cualquier otro `userId`**: `isActive`, `hasProfile`, `hasCardCode`, `canCreate`.
+Es información de estado de cuenta de otro cliente, no datos de pedidos. **No se corrige en esta
+tarea** — queda pendiente de decisión de Jonathan (fuera del alcance del archivo 9, que solo migra
+protección de rol/capacidad, no corrige lógica de negocio existente).
+
+### Archivo 9 — evidencia DoD: `clientSyncRoutes.js` (commit `bff72e6`)
+
+```
+$ node -e "...script de verificacion..."
+GET /status requirePermission(sap_sync.view) > getSyncStatus
+POST /sync requirePermission(sap_sync.execute) > bound syncClients
+GET /clients/pending requirePermission(sap_sync.view) > getPendingClients
+POST /client/:userId/sync verifyToken > requirePermission(sap_sync.execute) > bound syncClient
+POST /client/:userId/activate requirePermission(platform_users.manage) > bound activateClient
+GET /sap-diagnosis requirePermission(sap_sync.view) > bound sapDiagnosis
+POST /sync-institutional requirePermission(sap_sync.execute) > bound syncInstitutionalClients
+GET /list-ci-clients requirePermission(sap_sync.view) > listCIClients
+POST /sync-all requirePermission(sap_sync.execute) > bound syncAllClients
+GET /branches/validate requirePermission(sap_sync.view) > bound validateClientBranches
+GET /client/:cardCode/branches/validate requirePermission(sap_sync.view) > bound validateSpecificClientBranches
+POST /branches/sync requirePermission(sap_sync.execute) > bound syncClientBranches
+POST /client/:cardCode/branches/sync requirePermission(sap_sync.execute) > <anonymous>
+POST /test-email-ses requirePermission(system.diagnostics) > bound testEmailSes
+GET /debug/client/:userId requirePermission(system.diagnostics) > bound debugClientStatus
+$ grep -c "checkRole" src/routes/clientSyncRoutes.js
+0
+$ node --check src/routes/clientSyncRoutes.js
+(sin salida = sintaxis OK)
+```
+
+### Archivo 9 — evidencia DoD: `sapSyncRoutes.js` (commit `1685646`)
+
+```
+$ node -e "...script de verificacion..."
+TOTAL: 11
+GET /test | requirePermission(sap_sync.view) > testSapConnection
+POST /sync | requirePermission(sap_sync.execute) > bound startSync
+GET /status | requirePermission(sap_sync.view) > getSyncStatus
+GET /analyze-view | requirePermission(sap_sync.view) > analyzeView
+GET /products/direct | requirePermission(sap_sync.view) > getProductsDirectQuery
+POST /update-description | requirePermission(sap_sync.execute) > bound updateProductDescription
+POST /sync/group/:groupCode | requirePermission(sap_sync.execute) > bound syncProductsByGroup
+POST /sync/price-list-mapping | requirePermission(sap_sync.execute) > syncPriceListMapping
+GET /test-data | requirePermission(sap_sync.view) > testSapData
+GET /sync/orders/schedule | requirePermission(sap_sync.view) > bound getOrderSyncSchedule
+PUT /sync/tax-codes/:groupCode | requirePermission(sap_sync.execute) > bound updateGroupTaxCodes
+$ grep -c "checkRole" src/routes/sapSyncRoutes.js
+0
+$ node --check src/routes/sapSyncRoutes.js
+SINTAXIS OK
+```
+`grep -n -A2` confirmó además que las 11 rutas (incluidas `/test-data` y `/sync/tax-codes/:groupCode`)
+quedaron íntegras con su handler original correcto, sin líneas cortadas ni desalineadas.
+
 ### Archivo 9 — tabla antes/después, reconciliación y conflictos
 
 - **Reconciliación:** 68 call-sites totales de `checkRole`/`authorize` en `master` (Fase 0) =
