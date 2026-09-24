@@ -588,6 +588,31 @@ POST /branches/:branchId/enable-login | requirePermission(branch_login.manage) >
 POST /branches/:branchId/disable-login | requirePermission(branch_login.manage) > disableBranchLogin
 ```
 
+### Archivo 9 — `userRoutes.js` (commit `97ea0f4`) — último de los 7 archivos restantes
+
+Tabla completa (1 call-site; el archivo tiene 3 rutas en total):
+
+| línea | ruta | protección actual | capacidad nueva | ¿cambia? |
+|---|---|---|---|---|
+| `:44` | `GET /users` | `checkRole([1])` | `platform_users.manage` | Cambia (mismo rol) |
+| `:58` | `GET /users/:id` | solo `verifyToken` | — | Sin cambio |
+| `:79` | `PUT /users/:id` | solo `verifyToken` | — | Sin cambio |
+
+Riesgo verificado: `getUsers` (`userController.js:116-135`) es un listado estándar, sin exponer
+contraseñas.
+
+```
+$ node --check src/routes/userRoutes.js
+SINTAXIS OK
+$ grep -n "checkRole" src/routes/userRoutes.js
+(sin resultados)
+$ node -e "...script de verificacion..."
+TOTAL: 3
+GET /users | verifyToken > requirePermission(platform_users.manage) > getUsers
+GET /users/:id | verifyToken > getUserById
+PUT /users/:id | verifyToken > updateUser
+```
+
 ## Fase 5 — Plan de QA acumulado (pendiente de ejecutar contra Staging real)
 
 Casos agregados durante la Fase 2, a ejecutar cuando arranque la Fase 5 formal:
