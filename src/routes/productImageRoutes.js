@@ -2,7 +2,9 @@
 const express = require('express');
 const router = express.Router();
 const productImageController = require('../controllers/productImageController');
-const { verifyToken, checkRole } = require('../middleware/auth');
+const { verifyToken } = require('../middleware/auth');
+const requirePermission = require('../middleware/requirePermission');
+const { PERMISSIONS } = require('../constants/permissions');
 const { sanitizeParams } = require('../middleware/security');
 
 /**
@@ -108,7 +110,7 @@ const { sanitizeParams } = require('../middleware/security');
  */
 router.post('/products/:productId/images/:imageType',
   verifyToken,
-  checkRole([1, 3]), // Administradores y admins funcionales
+  requirePermission(PERMISSIONS.PRODUCT_IMAGES_MANAGE),
   sanitizeParams,
   productImageController.uploadProductImage
 );
@@ -165,7 +167,7 @@ router.get('/products/:productId/images',
  */
 router.delete('/products/images/:productId/:imageType',
   verifyToken,
-  checkRole([1, 3]), // Administradores y admins funcionales
+  requirePermission(PERMISSIONS.PRODUCT_IMAGES_MANAGE),
   sanitizeParams,
   productImageController.deleteProductImage
 );
