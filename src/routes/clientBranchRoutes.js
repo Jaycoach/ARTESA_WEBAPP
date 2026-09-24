@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const { verifyToken, checkRole } = require('../middleware/auth');
+const { verifyToken } = require('../middleware/auth');
+const requirePermission = require('../middleware/requirePermission');
+const { PERMISSIONS } = require('../constants/permissions');
 const { sanitizeParams } = require('../middleware/security');
 const { getBranchesByClientId, getBranchesByUserId } = require('../controllers/clientBranchController');
 
@@ -122,9 +124,9 @@ router.use(sanitizeParams);
  *       500:
  *         description: Error interno del servidor
  */
-router.get('/client/:clientId', 
-  verifyToken, 
-  checkRole([1]), // Solo administradores pueden ver sucursales por client_id
+router.get('/client/:clientId',
+  verifyToken,
+  requirePermission(PERMISSIONS.CLIENTS_VIEW),
   getBranchesByClientId
 );
 
