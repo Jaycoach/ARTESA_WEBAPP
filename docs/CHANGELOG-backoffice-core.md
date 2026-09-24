@@ -476,6 +476,26 @@ POST /debug/sap-lead-only | verifyToken > <anonymous>
 GET /debug/sap-groupcode | verifyToken > <anonymous>
 ```
 
+### Archivo 9 — `clientBranchRoutes.js` (commit `f50905f`)
+
+Tabla completa (1 call-site; el archivo tiene 2 rutas en total):
+
+| línea | ruta | protección actual | capacidad nueva | ¿cambia? |
+|---|---|---|---|---|
+| `:127-131` | `GET /client/:clientId` | `checkRole([1])` | `clients.view` | Cambia (gana FUNCTIONAL_ADMIN) |
+| `:169` | `GET /user/:userId` | solo `verifyToken` | — | Sin cambio |
+
+```
+$ node --check src/routes/clientBranchRoutes.js
+SINTAXIS OK
+$ grep -c "checkRole" src/routes/clientBranchRoutes.js
+0
+$ node -e "...script de verificacion..."
+TOTAL: 2
+GET /client/:clientId | verifyToken > requirePermission(clients.view) > getBranchesByClientId
+GET /user/:userId | verifyToken > getBranchesByUserId
+```
+
 ## Fase 5 — Plan de QA acumulado (pendiente de ejecutar contra Staging real)
 
 Casos agregados durante la Fase 2, a ejecutar cuando arranque la Fase 5 formal:
