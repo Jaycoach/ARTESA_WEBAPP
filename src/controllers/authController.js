@@ -821,18 +821,29 @@ class AuthController {
             });
             }
             
-            // Activar y verificar el usuario
-            await pool.query(
-            `UPDATE users 
-            SET email_verified = true, 
+            // Activar y verificar el usuario (D5 #1: nunca reactiva a un usuario inactivado manualmente)
+            const activationResult = await pool.query(
+            `UPDATE users
+            SET email_verified = true,
                 is_active = true,
-                verification_token = NULL, 
+                verification_token = NULL,
                 verification_expires = NULL,
                 updated_at = CURRENT_TIMESTAMP
-            WHERE id = $1`,
+            WHERE id = $1 AND deactivated_manually = false`,
             [user.id]
             );
-            
+
+            if (activationResult.rowCount === 0) {
+                logger.warn('Verificación bloqueada: usuario inactivado manualmente', {
+                    userId: user.id
+                });
+
+                return res.status(403).json({
+                    success: false,
+                    message: 'Cuenta inactiva, contacte al administrador.'
+                });
+            }
+
             logger.info('Usuario verificado y activado exitosamente', {
             userId: user.id,
             mail: user.mail

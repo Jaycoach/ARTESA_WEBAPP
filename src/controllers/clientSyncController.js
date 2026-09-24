@@ -388,9 +388,25 @@ class ClientSyncController {
         });
       }
       
-      // Activar al cliente
-      await pool.query('UPDATE users SET is_active = true WHERE id = $1', [userId]);
-      
+      // Activar al cliente (D5 #2: nunca reactiva a un usuario inactivado manualmente)
+      const activationResult = await pool.query(
+        'UPDATE users SET is_active = true WHERE id = $1 AND deactivated_manually = false',
+        [userId]
+      );
+
+      if (activationResult.rowCount === 0) {
+        logger.warn('Activación bloqueada: usuario inactivado manualmente', {
+          userId,
+          clientId: client.client_id,
+          adminId: req.user?.id
+        });
+
+        return res.status(409).json({
+          success: false,
+          message: 'Usuario inactivado manualmente; reactivar desde el BackOffice'
+        });
+      }
+
       logger.info('Cliente activado manualmente', {
         userId,
         clientId: client.client_id,
@@ -666,31 +682,44 @@ class ClientSyncController {
           [cardCode, clientProfile.client_id]
         );
         
-        // Si el tipo es Customer y se debe activar el usuario
+        // Si el tipo es Customer y se debe activar el usuario (D5 #3: nunca reactiva a un
+        // usuario inactivado manualmente; la sincronización del perfil sigue igual, solo se
+        // omite la activación).
+        let userActivated = false;
+        let activationBlockedByManualDeactivation = false;
         if (cardType === 'Customer' && activateUser && !clientProfile.is_active) {
-          await dbClient.query(
-            'UPDATE users SET is_active = true WHERE id = $1',
+          const activationResult = await dbClient.query(
+            'UPDATE users SET is_active = true WHERE id = $1 AND deactivated_manually = false',
             [userId]
           );
-          
-          logger.info('Usuario activado por simulación SAP', {
-            userId,
-            clientId: clientProfile.client_id,
-            cardCode,
-            cardType
-          });
+
+          if (activationResult.rowCount > 0) {
+            userActivated = true;
+            logger.info('Usuario activado por simulación SAP', {
+              userId,
+              clientId: clientProfile.client_id,
+              cardCode,
+              cardType
+            });
+          } else {
+            activationBlockedByManualDeactivation = true;
+            logger.warn('Activación por simulación SAP bloqueada: usuario inactivado manualmente', {
+              userId,
+              clientId: clientProfile.client_id
+            });
+          }
         }
-        
+
         await dbClient.query('COMMIT');
-        
+
         logger.info('Sincronización SAP simulada exitosamente', {
           userId,
           clientId: clientProfile.client_id,
           cardCode,
           cardType,
-          userActivated: activateUser && cardType === 'Customer'
+          userActivated
         });
-        
+
         return res.status(200).json({
           success: true,
           message: 'Sincronización con SAP simulada exitosamente',
@@ -699,7 +728,8 @@ class ClientSyncController {
             clientId: clientProfile.client_id,
             cardcodeSap: cardCode,
             cardType,
-            userActivated: activateUser && cardType === 'Customer' && !clientProfile.is_active,
+            userActivated,
+            activationBlockedByManualDeactivation,
             simulatedAt: new Date().toISOString()
           }
         });
