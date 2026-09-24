@@ -556,6 +556,38 @@ GET /products/:productId/images | verifyToken > sanitizeParams > listProductImag
 DELETE /products/images/:productId/:imageType | verifyToken > requirePermission(product_images.manage) > sanitizeParams > deleteProductImage
 ```
 
+### Archivo 9 — `adminRoutes.js` (commit `da6aad8`)
+
+Tabla completa (3 call-sites; el archivo tiene 4 rutas en total):
+
+| línea | ruta | protección actual | capacidad nueva | ¿cambia? |
+|---|---|---|---|---|
+| `:26` | `GET /settings` | solo `verifyToken` | — | Sin cambio |
+| `:29-32` | `POST /settings` | `authorize([1,3])` | `settings.manage` | Cambia (mismos roles) |
+| `:34-36` | `POST /branches/:branchId/enable-login` | `authorize([1])` | `branch_login.manage` | Cambia (mismos roles) |
+| `:38-40` | `POST /branches/:branchId/disable-login` | `authorize([1])` | `branch_login.manage` | Cambia (mismos roles) |
+
+Condición 6 cumplida: no se tocó `fileUploadOptions` (línea 17-18, import compartido con
+`backofficeCoreRoutes.js`) ni `router.use(sanitizeBody)`/`router.use(verifyToken)` (líneas 20-24).
+
+```
+$ node --check src/routes/adminRoutes.js
+SINTAXIS OK
+$ grep -n "authorize" src/routes/adminRoutes.js
+(sin resultados)
+$ grep -n "fileUploadOptions\|router.use(sanitizeBody)\|router.use(verifyToken)" src/routes/adminRoutes.js
+18:const fileUploadOptions = require('../config/adminFileUploadOptions');
+21:router.use(verifyToken);
+24:router.use(sanitizeBody);
+32:  fileUpload(fileUploadOptions),
+$ node -e "...script de verificacion..."
+TOTAL: 4
+GET /settings | getSettings
+POST /settings | requirePermission(settings.manage) > <anonymous> > updateSettings
+POST /branches/:branchId/enable-login | requirePermission(branch_login.manage) > enableBranchLogin
+POST /branches/:branchId/disable-login | requirePermission(branch_login.manage) > disableBranchLogin
+```
+
 ## Fase 5 — Plan de QA acumulado (pendiente de ejecutar contra Staging real)
 
 Casos agregados durante la Fase 2, a ejecutar cuando arranque la Fase 5 formal:
