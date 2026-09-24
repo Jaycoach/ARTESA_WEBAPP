@@ -406,6 +406,41 @@ global en Fase 0). Con el fallback viejo *y* con el nuevo, `'MANAGER'` nunca res
 archivo 9 del plan de Fase 2, cuando esa ruta migre a `requirePermission` según la matriz de
 permisos — ahí se reemplaza por el permiso correcto en vez de dejar el string `'MANAGER'` muerto.
 
+### Archivo 9 — `productRoutes.js` (commit `99b3921`)
+
+Tabla completa (7 rutas):
+
+| línea | ruta | protección actual | capacidad nueva | ¿cambia? |
+|---|---|---|---|---|
+| `:19` | `GET /products/sap/pending` | `checkRole([1])` | `sap_sync.view` | Cambia |
+| `:99` | `GET /products` | `checkRole([1,2,3])` | — | Sin cambio (incluye USER) |
+| `:116` | `GET /products/:productId` | `checkRole([1,2,3])` | — | Sin cambio (incluye USER) |
+| `:134` | `POST /products` | `checkRole([1,3])` | `products.manage` | Cambia |
+| `:154` | `PUT /products/:productId` | `checkRole([1,3])` | `products.manage` | Cambia |
+| `:174` | `PUT /products/:productId/image` | `checkRole([1,3])` | `products.manage` | Cambia |
+| `:192` | `DELETE /products/:productId` | `checkRole([1,3])` | `products.manage` | Cambia |
+
+Riesgo verificado (condición 5): `deleteProduct` (`productController.js:491-520`) acotado a
+`productId`, `Product.delete(productId)`, sin claves arbitrarias — sin riesgo tipo `deleteImage`.
+
+```
+$ node --check src/routes/productRoutes.js
+SINTAXIS OK
+$ grep -n "checkRole\|authorize" src/routes/productRoutes.js
+4:const { verifyToken, checkRole } = require('../middleware/auth');
+101:  checkRole([1, 2, 3]), // Permitir acceso a todos los usuarios autenticados
+118:  checkRole([1, 2, 3]), // Permitir acceso a todos los usuarios autenticados
+$ node -e "...script de verificacion..."
+TOTAL: 7
+GET /products/sap/pending | verifyToken > requirePermission(sap_sync.view) > getPendingSyncProducts
+GET /products | verifyToken > <anonymous> > bound getProducts
+GET /products/:productId | verifyToken > <anonymous> > bound getProduct
+POST /products | verifyToken > requirePermission(products.manage) > bound createProduct
+PUT /products/:productId | verifyToken > requirePermission(products.manage) > updateProduct
+PUT /products/:productId/image | verifyToken > requirePermission(products.manage) > bound updateProductImage
+DELETE /products/:productId | verifyToken > requirePermission(products.manage) > bound deleteProduct
+```
+
 ## Fase 5 — Plan de QA acumulado (pendiente de ejecutar contra Staging real)
 
 Casos agregados durante la Fase 2, a ejecutar cuando arranque la Fase 5 formal:
