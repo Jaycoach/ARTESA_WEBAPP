@@ -902,7 +902,42 @@ class SapClientService extends SapBaseService {
                 cardType: sapClient.CardType
               });
             }
-            
+
+            // Propagar EmailAddress de SAP a users.mail cuando cambió el correo de contacto,
+            // sin pisar un login ya usado por otro user_id (SAP puede repetir el mismo
+            // EmailAddress en varios CardCodes por error de captura — ver CI1026278273/CI52583582).
+            if (sapClient.EmailAddress && sapClient.EmailAddress.trim() !== '') {
+              const normalizedEmail = sapClient.EmailAddress.trim();
+
+              if (!profile.mail || normalizedEmail.toLowerCase() !== profile.mail.toLowerCase()) {
+                const { rows: mailConflictRows } = await dbClient.query(
+                  'SELECT id FROM users WHERE LOWER(mail) = LOWER($1) AND id != $2',
+                  [normalizedEmail, profile.user_id]
+                );
+
+                if (mailConflictRows.length === 0) {
+                  await dbClient.query(
+                    'UPDATE users SET mail = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+                    [normalizedEmail, profile.user_id]
+                  );
+
+                  this.logger.info('Email de login actualizado desde SAP', {
+                    clientId: profile.client_id,
+                    userId: profile.user_id,
+                    cardCode: sapClient.CardCode
+                  });
+                } else {
+                  this.logger.warn('Conflicto al propagar EmailAddress de SAP a users.mail: correo ya en uso por otro usuario activo, se omite el UPDATE', {
+                    cardCode: sapClient.CardCode,
+                    clientId: profile.client_id,
+                    userId: profile.user_id,
+                    conflictingEmail: normalizedEmail,
+                    conflictingUserId: mailConflictRows[0].id
+                  });
+                }
+              }
+            }
+
             // Si el cliente ya no es Lead en SAP (CardType !== 'cLid'), activar el usuario si no está activo
             /*if (sapClient.CardType !== 'cLid' && !profile.is_active) {
               await dbClient.query('UPDATE users SET is_active = true WHERE id = $1', [profile.user_id]);
@@ -1063,7 +1098,7 @@ class SapClientService extends SapBaseService {
       // Obtener perfiles que tienen código SAP y potencialmente necesitan actualización
       const query = `
         SELECT cp.client_id, cp.user_id, cp.cardcode_sap, cp.cardtype_sap, cp.company_name,
-              u.is_active, u.name, u.mail
+              cp.contact_email, u.is_active, u.name, u.mail
         FROM client_profiles cp
         JOIN users u ON cp.user_id = u.id
         WHERE cp.cardcode_sap IS NOT NULL 
@@ -1150,6 +1185,11 @@ class SapClientService extends SapBaseService {
             changesDetected.push('verification_digit');
           }
 
+          if (sapClient.EmailAddress && sapClient.EmailAddress.trim() !== '' && sapClient.EmailAddress.trim() !== profile.contact_email) {
+            updates.contact_email = sapClient.EmailAddress.trim();
+            changesDetected.push('contact_email');
+          }
+
           // Capturar PriceListNum desde SAP y mapearlo al price_list_code (priceListsMap
           // ya fue obtenido UNA VEZ antes del bucle — ver comentario más arriba)
           if (sapClient.PriceListNum !== undefined && sapClient.PriceListNum !== null) {
@@ -1220,6 +1260,38 @@ class SapClientService extends SapBaseService {
               changesDetected: changesDetected.join(', '),
               cardType: sapClient.CardType
             });
+          }
+
+          if (sapClient.EmailAddress && sapClient.EmailAddress.trim() !== '') {
+            const normalizedEmail = sapClient.EmailAddress.trim();
+
+            if (!profile.mail || normalizedEmail.toLowerCase() !== profile.mail.toLowerCase()) {
+              const { rows: mailConflictRows } = await dbClient.query(
+                'SELECT id FROM users WHERE LOWER(mail) = LOWER($1) AND id != $2',
+                [normalizedEmail, profile.user_id]
+              );
+
+              if (mailConflictRows.length === 0) {
+                await dbClient.query(
+                  'UPDATE users SET mail = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+                  [normalizedEmail, profile.user_id]
+                );
+
+                this.logger.info('Email de login actualizado desde SAP', {
+                  clientId: profile.client_id,
+                  userId: profile.user_id,
+                  cardCode: sapClient.CardCode
+                });
+              } else {
+                this.logger.warn('Conflicto al propagar EmailAddress de SAP a users.mail: correo ya en uso por otro usuario activo, se omite el UPDATE', {
+                  cardCode: sapClient.CardCode,
+                  clientId: profile.client_id,
+                  userId: profile.user_id,
+                  conflictingEmail: normalizedEmail,
+                  conflictingUserId: mailConflictRows[0].id
+                });
+              }
+            }
           }
 
           this.logger.info('Cliente encontrado en SAP', {
@@ -2331,7 +2403,12 @@ class SapClientService extends SapBaseService {
       for (const sapClient of sapClients) {
         try {
           // Buscar si el cliente ya existe por CardCode
-          const query = 'SELECT client_id, user_id FROM client_profiles WHERE cardcode_sap = $1';
+          const query = `
+            SELECT cp.client_id, cp.user_id, u.mail
+            FROM client_profiles cp
+            JOIN users u ON cp.user_id = u.id
+            WHERE cp.cardcode_sap = $1
+          `;
           const { rows } = await pool.query(query, [sapClient.CardCode]);
           
           let clientId, userId;
@@ -2443,9 +2520,42 @@ class SapClientService extends SapBaseService {
                 clientId
               ]
             );
-            
+
+            if (sapClient.EmailAddress && sapClient.EmailAddress.trim() !== '') {
+              const normalizedEmail = sapClient.EmailAddress.trim();
+              const currentMail = rows[0].mail;
+
+              if (!currentMail || normalizedEmail.toLowerCase() !== currentMail.toLowerCase()) {
+                const { rows: mailConflictRows } = await pool.query(
+                  'SELECT id FROM users WHERE LOWER(mail) = LOWER($1) AND id != $2',
+                  [normalizedEmail, userId]
+                );
+
+                if (mailConflictRows.length === 0) {
+                  await pool.query(
+                    'UPDATE users SET mail = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+                    [normalizedEmail, userId]
+                  );
+
+                  this.logger.info('Email de login actualizado desde SAP (institucional)', {
+                    clientId,
+                    userId,
+                    cardCode: sapClient.CardCode
+                  });
+                } else {
+                  this.logger.warn('Conflicto al propagar EmailAddress de SAP a users.mail: correo ya en uso por otro usuario activo, se omite el UPDATE', {
+                    cardCode: sapClient.CardCode,
+                    clientId,
+                    userId,
+                    conflictingEmail: normalizedEmail,
+                    conflictingUserId: mailConflictRows[0].id
+                  });
+                }
+              }
+            }
+
             stats.updated++;
-            
+
             this.logger.info('Cliente institucional actualizado en la plataforma', {
               cardCode: sapClient.CardCode,
               clientId
