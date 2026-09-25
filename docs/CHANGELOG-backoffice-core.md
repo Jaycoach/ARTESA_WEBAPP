@@ -1546,6 +1546,17 @@ info: Correo de invitación de usuario de plataforma enviado exitosamente {"cont
 POST /api/backoffice/platform-users 201 367.413 ms - 174
 ```
 SES aceptó el envío igual que en el caso de Hotmail (`250 Ok`, messageId real) — la diferencia
-a evaluar es si esta vez sí llega al buzón. **Pendiente que Jonathan confirme si el correo
-llegó a `admin@zub1pay.com`** para terminar de aislar si el problema es específico de
-Microsoft o más general. No se completó el flujo de definir contraseña.
+a evaluar era si esta vez sí llegaba al buzón. No se completó el flujo de definir contraseña.
+
+**Confirmado por Jonathan: el correo SÍ llegó** a `admin@zub1pay.com`, con el enlace de
+invitación real (`https://d1bqegutwmfn98.cloudfront.net/reset-password/...`, formato y
+dominio consistentes con `VITE_FRONTEND_URL` de `.env.staging`).
+
+**Conclusión de la prueba de control:** el problema **es específico de destinatarios
+Microsoft** (`@hotmail.com`/`@outlook.com`/`@live.com`), no un problema general de entrega de
+SES ni del código de este proyecto — un dominio distinto (`zub1pay.com`), con la misma
+infraestructura de envío (mismo `noreply@artesapanaderia.com`, mismo SES, mismo código),
+recibió el correo sin problema. Esto descarta cualquier causa a nivel de SES/dominio/DKIM del
+lado emisor y confirma que la recomendación de la sección anterior (dominio MAIL FROM
+personalizado + inscripción en Microsoft SNDS/JMRP) es la vía correcta para resolverlo, si se
+decide abordarlo en una tarea aparte.
