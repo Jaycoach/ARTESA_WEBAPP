@@ -27,6 +27,12 @@ function requireEnv(name) {
   return v;
 }
 
+// Guarda obligatoria: esta instancia RDS es compartida entre Staging (artesadb_dev) y
+// Producción (laartesa), con el mismo usuario — un DB_DATABASE mal configurado en el
+// entorno de quien corre el script apuntaría este script de solo lectura a Producción sin
+// avisar. Aborta antes de correr cualquier query si la BD conectada no es la esperada.
+const EXPECTED_DATABASE = process.env.EXPECTED_DB_DATABASE || 'artesadb_dev';
+
 const pool = new Pool({
   host: requireEnv('DB_HOST'),
   user: requireEnv('DB_USER'),
@@ -56,6 +62,19 @@ function translateSapErrorSync(errorMessage, productName) {
   return productName
     ? `El producto ${sapCode} – ${productName} está inactivo en SAP`
     : `El producto ${sapCode} está inactivo en SAP`;
+}
+
+// ── Guarda: aborta si la BD conectada no es la esperada (protección contra apuntar a Producción) ──
+async function assertExpectedDatabase() {
+  const { rows } = await pool.query('SELECT current_database() as db');
+  const actual = rows[0].db;
+  if (actual !== EXPECTED_DATABASE) {
+    console.error(`ABORTADO: current_database()='${actual}', se esperaba '${EXPECTED_DATABASE}'.`);
+    console.error('Este script es de solo lectura, pero se niega a correr contra una BD inesperada.');
+    await pool.end();
+    process.exit(1);
+  }
+  console.log(`Guarda de BD: current_database()='${actual}' === esperado. Continuando.`);
 }
 
 // ── Test 1: columnas/tablas que el fix asume existen realmente en Staging ─────────────────
@@ -174,6 +193,8 @@ async function main() {
   console.log('═══════════════════════════════════════════════════════');
   console.log('VALIDACIÓN EN STAGING — Reintento de sync de pedidos + alertas SAP');
   console.log('═══════════════════════════════════════════════════════');
+
+  await assertExpectedDatabase();
 
   const results = {};
   results['Esquema asumido por el fix'] = await testSchemaAssumptions();
