@@ -36,7 +36,7 @@ ORDER BY column_name;
 
 \echo '=== Caso Fase 1: roles 3 (FUNCTIONAL_ADMIN) y 4 (BACKOFFICE) existen ==='
 -- Esperado: 2 filas.
-SELECT id, name FROM roles WHERE id IN (3, 4) ORDER BY id;
+SELECT id, nombre FROM roles WHERE id IN (3, 4) ORDER BY id;
 
 \echo '=== Caso Fase 1: tabla backoffice_actions existe con su esquema esperado ==='
 SELECT column_name, data_type
