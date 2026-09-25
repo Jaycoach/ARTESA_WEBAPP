@@ -6,16 +6,25 @@ despliega a Staging ni a Producción, no accede a la base de datos, y no imprime
 
 Referencia completa de decisiones, evidencia y estado de cada pieza: `docs/CHANGELOG-backoffice-core.md`.
 
-## 0. Estado de partida (2026-09-24)
+## 0. Estado de partida (actualizado 2026-09-25, tras el ciclo completo de validación en Staging)
 
 - Rama: `feature/backoffice-core`, basada en `master`, sin conflictos reales detectados contra
   `fix/price-list-sync-unification` ni contra `feature/backoffice-module` (ver CHANGELOG, sección
   de cada fase).
-- Todas las fases de código (1 a 5) están **IMPLEMENTADO**. Ninguna pieza de este núcleo está
-  todavía **VALIDADO EN STAGING** como conjunto — solo la migración de Fase 1 y la de D12 lo
-  están individualmente (aplicadas por Jonathan, código aún no desplegado encima).
-- **No se ha creado Pull Request hacia `master` todavía** — ver sección 6, es un punto de
-  parada explícito.
+- **Todas las piezas del núcleo están VALIDADO EN STAGING** — desplegado realmente, probado
+  con datos reales (SAP incluido), y con QA visual manual de Jonathan en el navegador. Ver la
+  tabla de DoD completa y toda la evidencia en `docs/CHANGELOG-backoffice-core.md` (sección
+  "Cierre").
+- Durante el ciclo de validación se encontraron y corrigieron 2 hallazgos que requerían
+  código nuevo, no previstos en el plan original: doble-escape de `sanitizeBody` en 3 flujos
+  de sucursales, y 2 bugs bloqueantes en `enableBranchLogin` (`pool` no definido, `bcrypt`
+  nativo no instalado) — todos corregidos y verificados con evidencia real. También se
+  encontró y corrigió el timeout de nginx (`proxy_read_timeout`/`proxy_send_timeout`,
+  ver Paso 5b abajo).
+- Quedan **hallazgos documentados como deuda técnica, sin corregir** (ver CHANGELOG, sección
+  "Deuda técnica documentada") — ninguno bloquea el despliegue, todos preexistentes o de UX menor.
+- **No se ha creado Pull Request hacia `master` todavía** — es un punto de parada explícito,
+  pendiente de la aprobación de Jonathan.
 
 ## 1. REGLA CRÍTICA — orden obligatorio de migración → código
 
@@ -51,23 +60,27 @@ Confirmar con `pg_dump` o el mecanismo de snapshot que ya use el equipo para la 
 Producción antes de tocarla — este plan no incluye ese paso porque no es específico de este
 núcleo, pero es la práctica que ya exige el DoD del proyecto para cualquier migración.
 
-### Paso 2 — Migraciones en Producción, en orden, cada una con precondición verificada
+### Paso 2 — Migración del núcleo
 
 ```bash
-# 2a. Núcleo (roles 3/4, backoffice_actions, columnas de inactivación manual). Idempotente.
+# Núcleo (roles 3/4, backoffice_actions, columnas de inactivación manual). Idempotente.
 psql <conexion_produccion> -f db/migrations/2026-09-23_backoffice-core.sql
+```
 
-# 2b. D12 — precondición: 0 duplicados por LOWER() en users y client_branches.
-#     Verificar primero (solo lectura):
+### Paso 2b — Verificar duplicados por mayúsculas (solo lectura, precondición de D12)
+
+```bash
 psql <conexion_produccion> -c "
   SELECT LOWER(mail), COUNT(*) FROM users GROUP BY LOWER(mail) HAVING COUNT(*) > 1;
 "
-# Si aparece alguna fila (el caso ya conocido: ids 48/1505, ALIANZA JIMENEZ SAS), fusionar
-# ANTES de aplicar el índice único (ver Paso 3). Repetir la verificación hasta que dé 0 filas.
-psql <conexion_produccion> -f db/migrations/2026-09-24_mail-case-insensitive.sql
 ```
+Si aparece alguna fila (el caso ya conocido: ids 48/1505, ALIANZA JIMENEZ SAS), **ir al
+Paso 3 (fusión D13) antes de continuar** — la migración D12 (Paso 2c) fallará si se intenta
+aplicar el índice único mientras el duplicado sigue existiendo (confirmado con el mismo error
+real durante la prueba sintética de D13 en Staging: `could not create unique index... Key
+(...) is duplicated`). Si la consulta da 0 filas, saltar directo al Paso 2c.
 
-### Paso 3 — D13, fusión de duplicados conocidos (solo si el paso 2b encontró filas)
+### Paso 3 — D13, fusión de duplicados conocidos (solo si el Paso 2b encontró filas)
 
 ```bash
 # Modo ensayo primero (siempre hace ROLLBACK, no toca nada real):
@@ -81,6 +94,16 @@ psql <conexion_produccion> -f db/scripts/merge-duplicate-users.sql \
 
 `admin_id` debe ser el id de un usuario ADMIN real en Producción (para el registro de
 auditoría en `backoffice_actions`) — nunca un id inventado.
+
+**Volver a correr la verificación del Paso 2b — debe dar 0 filas ahora.** Solo entonces
+continuar al Paso 2c.
+
+### Paso 2c — Migración D12 (índices únicos por `LOWER()`)
+
+```bash
+# Precondición: 0 duplicados por LOWER() en users y client_branches (Paso 2b en 0 filas).
+psql <conexion_produccion> -f db/migrations/2026-09-24_mail-case-insensitive.sql
+```
 
 ### Paso 4 — Verificación de solo lectura post-migración
 
@@ -105,6 +128,39 @@ git merge feature/backoffice-core   # solo después del PASO 6 (PR aprobado y me
 responda antes de darse por exitoso. Elegir la opción de rebuild acorde a lo que cambió
 (este núcleo no toca `package.json` del backend, así que "Parcial" alcanza salvo que se
 combine con otro cambio pendiente que sí lo requiera).
+
+### Paso 5b — nginx: subir `proxy_read_timeout`/`proxy_send_timeout` en `/api/` (obligatorio)
+
+**Encontrado durante el ciclo de validación en Staging (2026-09-25):** las sincronizaciones
+manuales del BackOffice (`/api/backoffice/sync/clients/all`, `/sync/branches`) tardan varios
+minutos en completar (SAP responde secuencialmente, una llamada por cliente/sucursal — 2m21s
+observados en Staging con 322 clientes/131 sucursales). `docker/nginx/production-ssl.conf`
+tiene, igual que Staging antes del fix, `proxy_read_timeout 60s;`/`proxy_send_timeout 60s;`
+**explícitos** en el único bloque `location /api/` del archivo (`production-ssl.conf:149-151`).
+**Producción probablemente sincroniza más clientes/sucursales que Staging** (322/131 son solo
+los de prueba), así que el mismo corte a los 60s ocurrirá ahí también, con el mismo síntoma:
+la UI reporta un falso error de comunicación mientras el backend sigue trabajando y termina
+bien — confirmado que esto no pierde datos, pero si sale confuso para quien lo use.
+
+Ya se aplicó el equivalente en Staging (`docker/nginx/staging-ssl.conf`, commit `bb7dffb`):
+`proxy_send_timeout`/`proxy_read_timeout` de `60s` a `260s` (margen sobre los 240s ya
+configurados en el timeout de axios del frontend, commit `9bddc7e`). `proxy_connect_timeout`
+se dejó sin tocar (es para establecer la conexión, no para esperar la respuesta).
+
+**Aplicar en Producción, ANTES o junto con el Paso 5** (no depende del orden migración/código,
+es puramente de infraestructura nginx):
+```bash
+# En docker/nginx/production-ssl.conf, dentro del único bloque location /api/ (línea ~149):
+#   proxy_send_timeout 60s;   ->  proxy_send_timeout 260s;
+#   proxy_read_timeout 60s;   ->  proxy_read_timeout 260s;
+# (proxy_connect_timeout se deja en 60s)
+
+docker exec artesa-nginx-production nginx -t
+docker restart artesa-nginx-production
+docker logs artesa-nginx-production --tail 20
+curl -sk -o /dev/null -w '%{http_code}\n' https://api.artesapanaderia.com/api/health
+```
+Solo reinicia el contenedor de nginx, no el backend — no hay downtime del API mientras tanto.
 
 ### Paso 6 — Frontend
 
