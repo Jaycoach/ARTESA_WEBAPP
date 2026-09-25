@@ -20,6 +20,10 @@
 #   CLIENT_TEST_USER_ID="<id de un cliente de prueba, NO real>" \
 #   ./scripts/tests/qa-backoffice-core-cases.sh
 #
+# CURL_INSECURE=1 (opcional, aditivo): agrega `curl -k` para BASE_URL en HTTPS con
+# certificado autofirmado (p. ej. "https://localhost" contra nginx en Staging). NUNCA
+# usar CURL_INSECURE=1 contra Producción.
+#
 # Cada caso imprime PASA/FALLA. El script NO aborta en el primer fallo — corre todos
 # los casos y termina con un resumen. Código de salida 1 si algún caso FALLA.
 
@@ -28,6 +32,11 @@ set -uo pipefail
 : "${BASE_URL:?Falta BASE_URL}"
 : "${ADMIN_TOKEN:?Falta ADMIN_TOKEN}"
 : "${FUNCTIONAL_ADMIN_TOKEN:?Falta FUNCTIONAL_ADMIN_TOKEN}"
+
+CURL_OPTS=()
+if [ "${CURL_INSECURE:-0}" = "1" ]; then
+  CURL_OPTS+=(-k)
+fi
 
 FAILS=0
 TOTAL=0
@@ -49,11 +58,11 @@ req() {
   local tmp status
   tmp=$(mktemp)
   if [ -n "$bodyjson" ]; then
-    status=$(curl -s -o "$tmp" -w "%{http_code}" -X "$method" "${BASE_URL}${path}" \
+    status=$(curl -s "${CURL_OPTS[@]}" -o "$tmp" -w "%{http_code}" -X "$method" "${BASE_URL}${path}" \
       -H "Authorization: Bearer ${token}" -H "Content-Type: application/json" \
       -d "$bodyjson")
   else
-    status=$(curl -s -o "$tmp" -w "%{http_code}" -X "$method" "${BASE_URL}${path}" \
+    status=$(curl -s "${CURL_OPTS[@]}" -o "$tmp" -w "%{http_code}" -X "$method" "${BASE_URL}${path}" \
       -H "Authorization: Bearer ${token}" -H "Content-Type: application/json")
   fi
   printf '%s|%s' "$status" "$(cat "$tmp")"
@@ -69,7 +78,7 @@ echo "Requiere: LOGIN_TEST_EMAIL_LOWER (correo de un usuario de PRUEBA, en minú
 echo "          LOGIN_TEST_PASSWORD (su contraseña de prueba)"
 if [ -n "${LOGIN_TEST_EMAIL_LOWER:-}" ] && [ -n "${LOGIN_TEST_PASSWORD:-}" ]; then
   UPPER_VARIANT=$(echo "$LOGIN_TEST_EMAIL_LOWER" | tr '[:lower:]' '[:upper:]')
-  RESP=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${BASE_URL}/api/auth/login" \
+  RESP=$(curl -s "${CURL_OPTS[@]}" -o /dev/null -w "%{http_code}" -X POST "${BASE_URL}/api/auth/login" \
     -H "Content-Type: application/json" \
     -d "{\"mail\":\"${UPPER_VARIANT}\",\"password\":\"${LOGIN_TEST_PASSWORD}\"}")
   check "D12:login-con-mayusculas-acepta" "200" "$RESP"
@@ -83,7 +92,7 @@ echo "--- Caso D5: usuario con deactivated_manually=true no puede reactivarse po
 echo "Requiere: DEACTIVATED_TEST_TOKEN (token de verificación de un usuario de PRUEBA ya"
 echo "          inactivado manualmente vía /api/backoffice/clients/:id/deactivate)"
 if [ -n "${DEACTIVATED_TEST_TOKEN:-}" ]; then
-  RESP=$(curl -s -o /dev/null -w "%{http_code}" -X GET \
+  RESP=$(curl -s "${CURL_OPTS[@]}" -o /dev/null -w "%{http_code}" -X GET \
     "${BASE_URL}/api/auth/verify-email/${DEACTIVATED_TEST_TOKEN}")
   check "D5:verifyEmail-no-reactiva-inactivado-manual" "403" "$RESP"
 else
@@ -143,7 +152,7 @@ fi
 # ---------------------------------------------------------------------------
 echo ""
 echo "--- Caso uploads.delete: FUNCTIONAL_ADMIN no puede borrar imágenes (solo ADMIN) ---"
-FORBIDDEN_DELETE=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE \
+FORBIDDEN_DELETE=$(curl -s "${CURL_OPTS[@]}" -o /dev/null -w "%{http_code}" -X DELETE \
   "${BASE_URL}/api/upload/qa-test-nonexistent-key.jpg" \
   -H "Authorization: Bearer ${FUNCTIONAL_ADMIN_TOKEN}")
 check "uploads.delete:functional-admin-rechazado" "403" "$FORBIDDEN_DELETE"

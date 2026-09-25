@@ -294,6 +294,43 @@ otros routers), o montar esos dos routers en subrutas propias en vez de `/api` a
 cualquiera de las dos requiere revisar el comportamiento actual de esas rutas existentes
 antes de tocarlas, por eso queda fuera de esta tarea.
 
+**Ampliación (2026-09-25, ciclo de validación en Staging) — evidencia empírica de que este
+mismo hallazgo rompe logins reales, no solo nombres guardados:** al crear usuarios de prueba
+para el Paso 1 del ciclo de validación, se insertaron directamente en `users.password` hashes
+de `bcrypt` calculados sobre la contraseña **cruda** (sin pasar por `sanitizeBody`). Dos de
+los cuatro usuarios de prueba (ADMIN y FUNCTIONAL_ADMIN) recibieron contraseñas generadas con
+`openssl rand -base64`, cuyo alfabeto incluye `/`; los otros dos (cliente y sucursal) no
+tuvieron ese carácter por azar en su valor generado.
+
+- Al intentar login real contra `POST /api/auth/login` con la contraseña cruda, ADMIN y
+  FUNCTIONAL_ADMIN recibieron `401 Credenciales inválidas`. Diagnóstico: se verificó con
+  `bcrypt.compare()` ejecutado directamente (sin pasar por `sanitizeBody`) que la contraseña
+  cruda **sí** coincidía con el hash guardado (`compare=true` para los 3 casos probados) —
+  es decir, el hash estaba bien. El log del servidor confirmó la causa real:
+  `"attempt_details":"Contraseña incorrecta"` en el intento vía HTTP, para el mismo usuario
+  cuyo `bcrypt.compare()` standalone daba `true` segundos antes.
+- Causa: `sanitizeBody` (vía `sanitizeString`/`validator.escape()`, montado sin scoping en
+  `/api` como se documentó arriba) se aplica también al campo `password` del body de
+  `POST /api/auth/login`, no solo a campos de texto libre como `name`. Escapa `/` a
+  `&#x2F;` antes de que el controller llame a `bcrypt.compare(password, user.password)` —
+  el valor que realmente se compara ya no es el que el usuario escribió.
+- **Confirmado que esto no es exclusivo de los usuarios de prueba de este ciclo:** cualquier
+  usuario real cuya contraseña contenga `/`, `&`, `<`, `>`, `"` o `'` tendría el mismo problema
+  en cualquier login normal por la UI — con una salvedad importante: si la cuenta se creó
+  mediante el flujo normal de `register()` (que también pasa por `sanitizeBody` al escribir
+  la contraseña original antes de hashearla), el hash guardado ya corresponde a la versión
+  *escapada* de la contraseña, y el login (que aplica el mismo escape) sí coincide — el bug
+  solo se manifiesta cuando el hash se genera por una vía que **no** pasa por `sanitizeBody`
+  (como este script de QA, que insertó directo en la base de datos). No se investigó en este
+  ciclo si existe alguna otra vía de creación de contraseña en el código de producción que
+  hashee sin pasar por `sanitizeBody` — quedaría pendiente de otra tarea si se decide corregir
+  esto.
+- **Se registra como evidencia adicional del mismo hallazgo ya documentado arriba — no se
+  corrige en esta tarea** (sigue fuera de alcance; ídem la nota de "Cómo se corregiría en una
+  tarea aparte"). Mitigación aplicada solo en las herramientas de QA de este ciclo: los
+  scripts de creación de usuarios de prueba ahora generan contraseñas con
+  `openssl rand -hex` (alfabeto `0-9a-f`, sin ningún carácter que `validator.escape()` toque).
+
 ### 6g/7 — hallazgos registrados
 
 - **Dos objetos `fileUploadOptions` distintos, mismo nombre:** `adminRoutes.js` (antes de

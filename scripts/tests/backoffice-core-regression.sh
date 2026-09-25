@@ -9,6 +9,12 @@
 #   ADMIN_TOKEN="..." FUNCTIONAL_ADMIN_TOKEN="..." USER_TOKEN="..." BRANCH_TOKEN="..." \
 #   ./scripts/tests/backoffice-core-regression.sh > resultados/antes.txt
 #
+# CURL_INSECURE=1 (opcional, aditivo): agrega `curl -k` para cuando BASE_URL es HTTPS con
+# certificado autofirmado (p. ej. "https://localhost" contra nginx en Staging, para probar
+# el mismo circuito TLS/proxy que un usuario real, en vez de saltarlo con localhost:3000
+# directo al contenedor). NUNCA usar CURL_INSECURE=1 contra Producción — ahí el certificado
+# debe ser válido y cualquier fallo de TLS debe verse, no ignorarse.
+#
 # Nunca hardcodear tokens en este archivo — siempre variables de entorno, nunca
 # impresos ni logueados aparte del código de estado HTTP.
 #
@@ -28,10 +34,15 @@ set -uo pipefail
 # Si no se define, esas 2 llamadas específicas se omiten (se avisa en la salida).
 USER_ID="${USER_ID:-}"
 
+CURL_OPTS=()
+if [ "${CURL_INSECURE:-0}" = "1" ]; then
+  CURL_OPTS+=(-k)
+fi
+
 call() {
   local method="$1" path="$2" token="$3" label="$4"
   local status body
-  body=$(curl -s -o /tmp/backoffice_regression_body.$$ -w "%{http_code}" \
+  body=$(curl -s "${CURL_OPTS[@]}" -o /tmp/backoffice_regression_body.$$ -w "%{http_code}" \
     -X "$method" "${BASE_URL}${path}" \
     -H "Authorization: Bearer ${token}" \
     -H "Content-Type: application/json")
@@ -45,7 +56,7 @@ call() {
 call_no_auth() {
   local method="$1" path="$2" label="$3"
   local status
-  status=$(curl -s -o /dev/null -w "%{http_code}" -X "$method" "${BASE_URL}${path}")
+  status=$(curl -s "${CURL_OPTS[@]}" -o /dev/null -w "%{http_code}" -X "$method" "${BASE_URL}${path}")
   printf '%s | %s %s | %s | (sin auth)\n' "$label" "$method" "$path" "$status"
 }
 
