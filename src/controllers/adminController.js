@@ -374,8 +374,10 @@ class AdminController {
         });
       }
 
-      // Hashear la contraseña
-      const bcrypt = require('bcrypt');
+      // Hashear la contraseña (bcryptjs, no bcrypt nativo — este último nunca estuvo
+      // instalado en el proyecto, ver docs/CHANGELOG-backoffice-core.md; mismas 10 rondas
+      // que authController.js:667, PASSWORD_HASH_ROUNDS)
+      const bcrypt = require('bcryptjs');
       const hashedPassword = await bcrypt.hash(password, 10);
 
       // Actualizar la sucursal con las credenciales
