@@ -1042,28 +1042,72 @@ verificar su correo), `activateClient` (activación manual de clientes), `simula
 Detalle completo del plan de despliegue (pasos, comandos, rollback, puntos de decisión
 pendientes): `docs/DEPLOY-backoffice-core.md`.
 
-## Cierre — Estado DoD por fase (actualizado 2026-09-25, tras el ciclo real de validación en Staging)
+## Cierre — Estado DoD por fase (actualizado 2026-09-25, tras el ciclo real de validación en Staging + QA visual manual)
 
 | Fase | Contenido | Estado |
 |---|---|---|
 | 0 | Investigación y decisiones D1-D14 | **IMPLEMENTADO** (checkpoint aprobado) |
 | 1 | Git (tags, rama) + migración núcleo | **VALIDADO EN STAGING** |
-| 2 | Backend: roles/permisos, usuarios de plataforma, clientes, settings, sync, D5, D7.2, D12 (código), archivo 9, hallazgos de seguridad (deleteImage, doble-escape) | **VALIDADO EN STAGING** — ver evidencia del ciclo 2026-09-25 abajo |
+| 2 | Backend: roles/permisos, usuarios de plataforma, clientes, settings, sync, D5, D7.2, D12 (código), archivo 9, hallazgos de seguridad (deleteImage, doble-escape) | **VALIDADO EN STAGING** |
 | D12 (migración) | Índices únicos `LOWER()` | **VALIDADO EN STAGING** |
 | 6i | Fix `PasswordReset.createToken()` | **VALIDADO EN STAGING** (indirectamente, vía tokens de invitación de 72h correctos en la Fase 5-QA; sin un caso fresco de reset normal de 1h en este ciclo — ver nota) |
 | 3 | Guardas D5 #4-5 en `SapClientService.js` | **VALIDADO EN STAGING** — sin inconsistencias `is_active=true AND deactivated_manually=true` (QA de solo lectura, 0 filas) |
 | D13 | Script de fusión de duplicados | **VALIDADO EN STAGING** — prueba sintética exitosa (exit 0, 0 duplicados restantes, ROLLBACK real, 0 residuales); **fusión real de Producción (ids 48/1505) sigue sin ejecutarse** |
 | 2-R | Línea base de regresión + comparador | **VALIDADO EN STAGING** — corridas antes/después, comparador en 0 diferencias sin explicar |
-| 4 | Frontend (BackOffice UI, 4 pestañas, redirección por rol, flag legacy) | **IMPLEMENTADO** — `npm run build` pasa; backend que consume verificado end-to-end; **falta QA visual manual de Jonathan en el navegador** |
-| 5 | Scripts de QA por caso (curl + SQL de solo lectura) | **VALIDADO EN STAGING** — 9/9 casos PASA, 0 FALLA |
-| 6 | `docs/DEPLOY-backoffice-core.md` | **IMPLEMENTADO** (documento; corregido con el mecanismo real de deploy del frontend) |
-| Fix doble-escape sucursales (3 flujos, commit `e1262ae`) | `branchRegistrationController.register`, `branchPasswordResetController.resetPassword`, `adminController.enableBranchLogin` | **VALIDADO EN STAGING para los 2 primeros** (login real exitoso con contraseña con `/` y `&`); **el 3ro no se pudo verificar de punta a punta** por un bug bloqueante no relacionado (`pool is not defined` en `adminController.js`) — el fix de rutas se aplicó igual, correcto por inspección |
+| 4 | Frontend (BackOffice UI, 4 pestañas, redirección por rol, flag legacy) | **VALIDADO EN STAGING** — QA visual manual real de Jonathan en el navegador (ver resumen abajo), backend que consume verificado end-to-end |
+| 5 | Scripts de QA por caso (curl + SQL de solo lectura) | **VALIDADO EN STAGING** — 9/9 casos PASA automatizados, 0 FALLA; complementado con QA visual manual de Jonathan directamente en el navegador |
+| 6 | `docs/DEPLOY-backoffice-core.md` | **IMPLEMENTADO** (documento; corregido con el mecanismo real de deploy del frontend y con el Paso 5b de nginx) |
+| Fix doble-escape sucursales (3 flujos, commit `e1262ae`) | `branchRegistrationController.register`, `branchPasswordResetController.resetPassword`, `adminController.enableBranchLogin` | **VALIDADO EN STAGING para los 3 flujos** — el 3ro (`enableBranchLogin`) requirió corregir 2 bugs bloqueantes adicionales (`pool` no definido, commit `2146d6b`; `bcrypt` nativo no instalado, commit `8bc3f47`) antes de poder verificarlo de punta a punta; confirmado con login real exitoso (sucursal de prueba 3365) |
+| Fix timeout sync (axios 240s + nginx 260s) | `api/config.js` (commit `9bddc7e`), `staging-ssl.conf` (commit `bb7dffb`) | **VALIDADO EN STAGING** — confirmado por Jonathan en el navegador: las 3 sincronizaciones manuales (clientes, sucursales, productos) completan exitosamente sin falso error de comunicación |
 
-**Lo único que falta para considerar el conjunto completo VALIDADO EN STAGING es la QA visual
-manual de Jonathan en el navegador** (Fase 4) y la verificación end-to-end del fix de escape
-del flujo 3 (bloqueada por el bug de `pool` no definido, ajeno a este núcleo). Todo lo demás
-se ejecutó realmente contra Staging desplegado (no es una proyección ni un plan) en el ciclo
-del 2026-09-25, con evidencia pegada abajo y en las secciones anteriores de este documento.
+**Todas las piezas del núcleo quedan VALIDADO EN STAGING.** Todo se ejecutó realmente contra
+Staging desplegado (no es una proyección ni un plan), con evidencia pegada en este documento.
+
+### QA visual manual de Jonathan en el navegador (2026-09-25) — resumen
+
+- **Redirección por rol:** confirmada — roles 1/3/4 aterrizan en `/dashboard/backoffice` tras
+  login; sidebar sin los ítems legacy (`VITE_LEGACY_ADMIN_UI` no definido → oculto por defecto).
+- **Ciclo completo de usuarios de plataforma:** crear (con invitación real recibida por
+  correo, confirmado con `admin@zub1pay.com`), reenviar invitación, activar/inactivar con
+  motivo, cambio de rol — probado en el navegador, no solo por script.
+- **Ciclo completo de clientes:** con perfil y sin perfil, vista previa de inactivación
+  (pedidos pendientes, sucursales), inactivación/activación con motivo — probado en el
+  navegador.
+- **Las 3 sincronizaciones manuales** (clientes, sucursales, productos): las tres fallaban
+  inicialmente con falsos errores de comunicación (30s → 60s de nginx) pese a completar bien
+  en el backend; confirmadas exitosas end-to-end después de los 2 fixes de timeout (axios
+  240s + nginx 260s).
+- Durante esta QA visual real se encontraron y corrigieron en vivo: el hallazgo de timeout de
+  sync (2 fixes), y los 2 bugs bloqueantes de `enableBranchLogin` (`pool`, `bcrypt`) — todos
+  documentados arriba con evidencia completa.
+
+### Deuda técnica documentada — fuera de alcance de esta tarea, no corregida
+
+Hallazgos reales, confirmados con evidencia, que **no se corrigen en este núcleo** por
+decisión explícita (preexistentes, o UX menor, o de otro subsistema):
+
+1. **Modales de confirmación inline (UX):** las confirmaciones de acciones destructivas
+   (inactivar usuario/cliente) usan formularios inline en vez de modales — funcional, pero
+   mejorable en UX. No afecta seguridad ni datos.
+2. **`duplicate key` (506) + `token_expires_at` (6) en sync de sucursales:** preexistente,
+   causado por el modelo de datos de SAP (múltiples direcciones ship-to compartiendo un solo
+   correo de contacto) y un nombre de columna equivocado en `clientSyncController.js:1743`
+   (`token_expires_at` en vez de `verification_expires`). No pierde datos — la constraint
+   única rechaza correctamente los inserts duplicados.
+3. **Entrega de correo a Hotmail/Outlook/Live (infraestructura, no código):** filtrado de
+   reputación de Microsoft, confirmado con prueba de control (mismo remitente entregó sin
+   problema a un dominio distinto). Recomendación: MAIL FROM personalizado + Microsoft
+   SNDS/JMRP.
+4. **Botón "Reenviar invitación" visible en usuarios inactivos (UX):** el botón no se oculta
+   condicionalmente cuando el usuario ya está inactivo — funcionalmente inofensivo (el
+   backend ya rechaza el reenvío a usuarios inactivos en otros flujos), solo una mejora de UX
+   pendiente.
+5. **`SapClientService.js:2353`:** mismo bug de `require('bcrypt')` que se corrigió en
+   `adminController.js`, dentro del cron diario de clientes institucionales — no corregido,
+   ver hallazgo detallado arriba.
+6. **Bug de auditoría en `branchPasswordResetController.js`** (`AuditService.logAuditEvent`
+   con argumentos mal ordenados, líneas 183 y 317) y **tokens de reset de sucursal que nacen
+   ya expirados** — ambos documentados arriba con evidencia completa, no corregidos.
 
 ### Evidencia completa del ciclo de validación en Staging (2026-09-25)
 
