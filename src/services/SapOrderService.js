@@ -12,6 +12,26 @@ class SapOrderService extends SapBaseService {
     this.syncSchedule = null; // Se configurará dinámicamente basado en AdminSettings
     this.orderTimeLimit = null; // Caché de la hora límite
     this.syncTasks = {};
+    this.retryTask = null;
+    this.retrySyncTime = null;
+  }
+
+  /**
+   * Formatea una fecha en YYYY-MM-DD según el calendario de America/Bogota,
+   * sin importar la zona horaria del proceso Node. Usado tanto para DocDate
+   * (creación de orden en SAP) como para los logs de la fecha objetivo de
+   * sincronización, para que ambos coincidan con el filtro SQL (que también
+   * calcula "hoy" en America/Bogota).
+   * @param {Date} date
+   * @returns {string} YYYY-MM-DD
+   */
+  formatDateBogota(date) {
+    const d = date ? new Date(date) : new Date();
+    const bogota = new Date(d.toLocaleString('en-US', { timeZone: 'America/Bogota' }));
+    const y = bogota.getFullYear();
+    const m = String(bogota.getMonth() + 1).padStart(2, '0');
+    const day = String(bogota.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
   }
 
   /**
@@ -36,13 +56,16 @@ class SapOrderService extends SapBaseService {
       }
       
       this.logger.info('Registrando callback para sincronización posterior a actualización automática');
-      orderScheduler.registerPostUpdateCallback(this.syncOrdersToSAP.bind(this));
-      
+      orderScheduler.registerPostUpdateCallback(this.runScheduledSync.bind(this));
+
       // Añadir una segunda tarea programada para consultar órdenes entregadas
       this.scheduleDeliveryCheckTask();
 
       // Añadir una tercera tarea programada para consultar órdenes facturadas
       this.scheduleInvoiceCheckTask();
+
+      // Reintento automático del mismo día para pedidos que SAP rechazó en el corte anterior
+      this.scheduleRetrySyncTask();
       
       return this;
     } catch (error) {
@@ -238,15 +261,8 @@ scheduleInvoiceCheckTask() {
         throw new Error('Algunos productos no tienen código SAP asociado');
       }
   
-      // Formatear fecha en formato YYYY-MM-DD
-      const formatDate = (date) => {
-        const d = date ? new Date(date) : new Date();
-        const bogota = new Date(d.toLocaleString('en-US', { timeZone: 'America/Bogota' }));
-        const y = bogota.getFullYear();
-        const m = String(bogota.getMonth() + 1).padStart(2, '0');
-        const day = String(bogota.getDate()).padStart(2, '0');
-        return `${y}-${m}-${day}`;
-      };
+      // Formatear fecha en formato YYYY-MM-DD (America/Bogota)
+      const formatDate = (date) => this.formatDateBogota(date);
   
       // Si alguna línea no tiene tax_code_ar snapshoteado, resolver dinámicamente un código
       // con tasa 0% desde el catálogo tax_codes (sincronizado desde SAP) para enviarlo explícito.
@@ -470,6 +486,34 @@ scheduleInvoiceCheckTask() {
   }
 
   /**
+   * Traduce un mensaje de error de SAP a lenguaje sencillo cuando reconoce el patrón.
+   * Hoy solo traduce "Item X is inactive" (motivo real del incidente del 23-sep-2026),
+   * resolviendo el nombre del producto vía products.sap_code. Cualquier otro error se
+   * devuelve tal cual llegó de SAP.
+   * @param {string} errorMessage
+   * @returns {Promise<string>}
+   */
+  async translateSapError(errorMessage) {
+    if (!errorMessage) return errorMessage;
+    const match = errorMessage.match(/Item\s+(\S+)\s+is inactive/i);
+    if (!match) return errorMessage;
+    const sapCode = match[1];
+    try {
+      const { rows } = await pool.query('SELECT name FROM products WHERE sap_code = $1 LIMIT 1', [sapCode]);
+      const productName = rows[0]?.name;
+      return productName
+        ? `El producto ${sapCode} – ${productName} está inactivo en SAP`
+        : `El producto ${sapCode} está inactivo en SAP`;
+    } catch (lookupError) {
+      this.logger.warn('No se pudo resolver nombre de producto para traducir error SAP', {
+        sapCode,
+        error: lookupError.message
+      });
+      return errorMessage;
+    }
+  }
+
+  /**
    * Sincroniza órdenes pendientes hacia SAP
    * @returns {Promise<Object>} - Estadísticas de sincronización
    */
@@ -478,7 +522,8 @@ scheduleInvoiceCheckTask() {
       total: 0,
       created: 0,
       errors: 0,
-      skipped: 0
+      skipped: 0,
+      orderDetails: []
     };
   
     try {
@@ -492,10 +537,12 @@ scheduleInvoiceCheckTask() {
       // y cuya fecha de entrega sea dentro de 2 días (48 horas)
       // La sincronización se ejecuta después de la hora límite configurada en AdminSettings
       const query = `
-        SELECT o.order_id, COALESCE(o.sap_sync_attempts, 0) as sap_sync_attempts, o.sap_sync_error, o.delivery_date
+        SELECT o.order_id, COALESCE(o.sap_sync_attempts, 0) as sap_sync_attempts, o.sap_sync_error, o.delivery_date,
+               cp.company_name, cb.branch_name
         FROM orders o
         JOIN users u ON o.user_id = u.id
         JOIN client_profiles cp ON u.id = cp.user_id
+        LEFT JOIN client_branches cb ON o.branch_id = cb.branch_id
         WHERE (o.sap_synced = false OR o.sap_synced IS NULL)
         AND o.status_id IN (1, 2, 3)  -- Pendiente, Aprobada o En Producción
         AND cp.cardcode_sap IS NOT NULL
@@ -510,7 +557,7 @@ scheduleInvoiceCheckTask() {
       
       this.logger.info(`Encontradas ${rows.length} órdenes para sincronizar`);
 
-      const targetDeliveryDate = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      const targetDeliveryDate = this.formatDateBogota(new Date(Date.now() + 2 * 24 * 60 * 60 * 1000));
 
       this.logger.info(`Encontradas ${rows.length} órdenes para sincronizar`, {
         targetDeliveryDate,
@@ -556,6 +603,13 @@ scheduleInvoiceCheckTask() {
 
           await this.createOrderInSAP({ order_id: orderRow.order_id });
           stats.created++;
+          stats.orderDetails.push({
+            order_id: orderRow.order_id,
+            cliente: orderRow.company_name || null,
+            sucursal: orderRow.branch_name || null,
+            delivery_date: this.formatDateBogota(orderRow.delivery_date),
+            result: orderRow.sap_sync_attempts > 0 ? 'recovered' : 'created'
+          });
 
           // Actualizar estado a "En Producción" tras sincronización exitosa
           await pool.query(
@@ -570,7 +624,7 @@ scheduleInvoiceCheckTask() {
             orderId: orderRow.order_id,
             error: orderError.message
           });
-          
+
           // Actualizar el estado de error en la orden
           try {
             const sapErrorMsg = orderError.response?.data?.error?.message
@@ -580,6 +634,15 @@ scheduleInvoiceCheckTask() {
               'UPDATE orders SET sap_sync_error = $1, sap_sync_attempts = COALESCE(sap_sync_attempts, 0) + 1, sap_sync_status = NULL WHERE order_id = $2',
               [sapErrorMsg.substring(0, 255), orderRow.order_id]
             );
+            const friendlyMsg = await this.translateSapError(sapErrorMsg);
+            stats.orderDetails.push({
+              order_id: orderRow.order_id,
+              cliente: orderRow.company_name || null,
+              sucursal: orderRow.branch_name || null,
+              delivery_date: this.formatDateBogota(orderRow.delivery_date),
+              result: 'error',
+              message: friendlyMsg
+            });
           } catch (updateError) {
             this.logger.error('Error al actualizar estado de error en orden', {
               orderId: orderRow.order_id,
@@ -1243,6 +1306,169 @@ scheduleInvoiceCheckTask() {
       throw error;
     }
   }
+
+  /**
+   * Lee y parsea ORDER_SYNC_ALERT_EMAIL_TO (lista separada por comas).
+   * @returns {string[]} destinatarios ya trimeados, sin vacíos
+   */
+  _parseAlertRecipients() {
+    return (process.env.ORDER_SYNC_ALERT_EMAIL_TO || '')
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean);
+  }
+
+  /**
+   * Envía la alerta de resultado de una corrida de syncOrdersToSAP() si corresponde.
+   * En el corte (isRetry=false) solo alerta si hubo fallos. En el reintento (isRetry=true)
+   * alerta si hubo fallos y/o recuperados; si no hay nada que reportar, no envía nada.
+   * Nunca interrumpe el flujo de sincronización (try/catch propio, sin throw).
+   * @param {Object} stats - retorno de syncOrdersToSAP()
+   * @param {{isRetry: boolean}} opts
+   */
+  async sendSyncAlertIfNeeded(stats, { isRetry }) {
+    const failed = stats.orderDetails.filter(d => d.result === 'error');
+    const recovered = stats.orderDetails.filter(d => d.result === 'recovered');
+
+    if (!isRetry && failed.length === 0) return;
+    if (isRetry && failed.length === 0 && recovered.length === 0) return;
+
+    const recipients = this._parseAlertRecipients();
+    if (recipients.length === 0) {
+      this.logger.warn('ORDER_SYNC_ALERT_EMAIL_TO no está configurada; no se envía alerta de sincronización de pedidos', {
+        isRetry,
+        failedCount: failed.length,
+        recoveredCount: recovered.length
+      });
+      return;
+    }
+
+    try {
+      const EmailService = require('./EmailService');
+      await EmailService.sendOrderSyncAlertEmail(recipients, {
+        isRetry,
+        failed,
+        recovered,
+        retrySyncTime: this.retrySyncTime || '23:00'
+      });
+    } catch (emailError) {
+      this.logger.error('Error al enviar alerta de sincronización de pedidos por correo', {
+        error: emailError.message,
+        stack: emailError.stack
+      });
+    }
+  }
+
+  /**
+   * Envía la alerta de falla global (excepción antes o durante syncOrdersToSAP(), ej. login
+   * de SAP fallido). Nunca interrumpe el flujo (try/catch propio, sin throw).
+   * @param {Error} error
+   * @param {{isRetry: boolean}} opts
+   */
+  async sendGlobalFailureAlert(error, { isRetry }) {
+    const recipients = this._parseAlertRecipients();
+    if (recipients.length === 0) {
+      this.logger.warn('ORDER_SYNC_ALERT_EMAIL_TO no está configurada; no se envía alerta de falla global de sincronización', { isRetry });
+      return;
+    }
+
+    try {
+      const EmailService = require('./EmailService');
+      await EmailService.sendOrderSyncAlertEmail(recipients, {
+        isRetry,
+        globalError: error.message,
+        retrySyncTime: this.retrySyncTime || '23:00'
+      });
+    } catch (emailError) {
+      this.logger.error('Error al enviar alerta de falla global de sincronización', {
+        error: emailError.message,
+        stack: emailError.stack
+      });
+    }
+  }
+
+  /**
+   * Wrapper invocado por OrderScheduler como callback post-actualización (corte de las 18:05,
+   * o la hora configurada en admin_settings.order_time_limit + 5 min). Llama a syncOrdersToSAP()
+   * y decide si envía alerta por correo. No relanza el error hacia OrderScheduler (que ya lo
+   * loguearía de nuevo) — lo loguea y alerta aquí mismo.
+   * @returns {Promise<Object|null>}
+   */
+  async runScheduledSync() {
+    try {
+      const stats = await this.syncOrdersToSAP();
+      await this.sendSyncAlertIfNeeded(stats, { isRetry: false });
+      return stats;
+    } catch (error) {
+      this.logger.error('Error en sincronización programada de pedidos (corte)', {
+        error: error.message,
+        stack: error.stack
+      });
+      await this.sendGlobalFailureAlert(error, { isRetry: false });
+      return null;
+    }
+  }
+
+  /**
+   * Reintento del mismo día: llama DIRECTAMENTE a syncOrdersToSAP() (no pasa por
+   * OrderScheduler, no vuelve a ejecutar la actualización de estados de pedidos).
+   * Reutiliza el candado sap_sync_status y la verificación por U_JZ_WebOrderId ya existentes
+   * en createOrderInSAP() sin modificarlos. Invocable manualmente (QA) o desde el cron de
+   * scheduleRetrySyncTask().
+   * @returns {Promise<Object|null>}
+   */
+  async runRetrySync() {
+    this.logger.info('Reintento de sincronización de pedidos');
+    try {
+      const stats = await this.syncOrdersToSAP();
+      await this.sendSyncAlertIfNeeded(stats, { isRetry: true });
+      return stats;
+    } catch (error) {
+      this.logger.error('Error en reintento de sincronización de pedidos', {
+        error: error.message,
+        stack: error.stack
+      });
+      await this.sendGlobalFailureAlert(error, { isRetry: true });
+      return null;
+    }
+  }
+
+  /**
+   * Programa el cron de reintento diario a ORDER_SYNC_RETRY_TIME (America/Bogota, default
+   * "23:00" si la variable falta o tiene formato inválido). Idempotente: si ya hay una tarea
+   * registrada, no la duplica (protege contra initialize() invocado más de una vez).
+   */
+  scheduleRetrySyncTask() {
+    if (this.retryTask) {
+      this.logger.info('Tarea de reintento de sincronización de pedidos ya registrada, se omite duplicado');
+      return;
+    }
+
+    const configured = process.env.ORDER_SYNC_RETRY_TIME || '23:00';
+    const match = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(configured);
+    let hours, minutes;
+    if (match) {
+      hours = parseInt(match[1], 10);
+      minutes = parseInt(match[2], 10);
+      this.retrySyncTime = `${String(hours).padStart(2, '0')}:${match[2]}`;
+    } else {
+      this.logger.warn('ORDER_SYNC_RETRY_TIME inválido, usando valor por defecto 23:00', { configured });
+      hours = 23;
+      minutes = 0;
+      this.retrySyncTime = '23:00';
+    }
+
+    const retrySchedule = `${minutes} ${hours} * * *`;
+    this.logger.info('Programando reintento diario de sincronización de pedidos', {
+      schedule: retrySchedule,
+      retrySyncTime: this.retrySyncTime
+    });
+
+    this.retryTask = cron.schedule(retrySchedule, () => this.runRetrySync(), {
+      timezone: 'America/Bogota'
+    });
+  }
+
   /**
    * Reconfigura la programación cuando cambian los settings
    * @param {Object} newSettings - Nuevos settings de admin
