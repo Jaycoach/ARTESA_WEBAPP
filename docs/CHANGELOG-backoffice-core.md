@@ -1042,49 +1042,119 @@ verificar su correo), `activateClient` (activación manual de clientes), `simula
 Detalle completo del plan de despliegue (pasos, comandos, rollback, puntos de decisión
 pendientes): `docs/DEPLOY-backoffice-core.md`.
 
-## Cierre — Estado DoD por fase (2026-09-24)
+## Cierre — Estado DoD por fase (actualizado 2026-09-25, tras el ciclo real de validación en Staging)
 
 | Fase | Contenido | Estado |
 |---|---|---|
 | 0 | Investigación y decisiones D1-D14 | **IMPLEMENTADO** (checkpoint aprobado) |
 | 1 | Git (tags, rama) + migración núcleo | **VALIDADO EN STAGING** |
-| 2 | Backend: roles/permisos, usuarios de plataforma, clientes, settings, sync, D5, D7.2, D12 (código), archivo 9, hallazgos de seguridad (deleteImage, doble-escape) | **IMPLEMENTADO** — código completo, sin ejecutar contra Staging como conjunto |
-| D12 (migración) | Índices únicos `LOWER()` | **VALIDADO EN STAGING** (código D12 sigue IMPLEMENTADO) |
-| 6i | Fix `PasswordReset.createToken()` | **IMPLEMENTADO** |
-| 3 | Guardas D5 #4-5 en `SapClientService.js` | **IMPLEMENTADO** |
-| D13 | Script de fusión de duplicados | **IMPLEMENTADO** — script listo, sin ejecutar (ni ensayo ni real) |
-| 2-R | Línea base de regresión + comparador | **IMPLEMENTADO** — scripts listos, sin correr contra Staging |
-| 4 | Frontend (BackOffice UI, 4 pestañas, redirección por rol, flag legacy) | **IMPLEMENTADO** — `npm run build` pasa, sin QA visual manual de Jonathan |
-| 5 | Scripts de QA por caso (curl + SQL de solo lectura) | **IMPLEMENTADO** — sin correr |
-| 6 | `docs/DEPLOY-backoffice-core.md` | **IMPLEMENTADO** (es un documento, no requiere validación en Staging) |
+| 2 | Backend: roles/permisos, usuarios de plataforma, clientes, settings, sync, D5, D7.2, D12 (código), archivo 9, hallazgos de seguridad (deleteImage, doble-escape) | **VALIDADO EN STAGING** — ver evidencia del ciclo 2026-09-25 abajo |
+| D12 (migración) | Índices únicos `LOWER()` | **VALIDADO EN STAGING** |
+| 6i | Fix `PasswordReset.createToken()` | **VALIDADO EN STAGING** (indirectamente, vía tokens de invitación de 72h correctos en la Fase 5-QA; sin un caso fresco de reset normal de 1h en este ciclo — ver nota) |
+| 3 | Guardas D5 #4-5 en `SapClientService.js` | **VALIDADO EN STAGING** — sin inconsistencias `is_active=true AND deactivated_manually=true` (QA de solo lectura, 0 filas) |
+| D13 | Script de fusión de duplicados | **VALIDADO EN STAGING** — prueba sintética exitosa (exit 0, 0 duplicados restantes, ROLLBACK real, 0 residuales); **fusión real de Producción (ids 48/1505) sigue sin ejecutarse** |
+| 2-R | Línea base de regresión + comparador | **VALIDADO EN STAGING** — corridas antes/después, comparador en 0 diferencias sin explicar |
+| 4 | Frontend (BackOffice UI, 4 pestañas, redirección por rol, flag legacy) | **IMPLEMENTADO** — `npm run build` pasa; backend que consume verificado end-to-end; **falta QA visual manual de Jonathan en el navegador** |
+| 5 | Scripts de QA por caso (curl + SQL de solo lectura) | **VALIDADO EN STAGING** — 9/9 casos PASA, 0 FALLA |
+| 6 | `docs/DEPLOY-backoffice-core.md` | **IMPLEMENTADO** (documento; corregido con el mecanismo real de deploy del frontend) |
+| Fix doble-escape sucursales (3 flujos, commit `e1262ae`) | `branchRegistrationController.register`, `branchPasswordResetController.resetPassword`, `adminController.enableBranchLogin` | **VALIDADO EN STAGING para los 2 primeros** (login real exitoso con contraseña con `/` y `&`); **el 3ro no se pudo verificar de punta a punta** por un bug bloqueante no relacionado (`pool is not defined` en `adminController.js`) — el fix de rutas se aplicó igual, correcto por inspección |
 
-**Ninguna fase de código quedó en VALIDADO EN STAGING ni en APROBADO PARA PRODUCCIÓN** — solo
-las dos migraciones (Fase 1 y D12) fueron aplicadas y confirmadas por Jonathan directamente.
-Todo el código del núcleo está escrito, compilado/verificado localmente (`node --check` en
-cada archivo backend, `npm run build` en el frontend) y pusheado a
-`origin/feature/backoffice-core`, pero **no se ha ejecutado ningún ciclo real contra Staging
-desplegado** ni contra Producción.
+**Lo único que falta para considerar el conjunto completo VALIDADO EN STAGING es la QA visual
+manual de Jonathan en el navegador** (Fase 4) y la verificación end-to-end del fix de escape
+del flujo 3 (bloqueada por el bug de `pool` no definido, ajeno a este núcleo). Todo lo demás
+se ejecutó realmente contra Staging desplegado (no es una proyección ni un plan) en el ciclo
+del 2026-09-25, con evidencia pegada abajo y en las secciones anteriores de este documento.
 
-### Qué debe correr Jonathan, y en qué orden, antes de pedir el PR a `master`
+### Evidencia completa del ciclo de validación en Staging (2026-09-25)
 
-1. Desplegar `feature/backoffice-core` en Staging (backend + frontend).
-2. `scripts/tests/backoffice-core-regression.sh` contra Staging **antes** del deploy → línea
-   base; de nuevo **después** → comparar con `compare-regression-results.sh`.
-3. Aplicar (si no están aplicadas ya en ese Staging) las migraciones de Fase 1 y D12 — ya
-   validadas individualmente, pero confirmar que el código desplegado las usa correctamente.
-4. Ensayar D13 con el script sintético
-   (`db/scripts/merge-duplicate-users-staging-synthetic-test.sql`), luego, si hay un caso real
-   de prueba, el script real en modo ensayo (`ROLLBACK`) antes que en modo real.
-5. Correr `scripts/tests/qa-backoffice-core-cases.sh` y
-   `scripts/tests/qa-backoffice-core-readonly.sql` contra ese mismo Staging.
-6. QA visual manual del frontend: login con rol 1/3/4, navegación de las 4 pestañas, flujo
-   completo de alta de usuario de plataforma (crear → invitación real recibida → activar
-   cuenta con el link del correo → cambio de rol), inactivación/activación de cliente con
-   motivo, toggle de `VITE_LEGACY_ADMIN_UI`.
-7. Si todo lo anterior pasa sin `[NO EXPLICADA]` ni `FALLA`: pasar Fase 2, D12(código), 6i,
-   Fase 3, D13(script), 2-R y Fase 4/5 a **VALIDADO EN STAGING** en este mismo documento, con
-   la evidencia real pegada (no un resumen).
-8. Solo entonces seguir `docs/DEPLOY-backoffice-core.md` para Producción.
+**Despliegue del núcleo (commit `e1262ae` → `ef6727a`):** `deploy-staging.sh` exitoso (rebuild
+parcial, exit 0), contenedor `artesa-api-staging` `healthy`, sin errores de arranque, 20/20
+rutas de `/api/backoffice` confirmadas cargadas (ver evidencia detallada en la sección
+"Fase 3" y en el commit `e1262ae` de este documento).
+
+**Paso 5 — Línea base después del deploy vs. antes (`/tmp/antes.txt` 41 líneas, exit 0;
+`/tmp/despues.txt` 41 líneas, exit 0):**
+```
+$ /tmp/compare.sh /tmp/antes.txt /tmp/despues.txt
+[... 16 diferencias, todas [ESPERADA] tras completar la tabla del comparador (commit eaff48f) ...]
+=== Fin de la comparación ===
+Todas las diferencias encontradas están explicadas por una decisión documentada.
+Código de salida: 0
+```
+Las 16 diferencias esperadas se dividen en: 8 rutas `/api/backoffice/*` que pasan de 404
+(núcleo no desplegado) a 200/403 (núcleo activo, D3 aplicado correctamente); 2 casos de
+`lastSyncTime` que pasan de un timestamp a `null` por reinicio de contenedor (estado en
+memoria de `SapClientService`, no en BD — verificado en código,
+`src/services/SapClientService.js:1020,1325`); 6 diferencias ya documentadas en fases
+anteriores (D3, D6, 9-bis).
+
+**Paso 6 — D13 sintético (tras corregir el orden del índice, commit `2edc264`):**
+```
+BEGIN
+DROP INDEX
+INSERT 0 1
+INSERT 0 1
+Par sintético creado: canonical= 2543  absorbed= 2544
+SELECT 1 / UPDATE 1 / UPDATE 1 / INSERT 0 2 / CREATE INDEX
+ id  |                 mail
+------+--------------------------------------
+ 2543 | sintetico.merge.test.d13@example.com   (x2, ambas capitalizaciones resuelven al canónico)
+ duplicados_restantes: 0
+ROLLBACK
+Código de salida: 0
+```
+Verificado 0 residuales (`SELECT count(*) FROM users WHERE mail LIKE '%merge.test%'` → `0`) y
+el índice `uk_users_mail_lower` sigue existiendo fuera de la transacción (`→ 1`).
+
+**Paso 7 — QA funcional (`qa-backoffice-core-cases.sh`, con `CLIENT_TEST_USER_ID=2540` y
+credenciales del cliente de prueba para cubrir los 2 casos opcionales):**
+```
+=== Resumen: 9 casos, 9 PASA, 0 FALLA ===
+Código de salida: 0
+```
+(D12 login con mayúsculas: PASA; D5 verifyEmail: omitido, requiere preparación manual extra
+no cubierta en este ciclo; Caso 3 alta/baja/reactivación de usuario de plataforma: 6/6 PASA;
+Caso 4 preview de inactivación de cliente: PASA; uploads.delete: PASA.)
+
+**Paso 7 — QA de solo lectura (`qa-backoffice-core-readonly.sql`, tras corregir
+`roles.name`→`roles.nombre`, commit `ef6727a`):** 0 duplicados por mayúsculas en `users` y
+`client_branches`; los 2 índices únicos existen; las 4 columnas de inactivación manual
+existen; roles 3/4 existen (`FUNCTIONAL_ADMIN`, `BACKOFFICE`); esquema de `backoffice_actions`
+correcto; 0 fusiones D13 reales todavía (esperado); 0 inconsistencias
+`is_active=true AND deactivated_manually=true`; 0 usuarios en rol 4. Los tokens de
+`password_resets` mostrados son de invitaciones de usuario de plataforma (72h, correcto) y
+filas antiguas del 2026-09-05 — no había en este ciclo un caso fresco de reset normal (1h,
+6i) para verificar ese valor exacto con datos nuevos; el código del fix ya está confirmado
+por lectura desde antes (ver sección 6i).
+
+**Paso 8 — Invitación real:** `jaycoach@hotmail.com` ya existe como cuenta ADMIN real activa
+(id=1) — no se pudo crear como usuario "nuevo". Con la decisión explícita de Jonathan, se usó
+`POST /api/backoffice/platform-users/1/resend-invitation` → `200 {"success":true,"invitationSent":true}`.
+No se completó el flujo de definir contraseña.
+
+**Usuarios de prueba del Paso 1 (2538 ADMIN, 2539 FUNCTIONAL_ADMIN, 2540 cliente, 2601
+sucursal):** se conservan, sin borrar, por instrucción explícita — Jonathan los necesita para
+QA visual.
+
+### Qué falta para el conjunto completo, y qué requiere decisión de Jonathan antes del PR a `master`
+
+1. **QA visual manual del frontend** (única pieza de Fase 4 sin validar): login con los 4
+   usuarios de prueba conservados, navegación de las 4 pestañas, toggle de
+   `VITE_LEGACY_ADMIN_UI`, y completar el flujo de invitación real recibido en
+   `jaycoach@hotmail.com` si se quiere verificar la UI de "definir contraseña".
+2. **3 hallazgos nuevos, preexistentes, sin corregir** (documentados arriba con evidencia
+   real): bug de `AuditService` en `branchPasswordResetController.js` (dos llamadas con
+   argumentos mal ordenados), tokens de reset de sucursal que nacen ya expirados, y
+   `adminController.js` sin importar `pool` (rompe `enableBranchLogin`/`disableBranchLogin`
+   en ambas rutas, original y delegada). Ninguno bloquea el núcleo en sí (branch login vía
+   registro/reset normal SÍ funciona, confirmado), pero sí bloquea la función de
+   "habilitar login de sucursal manualmente desde el panel" por completo — candidatos a una
+   tarea aparte, priorizados según decida Jonathan.
+3. **Fusión D13 real de Producción** (ids 48/1505, ALIANZA JIMENEZ SAS) sigue pendiente de
+   ejecutar — bloqueante para aplicar el índice único D12 en Producción.
+4. Decisión de `VITE_LEGACY_ADMIN_UI` en el primer despliegue a Producción (Fase 6, sección 4).
+5. Confirmar el resultado real de la consulta de universo de riesgo de sucursales (ya
+   ejecutada: 0 — ver sección correspondiente arriba) antes de dar por cerrado ese hallazgo.
 
 ### Riesgos u hallazgos abiertos, sin resolver todavía
 
