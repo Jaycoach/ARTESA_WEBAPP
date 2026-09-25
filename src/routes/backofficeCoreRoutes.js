@@ -95,13 +95,19 @@ router.post('/settings',
   fileUpload(fileUploadOptions), // mismo middleware y opciones que adminRoutes.js (POST /settings)
   settingsController.updateSettings
 );
+// Sin sanitizeBody: delega en adminController.enableBranchLogin, que escribe
+// client_branches.password. userRoutes.js:10 + productRoutes.js:88 ya aplican
+// sanitizeBody 2 veces antes de llegar aquí — las mismas 2 pasadas que
+// branchAuthRoutes.js:163 aplica al validar el login (ver hallazgo de doble-escape en
+// docs/CHANGELOG-backoffice-core.md; corregido también en adminRoutes.js, la ruta
+// original que esta delega).
 router.post('/settings/branches/:branchId/enable-login',
-  sanitizeBody,
   requirePermission(PERMISSIONS.BRANCH_LOGIN_MANAGE),
   settingsController.enableBranchLogin
 );
+// No escribe password ni ningún campo sensible — alineado con adminRoutes.js por
+// consistencia, no por necesidad funcional.
 router.post('/settings/branches/:branchId/disable-login',
-  sanitizeBody,
   requirePermission(PERMISSIONS.BRANCH_LOGIN_MANAGE),
   settingsController.disableBranchLogin
 );

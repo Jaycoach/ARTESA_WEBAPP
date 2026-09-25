@@ -155,8 +155,12 @@ router.post('/request-reset',
  *                   type: string
  *                   example: Error interno del servidor
  */
-router.post('/reset', 
-    sanitizeBody, 
+// Sin sanitizeBody propio (a diferencia de /request-reset, que no escribe contraseña):
+// esta ruta escribe client_branches.password. userRoutes.js:10 + productRoutes.js:88
+// (montados en /api a secas) ya aplican sanitizeBody 2 veces antes de llegar aquí —
+// las mismas 2 pasadas que branchAuthRoutes.js:163 aplica al validar el login. Ver
+// hallazgo de doble-escape en docs/CHANGELOG-backoffice-core.md.
+router.post('/reset',
     branchPasswordResetController.resetPassword
 );
 

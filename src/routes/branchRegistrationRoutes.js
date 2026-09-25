@@ -61,6 +61,14 @@ router.post('/check-email', sanitizeBody, branchRegistrationController.checkEmai
  *       404:
  *         description: Sucursal no encontrada
  */
-router.post('/register', sanitizeBody, branchRegistrationController.register);
+// Sin sanitizeBody propio (a diferencia de /check-email): esta ruta escribe
+// client_branches.password. userRoutes.js:10 + productRoutes.js:88 (ambos montados en
+// /api a secas, ver hallazgo de doble-escape en docs/CHANGELOG-backoffice-core.md) ya
+// aplican sanitizeBody 2 veces antes de llegar aquí — exactamente las mismas 2 pasadas
+// que branchAuthRoutes.js:163 (branchAuthController.login) aplica al validar. Un
+// sanitizeBody adicional aquí rompía esa paridad (3 escrituras vs. 2 en login),
+// bloqueando el login de cualquier sucursal cuya contraseña tuviera '/', '&', '<', '>',
+// '"' o '\''.
+router.post('/register', branchRegistrationController.register);
 
 module.exports = router;
