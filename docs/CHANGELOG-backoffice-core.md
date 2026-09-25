@@ -1741,3 +1741,80 @@ https health: 200
 ```
 Solo se reinició el contenedor de nginx, no el backend. Pendiente que Jonathan reintente
 "Sincronizar sucursales" desde el navegador una vez más para confirmar el fix end-to-end.
+
+## RESUELTO — segundo bug real en `enableBranchLogin`: `require('bcrypt')` nunca instalado
+
+**Confirmado el ciclo completo de dos bugs bloqueantes en la misma función, ambos
+corregidos hoy:**
+
+1. `pool` nunca importado en `adminController.js` (commit `2146d6b`) — corregido, y
+2. `require('bcrypt')` (paquete nativo, nunca instalado) en `adminController.js:378`
+   (commit `8bc3f47`) — corregido a `bcryptjs`, mismo patrón que el resto del proyecto.
+
+**Confirmado con `git grep` que `bcrypt` (el paquete nativo) no aparece en `package.json`** y
+que existían exactamente **2 llamadas rotas** en todo el proyecto:
+```
+$ git grep -n "require('bcrypt')" -- src/ app.js
+src/controllers/adminController.js:378:      const bcrypt = require('bcrypt');
+src/services/SapClientService.js:2353:            const bcrypt = require('bcrypt');
+```
+**Solo se corrigió la de `adminController.js:378`** (lo pedido). La segunda,
+`SapClientService.js:2353`, queda **sin corregir, documentada como hallazgo aparte** más
+abajo — está dentro de `syncInstitutionalClients()`, parte del cron diario
+(`dailyClientSync`, `'0 3 * * *'`), una función distinta y no relacionada con
+`enableBranchLogin`.
+
+**Aclaración pedida sobre la prueba anterior (sucursal 3364):** `enable-login` **nunca tuvo
+éxito antes de este fix** — falló con 500 (bug de `bcrypt`) en el primer intento; el login
+posterior dio 401 porque nunca se llegó a escribir contraseña; `disable-login` sí dio 200
+porque esa función no usa `bcrypt` en absoluto (no se ve afectada por ninguno de los 2 bugs).
+
+### Evidencia real — ciclo completo en Staging, sucursal de prueba NUEVA (branch_id 3365, no se reutilizó la 3364)
+
+```
+1. enable-login: {"success":true,"message":"Login habilitado exitosamente para la sucursal",
+   "data":{"branch_id":3365,"email_branch":"qa-enable-fix2-test@invalid.local",
+   "is_login_enabled":true}}
+```
+**Éxito real** — antes del fix esto era un 500 garantizado.
+
+```
+2. login (justo después de enable-login): 403
+   {"success":false,"message":"Debe verificar su email antes de iniciar sesión...",
+   "emailNotVerified":true}
+```
+No es un bug: `enableBranchLogin` no marca `email_verified = true` (una decisión de diseño
+correcta y preexistente — un ADMIN creando credenciales de sucursal no debería saltarse la
+verificación de correo por su cuenta; eso requiere que la sucursal confirme el correo real).
+Se verificó marcando `email_verified = true` manualmente por SQL (simulando el clic del
+enlace real de verificación, que en producción llegaría por correo) y reintentando login:
+```
+{"success":true,"message":"Login exitoso","data":{"token":"eyJhbGciOi...`
+```
+**Confirma que el hash escrito por el `enableBranchLogin` corregido es válido y permite login
+real** — el fix de `bcrypt`→`bcryptjs` es correcto.
+
+```
+3. disable-login: {"success":true,"message":"Login deshabilitado exitosamente para la
+   sucursal","data":{"branch_id":3365,"is_login_enabled":false}}
+4. login (después de disable): 401 {"success":false,"message":"Credenciales inválidas"}
+```
+`disableBranchLogin` sigue funcionando igual que antes (no estaba afectada por ninguno de
+los 2 bugs) — confirmado que bloquea el login correctamente después de deshabilitar.
+
+**Limpieza:** ambas sucursales de prueba desechables (3364, 3365) quedaron con
+`is_login_enabled = false` — no se borró nada, según la regla del proyecto.
+
+`node --check src/controllers/adminController.js` → OK en ambos commits.
+
+### HALLAZGO (no corregido) — `SapClientService.js:2353`, mismo bug de `bcrypt`, dentro del cron diario
+
+**Preexistente, no introducido por este núcleo, no se corrige — solo se documenta.** Dentro
+de `syncInstitutionalClients()` (la función que crea un usuario nuevo cuando SAP reporta un
+cliente institucional que aún no existe en la plataforma), llamada automáticamente por el
+cron diario `dailyClientSync` (`'0 3 * * *'`, `SapClientService.js:67`) y también por
+`POST /api/client-sync/...` (ruta manual antigua, `clientSyncRoutes.js:372`, no delegada al
+núcleo). Mismo error esperado: `Cannot find module 'bcrypt'`. Impacto: cada vez que SAP
+reporta un cliente institucional genuinamente nuevo (no solo actualización de uno existente),
+la creación del usuario fallaría con este mismo error — candidato a la misma corrección
+(`bcrypt` → `bcryptjs`) en una tarea aparte.
