@@ -1560,3 +1560,91 @@ recibió el correo sin problema. Esto descarta cualquier causa a nivel de SES/do
 lado emisor y confirma que la recomendación de la sección anterior (dominio MAIL FROM
 personalizado + inscripción en Microsoft SNDS/JMRP) es la vía correcta para resolverlo, si se
 decide abordarlo en una tarea aparte.
+
+## HALLAZGO (2026-09-25) — "Sincronizar clientes" del BackOffice parece fallar en la UI, pero sí completa en el backend
+
+**Sin clasificar todavía como bloqueante o no — solo diagnóstico, nada corregido aún.**
+
+Jonathan probó `POST /api/backoffice/sync/clients/all` desde la UI real (ADMIN, Staging). El
+frontend mostró un error de comunicación ~30 segundos después de disparar la sincronización.
+Varios minutos después, `GET /api/backoffice/sync/status` seguía mostrando `lastSyncTime: null`
+y las mismas estadísticas — parecía que el sync no había hecho nada.
+
+### Diagnóstico (solo lectura, sin reintentar el sync)
+
+**Línea de tiempo real, con evidencia de logs del servidor (hora servidor = UTC, hora local
+Guatemala = UTC-6; usando hora local del log, que ya viene en UTC-5/-6 según reloj del
+sistema):**
+```
+22:00:36  POST /api/backoffice/sync/clients/all recibido — arranca syncAllClientsWithSAP()
+22:00:36  info: Encontrados 320 perfiles para sincronizar con SAP
+22:00:36  info: Verificando clientes CI adicionales desde SAP...
+22:00:43  info: Se encontraron 1022 clientes con CardCode que inicia con "CI"
+22:01:04  [log de acceso interleaved, sin status - la petición seguía abierta]
+...       (continúan ~1025 llamadas secuenciales, una por cliente, a la API de SAP)
+22:02:57  info: Sincronización completa de perfiles finalizada {"total":1025,"updated":308,"skipped":12,"errors":9,"cardTypeChanges":0,"leadsToClients":0}
+22:02:57  info: Acción de BackOffice registrada {"actionType":"trigger_sap_sync","adminUserId":1,...}
+```
+**Duración total real: 2 minutos 21 segundos.** El navegador de Jonathan recibió el error de
+comunicación a los ~30 segundos (21:01:06 hora local) — mucho antes de que el backend
+terminara. El backend **nunca se cayó ni quedó colgado**: siguió trabajando y completó
+exitosamente, actualizó 308 perfiles, y registró la auditoría.
+
+**Verificación del estado actual (solo lectura, después de la finalización real):**
+```
+GET /api/backoffice/sync/status → {"lastSyncTime":"2026-09-25T03:00:36.700Z", "stats":{"totalClients":322,"activeClients":322,"sapSyncedClients":320,"pendingActivation":0}}
+```
+`lastSyncTime` **sí quedó actualizado** — corresponde a la hora de *inicio* del sync
+(`SapClientService.js:1020`, `this.lastSyncTime = syncStartTime`, se fija al arrancar, no al
+terminar — es una decisión de diseño preexistente, no un bug). Cuando Jonathan lo revisó
+"varios minutos después" y vio `null`, es probable que haya sido antes de que el sync
+realmente terminara sus 2m21s, no un fallo persistente — confirmado que el valor está bien
+ahora.
+
+**Causa raíz (código, sin corregir todavía):**
+1. `src/views/frontend/LoginArtesa/src/api/config.js:49,65` — el cliente axios compartido
+   tiene `timeout: 30000` (30s) genérico para *todas* las peticiones. Ya existe un precedente
+   de excepción por tipo de request (línea 129: `FormData` → 60000ms vía el interceptor),
+   pero ninguna excepción para `/backoffice/sync/*`.
+2. `backofficeCoreService.js:53` (`syncAllClients: () => wrap(API.post('/backoffice/sync/clients/all'))`)
+   usa esa misma instancia compartida, sin override de timeout.
+3. **`withAudit` NO introduce ningún retraso** — confirmado por inspección de
+   `src/services/backofficeCore/auditWrapper.js`: la auditoría corre con
+   `Promise.resolve().then(async () => {...})` **sin `await`**, disparada *después* de que
+   `originalJson(body)`/`originalSend(body)` ya envió la respuesta al cliente. Fire-and-forget,
+   no bloqueante.
+4. **La causa real es preexistente, no introducida por este núcleo**: `clientSyncController.syncAllClients`
+   (`clientSyncController.js:493`, el controller ORIGINAL, no delegado) ya hacía
+   `await sapServiceManager.clientService.syncAllClientsWithSAP();` de forma completamente
+   síncrona — bloquea la respuesta HTTP hasta que termina TODO el sync — desde antes de que
+   existiera este núcleo. Ya había un comentario dejado en `syncController.js` (Fase 2)
+   reconociendo esto explícitamente: `// clientSyncController.js:469-499 espera
+   syncAllClientsWithSAP() antes de responder`. La ruta delegada
+   (`/api/backoffice/sync/clients/all`) solo le da una UI nueva y más visible (`SyncTab.jsx`,
+   Fase 4) al mismo endpoint lento de siempre — antes casi nadie usaba el botón equivalente
+   del panel admin legacy; ahora es un botón prominente del BackOffice.
+
+**Comparación con el endpoint de productos (`syncProducts`), que SÍ maneja esto bien:**
+`sapSyncController.startSync` (delegado en `syncController.js` con
+`outcome: 'started'` — el propio código ya comentaba: "dispara Promise.resolve().then(...) en
+segundo plano") responde de inmediato con un `jobId` y corre en background — el patrón
+correcto ya existe en el propio proyecto, simplemente no se usó para el sync de clientes
+(decisión/diseño anterior a este núcleo).
+
+### Fix propuesto (NO aplicado — pendiente de aprobación explícita)
+
+**Opción segura y acotada:** subir el timeout de axios específicamente para las rutas
+`/backoffice/sync/*`, replicando el patrón ya existente para `FormData`
+(`api/config.js:129`, interceptor condicional). Un cambio de una línea, sin tocar el backend,
+sin afectar ninguna otra ruta. Con 2m21s observados, un margen razonable sería ~180000ms (3 min).
+
+**Opción de fondo, más invasiva, fuera de alcance de un fix acotado:** cambiar
+`clientSyncController.syncAllClients` para que responda de inmediato (202 + job id) y corra
+en background, igual que ya hace `syncProducts` — arregla el problema de raíz para cualquier
+consumidor del endpoint (no solo el BackOffice), pero es un cambio de comportamiento de una
+ruta que ya existía antes de este núcleo, candidato a una tarea aparte.
+
+**Sin clasificar todavía como bloqueante:** el sync SÍ funciona correctamente end-to-end
+(dato real actualizado, auditoría registrada) — el único problema es la experiencia de
+usuario (falso error a los 30s). No pierde datos, no corrompe nada, no bloquea el uso del
+núcleo — es una molestia de UX heredada del endpoint original, ahora más visible.
