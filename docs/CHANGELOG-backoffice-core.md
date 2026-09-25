@@ -1961,3 +1961,95 @@ arriba, exit code 0 en ambas.
 
 Archivo completo corregido ya en `db/scripts/merge-duplicate-users.sql` (commit siguiente) —
 pendiente que Jonathan lo revise antes de reintentar el ensayo en Producción.
+
+## HALLAZGO (2026-09-25) — `syncClientsWithSAP()` deja `sapClient.FederalTaxID` sin null-check antes de usarlo, dispara `TypeError` por cada CardCode fantasma
+
+**Solo diagnóstico — NO corregido todavía, a la espera de que Jonathan decida prioridad por
+separado.** Encontrado como efecto colateral al validar en Staging el fix de propagación de
+`EmailAddress` de SAP a `users.mail` (ver hallazgo/fix de esa misma fecha, más abajo en el
+historial de commits de esta rama) — no tiene relación de causa con ese fix, es un bug
+preexistente e independiente.
+
+### Síntoma
+
+Al correr `syncClientsWithSAP()` (la función ligada al cron interno `0 */2 6-20 * *`, ver
+`SapClientService.js:205-231`) sobre un `CardCode` que existe en `client_profiles` pero ya no
+existe en SAP, la ejecución para ESE cliente específico termina en un `TypeError` no controlado
+en vez del mensaje de "cliente no encontrado" que el propio código ya tiene previsto.
+
+### Causa raíz — línea exacta y stack trace real
+
+`SapClientService.js:1163-1166`:
+```js
+1163:          const sapClient = await this.getBusinessPartnerByCardCode(profile.cardcode_sap);
+1164:
+1165:          // Procesar FederalTaxID para extraer NIT y dígito de verificación
+1166:          const taxInfo = this.processFederalTaxID(sapClient.FederalTaxID);
+```
+`getBusinessPartnerByCardCode()` devuelve `null` (no lanza excepción) cuando SAP responde 404
+(`SapClientService.js:1358-1362`, `if (error.response?.status === 404) return null;`). La
+verificación `if (!sapClient) { ...; continue; }` existe en el código — pero está en la
+**línea 1305**, 139 líneas *después* del punto donde ya se desreferenció `sapClient.FederalTaxID`
+en la 1166. Para cualquier `CardCode` fantasma, el `TypeError` ocurre antes de llegar a esa
+verificación, que queda muerta para este flujo.
+
+**Stack trace real, capturado en Staging durante la validación de aceptación de esta misma
+fecha (evidencia pegada tal cual, sin editar):**
+```
+TypeError: Cannot read properties of null (reading 'FederalTaxID')
+    at SapClientService.syncClientsWithSAP (/app/src/services/SapClientService.js:1166:62)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+```
+
+### Alcance real en Producción (solo lectura, EC2 Producción, nada modificado)
+
+Conteo vía `psql`/query directo contra `client_profiles` en Producción (`SapClientService.js:1098-1112`,
+mismo `WHERE` que usa `syncClientsWithSAP()`) + verificación 1-a-1 de cada `cardcode_sap`
+contra SAP Producción (`HBT_ARTESA`), con `GET BusinessPartners('<CardCode>')`, solo lectura:
+
+```
+Total client_profiles Lead-eligible (cardtype_sap IN ('cLId','cLid') OR IS NULL) en Producción: 1
+Existen en SAP Producción: 1
+NO existen en SAP Producción (CardCode fantasma): 0
+```
+
+**El alcance real medido en Producción hoy es 0 de 1** — muy distinto del caso de Staging, donde
+5 de los 7 Leads actuales son `CardCode` fantasma (dato de un ambiente de pruebas con datos
+más viejos/desincronizados de SAP). No es un problema con impacto medible en Producción *en
+este momento*, aunque el defecto de código sí existe ahí igual y se activaría apenas exista un
+Lead cuyo `CardCode` deje de existir en SAP.
+
+`docker logs artesa-api-production` no muestra ninguna ocurrencia de este `TypeError` — pero
+el contenedor de Producción se reinició hace ~2h10min (`docker inspect ... State.StartedAt`),
+así que los logs solo cubren esa ventana, no un historial más largo. No se puede afirmar con
+esta evidencia que el bug nunca se haya disparado antes en Producción, solo que no hay rastro
+de él en las últimas ~2h10min.
+
+### Impacto — ¿aborta el resto de la iteración del cron? **No, contradicho por evidencia directa**
+
+La hipótesis de que este `TypeError`, al no estar capturado, aborta el resto de la corrida del
+cron cada 2 horas **no se confirma** — la evidencia real la contradice:
+
+`SapClientService.js:1159-1393` — el `try { ... } catch (updateError) { ROLLBACK; stats.errors++;
+logger.error(...) } finally { dbClient.release() }` que envuelve el `TypeError` está **dentro**
+del `for (const profile of profiles)` (línea 1156), es decir, es un try/catch **por cliente**,
+no uno solo para toda la función. El `catch` no relanza el error ni hace `return`/`break`: solo
+incrementa `stats.errors` y loguea; el `for` sigue normalmente con el siguiente `profile`.
+
+Evidencia real de esto, de la corrida de validación de Staging de esta misma fecha (5 de 6
+Leads eran `CardCode` fantasma en ese momento):
+```
+"stats":{"activated":0,"cardTypeChanges":1,"errors":5,"leadsToClients":0,
+"omitidos_por_inactivacion_manual":0,"skipped":0,"total":6,"updated":1}
+```
+La función procesó los 6 clientes, terminó, y **devolvió sus stats normalmente** (`duration:
+4161ms`) — no hubo abort. El único efecto real observado es: cada `CardCode` fantasma se cuenta
+como `errors` (con un `TypeError` genérico y poco informativo en el log) en vez de `skipped`
+(que sería la clasificación correcta y ya existe como camino de código, solo que inalcanzable
+por el orden de las líneas) — es decir, el defecto es **cosmético/de categorización de stats y
+ruido en logs**, no una interrupción del cron. El comportamiento "anómalo" del cron de clientes
+que se venía sospechando, si existe, tiene que tener otra causa — este bug específico no lo
+explica.
+
+**Nada de esto se ha corregido.** Queda documentado para que Jonathan decida prioridad por
+separado del fix de correo (que sí está validado y en curso de despliegue).
