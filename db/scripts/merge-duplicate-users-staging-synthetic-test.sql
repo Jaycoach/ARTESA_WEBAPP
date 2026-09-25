@@ -35,10 +35,6 @@ RETURNING id \gset absorbed_
 
 \echo 'Par sintético creado: canonical=' :canonical_id ' absorbed=' :absorbed_id
 
--- Recrear el índice ANTES de correr la fusión, para probar el escenario real
--- (con el índice ya activo, como estará siempre fuera de esta prueba).
-CREATE UNIQUE INDEX uk_users_mail_lower ON users (LOWER(mail));
-
 -- ---- A partir de aquí, los mismos pasos de merge-duplicate-users.sql ----
 -- (canonical_id y absorbed_id ya quedaron definidos por los \gset de arriba)
 \set admin_id 1
@@ -73,6 +69,16 @@ VALUES
    jsonb_build_object('merged_into', :canonical_id, 'test', true)),
   (:admin_id, 'password_replaced_by_merge', 'user', :canonical_id,
    jsonb_build_object('source_user_id', :absorbed_id, 'test', true));
+
+-- Recrear el índice DESPUÉS de la fusión (ya renombrado el correo de la cuenta
+-- absorbida arriba): el escenario real de D13 es exactamente este — un duplicado
+-- ya existente ANTES de que el índice único de D12 exista, que la fusión resuelve
+-- justo antes de que la migración de D12 pueda aplicarse. Recrearlo antes de la
+-- fusión (como hacía una versión anterior de este script) siempre falla, porque
+-- en ese punto los dos correos sintéticos todavía son duplicados por LOWER() —
+-- error real encontrado al correr esta prueba en Staging: "could not create
+-- unique index... Key (lower(mail::text))=(...) is duplicated."
+CREATE UNIQUE INDEX uk_users_mail_lower ON users (LOWER(mail));
 
 -- Verificación: login con AMBAS capitalizaciones debe resolver a la cuenta canónica.
 SELECT id, mail FROM users WHERE LOWER(mail) = LOWER('sintetico.merge.test.d13@example.com');
