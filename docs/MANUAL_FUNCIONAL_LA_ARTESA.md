@@ -1284,14 +1284,31 @@ Los administradores pueden forzar sincronización:
 
 Si una orden falla al sincronizar:
 
-1. **Se intenta nuevamente:**
-   - Hasta 3 intentos automáticos
-   - Con intervalo de 30 minutos entre cada intento
+1. **Se reintenta automáticamente el mismo día:**
+   - El corte principal ocurre a la hora límite configurada (`order_time_limit`, hoy 18:00 +
+     5 min → 18:05 hora Bogotá).
+   - Si un pedido falla en ese corte, se reintenta automáticamente una vez más el mismo día,
+     a la hora configurada en `ORDER_SYNC_RETRY_TIME` (por defecto 23:00 hora Bogotá).
+   - El límite real es `sap_sync_attempts < 3`, pero en la práctica solo hay dos ventanas de
+     sincronización por día (corte + reintento) — no un reintento cada 30 minutos.
+   - Si el pedido sigue fallando al día siguiente, su fecha de entrega ya no cae dentro de la
+     ventana de sincronización (2 días antes de la entrega) y **no** se vuelve a intentar
+     automáticamente: debe registrarse manualmente en SAP.
 
-2. **Si persiste el error:**
-   - Se notifica al administrador
-   - El error queda registrado en la orden
-   - Se almacena mensaje de error de SAP
+2. **Alertas por correo al área comercial:**
+   - Si en el corte de las 18:05 algún pedido falla, se envía un correo a los destinatarios
+     configurados en `ORDER_SYNC_ALERT_EMAIL_TO` con la tienda/cliente, el número de pedido,
+     la fecha de entrega y el motivo en lenguaje sencillo (ej. "El producto GTAPT02 – Torta de
+     Chocolate está inactivo en SAP"), avisando que habrá un reintento automático.
+   - Después del reintento, se envía un correo indicando qué pedidos se enviaron
+     correctamente ("recuperados") y cuáles siguen sin poder enviarse (deben registrarse
+     manualmente). Si no hay nada que reportar, no se envía correo.
+   - Si el proceso completo de sincronización falla (ej. no se pudo iniciar sesión en SAP),
+     se envía una alerta aparte indicando el motivo, tanto en el corte como en el reintento.
+
+3. **El error queda registrado en la orden:**
+   - Se almacena el mensaje de error de SAP (`sap_sync_error`) y se incrementa el contador de
+     intentos (`sap_sync_attempts`).
 
 3. **Soluciones comunes:**
    - Verificar que el cliente existe en SAP
@@ -2013,7 +2030,9 @@ El sistema ejecuta varias tareas de sincronización automáticamente:
    - Si falla:
      - Registra error en la orden
      - Incrementa contador de intentos
-     - Reintentará en siguiente ciclo (máximo 3 intentos)
+     - Se reintenta automáticamente el mismo día a la hora configurada en
+       `ORDER_SYNC_RETRY_TIME` (ver sección 8.5, Manejo de Errores) — no en "el siguiente
+       ciclo" genérico, y no cada 30 minutos
 
 #### **Actualización de Estados desde SAP:**
 

@@ -2053,3 +2053,46 @@ explica.
 
 **Nada de esto se ha corregido.** Queda documentado para que Jonathan decida prioridad por
 separado del fix de correo (que sí está validado y en curso de despliegue).
+
+## Fase — Reintento de sincronización de pedidos y alertas por correo (rama `fix/order-sync-retry-alerts`)
+
+**Estado: IMPLEMENTADO** (2026-09-25). Ver `docs/FIX-order-sync-retry-alerts.md` para el
+diagnóstico completo, el diseño y la evidencia de QA en Staging.
+
+Incidente que origina el fix: el 23-sep-2026, en el corte de las 18:05 (hora Bogotá), SAP
+rechazó 3 pedidos (portales 70, 75 y 76) por un artículo congelado el mismo día
+(`GTAPT02 - Item is inactive`). Quedaron con `sap_synced=false`, `sap_sync_attempts=1`,
+`sap_sync_status=NULL` y nunca se reintentaron — el `SELECT` de `syncOrdersToSAP()` solo toma
+pedidos con `delivery_date = hoy + 2 días` (America/Bogota), y al día siguiente esa ventana ya
+no incluía esos pedidos. Nadie fue notificado.
+
+Cambios (rama `fix/order-sync-retry-alerts`, base `feature/backoffice-core @ 7a422c1`):
+- `src/services/SapOrderService.js`:
+  - `formatDateBogota()`: fecha del log de `syncOrdersToSAP()` ahora en America/Bogota (antes
+    UTC vía `toISOString()`), reutilizada también por el cálculo de `DocDate`.
+  - `translateSapError()`: traduce `"Item X is inactive"` a lenguaje comercial resolviendo el
+    nombre del producto contra `products.sap_code`.
+  - `syncOrdersToSAP()` ahora retorna `stats.orderDetails` (detalle por pedido: cliente,
+    sucursal, fecha de entrega, resultado, mensaje) sin quitar ni renombrar
+    `total/created/errors/skipped` — `orderController.js` e `internalRoutes.js` no se tocaron.
+  - `scheduleRetrySyncTask()`: cron nuevo a `ORDER_SYNC_RETRY_TIME` (default `23:00`,
+    America/Bogota) que llama directamente a `syncOrdersToSAP()` vía `runRetrySync()` — no pasa
+    por `OrderScheduler`, no repite la actualización de estados de pedidos. Reutiliza el
+    candado `sap_sync_status` y la verificación `U_JZ_WebOrderId` sin modificarlos.
+  - `runScheduledSync()`/`runRetrySync()`: deciden si envían alerta por correo
+    (`sendSyncAlertIfNeeded`/`sendGlobalFailureAlert`); un fallo de correo nunca interrumpe la
+    sincronización.
+- `src/services/EmailService.js`: método nuevo `sendOrderSyncAlertEmail()`, reutiliza
+  `sendMailWithLimits()` y `escapeHtml()` existentes — no se modificó ningún método existente.
+- `.env.example` (creado — no existía), `docs/MANUAL_FUNCIONAL_LA_ARTESA.md` (corregidas las
+  frases "3 reintentos cada 30 minutos" que no correspondían al comportamiento real),
+  `scripts/tests/order-sync-retry-alerts-acceptance.js` (script de aceptación nuevo).
+
+Pendiente registrado para después de este fix, sin implementarse (ver detalle completo en
+`docs/FIX-order-sync-retry-alerts.md`): (i) validar contra SAP que los artículos sigan activos
+antes de transmitir; (ii) el sync de productos no evalúa `Valid`/`FrozenFrom`/`FrozenTo`;
+(iii) `EMP007`/`EMP0029` con `SalesItem=tNO` en SAP pero activos en el portal;
+(iv) `status_id=3` se asigna antes de la transmisión real; (v) `ssl/nginx.crt` versionado en
+Git y falta `.gitattributes`; (vi) falta `backups/` en `.gitignore`; (vii)
+`SapOrderService.syncSchedule` es código muerto del cron propio eliminado el 9-sep — no
+programa nada, pero aparece en logs y en `SapServiceManager.getSyncStatus()` como si lo hiciera.
