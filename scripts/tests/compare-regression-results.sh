@@ -22,6 +22,16 @@ declare -A EXPECTED=(
   ["1:usuarios:FUNC_ADMIN"]="Esperado (D3): FUNCTIONAL_ADMIN no tiene platform_users.manage - 403 en GET /api/users."
   ["1:sync-status:FUNC_ADMIN"]="Esperado (D3): FUNCTIONAL_ADMIN no tiene sap_sync.view - 403 en /api/client-sync/status."
   ["backoffice:platform-users:FUNC_ADMIN"]="Esperado (D3): FUNCTIONAL_ADMIN no tiene platform_users.manage - 403."
+  ["backoffice:settings:FUNC_ADMIN"]="Esperado (Fase 2-R): antes del deploy /api/backoffice/* no existía (404 en la rama sin el núcleo); después del deploy, FUNCTIONAL_ADMIN sí tiene settings.manage (200), a propósito (D3)."
+  ["backoffice:settings:ADMIN"]="Esperado (Fase 2-R): antes del deploy /api/backoffice/* no existía (404); después, la ruta existe y responde 200 (núcleo ya desplegado)."
+  ["backoffice:clients:ADMIN"]="Esperado (Fase 2-R): antes del deploy /api/backoffice/* no existía (404); después, la ruta existe y responde 200."
+  ["backoffice:clients:FUNC_ADMIN"]="Esperado (Fase 2-R): antes del deploy /api/backoffice/* no existía (404); después, la ruta existe y responde 200 (D3: FUNCTIONAL_ADMIN sí tiene clients.view)."
+  ["backoffice:clients-without-profile:ADMIN"]="Esperado (Fase 2-R): antes del deploy /api/backoffice/* no existía (404); después, la ruta existe y responde 200."
+  ["backoffice:platform-users:ADMIN"]="Esperado (Fase 2-R): antes del deploy /api/backoffice/* no existía (404); después, la ruta existe y responde 200."
+  ["backoffice:sync-status:ADMIN"]="Esperado (Fase 2-R): antes del deploy /api/backoffice/* no existía (404); después, la ruta existe y responde 200."
+  ["backoffice:sync-pending:ADMIN"]="Esperado (Fase 2-R): antes del deploy /api/backoffice/* no existía (404); después, la ruta existe y responde 200."
+  ["1:sap-status:ADMIN"]="Esperado, no es un problema del núcleo: lastSyncTime pasa de un timestamp a null porque el redeploy reinicia el contenedor y ese valor vive en memoria (no en la base de datos) hasta el próximo ciclo del cron de sync SAP - drift natural por el reinicio, no una regresión de permisos ni de datos."
+  ["1:sync-status:ADMIN"]="Esperado, no es un problema del núcleo: mismo motivo que sap-status - lastSyncTime en memoria se resetea al reiniciar el contenedor durante el redeploy."
 )
 
 echo "=== Comparación $ANTES vs $DESPUES — $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
