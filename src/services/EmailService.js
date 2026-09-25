@@ -437,6 +437,98 @@ class EmailService {
       throw new Error(`Error al enviar el correo de invitación: ${error.message}`);
     }
   }
+
+  /**
+   * Envía la alerta de sincronización de pedidos con SAP (corte de las 18:05 o reintento
+   * a ORDER_SYNC_RETRY_TIME). Reutiliza sendMailWithLimits() y escapeHtml() — no duplica
+   * lógica de envío. El llamador (SapOrderService) decide SI se envía; este método solo
+   * construye el contenido y envía.
+   * @param {string[]} recipients - direcciones ya parseadas de ORDER_SYNC_ALERT_EMAIL_TO
+   * @param {Object} opts
+   * @param {boolean} [opts.isRetry=false] - true si es el correo del reintento (23:00), false si es el del corte (18:05)
+   * @param {Array<{order_id:number, cliente:?string, sucursal:?string, delivery_date:string, message:string}>} [opts.failed=[]]
+   * @param {Array<{order_id:number, cliente:?string, sucursal:?string, delivery_date:string}>} [opts.recovered=[]]
+   * @param {?string} [opts.globalError=null] - mensaje si falló el proceso completo de sincronización
+   * @param {string} [opts.retrySyncTime='23:00']
+   */
+  async sendOrderSyncAlertEmail(recipients, { isRetry = false, failed = [], recovered = [], globalError = null, retrySyncTime = '23:00' } = {}) {
+    try {
+      const to = recipients.join(',');
+      let subject;
+      let html;
+
+      const itemRow = (o) => `
+          <li>
+            <strong>${escapeHtml(o.cliente || 'Cliente desconocido')}${o.sucursal ? ' - ' + escapeHtml(o.sucursal) : ''}</strong><br>
+            Pedido #${escapeHtml(o.order_id)} — Entrega: ${escapeHtml(o.delivery_date)}
+            ${o.message ? `<br>Motivo: ${escapeHtml(o.message)}` : ''}
+          </li>`;
+
+      if (globalError) {
+        subject = isRetry
+          ? '[ALERTA] Falla en el reintento de sincronización de pedidos con SAP'
+          : '[ALERTA] Falla en la sincronización de pedidos con SAP';
+        html = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color:#c0392b;">Falla en la sincronización de pedidos con SAP</h2>
+            <p>El proceso de sincronización de pedidos con SAP falló ${isRetry ? 'durante el reintento' : 'en el corte'} y no se pudo completar.</p>
+            <p><strong>Motivo:</strong> ${escapeHtml(globalError)}</p>
+            <p>Por favor contacta al equipo técnico.</p>
+          </div>`;
+      } else if (!isRetry) {
+        subject = `[ALERTA] ${failed.length} pedido(s) no se pudieron enviar a SAP`;
+        html = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color:#c0392b;">Pedidos no sincronizados con SAP</h2>
+            <p>Los siguientes pedidos no se pudieron enviar a SAP en el corte de hoy:</p>
+            <ul>${failed.map(itemRow).join('')}</ul>
+            <p>Habrá un reintento automático a las ${escapeHtml(retrySyncTime)} (hora Bogotá). Si la causa se corrige antes, el pedido se enviará solo.</p>
+          </div>`;
+      } else {
+        const sections = [];
+        if (failed.length > 0) {
+          sections.push(`
+            <h3 style="color:#c0392b;">No se pudieron enviar a SAP — deben registrarse manualmente</h3>
+            <ul>${failed.map(itemRow).join('')}</ul>`);
+        }
+        if (recovered.length > 0) {
+          sections.push(`
+            <h3 style="color:#27ae60;">Enviados correctamente en el reintento</h3>
+            <ul>${recovered.map(itemRow).join('')}</ul>`);
+        }
+        subject = `[Reintento SAP] ${failed.length} pendiente(s), ${recovered.length} recuperado(s)`;
+        html = `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;"><h2>Resultado del reintento de sincronización de pedidos con SAP</h2>${sections.join('')}</div>`;
+      }
+
+      const mailOptions = {
+        from: {
+          name: 'La Artesa - Sincronización SAP',
+          address: process.env.SMTP_FROM
+        },
+        to,
+        subject,
+        html
+      };
+
+      const info = await this.sendMailWithLimits(mailOptions);
+      logger.info('Alerta de sincronización de pedidos enviada', {
+        messageId: info.messageId,
+        to,
+        isRetry,
+        failedCount: failed.length,
+        recoveredCount: recovered.length,
+        globalError: !!globalError
+      });
+
+      return info;
+    } catch (error) {
+      logger.error('Error al enviar alerta de sincronización de pedidos:', {
+        error: error.message,
+        stack: error.stack
+      });
+      throw error;
+    }
+  }
 }
 
 
