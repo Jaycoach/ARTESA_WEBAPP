@@ -1,3 +1,4 @@
+const pool = require('../config/db');
 const AdminSettings = require('../models/AdminSettings');
 const S3Service = require('../services/S3Service');
 const { createContextLogger } = require('../config/logger');
