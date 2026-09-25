@@ -1194,3 +1194,63 @@ el chat de esta sesión.
 explícita.** Ambos hallazgos (escape y `bcrypt` faltante) quedan como candidatos a una tarea
 aparte, con prioridad más alta que antes para el primero (login de sucursales reales
 afectado hoy) y para el segundo (endpoint roto por dependencia faltante).
+
+## HALLAZGO DE SEVERIDAD ALTA (2026-09-25) — universo de riesgo real en Producción, doble-escape en sucursales
+
+**Preexistente, NO introducido por este núcleo. No se corrige en esta tarea — solo se
+documenta, por instrucción explícita de Jonathan.**
+
+El hallazgo de doble-escape de arriba (`branchRegistrationController.register()` y
+`branchPasswordResetController.resetPassword()` escapan la contraseña 3 veces al escribirla;
+`branchAuthController.login()` la escapa solo 2 veces al validarla) puede bloquear el login de
+cualquier sucursal real cuya contraseña contenga `/`, `&`, `<`, `>`, `"` o `'`. No es posible
+saber directamente si una contraseña ya hasheada tenía alguno de esos caracteres, pero **sí es
+posible acotar el universo de sucursales expuestas**, porque `is_login_enabled = true` en
+`client_branches` **solo** lo pone `branchRegistrationController.js:134` (registro) o
+`adminController.js:387` (`enableBranchLogin`) — las dos vías de 3 pasadas de escape;
+`branchPasswordResetController.js:123` únicamente *exige* que ya esté en `true`, nunca lo
+activa. Es decir: **toda sucursal con `is_login_enabled = true` tuvo su contraseña escrita por
+uno de los 2 flujos afectados**, sin excepción.
+
+**Consulta de solo lectura para que Jonathan la ejecute en Producción** (no modifica nada,
+no imprime ninguna contraseña ni hash):
+
+```sql
+-- Universo de riesgo: sucursales cuya password fue escrita por un flujo de 3-pasadas
+-- de escape (branchRegistrationController.register / adminController.enableBranchLogin),
+-- que es el único camino hacia is_login_enabled = true.
+SELECT
+  COUNT(*) FILTER (WHERE password IS NOT NULL) AS total_con_password,
+  COUNT(*) FILTER (WHERE password IS NOT NULL AND is_login_enabled = true) AS universo_riesgo_login_habilitado,
+  COUNT(*) FILTER (WHERE password IS NOT NULL AND is_login_enabled = true AND email_verified = true) AS universo_riesgo_y_correo_verificado,
+  COUNT(*) FILTER (WHERE password IS NOT NULL AND is_login_enabled = false) AS con_password_pero_login_deshabilitado,
+  COUNT(*) FILTER (WHERE last_login IS NOT NULL AND is_login_enabled = true) AS con_login_exitoso_historico
+FROM client_branches;
+```
+
+`con_login_exitoso_historico` es una segunda cota útil: si una sucursal con
+`is_login_enabled = true` **ya tiene** un `last_login` registrado, su contraseña actual no
+tiene el problema (si lo tuviera, nunca habría podido loguear para generar ese
+`last_login`) — a menos que haya reseteado su contraseña *después* de ese último login exitoso.
+Para acotar aún más, una segunda consulta de solo lectura, opcional:
+
+```sql
+-- Sucursales con login habilitado pero SIN ningún login exitoso registrado — el subconjunto
+-- de mayor sospecha (nunca han podido entrar, podría ser este bug o cualquier otra causa).
+SELECT branch_id, branch_name, client_id, is_login_enabled, email_verified,
+       created_at_auth, updated_at_auth, last_login, failed_login_attempts
+FROM client_branches
+WHERE is_login_enabled = true AND last_login IS NULL
+ORDER BY updated_at_auth DESC NULLS LAST
+LIMIT 200;
+```
+
+**Impacto si el universo es distinto de cero:** cada sucursal en `universo_riesgo_login_habilitado`
+es un cliente real de La Artesa que, si su contraseña contiene alguno de los 6 caracteres, no
+puede loguear hoy en el portal de sucursales — sin ningún error visible salvo
+"Credenciales inválidas" genérico, indistinguible de una contraseña realmente incorrecta desde
+la perspectiva del usuario o del soporte.
+
+**Pendiente:** Jonathan debe correr la consulta de arriba en Producción y pegar el resultado
+aquí. Sin ese dato, el tamaño real del universo de riesgo permanece desconocido — solo se
+sabe que el mecanismo del bug es real y reproducible (evidencia empírica ya registrada arriba).
