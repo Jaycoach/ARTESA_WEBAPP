@@ -1501,3 +1501,51 @@ corrija primero el `pool is not defined` para poder probarlo con una llamada HTT
 
 **Los 3 hallazgos de arriba (AuditService, expires_at, pool no definido) son candidatos a una
 tarea aparte — ninguno se corrige aquí, todos preexistentes.**
+
+## HALLAZGO DE INFRAESTRUCTURA (2026-09-25) — correos a `@hotmail.com`/`@outlook.com`/`@live.com` pueden no entregarse
+
+**Preexistente, no introducido por este núcleo, no se corrige en esta tarea — solo se
+documenta.**
+
+Los correos enviados desde `noreply@artesapanaderia.com` hacia destinatarios
+`@hotmail.com`/`@outlook.com`/`@live.com` pueden no entregarse, sin generar bounce visible en
+SES. Evidencia: supresión histórica por bounce a otra dirección `@hotmail.com`
+(`lukasdariamz@hotmail.com`, 2025-08-27) y el intento de hoy a `jaycoach@hotmail.com`
+(SES respondió `250 Ok` con messageId real; no llegó al buzón ni a spam). Diagnóstico
+completo: sandbox descartado (`ProductionAccessEnabled: true`), dominio y DKIM verificados
+correctamente, dirección destino no suprimida. SPF de `artesapanaderia.com` apunta a
+`spf.protection.outlook.com` (Microsoft 365 corporativo) y no cubre el sobre de envío de SES
+(sin dominio MAIL FROM personalizado), aunque esto no invalida la alineación DKIM/DMARC.
+Causa más probable: filtrado de reputación propio de Microsoft hacia este remitente, no
+atribuible al código de este proyecto — afecta a CUALQUIER correo transaccional del sistema
+(verificación de cuenta, recuperación de contraseña, invitaciones), no solo al BackOffice.
+**Recomendación para tarea aparte:** configurar un dominio MAIL FROM personalizado en SES e
+inscribirse en Microsoft SNDS/JMRP para visibilidad de reputación.
+
+### Prueba de control con un proveedor distinto a Microsoft (descartar problema general de envío)
+
+Se intentó primero con `jayzcoach@gmail.com`, pero ya existía como cuenta real distinta
+(id=1166, "SLA Incidentes Críticos", rol USER) — no se tocó esa cuenta (no es rol 1/3,
+`resend-invitation` ni siquiera aplica). Jonathan indicó usar `admin@zub1pay.com` en su
+lugar. Verificado primero, de solo lectura, que no existía:
+```
+SELECT id, name, rol_id, is_active FROM users WHERE LOWER(mail) = LOWER('admin@zub1pay.com');
+(0 rows)
+```
+
+Se creó el usuario de plataforma de PRUEBA (rol FUNCTIONAL_ADMIN, `id=2547`), vía
+`POST /api/backoffice/platform-users` con `ADMIN_TOKEN`:
+```
+status=201 body={"success":true,"message":"Usuario creado; se envió la invitación","data":{"id":2547,"name":"QA Control Gmail","mail":"admin@zub1pay.com","rol_id":3},"invitationSent":true}
+```
+
+**Log real del envío:**
+```
+info: Intentando enviar correo de invitación de usuario de plataforma {"context":"EmailService","timestamp":"2026-09-24 21:34:34","to":"admin@zub1pay.com","type":"platform_user_invitation"}
+info: Correo de invitación de usuario de plataforma enviado exitosamente {"context":"EmailService","messageId":"<40e34f07-2326-84f4-335c-d5c3a6d48386@artesapanaderia.com>","response":"250 Ok 010001a0d66a22c9-fbedb2de-961f-451f-b8c5-a92bf0cd3aec-000000","timestamp":"2026-09-24 21:34:35","to":"admin@zub1pay.com","type":"platform_user_invitation"}
+POST /api/backoffice/platform-users 201 367.413 ms - 174
+```
+SES aceptó el envío igual que en el caso de Hotmail (`250 Ok`, messageId real) — la diferencia
+a evaluar es si esta vez sí llega al buzón. **Pendiente que Jonathan confirme si el correo
+llegó a `admin@zub1pay.com`** para terminar de aislar si el problema es específico de
+Microsoft o más general. No se completó el flujo de definir contraseña.
