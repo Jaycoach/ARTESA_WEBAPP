@@ -1648,3 +1648,37 @@ ruta que ya existía antes de este núcleo, candidato a una tarea aparte.
 (dato real actualizado, auditoría registrada) — el único problema es la experiencia de
 usuario (falso error a los 30s). No pierde datos, no corrompe nada, no bloquea el uso del
 núcleo — es una molestia de UX heredada del endpoint original, ahora más visible.
+
+### RESUELTO (fix rápido, opción 1 aplicada) — timeout de axios extendido para `/backoffice/sync/*`
+
+Aplicado en `src/views/frontend/LoginArtesa/src/api/config.js`, dentro del mismo interceptor
+de request que ya maneja la excepción de `FormData` (línea ~129):
+```js
+if (config.url && config.url.includes('/backoffice/sync/')) {
+  config.timeout = 240000;
+}
+```
+**240000ms (4 min)**, no 180000ms — Jonathan pidió más margen sobre los 2m21s observados con
+322 clientes, porque la base de clientes va a crecer. El timeout genérico de 30000ms se
+mantiene sin cambios para todo lo demás — se revisó `backofficeCoreService.js` completo:
+las 3 rutas de sincronización (`syncAllClients`→`/backoffice/sync/clients/all`,
+`syncBranches`→`/backoffice/sync/branches`, `syncProducts`→`/backoffice/sync/products`)
+comparten el mismo prefijo `/backoffice/sync/`, así que una sola condición por `config.url`
+las cubre a las tres — no existe ninguna ruta `/backoffice/clients/sync-all` separada en el
+servicio. `syncProducts` ya responde rápido (inicia un job en background, per el comentario
+existente en `syncController.js`) así que el timeout más largo no le hace daño, solo le da
+más margen sin costo.
+
+`npm run build` del frontend: exitoso, sin errores (`✓ built in 14.03s`).
+
+No se reintentó el sync de clientes desde el navegador para validar (2+ minutos de llamadas
+reales a SAP, innecesario repetir — ya se confirmó que funciona en el diagnóstico de arriba).
+El cambio es de una sola línea en el interceptor de axios, de bajo riesgo, y se confía en la
+revisión de código + el build exitoso.
+
+**Pendiente para una tarea aparte (arreglo de fondo, no se hace en esta tarea):** hacer
+`clientSyncController.syncAllClients`/`syncClientBranches` asíncronos (responder de
+inmediato con un job id + polling desde el frontend), igual que ya hace `syncProducts` vía
+`sapSyncController.startSync`. Esto eliminaría la necesidad de cualquier timeout largo y
+sería la solución correcta a largo plazo — el fix de esta sección es solo un parche de UX
+mientras tanto.

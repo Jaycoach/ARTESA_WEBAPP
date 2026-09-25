@@ -129,6 +129,16 @@ API.interceptors.request.use(
       config.timeout = 60000;
     }
 
+    // Sincronizaciones del BackOffice (/api/backoffice/sync/*): clientSyncController
+    // espera la sincronización completa con SAP antes de responder (síncrono, no un
+    // job en background) - con 322 clientes ya toma ~2m21s reales observados en
+    // Staging, y la base va a crecer. El timeout genérico de 30s de arriba se queda
+    // corto y el frontend reporta un falso error de comunicación aunque el backend
+    // sigue trabajando y termina bien. Ver hallazgo en docs/CHANGELOG-backoffice-core.md.
+    if (config.url && config.url.includes('/backoffice/sync/')) {
+      config.timeout = 240000;
+    }
+
     const fullUrl = config.baseURL + config.url;
     const authType = branchToken ? 'BRANCH' : (userToken ? 'USER' : 'NONE');
     console.log(`🌐 Petición [${authType}]: ${config.method?.toUpperCase()} ${fullUrl}`);
