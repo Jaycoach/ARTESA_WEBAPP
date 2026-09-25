@@ -1682,3 +1682,62 @@ inmediato con un job id + polling desde el frontend), igual que ya hace `syncPro
 `sapSyncController.startSync`. Esto eliminaría la necesidad de cualquier timeout largo y
 sería la solución correcta a largo plazo — el fix de esta sección es solo un parche de UX
 mientras tanto.
+
+## HALLAZGO (2026-09-25) — "Sincronizar sucursales" corta a los 60s exactos: es `proxy_read_timeout` de nginx, no axios
+
+**Diagnóstico, solo lectura, sin reintentar el sync.** Con el fix de axios (240000ms) ya
+activo en el navegador (bundle `index-FTMrw7Cx.js` confirmado por Jonathan), "Sincronizar
+sucursales" siguió fallando — pero esta vez a los **60 segundos exactos** (21:15:19→21:16:19
+hora Guatemala = 22:15:19→22:16:19 hora servidor UTC-5), no a los 30s viejos ni cerca de los
+240s nuevos. Esto descartaba axios como causa.
+
+**Causa encontrada:** `docker exec artesa-nginx-staging` →
+`/etc/nginx/conf.d/default.conf` (montado desde `docker/nginx/staging-ssl.conf`) tiene
+`proxy_read_timeout 60s;` **explícito** en el bloque `location /api/`, tanto en el server
+HTTP (línea ~195) como en el HTTPS (línea ~480) — coincide exactamente con el corte
+observado.
+- **No hay ALB**: `aws elbv2 describe-load-balancers --region us-east-1` devuelve vacío para
+  toda la cuenta — acceso directo al EC2, sin balanceador de por medio.
+- **¿Afecta a Producción?** No — Producción usa `docker/nginx/production-ssl.conf`, un
+  archivo distinto (confirmado en `docker-compose.production.yml:46`); Staging usa
+  `docker/nginx/staging-ssl.conf`. No comparten el archivo de configuración.
+- **El backend sí completó la sincronización de sucursales** pese al corte, igual que había
+  pasado con clientes: el intento que arrancó a las 22:15:19 quedó auditado
+  (`Acción de BackOffice registrada`, que solo se dispara tras un `res.json()` exitoso) a las
+  22:17:19 — 2 minutos después, bien pasado el corte de nginx. Node/Express no se entera de
+  que nginx cerró el socket del navegador; el handler sigue ejecutándose hasta terminar.
+
+### RESUELTO — `proxy_read_timeout`/`proxy_send_timeout` subidos a 260s en `location /api/` (commit `bb7dffb`)
+
+Aplicado en `docker/nginx/staging-ssl.conf`, en las 2 ocurrencias del bloque
+`location /api/` (servers HTTP y HTTPS):
+```diff
+-        proxy_send_timeout 60s;
+-        proxy_read_timeout 60s;
++        proxy_send_timeout 260s;
++        proxy_read_timeout 260s;
+```
+**`proxy_connect_timeout` se dejó en `60s`, sin tocar** (por instrucción explícita de
+Jonathan — ese timeout es para establecer la conexión inicial, no para esperar la respuesta,
+no tiene relación con este problema). Ningún otro `location` block del archivo se tocó
+(verificado con `grep -n` antes y después: solo cambiaron las líneas 194-195 y 479-480).
+
+**Aplicado en Staging:**
+```
+$ docker exec artesa-nginx-staging nginx -t
+nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
+nginx: configuration file /etc/nginx/nginx.conf test is successful
+
+$ docker restart artesa-nginx-staging
+artesa-nginx-staging
+[... arranque normal, sin errores ...]
+
+$ docker ps --format '{{.Names}}\t{{.Status}}'
+artesa-nginx-staging	Up 9 seconds
+artesa-api-staging	Up 2 hours (healthy)
+
+$ curl -sk -o /dev/null -w 'https health: %{http_code}\n' https://localhost/api/health
+https health: 200
+```
+Solo se reinició el contenedor de nginx, no el backend. Pendiente que Jonathan reintente
+"Sincronizar sucursales" desde el navegador una vez más para confirmar el fix end-to-end.
