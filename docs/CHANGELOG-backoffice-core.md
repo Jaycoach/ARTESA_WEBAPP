@@ -1125,3 +1125,70 @@ $ grep -n "legacyOnly\|restricted\|backofficeOnly" src/views/frontend/LoginArtes
 no había nada que corregir — se deja esta entrada como constancia de la verificación pedida
 y su resultado, ya que el CHANGELOG de la Fase 4 no había pegado el fragmento textual del
 array de ítems y por eso no era auto-verificable sin volver al archivo real.
+
+## Investigación (2026-09-25) — alcance real del hallazgo de doble-escape en contraseñas
+
+Jonathan pidió confirmar, **solo lectura, sin corregir nada**, si alguna otra vía del código
+real (aparte de `register()`) guarda `users.password` o `client_branches.password` sin pasar
+por `sanitizeBody`, para saber si hay usuarios reales en Producción afectados hoy, no solo el
+script de QA. Se revisó cada `bcrypt.hash(...)` que escribe una contraseña, con
+`git grep -n "UPDATE users SET password\|bcrypt.hash"`, y se contó el número de veces que
+`sanitizeBody` (`validator.escape()`, no idempotente) se aplica al campo antes de llegar a
+cada handler, siguiendo el orden real de montaje en `app.js` (los `router.use(sanitizeBody)`
+de nivel-router en `userRoutes.js:10` y `productRoutes.js:88`, montados en `/api` a secas,
+se ejecutan para *cualquier* request `/api/*` que los alcance, según ya documentado arriba).
+
+**Resultado — comparación de pasadas de escape (escritura vs. lectura/login):**
+
+| Flujo | Pasadas al escribir | Pasadas al validar/login | ¿Coinciden? |
+|---|---|---|---|
+| `authController.register()` → `authController.login()` | 2 (`userRoutes.js:10` + `authRoutes.js` propio en `/register`) | 2 (`userRoutes.js:10` + `authRoutes.js:137` propio en `/login`) | **Sí** — usuarios normales, sin bug |
+| `passwordResetController.resetPassword()` (línea 339) → `login()` | 2 (`userRoutes.js:10` + `productRoutes.js:88`; `passwordResetRoutes.js` no tiene `sanitizeBody` propio) | 2 (igual que arriba) | **Sí** — sin bug |
+| `passwordResetController.adminResetPassword()` (línea 484) → `login()` | 2 (idéntica ruta que `resetPassword`, mismo archivo de rutas sin `sanitizeBody` propio) | 2 | **Sí** — sin bug |
+| `branchRegistrationController.register()` (línea 126) → `branchAuthController.login()` | 3 (`userRoutes.js:10` + `productRoutes.js:88` + `branchRegistrationRoutes.js:64` propio; mount `/api/branch-registration` en `app.js:522`, después de `productRoutes`) | 2 (`userRoutes.js:10` + `branchAuthRoutes.js:163` propio; mount `/api/branch-auth` en `app.js:455`, **antes** de `productRoutes.js` en `app.js:456`, así que nunca recibe esa pasada) | **NO — bug real** |
+| `branchPasswordResetController.resetPassword()` (línea 291) → `login()` | 3 (`userRoutes.js:10` + `productRoutes.js:88` + `branchPasswordResetRoutes.js:159` propio; mount `/api/branch-password` en `app.js:482`, después de `productRoutes`) | 2 (igual que arriba) | **NO — bug real** |
+| `adminController.enableBranchLogin()` (línea 378) → `login()` | 3 (`userRoutes.js:10` + `productRoutes.js:88` + `adminRoutes.js:24` propio, `router.use` a nivel de router; mount `/api/admin` en `app.js:462`) — y la ruta delegada nueva `POST /api/backoffice/settings/branches/:branchId/enable-login` (`backofficeCoreRoutes.js`) da la MISMA cuenta (3), por diseño: replica la cadena original, así que **no es un bug nuevo introducido por este núcleo** | 2 | **NO — bug preexistente, ya estaba así antes de este núcleo** |
+| `userModel.createUser()` / `userModel.updateUser()` (con campo `password`, líneas 53/220) | N/A | N/A | **Sin llamador real** — se confirmó con `git grep` que ningún controller invoca estas dos funciones con contraseña; `PUT /api/users/:id` (`userController.updateUser`, la única ruta real que usa `userModel`) solo actualiza `name`/`mail`, nunca `password`. Código muerto para este propósito, no hay usuarios afectados por esta vía. |
+
+**Verificación empírica (no solo derivación de las rutas), replicando exactamente
+`validator.escape(str.trim())` de `src/middleware/security.js:6-12`, corrida dentro del
+contenedor `artesa-api-staging` (sin tocar ninguna cuenta real):**
+```
+escaped2 !== escaped3: true
+login (2 pasadas) coincide con hash de reset/registro (3 pasadas): false
+```
+Con una contraseña de prueba `Test/Pass&123` (contiene `/` y `&`): el hash calculado sobre la
+versión escapada 3 veces (como la escribiría `branchRegistrationController.register()` o
+`branchPasswordResetController.resetPassword()`) **no coincide** con `bcrypt.compare()` sobre
+la versión escapada solo 2 veces (como la presenta `branchAuthController.login()`). Confirma
+en código real, no solo en teoría de conteo de rutas, que el mismo carácter que rompió el
+login de los usuarios de prueba ADMIN/FUNCTIONAL_ADMIN de este ciclo **rompería hoy, en
+Producción, el login de cualquier sucursal real** cuya contraseña (puesta al registrarse o al
+usar "olvidé mi contraseña") contenga `/`, `&`, `<`, `>`, `"` o `'`.
+
+**Conclusión — severidad más alta que el hallazgo original:** el hallazgo ya documentado
+arriba ("multi-escape...) es preexistente y **no se corrige en esta tarea** (así lo pidió
+Jonathan), pero su alcance real es más amplio de lo que decía la entrada original: no es solo
+un riesgo teórico de nombres guardados con entidades HTML — **hoy mismo, en Producción, puede
+estar bloqueando el login de sucursales reales** que se registraron o restablecieron su
+contraseña con alguno de esos 6 caracteres. Los usuarios "principales" (rol 1/2/3/4, vía
+`register()`/`resetPassword()`/`adminResetPassword()`) **no están afectados** — sus 3 vías de
+escritura coinciden exactamente en número de pasadas con `login()`.
+
+**Hallazgo adicional, encontrado en el camino (no relacionado con `sanitizeBody`, mismo
+endpoint):** `adminController.js:377` hace `require('bcrypt')` (el paquete nativo), pero
+`package.json` solo declara `bcryptjs` como dependencia — `bcrypt` **no está instalado** en
+Staging (confirmado con `require.resolve('bcrypt')` dentro del contenedor →
+`MODULE_NOT_FOUND`). Esto significa que `enableBranchLogin` (tanto la ruta original
+`POST /api/admin/branches/:branchId/enable-login` como la nueva delegada
+`POST /api/backoffice/settings/branches/:branchId/enable-login`) **probablemente arroja 500
+en cualquier intento real**, independientemente del problema de escape — un bug distinto,
+preexistente, que esta tarea tampoco corrige, pero que es relevante porque el nuevo
+`SettingsTab.jsx` (Fase 4) le da a este endpoint una UI mucho más visible y accesible
+(antes solo estaba en el panel admin legacy) — ver aviso explícito a Jonathan sobre esto en
+el chat de esta sesión.
+
+**No se corrigió nada de lo anterior — solo se investigó y se documentó, según instrucción
+explícita.** Ambos hallazgos (escape y `bcrypt` faltante) quedan como candidatos a una tarea
+aparte, con prioridad más alta que antes para el primero (login de sucursales reales
+afectado hoy) y para el segundo (endpoint roto por dependencia faltante).
