@@ -1251,6 +1251,183 @@ puede loguear hoy en el portal de sucursales — sin ningún error visible salvo
 "Credenciales inválidas" genérico, indistinguible de una contraseña realmente incorrecta desde
 la perspectiva del usuario o del soporte.
 
-**Pendiente:** Jonathan debe correr la consulta de arriba en Producción y pegar el resultado
-aquí. Sin ese dato, el tamaño real del universo de riesgo permanece desconocido — solo se
-sabe que el mecanismo del bug es real y reproducible (evidencia empírica ya registrada arriba).
+**Resultado ejecutado por Jonathan en Producción (2026-09-25):**
+```
+total_con_password = 0
+```
+**Ninguna sucursal en Producción tiene contraseña definida hoy** — el universo de riesgo
+actual es **CERO**. Consistente con el hallazgo de D12 (131 sucursales totales, 0 con login
+habilitado). El mecanismo del bug es real y reproducible en código (evidencia empírica ya
+registrada arriba), **pero no afecta ningún dato ni usuario real en este momento** — nadie ha
+sido bloqueado por esto hasta hoy.
+
+**Decisión de Jonathan, dado que no hay datos reales en juego:** se corrige ahora, dentro de
+este mismo ciclo, en vez de dejarlo como deuda técnica para una tarea aparte. Ver la sección
+siguiente para la corrección aplicada a los 3 flujos.
+
+## RESUELTO — corrección del doble-escape en los 3 flujos de sucursales (commit `e1262ae`)
+
+Cambios (ediciones puntuales, mismo patrón que archivo 9/D12 — quitar el `sanitizeBody`
+redundante para volver a la paridad de pasadas con el login):
+
+- `src/routes/branchRegistrationRoutes.js:64` — se quitó `sanitizeBody` propio de
+  `POST /register`. Queda en 2 pasadas (`userRoutes.js:10` + `productRoutes.js:88`), igual
+  que `branchAuthRoutes.js:163`. `/check-email` (línea 30) no se tocó — no escribe contraseña.
+- `src/routes/branchPasswordResetRoutes.js:159` — se quitó `sanitizeBody` propio de
+  `POST /reset`. Mismo resultado: 2 pasadas. `/request-reset` (línea 79) no se tocó.
+- `src/routes/adminRoutes.js` — el `router.use(sanitizeBody)` compartido (antigua línea 24)
+  se reemplazó por un `sanitizeBody` explícito **solo** en `POST /settings` (mantiene sus 3
+  pasadas de siempre, sin cambio de comportamiento ahí). `POST /branches/:branchId/enable-login`
+  y `disable-login` quedan sin esa pasada extra — 2 pasadas para `enable-login`, en paridad
+  con el login.
+- `src/routes/backofficeCoreRoutes.js` — se quitó el `sanitizeBody` propio de las 2 rutas
+  delegadas (`enable-login`/`disable-login`), que replicaban a propósito el conteo del
+  original (ahora corregido) — se ajustan para seguir en paridad.
+
+**Diagnóstico previo de `adminRoutes.js` (pedido antes de tocar el archivo):** se listaron
+las 4 rutas del archivo — únicamente `POST /settings` (además de `enable-login`) tenía
+dependencia real de las 3 pasadas (paridad con `/api/backoffice/settings`); `GET /settings`
+es de solo lectura y `disable-login` no escribe ningún campo sensible. Ninguna otra ruta
+existe en el archivo. Se confirmó con `grep -n "^router\.\(get\|post\|put\|delete\|patch\)"`.
+
+### Evidencia real — redeploy en Staging y prueba de los 3 flujos, contraseñas con `/` y `&`
+
+Redeploy de `feature/backoffice-core` en commit `e1262ae` sobre Staging (rebuild parcial,
+exit 0; contenedor `healthy`; sin errores de arranque nuevos).
+
+**Prueba 1 — `branchRegistrationController.register()`** (sucursal de prueba nueva,
+`branch_id=2602`, contraseña `Test/Reg&1`):
+```
+register status=200 body={"success":true,"message":"Registro completado exitosamente. Ya puede iniciar sesión.",...}
+login1 status=200 has_token=1
+```
+✅ Login exitoso con la contraseña que contiene `/` y `&`.
+
+**Prueba 2 — `branchPasswordResetController.resetPassword()`** (sucursal de prueba nueva,
+`branch_id=2603`, contraseña nueva `Test/Reset&1`):
+```
+reset status=500 body={"success":false,"message":"Error interno del servidor"}
+login2 status=200 has_token=1
+```
+El endpoint `/reset` devolvió 500 **pero el login con la contraseña nueva funcionó** — la
+contraseña sí se actualizó correctamente en la base de datos (evidencia de que el fix de
+escape funciona). El 500 es un **falso negativo por un bug preexistente distinto y no
+relacionado**, documentado abajo (bug de `AuditService`). No se tocó ese bug — solo se
+documenta.
+
+**Prueba 3 — `adminController.enableBranchLogin()` (vía `POST /api/backoffice/settings/branches/:branchId/enable-login`)**
+(sucursal de prueba nueva, `branch_id=2604`, contraseña `Test/Enable&1`):
+```
+enable-login status=500 body={"success":false,"message":"Error interno del servidor"}
+login3 status=401 has_token=0
+```
+Aquí el 500 **sí bloquea la operación por completo** (a diferencia de la Prueba 2) — ver el
+hallazgo de `pool` no definido, abajo. No se pudo probar el fix de escape para este flujo de
+punta a punta vía HTTP real, porque el endpoint nunca llega a ejecutar el `UPDATE` de
+`client_branches.password`. El fix de escape en las rutas (`adminRoutes.js`,
+`backofficeCoreRoutes.js`) se aplicó igual, y su corrección es correcta por inspección de
+código (mismo patrón exacto que las Pruebas 1 y 2, ambas confirmadas empíricamente) — pero
+queda sin verificación end-to-end hasta que el bug de `pool` (hallazgo nuevo, ver abajo) se
+corrija en una tarea aparte.
+
+**Limpieza:** las 3 sucursales de prueba (2602, 2603, 2604) y sus filas dependientes
+(`active_branch_tokens`, `branch_login_history`, `branch_password_resets`) se borraron al
+terminar — confirmado `SELECT count(*) FROM client_branches WHERE branch_id IN (2602,2603,2604)` → `0`.
+
+## HALLAZGO NUEVO — `AuditService.logAuditEvent()` con argumentos mal ordenados en `branchPasswordResetController.js`
+
+**Preexistente, no introducido por este núcleo, no se corrige — solo se documenta**, según el
+mismo criterio ya aplicado a los hallazgos anteriores.
+
+`AuditService.logAuditEvent(eventType, data, userId, severity = 'INFO')` — el 4to parámetro
+debe ser un valor válido del enum Postgres `severity_level`. Ambos llamados de
+`branchPasswordResetController.js` pasan por error el `branch_id` numérico en esa posición:
+
+- `src/controllers/branchPasswordResetController.js:183` (dentro de `requestReset`):
+  `branch.branch_id` en la posición de `severity`.
+- `src/controllers/branchPasswordResetController.js:317` (dentro de `resetPassword`):
+  `tokenData.branch_id` en la posición de `severity`.
+
+**Efecto real, confirmado con logs de Staging:** en ambos casos, el `INSERT`/`UPDATE`
+principal (crear el token + enviar el correo; o actualizar la contraseña + marcar el token
+usado) **ya se completó exitosamente** cuando el código intenta auditar y truena con
+`invalid input value for enum severity_level: "2603"` (por ejemplo). Ese error, sin capturar,
+propaga como `500 Error interno del servidor` al cliente — **un falso negativo**: la sucursal
+recibe un error, pero su solicitud de reset/su nueva contraseña sí se procesó. Evidencia
+completa (logs reales de Staging, sucursal de prueba 2603):
+```
+info: Token de reset creado para sucursal {"branchId":2603,...,"tokenId":1}
+info: Correo de reset de contraseña para sucursal enviado exitosamente {...}
+info: Correo de reset enviado para sucursal {"branchId":2603,...}
+error: Error registrando evento de auditoría {"error":"invalid input value for enum severity_level: \"2603\"",...}
+error: Error enviando correo de reset para sucursal {"error":"invalid input value for enum severity_level: \"2603\"",...}
+POST /api/branch-password/request-reset 500 318.259 ms - 71
+```
+y, para `resetPassword` (después de corregir manualmente el `expires_at` del token para
+poder llegar a este punto — ver el siguiente hallazgo):
+```
+info: Iniciando reset de contraseña para sucursal {...,"token":"5b2cb6ab..."}
+error: Error registrando evento de auditoría {"error":"invalid input value for enum severity_level: \"2603\"",...}
+error: Error reseteando contraseña de sucursal {"error":"invalid input value for enum severity_level: \"2603\"",...}
+POST /api/branch-password/reset 500 109.853 ms - 56
+```
+Login posterior con la nueva contraseña → `200`, confirma que la actualización sí se
+guardó pese al 500. **Impacto:** cualquier sucursal real que use "olvidé mi contraseña" hoy
+recibiría siempre un error 500 en pantalla, incluso cuando el proceso funcionó — un problema
+de confiabilidad/UX real, independiente del hallazgo de escape.
+
+## HALLAZGO NUEVO — tokens de reset de sucursal nacen ya expirados (`expires_at < created_at`)
+
+**Preexistente, no introducido por este núcleo, no se corrige — solo se documenta.**
+
+Al crear un token real vía `POST /api/branch-password/request-reset` para la sucursal de
+prueba 2603, el registro quedó así en `branch_password_resets`:
+```
+ id | branch_id | token_prefix | token_len |         created_at         |       expires_at        | used_at | aun_vigente 
+----+-----------+--------------+-----------+----------------------------+-------------------------+---------+-------------
+  1 |      2603 | 5b2cb6abb7a7 |        64 | 2026-09-25 01:11:13.136136 | 2026-09-24 21:11:13.614 |         | f
+```
+**`expires_at` queda ~4 horas ANTES que `created_at`** — el token nace ya expirado. Esto
+explica por qué la Prueba 2 dio `400 Token inválido o expirado` en el primer intento: no es
+un problema de mi fix, es que **ningún token de reset de sucursal generado por el flujo real
+puede usarse jamás** (siempre falla `expires_at > CURRENT_TIMESTAMP`). Consistente con un
+desfase de timezone entre el `Date` que calcula el controller (`branchPasswordResetController.js`,
+cerca de donde llama a `BranchPasswordReset.createToken`) y `CURRENT_TIMESTAMP`/columna de
+Postgres — no se investigó la causa exacta línea por línea, solo se confirmó el síntoma con
+datos reales. Para poder probar el fix de escape en la Prueba 2 de arriba, se corrigió
+manualmente (una sola vez, solo en el dato de prueba) el `expires_at` de ese token vía SQL
+directo, sin tocar el código.
+
+**Impacto:** el flujo completo de "olvidé mi contraseña" de sucursales está roto de punta a
+punta hoy — ni siquiera llega a la parte del bug de `AuditService` en un uso real, porque el
+token que el correo entrega al usuario ya está expirado desde el momento en que se genera.
+
+## HALLAZGO NUEVO (corrige un hallazgo anterior) — `enableBranchLogin`/`disableBranchLogin` rotos por `pool` no definido, no por `bcrypt` faltante
+
+**Preexistente, no introducido por este núcleo, no se corrige — solo se documenta.** Corrige
+el hallazgo anterior de esta misma sección (el de `require('bcrypt')`/`MODULE_NOT_FOUND`):
+esa observación seguía siendo cierta (`bcrypt` nativo no está instalado), **pero no es la
+causa real del fallo**, porque el código nunca llega a ejecutar esa línea.
+
+`src/controllers/adminController.js` **no importa `pool`** en ningún lugar (confirmado:
+`grep -n "require('../config/db')" src/controllers/adminController.js` → sin resultados), a
+pesar de que `pool.query(...)` se usa 6 veces en el archivo: líneas 351, 364, 393 (dentro de
+`enableBranchLogin`) y 474, 496, 499 (dentro de `disableBranchLogin`). **Ambas funciones
+truenan con `ReferenceError: pool is not defined` en su primera consulta**, antes de llegar
+siquiera al `require('bcrypt')`. Evidencia real de Staging (Prueba 3, sucursal 2604):
+```
+error: Error al habilitar login de sucursal {"branchId":"2604","context":"AdminController","email":"qa-branch-enable-test@invalid.local","error":"pool is not defined","stack":"ReferenceError: pool is not defined\n    at enableBranchLogin (/app/src/controllers/adminController.js:351:36)\n    at /app/src/services/backofficeCore/auditWrapper.js:78:12\n..."}
+POST /api/backoffice/settings/branches/2604/enable-login 500 25.550 ms - 56
+```
+**Impacto:** tanto la ruta original (`POST /api/admin/branches/:branchId/enable-login` /
+`disable-login`) como la nueva ruta delegada del núcleo
+(`POST /api/backoffice/settings/branches/:branchId/enable-login` / `disable-login`) **nunca
+han funcionado, en ningún ambiente, desde que sea que `pool` dejó de importarse en este
+archivo** — no es algo introducido por este núcleo (la ruta delegada solo reexpone el mismo
+bug ya existente en el original). No se pudo verificar el fix de escape de esta Prueba 3 de
+punta a punta por esta razón (ver arriba). El fix de escape en las rutas se aplicó de todas
+formas, por consistencia y porque es correcto por inspección — solo falta que alguien más
+corrija primero el `pool is not defined` para poder probarlo con una llamada HTTP real.
+
+**Los 3 hallazgos de arriba (AuditService, expires_at, pool no definido) son candidatos a una
+tarea aparte — ninguno se corrige aquí, todos preexistentes.**
