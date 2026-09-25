@@ -26,22 +26,32 @@ BEGIN;
 
 -- 0) Validar que ambos ids existen y capturar su estado previo (para la auditoría y
 --    para el SQL inverso). Aborta si alguno no existe.
+--    psql NO interpola variables :nombre dentro de bloques DO $$ ... $$ (igual que no
+--    interpola dentro de comillas simples) — se fijan como parámetros de sesión con
+--    set_config() y se leen dentro del bloque con current_setting()::int. Fuera de los
+--    DO $$ ... $$ (todo el resto del script, SQL plano) la interpolación :nombre normal
+--    de psql sí funciona y no se toca.
+SELECT set_config('app.canonical_id', :'canonical_id', true);
+SELECT set_config('app.absorbed_id', :'absorbed_id', true);
+
 DO $$
 DECLARE
+  v_canonical_id integer := current_setting('app.canonical_id')::int;
+  v_absorbed_id integer := current_setting('app.absorbed_id')::int;
   v_canonical_exists boolean;
   v_absorbed_exists boolean;
 BEGIN
-  SELECT EXISTS(SELECT 1 FROM users WHERE id = :canonical_id) INTO v_canonical_exists;
-  SELECT EXISTS(SELECT 1 FROM users WHERE id = :absorbed_id) INTO v_absorbed_exists;
+  SELECT EXISTS(SELECT 1 FROM users WHERE id = v_canonical_id) INTO v_canonical_exists;
+  SELECT EXISTS(SELECT 1 FROM users WHERE id = v_absorbed_id) INTO v_absorbed_exists;
 
   IF NOT v_canonical_exists THEN
-    RAISE EXCEPTION 'Cuenta canónica % no existe', :canonical_id;
+    RAISE EXCEPTION 'Cuenta canónica % no existe', v_canonical_id;
   END IF;
   IF NOT v_absorbed_exists THEN
-    RAISE EXCEPTION 'Cuenta absorbida % no existe', :absorbed_id;
+    RAISE EXCEPTION 'Cuenta absorbida % no existe', v_absorbed_id;
   END IF;
-  IF :canonical_id = :absorbed_id THEN
-    RAISE EXCEPTION 'canonical_id y absorbed_id no pueden ser el mismo (%)', :canonical_id;
+  IF v_canonical_id = v_absorbed_id THEN
+    RAISE EXCEPTION 'canonical_id y absorbed_id no pueden ser el mismo (%)', v_canonical_id;
   END IF;
 END $$;
 

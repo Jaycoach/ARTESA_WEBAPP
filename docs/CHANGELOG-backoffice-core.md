@@ -1862,3 +1862,102 @@ núcleo). Mismo error esperado: `Cannot find module 'bcrypt'`. Impacto: cada vez
 reporta un cliente institucional genuinamente nuevo (no solo actualización de uno existente),
 la creación del usuario fallaría con este mismo error — candidato a la misma corrección
 (`bcrypt` → `bcryptjs`) en una tarea aparte.
+
+## RESUELTO — `db/scripts/merge-duplicate-users.sql`: variables `:nombre` no se interpolan dentro de `DO $$ ... $$`
+
+**Encontrado por Jonathan al ensayar el script REAL contra Producción** (modo ensayo con
+`sed` a `ROLLBACK` — nada se tocó, la transacción abortó sola con código de salida 3):
+```
+ERROR: syntax error at or near ":"
+LINE 6:   SELECT EXISTS(SELECT 1 FROM users WHERE id = :canonical_id...
+```
+
+**Causa raíz:** `psql` no interpola variables `:nombre` dentro de bloques `DO $$ ... $$`
+(igual que no las interpola dentro de comillas simples) — quedan literales dentro del cuerpo
+PL/pgSQL y rompen el parser. El script tenía un `DO $$ ... $$` (paso 0, validación de que
+ambas cuentas existen) que usaba `:canonical_id`/`:absorbed_id` directamente dentro del
+bloque. **Nunca se detectó antes** porque la prueba sintética de Staging
+(`merge-duplicate-users-staging-synthetic-test.sql`) genera los ids con `\gset` *dentro* del
+mismo script, sin pasar por `psql -v` con un `DO` block — era la primera vez que se invocaba
+el script real con `-v` de verdad.
+
+**Revisión completa del archivo** (pedida explícitamente, no solo la línea del error): el
+script tiene exactamente **2** bloques `DO $$ ... $$`:
+- Paso 0 (validación de existencia, líneas ~29-56 antes del fix): usaba `:canonical_id` y
+  `:absorbed_id` dentro del bloque → **afectado, corregido**.
+- Paso 6 (verificación final de 0 duplicados): no referencia ninguna de las 3 variables →
+  **no afectado, sin cambios**.
+
+Todo el resto del script (pasos 1 a 7, capturas de estado, `UPDATE`s, `INSERT`s de
+auditoría/tokens, el `SELECT` de resumen final) usa `:canonical_id`/`:absorbed_id`/`:admin_id`
+en **SQL plano, fuera de cualquier `DO $$`** — ahí la interpolación normal de `psql` sí
+funciona, confirmado que no hacía falta tocar nada de eso.
+
+**Fix aplicado** (patrón `set_config`/`current_setting`, exactamente como lo propuso
+Jonathan): antes del bloque `DO $$` de validación,
+```sql
+SELECT set_config('app.canonical_id', :'canonical_id', true);
+SELECT set_config('app.absorbed_id', :'absorbed_id', true);
+```
+y dentro del bloque, declarar `v_canonical_id`/`v_absorbed_id` leyendo
+`current_setting('app.xxx')::int`, usándolas en vez de `:canonical_id`/`:absorbed_id` en las
+3 comparaciones/`RAISE EXCEPTION` del bloque. `admin_id` no se tocó — nunca se usa dentro de
+ningún `DO $$`, no lo necesitaba.
+
+### Evidencia real — validado con el mecanismo REAL de invocación (`-v`), no la versión sintética inline
+
+Creado un par sintético nuevo en Staging (`real.merge.test.d13@example.com` /
+`Real.Merge.Test.D13@example.com`), con el mismo cuidado de `uk_users_mail_lower` que ya
+usaba la prueba sintética (índice caído temporalmente solo para poder insertar el par,
+recreado inmediatamente después de resolver el duplicado):
+```
+canonical_id=2560
+absorbed_id=2561
+```
+
+**Modo ensayo, invocación real (`sed` a `ROLLBACK` + `psql -v canonical_id=2560 -v absorbed_id=2561 -v admin_id=1`):**
+```
+BEGIN
+ set_config
+------------
+       2560
+(1 row)
+ set_config
+------------
+       2561
+(1 row)
+DO
+SELECT 1
+UPDATE 1
+UPDATE 1
+INSERT 0 2
+INSERT 0 2
+NOTICE:  Verificación final OK: 0 duplicados por LOWER(mail) tras la fusión.
+DO
+ canonical_id |      canonical_mail_after       | absorbed_id |                 absorbed_mail_after
+--------------+---------------------------------+-------------+------------------------------------------------------
+         2560 | real.merge.test.d13@example.com |        2561 | fusionado-en-2560.Real.Merge.Test.D13@invalid.local
+ROLLBACK
+Código de salida: 0
+```
+**Sin error de sintaxis** — el `DO $$` del paso 0 ejecutó limpio. Sin tocar nada real (ROLLBACK).
+
+**Modo real (`psql -v canonical_id=2560 -v absorbed_id=2561 -v admin_id=1 -f merge-duplicate-users.sql`, tal cual el archivo, termina en COMMIT):**
+```
+BEGIN
+...(mismo flujo)...
+COMMIT
+Código de salida: 0
+NOTICE:  Verificación final OK: 0 duplicados por LOWER(mail) tras la fusión.
+```
+
+**Limpieza post-prueba:** índice `uk_users_mail_lower` recreado (`CREATE INDEX` OK, confirmado
+existente con `pg_indexes`); `0` duplicados por `LOWER(mail)` en todo `users` tras recrearlo;
+ambas cuentas sintéticas (2560 canónica, 2561 absorbida) quedaron **inactivas**
+(`is_active=false, deactivated_manually=true`) — no se borró nada.
+
+**`node --check` no aplica** (es SQL) — validado con las 2 corridas reales de `psql` de
+arriba, exit code 0 en ambas.
+
+Archivo completo corregido ya en `db/scripts/merge-duplicate-users.sql` (commit siguiente) —
+pendiente que Jonathan lo revise antes de reintentar el ensayo en Producción.
