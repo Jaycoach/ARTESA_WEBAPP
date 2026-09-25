@@ -122,16 +122,22 @@ vale la pena confirmar con Jonathan antes del primer despliegue real:
   ya esté usando la UI nueva.
 - Si se quiere ir directo a la UI nueva, no hace falta ningún cambio en `.env.production`.
 
-```bash
+**Corrección (2026-09-25, confirmado durante el ciclo de validación en Staging):** el
+mecanismo real de despliegue del frontend **no es** `npm run deploy:production` — ese script
+de `package.json:19` apunta a `s3://tu-bucket-production`, un placeholder desactualizado.
+El mecanismo real es `deploy-frontend.ps1` (en la raíz del frontend), que solo puede correr
+en Windows (usa el perfil AWS local `artesa` y `C:\Program Files\Amazon\AWSCLIV2\aws.exe`).
+Confirma el bucket real de Producción: **`artesa-frontend-production`**
+(CloudFront `E2DQU9UCJBZKP5`, `https://app.artesapanaderia.com`).
+
+```powershell
 cd src/views/frontend/LoginArtesa
-npm run deploy:production   # build:production + aws s3 sync
+.\deploy-frontend.ps1 -Environment production
 ```
 
-**Nota:** `package.json:19` (`deploy:production`) apunta hoy a `s3://tu-bucket-production`,
-que parece un placeholder, no el bucket real de Producción (compárese con
-`deploy:staging`, que sí apunta a `s3://artesa-frontend-staging`). Confirmar el nombre real
-del bucket de Producción antes de correr este comando — si el bucket es distinto, ajustar el
-script o correr el `aws s3 sync` manualmente con el bucket correcto.
+Este script ya hace `build:production` internamente, sincroniza a `s3://artesa-frontend-production`
+e invalida la distribución CloudFront correspondiente — no hace falta ningún `npm run deploy:*`
+ni ajuste manual de bucket.
 
 ### Paso 7 — QA funcional post-deploy
 
@@ -172,7 +178,9 @@ del despliegue hasta revisarlo.
 
 ## 4. Puntos de decisión pendientes para Jonathan antes de ejecutar este plan
 
-1. Confirmar el bucket S3 real de `deploy:production` (Paso 6 — hoy parece un placeholder).
+1. ~~Confirmar el bucket S3 real de Producción~~ — **RESUELTO**: es `artesa-frontend-production`,
+   vía `deploy-frontend.ps1 -Environment production` (ver Paso 6). El `npm run deploy:production`
+   de `package.json` sigue apuntando a un placeholder — no usarlo.
 2. Decidir si el primer despliegue a Producción sale con `VITE_LEGACY_ADMIN_UI=true`
    (transición gradual) o sin ella (UI nueva de inmediato).
 3. Confirmar el `admin_id` real a usar en la fusión D13 de Producción (Paso 3).

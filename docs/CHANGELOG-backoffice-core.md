@@ -1088,8 +1088,10 @@ desplegado** ni contra Producción.
 
 ### Riesgos u hallazgos abiertos, sin resolver todavía
 
-- El bucket S3 de `deploy:production` del frontend (`package.json:19`) parece un placeholder
-  (`s3://tu-bucket-production`) — confirmar el real antes de cualquier deploy a Producción.
+- ~~El bucket S3 de `deploy:production`...~~ — **RESUELTO (2026-09-25):** el mecanismo real de
+  despliegue del frontend es `deploy-frontend.ps1` (Windows, perfil AWS `artesa`), no
+  `npm run deploy:production` (que sí apunta a un placeholder sin usar). Bucket real de
+  Producción: `artesa-frontend-production` (CloudFront `E2DQU9UCJBZKP5`). Ver `docs/DEPLOY-backoffice-core.md`.
 - La fusión D13 del caso conocido de Producción (ALIANZA JIMENEZ SAS, ids 48/1505) sigue sin
   ejecutarse — es un bloqueante para aplicar el índice único D12 en Producción (Paso 2b/3 del
   plan de despliegue).
