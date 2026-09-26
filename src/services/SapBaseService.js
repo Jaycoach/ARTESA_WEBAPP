@@ -3,6 +3,29 @@ const axios = require('axios');
 const https = require('https');
 const { createContextLogger } = require('../config/logger');
 
+// Freno en memoria compartido entre TODAS las instancias de SapBaseService (SapOrderService,
+// SapClientService, SapPriceListService, SapProductService, SapTaxCodeService): tras un fallo
+// de credenciales, bloquea nuevos intentos de login de cualquiera de ellas durante
+// SAP_LOGIN_CREDENTIAL_COOLDOWN_MINUTES (default 5) minutos, para no seguir golpeando el
+// endpoint de autenticación de SAP mientras las credenciales sigan rotas -- exactamente el
+// patrón que bloqueó manager_artesa durante el QA de este fix.
+let credentialCooldownUntil = 0;
+
+/**
+ * Distingue un error de credenciales/autorización de SAP (401, "invalid_grant"/"Invalid user
+ * credentials" -- SAP a veces envuelve esto en un 500 genérico, ver hallazgo QA
+ * fix/order-sync-retry-alerts) de un error de red transitorio. Reintentar no ayuda ante el
+ * primero: la contraseña sigue siendo la misma en el siguiente intento.
+ * @param {Error} error
+ * @returns {boolean}
+ */
+function isSapCredentialError(error) {
+  if (!error) return false;
+  if (error.response?.status === 401) return true;
+  const dataStr = JSON.stringify(error.response?.data || '');
+  return /invalid_grant|invalid user credentials/i.test(dataStr);
+}
+
 /**
  * Servicio base para la integración con SAP Business One Service Layer
  * Proporciona funcionalidades comunes para todos los servicios SAP
@@ -110,6 +133,18 @@ class SapBaseService {
       throw new Error(`Configuración SAP incompleta. Variables faltantes: ${missingConfig.join(', ')}`);
     }
 
+    // Freno: si un login reciente (de esta u otra instancia del proceso) ya detectó
+    // credenciales inválidas, no insistir -- evita repetir el mismo fallo desde cada servicio/
+    // cron que toque SAP mientras las credenciales sigan rotas.
+    const cooldownRemainingMs = credentialCooldownUntil - Date.now();
+    if (cooldownRemainingMs > 0) {
+      const message = `Login de SAP en pausa ${Math.ceil(cooldownRemainingMs / 1000)}s más tras un fallo de credenciales reciente`;
+      this.logger.warn(message, {
+        credentialCooldownUntil: new Date(credentialCooldownUntil).toISOString()
+      });
+      throw new Error(message);
+    }
+
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         this.logger.debug(`Intentando login con SAP (intento ${attempt}/${maxRetries})`, {
@@ -175,6 +210,21 @@ class SapBaseService {
           }
         });
 
+        // Error de credenciales/autorización: reintentar no ayuda (la contraseña sigue siendo
+        // la misma), y multiplicar los intentos es justo lo que puede bloquear la cuenta en SAP
+        // (hallazgo real de este QA). Un solo intento, freno activado, sin backoff.
+        if (isSapCredentialError(error)) {
+          const cooldownMinutes = parseInt(process.env.SAP_LOGIN_CREDENTIAL_COOLDOWN_MINUTES || '5', 10);
+          credentialCooldownUntil = Date.now() + cooldownMinutes * 60 * 1000;
+          this.logger.error('Credenciales de SAP inválidas -- no se reintenta login, freno activado para todo el proceso', {
+            cooldownMinutes,
+            credentialCooldownUntil: new Date(credentialCooldownUntil).toISOString()
+          });
+          break;
+        }
+
+        // Error de red transitorio (timeout, ECONNRESET, 502/503/504, etc.): aquí sí tiene
+        // sentido reintentar con backoff, como antes.
         if (attempt < maxRetries) {
           const delay = Math.pow(2, attempt) * 1000;
           this.logger.warn(`Reintentando conexión en ${delay}ms`, {
