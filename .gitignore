@@ -35,6 +35,9 @@ node_modules/
 .env.local
 .env.*.local
 !.env.example
+
+# Planes de la skill superpowers (superpowers:writing-plans) -- locales, no versionados
+docs/superpowers/
 /config/secrets.js
 *.pem
 *.key

@@ -518,6 +518,27 @@ scheduleInvoiceCheckTask() {
   }
 
   /**
+   * Distingue una falla de conectividad/autenticación con SAP (login fallido, red caída, Service
+   * Layer con error 5xx, timeout) de un error de negocio por pedido (ej. "Item X is inactive",
+   * cliente sin lista de precios). Solo la primera clase debe detener el ciclo completo y disparar
+   * la alerta de "falla global" en vez de gastar un intento por cada pedido pendiente.
+   * @param {Error} error
+   * @returns {boolean}
+   */
+  isSapConnectivityError(error) {
+    if (!error) return false;
+    const networkCodes = new Set(['ECONNREFUSED', 'ETIMEDOUT', 'ENOTFOUND', 'ECONNRESET', 'ECONNABORTED', 'EAI_AGAIN']);
+    if (networkCodes.has(error.code)) return true;
+    const status = error.response?.status;
+    if (status === 401 || (typeof status === 'number' && status >= 500 && status < 600)) return true;
+    // SapBaseService.login() envuelve el error original en un Error genérico tras agotar sus 3
+    // reintentos ("Error de autenticación con SAP B1: <mensaje original>"), perdiendo
+    // error.code/error.response.status — el único rastro que queda es el texto del mensaje.
+    return /timeout|ECONNREFUSED|ETIMEDOUT|ENOTFOUND|ECONNRESET|ECONNABORTED|EAI_AGAIN|status code 401|status code 5\d\d|autenticaci[oó]n con SAP/i
+      .test(error.message || '');
+  }
+
+  /**
    * Sincroniza órdenes pendientes hacia SAP
    * @returns {Promise<Object>} - Estadísticas de sincronización
    */
@@ -584,7 +605,8 @@ scheduleInvoiceCheckTask() {
       }
       
       // Para cada orden, intentar crearla en SAP
-      for (const orderRow of rows) {
+      for (let i = 0; i < rows.length; i++) {
+        const orderRow = rows[i];
         try {
           // Candado atómico + reclamo optimista: además de exigir que la fila no esté ya
           // 'processing', exige que sap_sync_attempts siga siendo el mismo valor que se leyó
@@ -628,6 +650,33 @@ scheduleInvoiceCheckTask() {
           this.logger.info('Orden movida a estado En Producción', { orderId: orderRow.order_id });
 
         } catch (orderError) {
+          // Error de conectividad/autenticación con SAP (login fallido, 401, Service Layer caído,
+          // timeout de red): NO es un error de negocio de este pedido puntual — es SAP el que no
+          // responde, y muy probablemente todos los pedidos restantes fallarían igual. Se detiene
+          // el ciclo completo (sin gastar intentos de nadie), se libera el candado de esta fila, y
+          // se propaga como falla global para que runScheduledSync()/runRetrySync() envíen UN solo
+          // correo claro ("SAP no está disponible"), en vez de N correos de "item inactivo" falsos.
+          if (this.isSapConnectivityError(orderError)) {
+            const pendingCount = rows.length - i;
+            this.logger.error('Falla de conectividad/autenticación con SAP, deteniendo el ciclo de sincronización', {
+              orderId: orderRow.order_id,
+              error: orderError.message,
+              pendingCount
+            });
+            try {
+              await pool.query('UPDATE orders SET sap_sync_status = NULL WHERE order_id = $1', [orderRow.order_id]);
+            } catch (releaseError) {
+              this.logger.error('Error al liberar el candado tras falla de conectividad con SAP', {
+                orderId: orderRow.order_id,
+                error: releaseError.message
+              });
+            }
+            const connectivityError = new Error(orderError.message);
+            connectivityError.isSapConnectivity = true;
+            connectivityError.pendingCount = pendingCount;
+            throw connectivityError;
+          }
+
           stats.errors++;
           const sapErrorMsg = orderError.response?.data?.error?.message
             || orderError.response?.data?.message
@@ -1387,6 +1436,8 @@ scheduleInvoiceCheckTask() {
       await EmailService.sendOrderSyncAlertEmail(recipients, {
         isRetry,
         globalError: error.message,
+        isConnectivity: !!error.isSapConnectivity,
+        pendingCount: error.pendingCount || 0,
         retrySyncTime: this.retrySyncTime || '23:00'
       });
     } catch (emailError) {

@@ -449,9 +449,11 @@ class EmailService {
    * @param {Array<{order_id:number, cliente:?string, sucursal:?string, delivery_date:string, message:string}>} [opts.failed=[]]
    * @param {Array<{order_id:number, cliente:?string, sucursal:?string, delivery_date:string}>} [opts.recovered=[]]
    * @param {?string} [opts.globalError=null] - mensaje si falló el proceso completo de sincronización
+   * @param {boolean} [opts.isConnectivity=false] - true si globalError es una falla de conectividad/autenticación con SAP (vs. una falla genérica, ej. de la propia BD)
+   * @param {number} [opts.pendingCount=0] - pedidos pendientes en el momento de la falla de conectividad
    * @param {string} [opts.retrySyncTime='23:00']
    */
-  async sendOrderSyncAlertEmail(recipients, { isRetry = false, failed = [], recovered = [], globalError = null, retrySyncTime = '23:00' } = {}) {
+  async sendOrderSyncAlertEmail(recipients, { isRetry = false, failed = [], recovered = [], globalError = null, isConnectivity = false, pendingCount = 0, retrySyncTime = '23:00' } = {}) {
     try {
       const to = recipients.join(',');
       let subject;
@@ -464,7 +466,21 @@ class EmailService {
             ${o.message ? `<br>Motivo: ${escapeHtml(o.message)}` : ''}
           </li>`;
 
-      if (globalError) {
+      if (globalError && isConnectivity) {
+        const pendingText = pendingCount === 1 ? '1 pedido pendiente' : `${pendingCount} pedidos pendientes`;
+        subject = isRetry
+          ? '[ALERTA] SAP no disponible — pedidos deben registrarse manualmente'
+          : '[ALERTA] SAP no disponible — reintento automático programado';
+        html = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color:#c0392b;">SAP no está disponible</h2>
+            <p>No fue posible conectar o autenticarse con SAP durante ${isRetry ? 'el reintento' : 'el corte'} de sincronización de pedidos.</p>
+            <p><strong>Motivo:</strong> ${escapeHtml(globalError)}</p>
+            <p>${pendingText} ${isRetry
+              ? 'deben registrarse manualmente en SAP.'
+              : `se reintentarán automáticamente a las ${escapeHtml(retrySyncTime)} (hora Bogotá).`}</p>
+          </div>`;
+      } else if (globalError) {
         subject = isRetry
           ? '[ALERTA] Falla en el reintento de sincronización de pedidos con SAP'
           : '[ALERTA] Falla en la sincronización de pedidos con SAP';
