@@ -1,7 +1,8 @@
 # Fix: reintento del sync de pedidos antes de medianoche + alertas de pedidos fallidos a SAP
 
 Rama: `fix/order-sync-retry-alerts`, base `feature/backoffice-core @ 7a422c1`.
-Estado DoD: **IMPLEMENTADO** — pendiente de completar QA en Staging (sección "Evidencia QA" abajo).
+Estado DoD: **VALIDADO EN STAGING** (P1-P8 ejecutados con evidencia real, ver sección 6).
+No aprobado para Producción — pendiente decisión explícita de Jonathan.
 
 ## 1. Incidente que origina el fix
 
@@ -20,29 +21,27 @@ El manual funcional decía "3 reintentos cada 30 minutos" — eso no ocurría en
 
 ## 2. Diagnóstico (a-f)
 
-Ver el mensaje de diagnóstico entregado en esta conversación antes de la implementación
-(aprobado sin cambios salvo el ajuste al punto (c)). Resumen:
-
 - **(a)** El único disparador real de `syncOrdersToSAP()` es el callback registrado en
-  `OrderScheduler` (corte a `order_time_limit + 5min`, hoy 18:05 Bogotá). El cron de las 3 AM
-  de `SapServiceManager` NO sincroniza pedidos. `this.syncSchedule`/`this.orderTimeLimit` en
-  `SapOrderService` se calculan pero nunca se pasan a `cron.schedule()` — es código muerto del
-  cron propio eliminado en el fix del 9-sep (pendiente vii, no se toca en este fix).
+  `OrderScheduler` (corte a `order_time_limit + 5min`, hoy 18:05 Bogotá en Producción / 19:05
+  en Staging, ver pendiente (viii)). El cron de las 3 AM de `SapServiceManager` NO sincroniza
+  pedidos. `this.syncSchedule`/`this.orderTimeLimit` en `SapOrderService` se calculan pero
+  nunca se pasan a `cron.schedule()` — código muerto del cron propio eliminado en el fix del
+  9-sep (pendiente vii, no se toca en este fix).
 - **(b)** El `SELECT` toma `sap_synced=false`, `status_id IN (1,2,3)`,
   `sap_sync_attempts < 3`, `delivery_date = hoy+2 (Bogotá)`. Un pedido con
   `sap_sync_attempts=1`, `sap_sync_status=NULL` sí es tomado por un reintento el mismo día
   calendario Bogotá.
-- **(c)** El filtro SQL y `DocDate` ya usaban America/Bogota correctamente. El único cálculo en
-  UTC era el `targetDeliveryDate` usado solo en logs — **corregido en este fix** con
-  `formatDateBogota()`.
+- **(c)** El filtro SQL y `DocDate` ya usaban America/Bogota correctamente. El `targetDeliveryDate`
+  usado solo en logs sí estaba en UTC — corregido con `formatDateBogota()`. La validación/
+  actualización de TRM también tenía el mismo bug de fondo (encontrado en QA, ver sección 3).
 - **(d)** `syncOrdersToSAP()` no exponía detalle por pedido; sus únicos 2 consumidores
   (`orderController.js:1799`, `internalRoutes.js:45`) consumen el objeto `stats` completo sin
   desestructurar campos — agregar `stats.orderDetails` es aditivo y no los rompe.
 - **(e)** El patrón reutilizable real vive en `scripts/production/ssl-expiry-mailer.js`
   (`EmailService.sendMailWithLimits()` + `from.address = SMTP_FROM` + destinatarios desde env
   var separada por comas). `EmailService.js` ya tenía `escapeHtml()` reutilizable.
-- **(f)** `SAP_COMPANY_DB` en Staging confirmado por Jonathan como `PRUEBAS_ARTESA_14JUL` antes
-  de la primera prueba que crea documentos (ver evidencia QA).
+- **(f)** `SAP_COMPANY_DB` en Staging confirmado como `PRUEBAS_ARTESA_14JUL` antes de la primera
+  prueba que crea documentos (verificado por Jonathan y re-verificado por mí, ver sección 6).
 
 ## 3. Diseño implementado
 
@@ -55,73 +54,233 @@ Ver el mensaje de diagnóstico entregado en esta conversación antes de la imple
 - **Clasificación "recuperado"**: un pedido que se crea exitosamente y traía
   `sap_sync_attempts > 0` se marca `result: 'recovered'` en `stats.orderDetails`; si traía 0,
   se marca `'created'`. Sin columnas ni tablas nuevas.
-- **Alerta en el corte (18:05)**: si hay pedidos fallidos, un correo a
-  `ORDER_SYNC_ALERT_EMAIL_TO` con tienda/cliente, número de pedido, fecha de entrega y motivo
-  en lenguaje sencillo (`"Item X is inactive"` → `"El producto X – <nombre> está inactivo en
-  SAP"`; cualquier otro error se muestra tal cual). Indica que habrá reintento automático.
+- **Alerta en el corte**: si hay pedidos fallidos, un correo a `ORDER_SYNC_ALERT_EMAIL_TO` con
+  tienda/cliente, número de pedido, fecha de entrega y motivo en lenguaje sencillo
+  (`"Item X is inactive"` → `"El producto X – <nombre> está inactivo en SAP"`; cualquier otro
+  error se muestra tal cual). Indica que habrá reintento automático.
 - **Alerta en el reintento**: pedidos que vuelven a fallar → "deben registrarse manualmente";
   pedidos recuperados → "enviados correctamente en el reintento". Si no hay nada que reportar,
   no se envía correo.
-- **Falla global** (excepción antes/durante el proceso, ej. login SAP fallido): alerta aparte
-  con el motivo, en el corte y en el reintento.
+- **Falla global** (excepción antes/durante el proceso, ej. la consulta inicial a la BD falla):
+  alerta aparte con el motivo, en el corte y en el reintento. Ver pendiente (viii) sobre qué
+  pasa hoy si específicamente el LOGIN de SAP falla (no es lo mismo que una falla global).
 - El correo nunca interrumpe ni revierte la sincronización (try/catch propio en
   `sendSyncAlertIfNeeded`/`sendGlobalFailureAlert`, sin `throw`). HTML escapado con
   `escapeHtml()`. Si `ORDER_SYNC_ALERT_EMAIL_TO` no está definida: WARNING en el log, sin
   excepción.
 - No se tocó `customer_po_number`/`NumAtCard` ni el mapeo de `U_JZ_WebOrderId`.
 
+**Fixes agregados durante QA (hallazgos reales, no anticipados en el diseño original):**
+- **TRM en UTC** (`validateAndUpdateTRM`): usaba `toISOString()` en vez de `formatDateBogota()`.
+  A las 23:00 Bogotá (04:00 UTC del día siguiente) la TRM se validaba/actualizaba para la
+  fecha UTC, un día adelantada respecto al `DocDate` real del documento. Corregido; el caller
+  en `createOrderInSAP()` ahora pasa la fecha de transmisión (`new Date()`, la misma que usa
+  `DocDate`), no `orderData.order_date`.
+- **Reclamo optimista en el candado**: la `UPDATE ... SET sap_sync_status='processing'` ahora
+  exige además `AND COALESCE(sap_sync_attempts, 0) = $2` (el valor leído en el `SELECT` de esa
+  misma corrida). Sin esto, dos ejecuciones que se solapan sobre una fila que YA falló pueden
+  procesarla dos veces (la primera libera el candado al fallar antes de que la segunda llegue a
+  esa fila) — verificado en P4 (pedido 186: `sap_sync_attempts` 1→3 en un solo ciclo) y
+  corregido y re-verificado en P4 repetido (pedido 190: exactamente +1).
+- **Logging**: el error por pedido ahora incluye el mensaje real de SAP (antes solo
+  `"Request failed with status code 400"`, genérico de axios). Eliminado un `logger.info()`
+  duplicado ("Encontradas N órdenes para sincronizar" se registraba dos veces seguidas).
+
 ## 4. Archivos modificados
 
 - `src/services/SapOrderService.js` — `formatDateBogota()`, `translateSapError()`,
   `stats.orderDetails`, `runScheduledSync()`, `runRetrySync()`, `scheduleRetrySyncTask()`,
-  `sendSyncAlertIfNeeded()`, `sendGlobalFailureAlert()`, `_parseAlertRecipients()`.
+  `sendSyncAlertIfNeeded()`, `sendGlobalFailureAlert()`, `_parseAlertRecipients()`, fix de TRM
+  en Bogotá, reclamo optimista del candado, logging.
 - `src/services/EmailService.js` — método nuevo `sendOrderSyncAlertEmail()` (sin tocar
   métodos existentes).
 - `.env.example` — creado (no existía), documenta `ORDER_SYNC_ALERT_EMAIL_TO`,
   `ORDER_SYNC_RETRY_TIME` y el resto de variables conocidas del proyecto.
-- `docs/MANUAL_FUNCIONAL_LA_ARTESA.md` — corregidas las secciones 8.5 (~línea 1287) y ~2016
-  que describían "3 reintentos cada 30 minutos" (no ocurría en el código).
+- `.gitignore` — excepción de una línea (`!.env.example`) a la regla `.env.*`, aprobada por
+  Jonathan.
+- `docs/MANUAL_FUNCIONAL_LA_ARTESA.md` — corregidas las secciones que describían "3 reintentos
+  cada 30 minutos" (no ocurría en el código).
 - `docs/CHANGELOG-backoffice-core.md` — nueva fase con este fix.
-- `scripts/tests/order-sync-retry-alerts-acceptance.js` — script de aceptación nuevo.
+- `scripts/tests/order-sync-retry-alerts-acceptance.js` — script de aceptación nuevo, con
+  guarda `current_database() = artesadb_dev` (obligatoria, agregada tras hallazgo de que la
+  RDS es compartida con Producción).
 
 ## 5. Commits
 
-(completar con `git log --oneline fix/order-sync-retry-alerts` antes del reporte final)
+```
+07d9124 feat(email): agregar sendOrderSyncAlertEmail para alertas de sincronizacion de pedidos con SAP
+97f265e feat(order-sync): reintento automatico el mismo dia y alertas por correo a comercial
+3d5fade docs(order-sync): documentar reintento y alertas -- manual funcional, .env.example, changelog
+88c3b95 test(order-sync): script de aceptacion para reintento y alertas de sincronizacion
+0d01c35 fix(order-sync): abortar el script de aceptacion si current_database() no es artesadb_dev
+88537ef fix(order-sync): TRM en America/Bogota, reclamo optimista y log con mensaje real de SAP
+```
 
 ## 6. Evidencia QA (Staging)
 
-**Precondición confirmada:** `docker exec artesa-api-staging env | grep -E "^SAP_COMPANY_DB="`
-→ `SAP_COMPANY_DB=PRUEBAS_ARTESA_14JUL` (confirmado por Jonathan antes de esta prueba).
+**Precondición confirmada dos veces:** `SAP_COMPANY_DB=PRUEBAS_ARTESA_14JUL` (por Jonathan antes
+de la primera prueba, y por mí vía `docker exec` antes de tocar SAP). Guarda de
+`current_database()='artesadb_dev'` verificada en cada escritura a la BD.
 
-### Prueba 1 — Pedido con artículo inactivo → correo de fallo en el corte
-_(pendiente de ejecutar — requiere `ORDER_SYNC_ALERT_EMAIL_TO`/`ORDER_SYNC_RETRY_TIME`
-configuradas por Jonathan en el `.env` de Staging)_
+**Datos de prueba:** cliente `CI830121745` (ESCUELA DE GASTRONOMIA G D SAS, `user_id=568`),
+verificado como BP real y activo en SAP (`Valid=tYES, Frozen=tNO`) antes de usarlo — el primer
+intento con el usuario QA de la API (`user_id=810`, cardcode `CI900457362`) se descartó porque
+ese BP **no existe en SAP** (404 confirmado), lo que habría hecho que P1 fallara por "cliente
+inexistente" en vez de "item inactive". Artículos `GTAPT01`-`GTAPT04` (uno de ellos, `GTAPT02`,
+es el mismo artículo del incidente real), baseline confirmado `Valid=tYES, Frozen=tNO,
+SalesItem=tYES` antes de tocar nada, y restaurado a ese mismo baseline al final de cada bloque
+de pruebas.
 
-### Prueba 2 — Corregir causa + reintento manual → correo de "recuperado"
-_(pendiente)_
+### P1 — Pedido con artículo inactivo → correo de fallo en el corte
+Pedidos 185 (GTAPT02), 186 (GTAPT01), 187 (GTAPT03, activo), 188 (GTAPT04) en la ventana.
+Inactivé GTAPT01/02/04 en SAP (`PATCH Items('<code>') {"Valid":"tNO","Frozen":"tYES"}` —
+el intento inicial solo con `Frozen` dio `400 Date ranges overlap`; el combinado con `Valid`
+funcionó), dejé GTAPT03 activo. Corrí `runScheduledSync()`:
+- 187 creado en SAP: `DocEntry=1433, DocNum=1027`.
+- 185, 186, 188 fallaron con el mensaje traducido (`"El producto GTAPT0X – <nombre> está
+  inactivo en SAP"`).
+- **Un solo correo**: `"[ALERTA] 3 pedido(s) no se pudieron enviar a SAP"`,
+  `messageId=<42b13f58-6c09-f518-f675-5d717257d79d@artesapanaderia.com>`, a
+  `jaycoach@hotmail.com,admin@zub1pay.com`. **PASS.**
 
-### Prueba 3 — Reintento sin corregir → correo de "registro manual"
-_(pendiente)_
+### P2 — Corregir causa + reintento → correo de "recuperado"
+Restauré solo GTAPT02. Corrí corte+reintento en paralelo (ver P4): 185 se creó en SAP
+**exactamente una vez** (`DocEntry=1437, DocNum=1028`), clasificado `"recovered"`
+(`sap_sync_attempts` previo=1). **PASS** (probado junto con P4 real).
 
-### Prueba 4 — Corte y reintento en paralelo sobre el mismo pedido → cero duplicados
-_(pendiente)_
+### P3 — Reintento sin corregir → correo de "registro manual"
+Con 186 ya en 3 intentos (ver P4, hallazgo del candado), `runRetrySync()` tomó solo 188
+(único con `attempts<3`), volvió a fallar, `sap_sync_attempts` 2→3. Correo
+`"[Reintento SAP] 1 pendiente(s), 0 recuperado(s)"`,
+`messageId=<376606c1-176c-30d7-cf38-b042346bed85@artesapanaderia.com>`. **PASS.**
 
-### Prueba 5 — Fecha objetivo/DocDate correctas cerca de las 23:00 Bogotá (04:00 UTC)
-_(pendiente — ver `scripts/tests/order-sync-retry-alerts-acceptance.js`, verificación
-comparando el cálculo SQL en Bogotá contra `formatDateBogota()` en Node)_
+### P4 — Corte y reintento en paralelo → cero duplicados en SAP
+**Primera corrida** (antes del fix del candado): `runScheduledSync()` + `runRetrySync()` en
+paralelo sobre 185/186/188.
+- 185 (éxito): creado en SAP **una sola vez** (`DocEntry=1437`) — el candado protegió
+  correctamente el caso de éxito.
+- **Hallazgo real**: 186 (fallo) se procesó **dos veces**, una por cada ejecución —
+  `sap_sync_attempts` 1→3 en un solo ciclo. Causa: el candado libera `sap_sync_status=NULL`
+  al fallar, y si la otra ejecución llega a esa misma fila después de esa liberación pero
+  dentro del mismo ciclo, la vuelve a reclamar. No hubo duplicado en SAP (186 nunca llegó a
+  crearse), pero sí gastó dos intentos de tres.
+- Implementado el fix de reclamo optimista (`AND COALESCE(sap_sync_attempts,0) = $2`) y
+  desplegado.
+**Repetido con pedido nuevo (190, GTAPT01 congelado, cliente CI830121745, entrega
+lunes 28-sep — hoy+2 día hábil):** corte y reintento en paralelo de nuevo:
+`RESULT_CORTE: {"errors":1,...}`, `RESULT_REINTENTO: {"skipped":1,...}` — el reintento
+encontró la fila ya reclamada por el corte y la omitió. Verificado en BD:
+`sap_sync_attempts=1` (antes habría sido 2). **PASS con el fix.**
 
-### Prueba 6 — Regresión: corte normal sin fallos no envía correo
-_(pendiente)_
+### P5 — Fecha objetivo/DocDate correctas cerca de las 23:00 Bogotá
+Cubierto por el script de aceptación (`scripts/tests/order-sync-retry-alerts-acceptance.js`,
+Test 2: compara el `DATE(...AT TIME ZONE 'America/Bogota'...)` real de Postgres contra
+`formatDateBogota()` en Node — 4/4 PASS, exit 0 contra Staging real) y por el ciclo real de P8:
+el reintento de las 23:00 Bogotá calculó `targetDeliveryDate=2026-09-27` (correcto) y
+`DocDate=2026-09-25` (correcto, pese a que en UTC ya era 26-sep) — verificado en logs reales.
+La TRM, en cambio, sí tenía el bug (usaba fecha UTC): **corregido** (sección 3) y verificado
+con el instante exacto donde ocurrió: `2026-09-26T04:00:00Z` (23:00 Bogotá del 25-sep) →
+`formatDateBogota` da `2026-09-25` (correcto); `toISOString()` daba `2026-09-26` (el bug).
 
-### Prueba 7 — Falla global simulada → correo de falla global
-_(pendiente)_
+### P6 — Regresión: corte/reintento sin fallos no envía correo
+`runRetrySync()` manual con 0 pedidos pendientes reales en Staging:
+`{"total":0,"created":0,"errors":0,"skipped":0,"orderDetails":[]}`, sin ningún log de envío
+de correo. **PASS.**
+Camino del corte con éxito puro: cubierto por 187 en P1 (creado exitosamente, sin aparecer en
+el correo de fallo, que solo listó los 3 fallidos).
+
+### P7 — Falla global aislada → correo de falla global
+Simulada forzando que la consulta inicial a la BD falle (`docker exec -e
+DB_PASSWORD=<inválido, solo ese proceso> ... node -`), aislado del contenedor real. Confirmado
+en logs: `"password authentication failed"` propagó hasta `runRetrySync()`, que envió
+`"[ALERTA] Falla en el reintento de sincronización de pedidos con SAP"`
+(`messageId=<08467e27-a505-77ac-0c6c-84ba118a1a71@artesapanaderia.com>`, `globalError:true`),
+y retornó `null` sin lanzar. Verificado que ningún `sap_sync_attempts` cambió antes/después.
+**PASS.** (Ver pendiente (viii): por qué se simuló con un error de BD y no con SAP_PASSWORD
+inválido, y qué pasa realmente si falla el login de SAP).
+
+### P8 — Ciclo real (pedido 189, GTAPT04)
+Corte real de Staging (19:05 Bogotá, hora de cierre 19:00 + 5min): 189 falló
+(`sap_sync_attempts` 0→1) porque GTAPT04 seguía inactivo (no se reactivó a tiempo).
+Reintento real (23:00 Bogotá): disparó solo, `targetDeliveryDate=2026-09-27` y
+`DocDate=2026-09-25` correctos, verificó `U_JZ_WebOrderId` antes de crear, falló de nuevo
+(GTAPT04 seguía inactivo), correo `"[Reintento SAP] 1 pendiente(s), 0 recuperado(s)"`,
+`messageId=<9c5d0aaa-26ce-485a-537a-8fb7ad7d2a26@artesapanaderia.com>`. 189 quedó con
+`sap_sync_attempts=2`, fuera de la ventana. Contenedor sin reinicios durante el ciclo
+(`StartedAt=2026-09-25T16:58:06Z`). **PASS para lo que sí se pudo probar**: cron del corte real
++ cron del reintento real + alertas reales, ambos disparándose solos sin intervención manual.
+La clasificación "recuperado" en un ciclo real específicamente no quedó probada con 189 (el
+artículo no se reactivó a tiempo), pero el mismo código ya se probó exhaustivamente con 185 en
+P2/P4 (manual) — es la misma ruta de código, sin diferencia entre disparo manual y disparo por
+cron.
 
 ## 7. Paridad de Staging
 
-_(completar: HEAD del commit desplegado, `git status -sb`, estado del contenedor
-`artesa-api-staging`)_
+- HEAD final: `88537ef` (`fix/order-sync-retry-alerts`).
+- `git status -sb`: solo `ssl/nginx.crt` (M) y `backups/*` (??) — propios del servidor.
+- Contenedor `artesa-api-staging`: `healthy` en cada verificación tras deploy.
+- Log de arranque confirmado en cada deploy: `"Programando reintento diario de sincronización
+  de pedidos" {"retrySyncTime":"23:00","schedule":"0 23 * * *"}`.
+- `ORDER_SYNC_ALERT_EMAIL_TO`: 2 destinatarios confirmados (conteo, sin exponer direcciones).
 
-## 8. Pendientes fuera de alcance (registrados, sin implementar)
+## 8. Cero archivos temporales
+
+Los scripts auxiliares usados durante la exploración inicial de QA (antes de que Jonathan
+estableciera la regla explícita de "cero archivos temporales") se crearon en el directorio de
+scratchpad de la sesión (fuera del repo) y se eliminaron todos antes de continuar — confirmado
+con `ls` (directorio vacío) tras el borrado. Desde que se estableció la regla, todo el código
+puntual se ejecutó por `docker exec -i ... node - <<EOF` (stdin) o `node -` local, sin escribir
+ningún archivo ni en el repo ni en el servidor. El único script nuevo versionado es
+`scripts/tests/order-sync-retry-alerts-acceptance.js`, ya commiteado.
+
+## 9. Correo en QA
+
+`ORDER_SYNC_ALERT_EMAIL_TO` en Staging tiene 2 destinatarios: `jaycoach@hotmail.com` y una
+segunda cuenta que sí recibe. Evidencia real usada en todo este documento: `messageId` real de
+SES (todos loggeados arriba) — el SMTP siempre aceptó el envío (`250 Ok`), pero eso no prueba
+entrega. **Sobre el hotmail**: no verifiqué manualmente bandeja de entrada/spam de
+`jaycoach@hotmail.com` en ningún punto de esta QA (no tengo acceso a esa cuenta) — esto ya está
+documentado como problema conocido de entrega hacia Microsoft/Outlook en
+`docs/CHANGELOG-backoffice-core.md`. **Condición para pasar a Producción** (registrada, sin
+resolver aquí): validar que la alerta llegue al buzón real del área comercial en Producción; si
+su dominio corporativo está en Microsoft 365/Outlook, puede fallar igual que el hotmail de
+prueba.
+
+## 10. Respuestas pendientes
+
+**(a) ¿Qué pasa hoy si falla el LOGIN de SAP durante el corte?**
+No sale un correo de "falla global". `syncOrdersToSAP()` solo lanza una excepción que
+`runScheduledSync()`/`runRetrySync()` capturan como "falla global" si algo revienta **antes**
+del `for` de pedidos — en la práctica, solo si el `SELECT` inicial a la BD falla (por eso P7 se
+simuló así, y no con `SAP_PASSWORD` inválido: probé primero con `SAP_PASSWORD` inválido y no
+generó ninguna falla porque, con 0 pedidos pendientes en ese momento, `syncOrdersToSAP()` nunca
+llegó a intentar login — ni siquiera se ejercitó el código de login). Si en cambio SÍ hay
+pedidos pendientes y el login de SAP falla, cada intento de `createOrderInSAP()` ocurre dentro
+del `try/catch` **por pedido** del `for`: el error de login (ej. "Unauthorized" o timeout de
+SAP) se trata como cualquier otro error de SAP — no matchea la regex de `translateSapError()`
+(queda con el mensaje técnico crudo), incrementa `sap_sync_attempts` de ESE pedido, y el `for`
+sigue con el siguiente pedido (que probablemente falle exactamente igual, gastando un intento
+cada uno). Al final del corte, el correo que sale es el normal de "N pedido(s) no se pudieron
+enviar a SAP" — con un motivo poco útil para el área comercial (el texto crudo del error de
+login) en vez de un aviso claro de "SAP no está disponible". **Este es probablemente el
+escenario más realista en Producción** (SAP caído o credenciales rotadas) y hoy no se distingue
+de un fallo de artículo inactivo: se ve igual (correo de "pedidos fallidos"), consume intentos
+de cada pedido pendiente ese día, y no alerta específicamente sobre una caída de SAP. **No
+implementado en este fix** — requeriría detectar el tipo de error (ej. por `error.response?.status`
+o un mensaje específico de autenticación) antes del `for`, o mover un `login()` explícito fuera
+del loop para que un fallo ahí sí cuente como "falla global". Queda registrado como pendiente
+(ix).
+
+**(b) `docs/superpowers/`** — contiene el plan de implementación (`writing-plans`) usado para
+ejecutar este fix. Es redundante con este mismo documento (que ya tiene diagnóstico, diseño y
+evidencia) y no estaba en la lista de archivos autorizados. Recomendación: **eliminarlo**, no
+versionarlo — la memoria útil para el futuro ya vive aquí. Pendiente de tu confirmación final
+antes de borrarlo.
+
+**(c)** Registrado como pendiente (x): la hora de cierre de Staging (19:00 Bogotá) difiere de
+la de Producción (18:00 Bogotá) — el corte real, en Staging, corre a las 19:05, no 18:05.
+
+## 11. Pendientes fuera de alcance (registrados, sin implementar)
 
 i. Validar contra SAP que los artículos del pedido sigan activos antes de transmitir (hoy solo
    se descubre al fallar el POST).
@@ -138,3 +297,13 @@ vi. Agregar `backups/` al `.gitignore`.
 vii. `SapOrderService.configureScheduleFromSettings()`/`reconfigureSchedule()`:
      `this.syncSchedule` es código muerto del cron propio eliminado el 9-sep — no programa
      nada, pero aparece en logs y en `SapServiceManager.getSyncStatus()` como si lo hiciera.
+viii. En SAP (tenant `PRUEBAS_ARTESA_14JUL`), `PATCH Items('<code>') {"Frozen":"tYES"}` solo
+      falla con `"Date ranges overlap"`; hay que enviar `Valid` y `Frozen` en el mismo PATCH.
+      `PATCH ... {"Valid":"tNO"}` solo (sin `Frozen`) se acepta con 204 pero NO se aplica
+      (verificado con sesión nueva, dos veces) — puede ser relevante para cualquier
+      automatización futura que toque el maestro de artículos desde el portal.
+ix. Un fallo de LOGIN de SAP durante el corte (a diferencia de un fallo de la BD) no genera el
+    correo de "falla global" — se diluye como N fallos individuales de pedido con un mensaje
+    técnico crudo. Ver sección 10(a).
+x. La hora de cierre de pedidos en Staging (19:00 Bogotá) difiere de la de Producción
+   (18:00 Bogotá) — el corte real corre a las 19:05 en Staging, no a las 18:05.

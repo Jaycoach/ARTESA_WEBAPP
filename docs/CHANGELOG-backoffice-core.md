@@ -2088,6 +2088,22 @@ Cambios (rama `fix/order-sync-retry-alerts`, base `feature/backoffice-core @ 7a4
   frases "3 reintentos cada 30 minutos" que no correspondían al comportamiento real),
   `scripts/tests/order-sync-retry-alerts-acceptance.js` (script de aceptación nuevo).
 
+**Estado: VALIDADO EN STAGING** (2026-09-26). QA completo P1-P8 con evidencia real (pedidos SQL
+de prueba 185-190, cliente `CI830121745` verificado como BP real y activo en SAP, artículos
+`GTAPT01-04` congelados/restaurados con evidencia en cada paso). Ver el detalle completo,
+mensajes de correo, `messageId` reales y logs en `docs/FIX-order-sync-retry-alerts.md` sección 6.
+
+Dos fixes adicionales encontrados y corregidos durante el QA (no anticipados en el diseño
+original), ya desplegados en Staging (commit `88537ef`):
+- **TRM en UTC**: `validateAndUpdateTRM()` usaba `toISOString()` en vez de `formatDateBogota()`.
+  A las 23:00 Bogotá (04:00 UTC del día siguiente) la TRM se validaba para la fecha UTC, un día
+  adelantada respecto al `DocDate` real. Corregido para que ambas usen la misma fecha Bogotá.
+- **Candado sin reclamo optimista**: dos ejecuciones que se solapan sobre un pedido que YA
+  falló pueden procesarlo dos veces (la primera libera el candado al fallar antes de que la
+  segunda llegue a esa misma fila) — verificado con el pedido 186 (`sap_sync_attempts` 1→3 en
+  un solo ciclo). Corregido agregando `AND COALESCE(sap_sync_attempts, 0) = $2` a la `UPDATE`
+  que reclama la fila; re-verificado con el pedido 190 (exactamente +1).
+
 Pendiente registrado para después de este fix, sin implementarse (ver detalle completo en
 `docs/FIX-order-sync-retry-alerts.md`): (i) validar contra SAP que los artículos sigan activos
 antes de transmitir; (ii) el sync de productos no evalúa `Valid`/`FrozenFrom`/`FrozenTo`;
@@ -2095,4 +2111,9 @@ antes de transmitir; (ii) el sync de productos no evalúa `Valid`/`FrozenFrom`/`
 (iv) `status_id=3` se asigna antes de la transmisión real; (v) `ssl/nginx.crt` versionado en
 Git y falta `.gitattributes`; (vi) falta `backups/` en `.gitignore`; (vii)
 `SapOrderService.syncSchedule` es código muerto del cron propio eliminado el 9-sep — no
-programa nada, pero aparece en logs y en `SapServiceManager.getSyncStatus()` como si lo hiciera.
+programa nada, pero aparece en logs y en `SapServiceManager.getSyncStatus()` como si lo hiciera;
+(viii) en SAP, congelar un ítem por Service Layer requiere enviar `Valid` y `Frozen` juntos en
+el mismo `PATCH` (`Frozen` solo da error de rango de fechas; `Valid` solo no se aplica, sin
+error); (ix) un fallo de LOGIN de SAP durante el corte no genera el correo de "falla global" —
+se diluye como N fallos individuales de pedido con mensaje técnico crudo; (x) la hora de cierre
+de Staging (19:00 Bogotá) difiere de la de Producción (18:00 Bogotá).
