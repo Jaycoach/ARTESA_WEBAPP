@@ -347,8 +347,11 @@ scheduleInvoiceCheckTask() {
         commentsPreview: fullComments.substring(0, 200) + (fullComments.length > 200 ? '...' : '')
       });
 
-      // Validar y actualizar TRM si es necesario
-      const trmValidation = await this.validateAndUpdateTRM(orderData.order_date || new Date());
+      // Validar y actualizar TRM para la fecha de TRANSMISIÓN (misma fecha que DocDate arriba,
+      // no la fecha original en que se colocó el pedido) — de lo contrario la TRM queda
+      // validada/actualizada para un día distinto al del documento que realmente se transmite.
+      const transmissionDate = new Date();
+      const trmValidation = await this.validateAndUpdateTRM(transmissionDate);
       if (!trmValidation.success) {
         throw new Error(`Error al validar TRM: ${trmValidation.error}`);
       }
@@ -356,6 +359,7 @@ scheduleInvoiceCheckTask() {
       this.logger.info('TRM validada para la orden', {
         orderId: order.order_id,
         orderDate: orderData.order_date,
+        transmissionDate: this.formatDateBogota(transmissionDate),
         trmRate: trmValidation.rate,
         trmDate: trmValidation.date,
         wasUpdated: trmValidation.wasUpdated
@@ -554,8 +558,6 @@ scheduleInvoiceCheckTask() {
       
       const { rows } = await pool.query(query);
       stats.total = rows.length;
-      
-      this.logger.info(`Encontradas ${rows.length} órdenes para sincronizar`);
 
       const targetDeliveryDate = this.formatDateBogota(new Date(Date.now() + 2 * 24 * 60 * 60 * 1000));
 
@@ -584,16 +586,23 @@ scheduleInvoiceCheckTask() {
       // Para cada orden, intentar crearla en SAP
       for (const orderRow of rows) {
         try {
-          // Candado atómico: solo procede si esta invocación logra reclamar la fila.
-          // Evita que dos disparos concurrentes procesen la misma orden.
+          // Candado atómico + reclamo optimista: además de exigir que la fila no esté ya
+          // 'processing', exige que sap_sync_attempts siga siendo el mismo valor que se leyó
+          // en el SELECT de arriba. Sin esto, dos ejecuciones que se solapan (corte + reintento,
+          // o dos reintentos manuales) pueden procesar la MISMA orden fallida dos veces: la
+          // primera falla y libera el candado (sap_sync_status=NULL) antes de que la segunda
+          // llegue a esa fila en su propio for, y la segunda la reclama de nuevo como si fuera
+          // la primera vez, gastando dos intentos en un solo ciclo (hallazgo QA fix/order-sync-retry-alerts,
+          // pedido 186: sap_sync_attempts pasó de 1 a 3 en una sola corrida en paralelo).
           const claim = await pool.query(
             `UPDATE orders
              SET sap_sync_status = 'processing'
              WHERE order_id = $1
                AND (sap_synced = false OR sap_synced IS NULL)
                AND sap_sync_status IS DISTINCT FROM 'processing'
+               AND COALESCE(sap_sync_attempts, 0) = $2
              RETURNING order_id`,
-            [orderRow.order_id]
+            [orderRow.order_id, orderRow.sap_sync_attempts]
           );
           if (claim.rowCount === 0) {
             stats.skipped++;
@@ -620,16 +629,17 @@ scheduleInvoiceCheckTask() {
 
         } catch (orderError) {
           stats.errors++;
+          const sapErrorMsg = orderError.response?.data?.error?.message
+            || orderError.response?.data?.message
+            || orderError.message;
           this.logger.error('Error al sincronizar orden individual', {
             orderId: orderRow.order_id,
-            error: orderError.message
+            error: orderError.message,
+            sapError: sapErrorMsg
           });
 
           // Actualizar el estado de error en la orden
           try {
-            const sapErrorMsg = orderError.response?.data?.error?.message
-              || orderError.response?.data?.message
-              || orderError.message;
             await pool.query(
               'UPDATE orders SET sap_sync_error = $1, sap_sync_attempts = COALESCE(sap_sync_attempts, 0) + 1, sap_sync_status = NULL WHERE order_id = $2',
               [sapErrorMsg.substring(0, 255), orderRow.order_id]
@@ -1504,12 +1514,16 @@ scheduleInvoiceCheckTask() {
    */
   async validateAndUpdateTRM(orderDate) {
     try {
-      const checkDate = new Date(orderDate);
-      const dateStr = checkDate.toISOString().split('T')[0];
-      
+      const checkDate = orderDate ? new Date(orderDate) : new Date();
+      // America/Bogota, no UTC: a las 23:00 Bogotá ya es el día siguiente en UTC. Debe coincidir
+      // con la fecha que usa DocDate (también formatDateBogota), o la TRM validada/actualizada
+      // queda para un día distinto al del documento que se transmite.
+      const dateStr = this.formatDateBogota(checkDate);
+      const dayOfWeek = new Date(checkDate.toLocaleString('en-US', { timeZone: 'America/Bogota' })).getDay();
+
       this.logger.debug('Verificando TRM para fecha de sincronización', {
         date: dateStr,
-        dayOfWeek: checkDate.getDay()
+        dayOfWeek
       });
 
       let currentTRM = null;
@@ -1551,9 +1565,11 @@ scheduleInvoiceCheckTask() {
         let lastValidRate = null;
         
         for (let i = 1; i <= 7; i++) {
-          const previousDate = new Date(checkDate);
-          previousDate.setDate(previousDate.getDate() - i);
-          const prevDateStr = previousDate.toISOString().split('T')[0];
+          // Restar días en milisegundos sobre el instante absoluto (no sobre un Date ya
+          // desplazado a Bogotá) y formatear el resultado en Bogotá: evita acumular el
+          // desfase de zona horaria en cada vuelta del loop.
+          const previousDate = new Date(checkDate.getTime() - i * 24 * 60 * 60 * 1000);
+          const prevDateStr = this.formatDateBogota(previousDate);
           
           try {
             const prevRateResponse = await this.request('POST', 'SBOBobService_GetCurrencyRate', {
