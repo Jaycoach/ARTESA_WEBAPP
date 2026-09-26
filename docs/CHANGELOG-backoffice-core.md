@@ -2114,6 +2114,25 @@ Git y falta `.gitattributes`; (vi) falta `backups/` en `.gitignore`; (vii)
 programa nada, pero aparece en logs y en `SapServiceManager.getSyncStatus()` como si lo hiciera;
 (viii) en SAP, congelar un ítem por Service Layer requiere enviar `Valid` y `Frozen` juntos en
 el mismo `PATCH` (`Frozen` solo da error de rango de fechas; `Valid` solo no se aplica, sin
-error); (ix) un fallo de LOGIN de SAP durante el corte no genera el correo de "falla global" —
-se diluye como N fallos individuales de pedido con mensaje técnico crudo; (x) la hora de cierre
-de Staging (19:00 Bogotá) difiere de la de Producción (18:00 Bogotá).
+error); (ix) **[RESUELTO]** ver abajo; (x) la hora de cierre de Staging (19:00 Bogotá) difiere
+de la de Producción (18:00 Bogotá); (xi) `SapBaseService.login()` reintenta 3 veces sin
+distinguir error de credenciales de error de red — propuesta sin aplicar en la sección 15 del
+FIX doc, prioridad alta antes de Producción.
+
+**Actualización (ix) — falla de conectividad/autenticación con SAP, ya implementada y
+validada:** antes, un login de SAP fallido durante el corte se diluía como N fallos
+individuales de pedido con mensaje técnico crudo, gastando un intento de cada uno. Ahora
+`isSapConnectivityError()` distingue esto de un error de negocio, detiene el ciclo sin gastar
+intentos, libera el candado, y envía un correo específico "SAP no está disponible". Se encontró
+y corrigió además un hallazgo intermedio: `validateAndUpdateTRM()` enmascaraba el mismo tipo de
+falla como "TRM no encontrada en 7 días" (probando 7 fechas × 3 logins fallidos cada una antes
+de rendirse) — corregido para relanzar la falla de conectividad de inmediato.
+
+**Incidente durante el QA de (ix):** las pruebas de conectividad simuladas con contraseña
+inválida sobre el usuario real `manager_artesa` (antes de establecerse la regla de usar un
+usuario inexistente) generaron ~30 logins fallidos en ~8 minutos y dejaron esa cuenta
+bloqueada en SAP. Como resultado, el portal (Staging y Producción) cambió a usar
+`Integracion_Artesa` — la MISMA cuenta en ambos ambientes — como usuario de integración;
+`manager_artesa` es de administración del cliente SAP y no debe usarse nunca más para el
+portal. Detalle completo, con timestamps y conteo exacto de logins fallidos, en
+`docs/FIX-order-sync-retry-alerts.md` sección 14.

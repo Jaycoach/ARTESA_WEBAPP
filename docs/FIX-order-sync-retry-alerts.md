@@ -114,6 +114,9 @@ El manual funcional decía "3 reintentos cada 30 minutos" — eso no ocurría en
 88c3b95 test(order-sync): script de aceptacion para reintento y alertas de sincronizacion
 0d01c35 fix(order-sync): abortar el script de aceptacion si current_database() no es artesadb_dev
 88537ef fix(order-sync): TRM en America/Bogota, reclamo optimista y log con mensaje real de SAP
+8be111d docs(order-sync): completar evidencia de QA P1-P8, hallazgos y estado VALIDADO EN STAGING
+32cd90d feat(order-sync): distinguir falla de conectividad/autenticacion con SAP de errores de negocio (pendiente ix)
+e6574ea fix(order-sync): validateAndUpdateTRM no debe enmascarar fallas de conectividad como "TRM no encontrada"
 ```
 
 ## 6. Evidencia QA (Staging)
@@ -302,8 +305,182 @@ viii. En SAP (tenant `PRUEBAS_ARTESA_14JUL`), `PATCH Items('<code>') {"Frozen":"
       `PATCH ... {"Valid":"tNO"}` solo (sin `Frozen`) se acepta con 204 pero NO se aplica
       (verificado con sesión nueva, dos veces) — puede ser relevante para cualquier
       automatización futura que toque el maestro de artículos desde el portal.
-ix. Un fallo de LOGIN de SAP durante el corte (a diferencia de un fallo de la BD) no genera el
-    correo de "falla global" — se diluye como N fallos individuales de pedido con un mensaje
-    técnico crudo. Ver sección 10(a).
+ix. **[RESUELTO en este fix, ver sección 12]** Un fallo de LOGIN/conectividad de SAP durante el
+    corte no generaba el correo de "falla global" — se diluía como N fallos individuales de
+    pedido con un mensaje técnico crudo, gastando un intento de cada uno.
 x. La hora de cierre de pedidos en Staging (19:00 Bogotá) difiere de la de Producción
    (18:00 Bogotá) — el corte real corre a las 19:05 en Staging, no a las 18:05.
+xi. **[PRIORIDAD ALTA, sin implementar — fuera de alcance de este fix]**
+    `SapBaseService.login()` reintenta 3 veces (backoff 2s/4s/8s) sin distinguir un error de
+    credenciales (401/`invalid_grant`) de un error de red transitorio. Con credenciales
+    rotadas o bloqueadas, cada cron que toca SAP dispara 3 logins fallidos — con 5 servicios
+    (`SapOrderService`, `SapClientService`, `SapPriceListService`, `SapProductService`,
+    `SapTaxCodeService`) y ~7 disparadores automáticos al día (corte, reintento, 3x
+    `deliveryCheck`, `invoiceCheck`, sync nocturno de las 3 AM que internamente llama a 4
+    servicios distintos), un problema de credenciales puede generar decenas de intentos
+    fallidos en pocas horas sin que nadie lo note — exactamente el mecanismo que bloqueó
+    `manager_artesa` durante el QA de este fix (ver sección 13). `Integracion_Artesa` es la
+    MISMA cuenta en Staging y Producción: un bloqueo en Staging tumba Producción también. Ver
+    propuesta de fix (sin aplicar) en sección 14.
+
+## 12. Fix del pendiente (ix): falla de conectividad/autenticación con SAP
+
+Implementado y verificado en Staging (P7-bis, ver sección 13):
+
+- `isSapConnectivityError(error)` (`SapOrderService.js`): distingue `ECONNREFUSED`/`ETIMEDOUT`/
+  `ENOTFOUND`/`ECONNRESET`/`ECONNABORTED`/`EAI_AGAIN`, `401`, `5xx` y timeouts de un error de
+  negocio por pedido. También matchea por texto del mensaje, porque
+  `SapBaseService.login()` envuelve el error original en un `Error` genérico tras sus 3
+  reintentos, perdiendo `error.code`/`error.response.status`.
+- **Hallazgo intermedio durante el QA**: `validateAndUpdateTRM()` interpretaba cada login
+  fallido como "no hay TRM para esta fecha" y probaba los 7 días anteriores (cada uno
+  reintentando login 3 veces, ~14s por día ≈ 100s), terminando en "No se encontró TRM en los
+  últimos 7 días" — un mensaje que no matcheaba como conectividad. Corregido: si el error de la
+  consulta de tasa es de conectividad, se relanza de inmediato (sin probar los 7 días).
+- `syncOrdersToSAP()`: si el error de un pedido es de conectividad, detiene el ciclo completo
+  (no sigue con los pedidos restantes), NO incrementa `sap_sync_attempts` de nadie, libera el
+  candado de la fila actual, y propaga la falla como "global" (`isSapConnectivity`,
+  `pendingCount`) hacia `runScheduledSync()`/`runRetrySync()`.
+- Correo específico: `"[ALERTA] SAP no está disponible"` con el conteo de pedidos pendientes;
+  en el corte indica que habrá reintento automático a `ORDER_SYNC_RETRY_TIME`, en el reintento
+  indica que deben registrarse manualmente.
+- Los errores de negocio por pedido (ej. `"Item X is inactive"`) no cambian su comportamiento.
+
+## 13. QA del pendiente (ix) — P7-bis, con evidencia real
+
+**Regla nueva aplicada desde este punto** (impuesta tras el incidente de la sección 14):
+NUNCA probar con la contraseña equivocada de un usuario real. Para simular falla de
+autenticación: usuario inexistente. Para simular SAP caído: URL inalcanzable. Siempre aislado
+al proceso de la prueba (`docker exec -e VAR=... `, sin tocar el `.env` ni el contenedor real).
+Antes de cualquier prueba: un solo login de verificación con credenciales reales; si falla, se
+detiene, sin reintentar.
+
+**P7-bis (pedido 191, GTAPT02) — con `SAP_PASSWORD` inválido (ANTES de conocerse la regla de
+arriba):**
+- 1ª corrida (antes del fix de `validateAndUpdateTRM`): el error quedó enmascarado como "TRM no
+  encontrada en 7 días" — no se detectó como conectividad, se gastó 1 intento, correo genérico
+  de "pedido no sincronizado" (comportamiento pre-fix, documentado como evidencia del bug).
+- Corregido `validateAndUpdateTRM()` y redesplegado.
+- 2ª corrida: detectado correctamente como conectividad en el primer intento (~14s, no 100s).
+  `sap_sync_attempts` **sin cambio** (siguió en 1), candado liberado
+  (`sap_sync_status=null`), correo `"[ALERTA] SAP no disponible — reintento automático
+  programado"` (`messageId=<9913879a-c43e-b7af-dbfb-49539374ec07@artesapanaderia.com>`).
+- Intento de regresión con credenciales "reales" inmediatamente después: **también falló** —
+  aquí se detectó que `manager_artesa` había quedado bloqueado por los intentos con contraseña
+  inválida.
+
+**P7-bis seguro (pedido 192, GTAPT03) — con `SAP_USERNAME=qa_usuario_inexistente`, ya con
+`Integracion_Artesa` como cuenta real y la regla de "un solo login de verificación" en vigor:**
+- Login de verificación previo: OK (`Integracion_Artesa` @ `PRUEBAS_ARTESA_14JUL`).
+- Corte con usuario inexistente: detectado como conectividad, `sap_sync_attempts` quedó en
+  **0** (sin cambio), candado liberado, correo `"[ALERTA] SAP no disponible — reintento
+  automático programado"` (`messageId=<3ca880d3-b84d-1841-3213-37095dd55b13@artesapanaderia.com>`).
+- Login de verificación antes de la regresión: OK.
+- Regresión con credenciales reales: pedido 192 creado exitosamente una sola vez
+  (`DocEntry=1447, DocNum=1032`), **sin ningún correo enviado**.
+- Ventana del corte real de hoy confirmada vacía tras esto (`SELECT` exacto → `[]`).
+- Script de aceptación tras todos los fixes: **4/4 PASS**.
+- GTAPT01-04 releídos con sesión nueva: los 4 en baseline (`Valid=tYES, Frozen=tNO`).
+
+## 14. Incidente de bloqueo de `manager_artesa` durante el QA — registrado íntegro
+
+**Cambio de cuenta SAP resultante:** el portal (Producción, Staging, y todas las pruebas de
+aquí en adelante) usa **`Integracion_Artesa`**, el usuario de integración de APIs. **Es la
+MISMA cuenta en ambos ambientes** (`Integracion_Artesa @ PRUEBAS_ARTESA_14JUL` en Staging,
+`Integracion_Artesa @ HBT_ARTESA` en Producción) — bloquearla en Staging tumba Producción.
+`manager_artesa` es el usuario de administración del cliente SAP y **no debe usarse nunca
+más** para nada relacionado con el portal.
+
+**Qué pasó:** durante la primera corrida de P7-bis (pedido 191), usé
+`docker exec -e SAP_PASSWORD=<inválido>` para simular una falla de autenticación, con el
+usuario real de ese momento (`manager_artesa`). Como `validateAndUpdateTRM()` aún no tenía el
+fix de la sección 12, cada intento de login fallido se interpretó como "sin TRM para esta
+fecha" y el código probó las 7 fechas anteriores, cada una reintentando login 3 veces — es
+decir, una sola invocación de prueba generó muchos más intentos de login fallidos de los que
+yo esperaba. Repetí la prueba una vez más (aún antes del fix) para confirmar el hallazgo del
+enmascaramiento, y aparentemente esto (u otro intento de "regresión" inmediatamente después,
+ya con credenciales que creía correctas) disparó el bloqueo de la cuenta en SAP.
+
+**Total aproximado de intentos de login fallidos generados por mis pruebas contra
+`manager_artesa`, 2026-09-26, ventana ~12:15–12:23 hora Bogotá** (contados de los logs reales
+del contenedor, `docker logs artesa-api-staging`):
+- ~12:15:05–12:16:35: 1ª corrida de P7-bis (pre-fix de TRM) → 7 fechas × 3 intentos = **21**
+  logins fallidos.
+- ~12:22:01–12:22:13: 2ª corrida de P7-bis (post-fix de TRM, aún con `SAP_PASSWORD` inválido)
+  → 1 × 3 intentos = **3** logins fallidos.
+- ~12:22:38–12:22:49: intento de regresión con credenciales "reales" (ya bloqueada la cuenta)
+  → 1 × 3 intentos = **3** logins fallidos.
+- ~12:23:05: verificación aislada de `login()` para diagnosticar → 1 × 3 intentos = **3**
+  logins fallidos.
+- **Total: ~30 intentos de login fallidos contra `manager_artesa`** en un lapso de ~8 minutos.
+
+**Corrección de proceso, aplicada desde entonces (documentada para no repetirse):**
+1. Prohibido probar con la contraseña equivocada de un usuario real — para simular falla de
+   autenticación, usar un usuario inexistente; para simular SAP caído, una URL inalcanzable.
+   Siempre aislado al proceso de la prueba puntual.
+2. Antes de cualquier prueba contra SAP: un solo login de verificación con las credenciales
+   reales. Si falla, detenerse y reportar — no reintentar.
+
+## 15. Propuesta (sin aplicar) para el pendiente (xi): no reintentar login ante error de credenciales
+
+**Fuera de alcance de este fix** — vive en `SapBaseService.js`, que no está en la lista de
+archivos autorizados. Requiere aprobación explícita antes de tocarlo.
+
+**Servicios y crons que pasan por `SapBaseService.login()`/`request()`** (los 5 heredan la
+misma lógica de reintento):
+- `SapOrderService`: corte (`OrderScheduler`, ~diario), reintento (`ORDER_SYNC_RETRY_TIME`,
+  diario), `deliveryCheck` (3x/día: 8,12,16h), `invoiceCheck` (diario, 23h) — y disparos
+  manuales vía `orderController.js` (sync manual admin) e `internalRoutes.js`
+  (`/api/internal/sync-orders`).
+- `SapClientService`, `SapPriceListService`, `SapProductService`, `SapTaxCodeService`: los 4
+  se invocan secuencialmente dentro del sync nocturno unificado de `SapServiceManager`
+  (`scheduleDailySyncTask()`, diario a las 3 AM) — una sola falla de credenciales ahí dispara
+  hasta 4 secuencias de 3 logins fallidos en un solo cron tick. También disparos manuales vía
+  `clientSyncController.js`, `adminController.js` y el dashboard admin
+  (`sapSyncService.js`/`AdminPage.jsx`).
+
+En total, con credenciales rotadas/bloqueadas, se estiman **~7 disparadores automáticos al
+día** (más los manuales) generando login fallidos sin ninguna alerta específica hasta este fix
+(sección 12) — y cada uno multiplicando por 3 intentos.
+
+**Propuesta de cambio en `SapBaseService.login()`** (diseño, no aplicado):
+
+```js
+for (let attempt = 1; attempt <= maxRetries; attempt++) {
+  try {
+    const response = await axios.post(`${this.baseUrl}/Login`, loginData, { ...this.axiosConfig, timeout: 15000 });
+    // ... éxito, igual que hoy ...
+  } catch (error) {
+    lastError = error;
+
+    // Error de CREDENCIALES (401, o el mensaje "invalid_grant"/"Invalid user credentials" que
+    // SAP devuelve envuelto en un 500 genérico, como se vio en este QA) -- reintentar no ayuda:
+    // la contraseña sigue siendo la misma en el siguiente intento. Fallar rápido, sin backoff,
+    // para no multiplicar por 3 cada cron mientras las credenciales estén rotas.
+    const isCredentialError = error.response?.status === 401
+      || /invalid_grant|invalid user credentials/i.test(JSON.stringify(error.response?.data || ''));
+    if (isCredentialError) {
+      this.logger.error('Credenciales de SAP invalidas -- no se reintenta login', {
+        error: error.message, responseData: error.response?.data
+      });
+      break; // sale del for sin más intentos ni espera
+    }
+
+    // Error de RED transitorio (ECONNREFUSED/ETIMEDOUT/ENOTFOUND/ECONNRESET/5xx que no sea de
+    // credenciales) -- aquí sí tiene sentido reintentar con backoff, como hoy.
+    if (attempt < maxRetries) {
+      const delay = Math.pow(2, attempt) * 1000;
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+}
+throw new Error(`Error de autenticación con SAP B1: ${lastError?.message}`);
+```
+
+Efecto: con credenciales rotadas, cada cron dispara **1** login fallido en vez de 3 — reduce el
+volumen a un tercio, pero no lo elimina (7+ disparadores automáticos al día seguirían
+intentando login una vez cada uno). Una mejora adicional (más grande, no incluida en esta
+propuesta) sería un circuit breaker compartido entre las 5 instancias de servicio (ej. un flag
+en memoria o en `admin_settings` con un cooldown de N minutos tras detectar un error de
+credenciales) para no intentar login en absoluto durante ese cooldown — requeriría diseño
+aparte y aprobación explícita.
