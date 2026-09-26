@@ -1605,6 +1605,16 @@ scheduleInvoiceCheckTask() {
           };
         }
       } catch (rateError) {
+        // Si SAP no responde en absoluto (login fallido, red caída, 5xx del Service Layer), no es
+        // que "no haya TRM para esta fecha" -- es que no se puede consultar NINGUNA fecha. Sin este
+        // chequeo, el bucle de 7 días de abajo repite el mismo login fallido 7 veces (~14s cada
+        // uno) y termina enmascarando la falla real como "No se encontró TRM en los últimos 7
+        // días", que syncOrdersToSAP() trataría como un error de negocio del pedido (gastando un
+        // intento) en vez de como la falla global de conectividad que realmente es.
+        if (this.isSapConnectivityError(rateError)) {
+          throw rateError;
+        }
+
         // Si no hay tasa para la fecha actual (común en fines de semana)
         this.logger.info('TRM no encontrada para la fecha actual, buscando TRM anterior', {
           date: dateStr,
@@ -1674,6 +1684,9 @@ scheduleInvoiceCheckTask() {
               break;
             }
           } catch (prevError) {
+            if (this.isSapConnectivityError(prevError)) {
+              throw prevError;
+            }
             this.logger.debug(`No hay TRM para ${prevDateStr}, continuando búsqueda`);
             continue;
           }
