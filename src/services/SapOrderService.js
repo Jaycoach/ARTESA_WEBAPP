@@ -534,7 +534,13 @@ scheduleInvoiceCheckTask() {
     // SapBaseService.login() envuelve el error original en un Error genérico tras agotar sus 3
     // reintentos ("Error de autenticación con SAP B1: <mensaje original>"), perdiendo
     // error.code/error.response.status — el único rastro que queda es el texto del mensaje.
-    return /timeout|ECONNREFUSED|ETIMEDOUT|ENOTFOUND|ECONNRESET|ECONNABORTED|EAI_AGAIN|status code 401|status code 5\d\d|autenticaci[oó]n con SAP/i
+    // Y si el freno de credenciales (SapBaseService: credentialCooldownUntil) está activo,
+    // login() ni siquiera intenta la petición: lanza directo "Login de SAP en pausa ...s más
+    // tras un fallo de credenciales reciente" — un mensaje distinto que también hay que
+    // reconocer como conectividad (hallazgo QA: sin esto, un pedido que llega con el freno ya
+    // activo se trataba como error de negocio, gastando un intento y mandando el correo
+    // equivocado).
+    return /timeout|ECONNREFUSED|ETIMEDOUT|ENOTFOUND|ECONNRESET|ECONNABORTED|EAI_AGAIN|status code 401|status code 5\d\d|autenticaci[oó]n con SAP|Login de SAP en pausa/i
       .test(error.message || '');
   }
 
