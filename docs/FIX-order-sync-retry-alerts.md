@@ -174,6 +174,10 @@ lunes 28-sep — hoy+2 día hábil):** corte y reintento en paralelo de nuevo:
 `RESULT_CORTE: {"errors":1,...}`, `RESULT_REINTENTO: {"skipped":1,...}` — el reintento
 encontró la fila ya reclamada por el corte y la omitió. Verificado en BD:
 `sap_sync_attempts=1` (antes habría sido 2). **PASS con el fix.**
+Restaurado GTAPT01 al baseline y, como regresión (item 4 del segundo reporte), corrida
+`runScheduledSync()` con GTAPT01 ya activo: pedido 190 creado exitosamente
+(`DocEntry=1442, DocNum=1029`), sin correo — esto además lo sacó de la ventana del corte real
+de ese día.
 
 ### P5 — Fecha objetivo/DocDate correctas cerca de las 23:00 Bogotá
 Cubierto por el script de aceptación (`scripts/tests/order-sync-retry-alerts-acceptance.js`,
@@ -367,7 +371,11 @@ arriba):**
   programado"` (`messageId=<9913879a-c43e-b7af-dbfb-49539374ec07@artesapanaderia.com>`).
 - Intento de regresión con credenciales "reales" inmediatamente después: **también falló** —
   aquí se detectó que `manager_artesa` había quedado bloqueado por los intentos con contraseña
-  inválida.
+  inválida. Detenido sin insistir; reportado a Jonathan.
+- Tras el cambio a `Integracion_Artesa`: login de verificación previo OK
+  (`Integracion_Artesa` @ `PRUEBAS_ARTESA_14JUL`). Regresión completada: pedido 191 creado
+  exitosamente **una sola vez** (`DocEntry=1446, DocNum=1031`), **sin ningún correo enviado**
+  (`{"total":1,"created":1,"errors":0,"skipped":0}`).
 
 **P7-bis seguro (pedido 192, GTAPT03) — con `SAP_USERNAME=qa_usuario_inexistente`, ya con
 `Integracion_Artesa` como cuenta real y la regla de "un solo login de verificación" en vigor:**
