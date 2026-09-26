@@ -1,8 +1,9 @@
 # Fix: reintento del sync de pedidos antes de medianoche + alertas de pedidos fallidos a SAP
 
 Rama: `fix/order-sync-retry-alerts`, base `feature/backoffice-core @ 7a422c1`.
-Estado DoD: **VALIDADO EN STAGING** (P1-P8 ejecutados con evidencia real, ver sección 6).
-No aprobado para Producción — pendiente decisión explícita de Jonathan.
+Estado DoD: **VALIDADO EN STAGING** (P1-P8 ejecutados con evidencia real, sección 6; pendiente
+(xi) implementado y validado, sección 16). No aprobado para Producción — pendiente decisión
+explícita de Jonathan.
 
 ## 1. Incidente que origina el fix
 
@@ -492,3 +493,43 @@ propuesta) sería un circuit breaker compartido entre las 5 instancias de servic
 en memoria o en `admin_settings` con un cooldown de N minutos tras detectar un error de
 credenciales) para no intentar login en absoluto durante ese cooldown — requeriría diseño
 aparte y aprobación explícita.
+
+## 16. Pendiente (xi) — IMPLEMENTADO y VALIDADO EN STAGING
+
+**Aprobado explícitamente por Jonathan** tocar `src/services/SapBaseService.js` solo para esto,
+en esta misma rama. Implementadas las 3 partes del diseño (a, b, y también c, la opcional):
+
+- `isSapCredentialError(error)`: `401`, o `"invalid_grant"`/`"invalid user credentials"` en el
+  cuerpo de la respuesta (SAP a veces lo envuelve en un `500` genérico).
+- `login()`: ante error de credenciales, **un solo intento** (sin backoff, sin los 2 reintentos
+  restantes) y activa `credentialCooldownUntil` — un freno en memoria a nivel de **módulo**
+  (compartido entre TODAS las instancias de `SapBaseService` del proceso: `SapOrderService`,
+  `SapClientService`, `SapPriceListService`, `SapProductService`, `SapTaxCodeService`) que
+  bloquea nuevos intentos de login de cualquiera de ellas durante
+  `SAP_LOGIN_CREDENTIAL_COOLDOWN_MINUTES` (default 5) minutos, registrado como `WARNING`.
+  Ante error de red transitorio, sin cambios: 3 intentos con el mismo backoff de siempre.
+- `.env.example`: documentada `SAP_LOGIN_CREDENTIAL_COOLDOWN_MINUTES`.
+
+**QA en Staging** (siempre con usuario inexistente o URL inalcanzable en proceso aislado,
+nunca contraseña de un usuario real):
+
+1. **Credenciales inválidas → un solo intento**: `docker exec -e
+   SAP_USERNAME=qa_usuario_inexistente` sobre `SapOrderService.login()` →
+   `"Error en autenticación con SAP B1" {attempt:1}` seguido directo de `"Credenciales de SAP
+   inválidas -- no se reintenta login, freno activado"` — **sin** ningún `"Reintentando
+   conexión"` de por medio (tardó ~2s, no ~14s). **PASS.**
+2. **Freno compartido entre instancias**: inmediatamente después, en el MISMO proceso,
+   `SapClientService.login()` (instancia distinta) quedó bloqueado de inmediato por el freno
+   (`"Login de SAP en pausa 300s más..."`, tardó 1ms, sin siquiera intentar la petición). **PASS.**
+3. **URL inalcanzable → reintentos con backoff**: `docker exec -e
+   SAP_SERVICE_LAYER_URL=https://sap-unreachable-host-qa.invalid:...` → 3 intentos completos
+   (`ENOTFOUND`), con espera de 2000ms y 4000ms entre ellos (total ~6042ms) — comportamiento de
+   red sin cambios. **PASS.**
+4. **Regresión con credenciales reales**: login exitoso de `SapOrderService`,
+   `SapClientService` y `SapProductService` (los 3, `Integracion_Artesa` @
+   `PRUEBAS_ARTESA_14JUL`); `runScheduledSync()` corrido de punta a punta sin errores
+   (`{"total":0,"created":0,"errors":0}`, ventana vacía en ese momento). **PASS.**
+5. Script de aceptación: **4/4 PASS**, exit 0, tras este último despliegue.
+
+**Paridad final de Staging:** HEAD `dfc91c3`, `git status -sb` solo `ssl/nginx.crt` +
+`backups/*` (servidor), contenedor `healthy`.

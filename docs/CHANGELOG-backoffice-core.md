@@ -2115,9 +2115,7 @@ programa nada, pero aparece en logs y en `SapServiceManager.getSyncStatus()` com
 (viii) en SAP, congelar un ítem por Service Layer requiere enviar `Valid` y `Frozen` juntos en
 el mismo `PATCH` (`Frozen` solo da error de rango de fechas; `Valid` solo no se aplica, sin
 error); (ix) **[RESUELTO]** ver abajo; (x) la hora de cierre de Staging (19:00 Bogotá) difiere
-de la de Producción (18:00 Bogotá); (xi) `SapBaseService.login()` reintenta 3 veces sin
-distinguir error de credenciales de error de red — propuesta sin aplicar en la sección 15 del
-FIX doc, prioridad alta antes de Producción.
+de la de Producción (18:00 Bogotá); (xi) **[RESUELTO]** ver abajo.
 
 **Actualización (ix) — falla de conectividad/autenticación con SAP, ya implementada y
 validada:** antes, un login de SAP fallido durante el corte se diluía como N fallos
@@ -2136,3 +2134,14 @@ bloqueada en SAP. Como resultado, el portal (Staging y Producción) cambió a us
 `manager_artesa` es de administración del cliente SAP y no debe usarse nunca más para el
 portal. Detalle completo, con timestamps y conteo exacto de logins fallidos, en
 `docs/FIX-order-sync-retry-alerts.md` sección 14.
+
+**Actualización (xi) — `SapBaseService.login()`, ya implementada y validada (aprobado tocar
+`SapBaseService.js` para esto, en esta rama):** ante un error de credenciales
+(401/`invalid_grant`), ahora hace **un solo intento** (sin backoff) en vez de 3, y activa un
+freno en memoria compartido entre las 5 instancias de servicio SAP del proceso durante
+`SAP_LOGIN_CREDENTIAL_COOLDOWN_MINUTES` (default 5) minutos — exactamente lo que habría evitado
+el bloqueo de `manager_artesa`. Ante error de red transitorio, sin cambios (3 intentos con
+backoff). Validado en Staging: 1 solo intento ante credenciales inválidas, freno bloqueando de
+inmediato una instancia distinta en el mismo proceso, 3 intentos con backoff ante URL
+inalcanzable, y regresión de login/sync exitosa con credenciales reales. Detalle completo en
+`docs/FIX-order-sync-retry-alerts.md` sección 16.
