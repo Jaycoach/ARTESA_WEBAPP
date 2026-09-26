@@ -531,5 +531,31 @@ nunca contraseña de un usuario real):
    (`{"total":0,"created":0,"errors":0}`, ventana vacía en ese momento). **PASS.**
 5. Script de aceptación: **4/4 PASS**, exit 0, tras este último despliegue.
 
-**Paridad final de Staging:** HEAD `dfc91c3`, `git status -sb` solo `ssl/nginx.crt` +
+**Prueba de integración (ix)+(xi) — freno de credenciales activo + corte real, pedido 193
+(GTAPT04):**
+
+Hallazgo al primer intento: el mensaje que lanza `login()` cuando el freno ya está activo
+(`"Login de SAP en pausa Ns más tras un fallo de credenciales reciente"`) es distinto al
+`"Error de autenticación con SAP B1: ..."` que `isSapConnectivityError()` ya reconocía —
+**no matcheaba**, así que un pedido que llega al corte con el freno ya activado (por otro
+servicio del mismo proceso, o por un intento previo) se habría tratado como error de negocio.
+Corregido agregando el patrón `Login de SAP en pausa` al regex, commit `c314272`.
+
+Con el fix, en un solo proceso aislado (`docker exec -e SAP_USERNAME=qa_usuario_inexistente`):
+1. Se activó el freno con un login fallido (`credentialCooldownUntil` seteado).
+2. En el MISMO proceso, `runScheduledSync()` sobre el pedido 193 (único pendiente en la
+   ventana): `validateAndUpdateTRM()` recibió el mensaje del freno, `isSapConnectivityError()`
+   lo reconoció, detuvo el ciclo (`"Falla de conectividad/autenticación con SAP, deteniendo el
+   ciclo de sincronización" {pendingCount:1}`), envió **un solo correo**
+   `"[ALERTA] SAP no disponible — reintento automático programado"`
+   (`messageId=<870631eb-e20e-f70f-cc8b-fb23fa7ba768@artesapanaderia.com>`, `globalError:true`),
+   y retornó `null`.
+3. Verificado en BD: `sap_sync_attempts=0` (sin cambio), `sap_sync_status=null` (candado
+   liberado). **PASS.**
+4. Regresión (proceso nuevo, sin el freno del anterior): login de verificación OK
+   (`Integracion_Artesa`), luego `runScheduledSync()` creó el pedido 193 exitosamente
+   (`DocEntry=1449, DocNum=1033`, `{"created":1,"errors":0}`), **sin ningún correo**. **PASS.**
+5. Ventana del corte real de hoy confirmada vacía. Script de aceptación: **4/4 PASS**.
+
+**Paridad final de Staging:** HEAD `c314272`, `git status -sb` solo `ssl/nginx.crt` +
 `backups/*` (servidor), contenedor `healthy`.
