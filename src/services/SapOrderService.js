@@ -1,6 +1,7 @@
 const SapBaseService = require('./SapBaseService');
 const cron = require('node-cron');
 const pool = require('../config/db');
+const { calculateOrderShipping } = require('../utils/shippingCalculator');
 
 /**
  * Servicio para integración de órdenes con SAP Business One
@@ -340,6 +341,40 @@ scheduleInvoiceCheckTask() {
         })
       };
 
+      // Flete: gasto adicional de la OV (DocumentAdditionalExpenses), nunca una línea de
+      // DocumentLines. Se decide aquí, leyendo order_details ya persistidos (quantity,
+      // unit_price, tax_amount real por línea) — nunca se recalculan impuestos de productos.
+      // Si el pedido lleva flete pero falta SAP_SHIPPING_EXPENSE_CODE o no se puede resolver
+      // un tax_code de tasa 0% (valid_for_ar), NO se transmite el pedido (ni sin flete ni con
+      // otro impuesto) — se lanza para que este intento de sync entre al flujo de
+      // reintento/alerta existente, igual que cualquier otro error de negocio.
+      const shippingAmount = calculateOrderShipping(orderItemsResult.rows);
+      let sapShippingExpenseCode = null;
+      if (shippingAmount > 0) {
+        const expenseCodeRaw = process.env.SAP_SHIPPING_EXPENSE_CODE;
+        if (!expenseCodeRaw) {
+          throw new Error('SAP_SHIPPING_EXPENSE_CODE no configurado: no se puede transmitir el flete de este pedido');
+        }
+
+        let shippingTaxCode = zeroRateTaxCode;
+        if (!shippingTaxCode) {
+          const zeroRateResult = await pool.query(
+            'SELECT code FROM tax_codes WHERE active = true AND valid_for_ar = true AND total_rate = 0 ORDER BY code LIMIT 1'
+          );
+          shippingTaxCode = zeroRateResult.rows[0]?.code || null;
+        }
+        if (!shippingTaxCode) {
+          throw new Error('No se pudo resolver el código de impuesto de tasa 0% (valid_for_ar) para el flete');
+        }
+
+        sapShippingExpenseCode = parseInt(expenseCodeRaw, 10);
+        sapOrder.DocumentAdditionalExpenses = [{
+          ExpenseCode: sapShippingExpenseCode,
+          LineTotal: shippingAmount,
+          TaxCode: shippingTaxCode
+        }];
+      }
+
       // Log para debugging de comentarios
       this.logger.debug('Comentarios completos preparados para SAP:', {
         orderId: order.order_id,
@@ -400,8 +435,8 @@ scheduleInvoiceCheckTask() {
           sapDocNum: existing.DocNum
         });
         await pool.query(
-          'UPDATE orders SET sap_doc_entry = $1, docnum_sap = $2, sap_synced = true, sap_sync_status = NULL, sap_sync_date = CURRENT_TIMESTAMP WHERE order_id = $3',
-          [existing.DocEntry, existing.DocNum, order.order_id]
+          'UPDATE orders SET sap_doc_entry = $1, docnum_sap = $2, sap_synced = true, sap_sync_status = NULL, sap_sync_date = CURRENT_TIMESTAMP, sap_shipping_amount = $3, sap_shipping_expense_code = $4 WHERE order_id = $5',
+          [existing.DocEntry, existing.DocNum, shippingAmount > 0 ? shippingAmount : null, sapShippingExpenseCode, order.order_id]
         );
         return {
           success: true,
@@ -419,8 +454,8 @@ scheduleInvoiceCheckTask() {
       if (result && result.DocEntry) {
         // Actualizar orden en base de datos con el DocEntry y DocNum de SAP
         await pool.query(
-          'UPDATE orders SET sap_doc_entry = $1, docnum_sap = $2, sap_synced = true, sap_sync_status = NULL, sap_sync_date = CURRENT_TIMESTAMP WHERE order_id = $3',
-          [result.DocEntry, result.DocNum, order.order_id]
+          'UPDATE orders SET sap_doc_entry = $1, docnum_sap = $2, sap_synced = true, sap_sync_status = NULL, sap_sync_date = CURRENT_TIMESTAMP, sap_shipping_amount = $3, sap_shipping_expense_code = $4 WHERE order_id = $5',
+          [result.DocEntry, result.DocNum, shippingAmount > 0 ? shippingAmount : null, sapShippingExpenseCode, order.order_id]
         );
         
         this.logger.info('Orden creada exitosamente en SAP', {
