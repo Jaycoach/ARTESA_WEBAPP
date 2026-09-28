@@ -21,6 +21,7 @@ import { errorCache, successCache } from '../../../../hooks/useProductImage';
 import { AUTH_TYPES } from '../../../../constants/AuthTypes';
 import { orderService } from '../../../../services/orderService';
 import { isColombianHoliday } from '../../../../utils/colombianHolidays';
+import { MIN_ORDER_AMOUNT, calculateShipping as calculateSharedShipping } from '../../../../utils/shippingCalculator';
 
 // **CONSTANTES DE ZONAS DE ENTREGA Y CÁLCULOS**
 const DELIVERY_ZONES = {
@@ -52,10 +53,6 @@ const DELIVERY_ZONES = {
 
 const IVA_RATE = 0.19;
 const IMPUESTO_SALUDABLE_RATE = 0.20; // 20% impuesto saludable
-const MIN_ORDER_AMOUNT = 50000;
-const SHIPPING_CHARGE = 10000;
-const SHIPPING_LIMIT = 50000;
-const SHIPPING_FREE_LIMIT = 80000;
 
 const Products = () => {
   // **AUTENTICACIÓN**
@@ -346,21 +343,14 @@ const Products = () => {
   }, []);
 
   const calculateShipping = (subtotal, totalTaxes) => {
-    const subtotalWithTaxes = subtotal + totalTaxes;
-
-    if (subtotalWithTaxes < MIN_ORDER_AMOUNT) {
-      return null; // No se aplica flete si está por debajo del mínimo
+    // Monto minimo contra el subtotal SIN impuestos (igual que CreateOrderForm.jsx)
+    if (subtotal < MIN_ORDER_AMOUNT) {
+      return null; // No se aplica flete si esta por debajo del minimo
     }
 
-    if (subtotalWithTaxes >= SHIPPING_FREE_LIMIT) {
-      return 0; // Envío gratis
-    }
-
-    if (subtotalWithTaxes >= SHIPPING_LIMIT) {
-      return SHIPPING_CHARGE; // Costo de envío con impuestos incluidos
-    }
-
-    return null;
+    // Tramo de flete (con impuestos) y valor ($10.000, sin IVA): calculo compartido
+    // con CreateOrderForm.jsx y con el backend (src/utils/shippingCalculator.js).
+    return calculateSharedShipping(subtotal, totalTaxes);
   };
 
   // **FUNCIÓN DE PAGINACIÓN**

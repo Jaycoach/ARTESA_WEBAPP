@@ -14,6 +14,7 @@ import usePriceList from '../../../../hooks/usePriceList';
 import { throttle } from 'lodash';
 import useProductImage, { errorCache } from '../../../../hooks/useProductImage';
 import { isColombianHoliday } from '../../../../utils/colombianHolidays';
+import { MIN_ORDER_AMOUNT, calculateShipping as calculateSharedShipping } from '../../../../utils/shippingCalculator';
 
 const adjustDateForTimezone = (dateString) => {
   // Crear fecha sin problemas de zona horaria
@@ -261,10 +262,6 @@ const CreateOrderForm = ({ onOrderCreated }) => {
   };
   const IVA_RATE = 0.19;
   const IMPUESTO_SALUDABLE_RATE = 0.20; // 20% impuesto saludable
-  const MIN_ORDER_AMOUNT = 50000;
-  const SHIPPING_CHARGE = 10000;
-  const SHIPPING_LIMIT = 50000;
-  const SHIPPING_FREE_LIMIT = 80000;
 
   const DELIVERY_ZONES = {
     'MIERCOLES_SABADO': {
@@ -721,22 +718,11 @@ const CreateOrderForm = ({ onOrderCreated }) => {
     if (subtotal < MIN_ORDER_AMOUNT) {
       return null; // No se permite el pedido
     }
-    
-    // Calcular el subtotal con impuestos para determinar el flete
-    const subtotalWithTaxes = subtotal + totalTaxes;
-    
-    if (subtotalWithTaxes >= SHIPPING_FREE_LIMIT) {
-      return 0; // Envío gratis
-    }
-    
-    if (subtotalWithTaxes >= SHIPPING_LIMIT) {
-      // Aplicar flete de $10,000 + IVA del flete
-      const baseShipping = 10000;
-      const shippingIVA = baseShipping * IVA_RATE;
-      return baseShipping + shippingIVA; // $10,000 + 19% = $11,900
-    }
-    
-    return null; // No aplica (pedido menor a $50,000)
+
+    // Tramo de flete (con impuestos) y valor ($10.000, sin IVA): calculo compartido
+    // con Products.jsx y con el backend (src/utils/shippingCalculator.js), que es
+    // quien decide el valor real al transmitir el pedido a SAP.
+    return calculateSharedShipping(subtotal, totalTaxes);
   };
 
   const calculateIVA = (subtotal) => {
