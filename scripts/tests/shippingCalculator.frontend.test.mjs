@@ -1,5 +1,5 @@
 import assert from 'assert';
-import { MIN_ORDER_AMOUNT, calculateShipping } from './shippingCalculator.js';
+import { MIN_ORDER_AMOUNT, calculateShipping } from '../../src/views/frontend/LoginArtesa/src/utils/shippingCalculator.js';
 
 // Minimo del pedido: contra el subtotal SIN impuestos (validado por cada formulario
 // antes de llamar a calculateShipping -- aqui se prueba solo la constante compartida).
@@ -17,5 +17,4 @@ assert.strictEqual(calculateShipping(40000, 0), 0, '40.000 con impuestos: sin fl
 // real (39% IMSB+IVA) queda en 83.400 -> gratis.
 assert.strictEqual(calculateShipping(60000, 60000 * 0.39), 0, 'con impuesto real IMSB+IVA debe quedar en tramo gratis');
 
-// eslint-disable-next-line no-console
-console.log('shippingCalculator.test.js (frontend): OK');
+console.log('shippingCalculator.frontend.test.mjs: OK');

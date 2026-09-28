@@ -191,6 +191,21 @@ scheduleInvoiceCheckTask() {
 }
 
   /**
+   * Resuelve el código de impuesto de tasa 0% del catálogo local (tax_codes),
+   * válido para Argentina/localización AR (valid_for_ar = true). Única fuente de
+   * verdad para "cuál código usar cuando no hay tax_code_ar" — usado tanto para
+   * líneas de producto sin tax_code_ar sincronizado como para el flete
+   * (DocumentAdditionalExpenses), que siempre lleva tasa 0% explícita.
+   * @returns {Promise<string|null>}
+   */
+  async _resolveZeroRateTaxCode() {
+    const zeroRateResult = await pool.query(
+      'SELECT code FROM tax_codes WHERE active = true AND valid_for_ar = true AND total_rate = 0 ORDER BY code LIMIT 1'
+    );
+    return zeroRateResult.rows[0]?.code || null;
+  }
+
+  /**
    * Crea una orden de venta en SAP
    * @param {Object} order - Datos de la orden
    * @returns {Promise<Object>} - Resultado de la creación
@@ -276,10 +291,7 @@ scheduleInvoiceCheckTask() {
       const hasLineWithoutTaxCode = orderItemsResult.rows.some(item => !item.tax_code_ar);
       let zeroRateTaxCode = null;
       if (hasLineWithoutTaxCode) {
-        const zeroRateResult = await pool.query(
-          'SELECT code FROM tax_codes WHERE active = true AND valid_for_ar = true AND total_rate = 0 ORDER BY code LIMIT 1'
-        );
-        zeroRateTaxCode = zeroRateResult.rows[0]?.code || null;
+        zeroRateTaxCode = await this._resolveZeroRateTaxCode();
 
         if (!zeroRateTaxCode) {
           throw new Error('No se encontró un código de impuesto con tasa 0% en el catálogo local (tax_codes) para transmitir a SAP productos sin tax_code_ar sincronizado');
@@ -356,13 +368,7 @@ scheduleInvoiceCheckTask() {
           throw new Error('SAP_SHIPPING_EXPENSE_CODE no configurado: no se puede transmitir el flete de este pedido');
         }
 
-        let shippingTaxCode = zeroRateTaxCode;
-        if (!shippingTaxCode) {
-          const zeroRateResult = await pool.query(
-            'SELECT code FROM tax_codes WHERE active = true AND valid_for_ar = true AND total_rate = 0 ORDER BY code LIMIT 1'
-          );
-          shippingTaxCode = zeroRateResult.rows[0]?.code || null;
-        }
+        const shippingTaxCode = zeroRateTaxCode || await this._resolveZeroRateTaxCode();
         if (!shippingTaxCode) {
           throw new Error('No se pudo resolver el código de impuesto de tasa 0% (valid_for_ar) para el flete');
         }
