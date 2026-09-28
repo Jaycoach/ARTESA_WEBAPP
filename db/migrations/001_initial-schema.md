@@ -14,6 +14,7 @@ Formato: `YYYY-MM-DD_descripción.sql`
 | `2026-09-05_create-backoffice-module.sql` | Aplicada | Reportado por Jonathan como no aplicable/no pendiente en el contexto del incidente del 2026-09-07 — **no verificado directamente por Claude Code contra el esquema real de producción, confirmar antes de asumir** |
 | `2026-09-06_add-sap-sales-employee-code.sql` | Aplicada | Idem — mismo estado sin verificar directamente |
 | `2026-09-11_add-sap-sync-status-column.sql` | Aplicada (2026-09-11) | Aplicada (2026-09-11) — candado de idempotencia para sincronización de pedidos a SAP, corrige duplicación del 2026-09-09 (ver commit `ad2e494`) |
+| `2026-09-28_add-sap-shipping-trace-columns.sql` | Pendiente | Pendiente — columnas de trazabilidad (`sap_shipping_amount`, `sap_shipping_expense_code`), se llenan solo tras sincronización exitosa de un pedido con flete, no requieren backfill |
 
 ## Próximas a crear
 
