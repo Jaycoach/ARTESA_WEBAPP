@@ -39,6 +39,22 @@
 
 - **Facturación electrónica / DIAN**: no se puede probar en Staging. La primera factura real con flete en Producción debe revisarse para confirmar que el XML reportado a la DIAN refleja el cargo de $10.000 sin IVA correctamente. El gasto tiene `U_HBT_TipoImpuesto = 0` y `U_HBT_Tarifa = 0` (campos de la localización de Heinsohn) — configurado por el usuario en SAP, fuera del alcance de este plan de código.
 - **Bug preexistente de `updateOrder()`** (`total_amount` obsoleto al editar productos) — documentado arriba (Hallazgos, punto 4), no se corrige aquí.
+- **(a) El detalle del pedido en el portal muestra `total_amount` sin el flete, aunque en SAP el `DocTotal` sí lo incluye.** Confirmado en Staging (Tarea 6, S1/S2): `orders.total_amount` de los pedidos #194/#195 quedó en $69.555,60/$60.920 (solo productos), mientras que la OV real en SAP (`DocEntry 1453`/`1455`) tiene `DocTotal` $79.555,60/$70.920 (productos + flete). El cliente ve un total distinto al que SAP factura. No se corrige en este alcance — depende de dónde se decida mostrar el flete en el detalle del pedido (columnas de trazabilidad `sap_shipping_amount`/`sap_shipping_expense_code` ya existen y podrían usarse para esto en un plan de frontend/detalle separado).
+- **(b) La sincronización de sucursales (`syncClientBranches`) no actualiza una sucursal ya existente salvo que se pase `forceUpdate: true`.** Confirmado en Staging: la primera corrida sobre `client_id 591` con `forceUpdate: false` devolvió `updated: 0` pese a que `municipality_code` había cambiado en SAP; con `forceUpdate: true` sí aplicó el cambio (`updated: 1`). Esto significa que cualquier corrección posterior a un dato ya sincronizado de una sucursal (dirección, código de municipio, etc.) requiere que quien dispare el sync sepa marcar `forceUpdate`, algo que no es obvio desde la UI de BackOffice si esa opción no está expuesta ahí. No se corrige en este alcance — es un comportamiento preexistente de `clientSyncController.syncClientBranches`, ajeno al flete.
+- **(c) `Products.jsx` crea el pedido sin cuadro de confirmación, a diferencia de `CreateOrderForm.jsx`.** Confirmado por el usuario al ejecutar P1-P4: ambos formularios calculan y muestran el mismo flete, pero `Products.jsx` envía el pedido directo al confirmar la acción, mientras que `CreateOrderForm.jsx` sí interpone un paso de confirmación antes de crear el pedido. Es una diferencia de UX preexistente entre los dos flujos, no introducida por este trabajo — no se corrige en este alcance.
+
+## Evidencia real de Staging — S1 y S2 (Tarea 6), completadas
+
+Pedidos creados por el usuario desde el flujo real de la app (`CreateOrderForm.jsx`/`Products.jsx`), sincronizados manualmente vía `sapServiceManager.orderService.createOrderInSAP` (misma función que respalda `POST /orders/:orderId/send-to-sap`, invocada por `docker exec` dentro del contenedor porque la fecha de entrega de prueba caía fuera de la ventana automática de 2 días):
+
+| Pedido | Productos | `total_amount` local | `DocEntry` SAP | `DocTotal` SAP | `DocumentAdditionalExpenses` | `sap_shipping_amount`/`expense_code` |
+|---|---|---|---|---|---|---|
+| #194 | 4×GTAPT03 (IMSB+IVA) | $69.555,60 | 1453 | $79.555,60 | `ExpenseCode 7, LineTotal 10000, TaxCode IVAG03, TaxSum 0` | `10000` / `7` |
+| #195 | 4×PANPAQ01 (exento) | $60.920 | 1455 | $70.920 | `ExpenseCode 7, LineTotal 10000, TaxCode IVAG03, TaxSum 0` | `10000` / `7` |
+| #196 | 6×PANPAQ01 (exento) | $91.380 | 1457 | $91.380 | `[]` (vacío) | `NULL` / `NULL` |
+| #197 | 5×GTAPT03 (IMSB+IVA) | $86.944,50 | 1459 | $86.944,50 | `[]` (vacío) | `NULL` / `NULL` |
+
+En los 4 casos `DocTotal` de SAP coincide exactamente con lo esperado (`total_amount + 10000` cuando hay flete, `= total_amount` cuando es gratis), confirmando que el diseño de gasto adicional funciona end-to-end con productos reales, exentos y con impuesto compuesto (`IMSB+IVA`). Pendiente: cancelar las 4 OV de prueba al cerrar la validación completa (S1-S7).
 
 ## Global Constraints
 
