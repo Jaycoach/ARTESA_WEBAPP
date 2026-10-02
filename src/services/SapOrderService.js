@@ -1,6 +1,7 @@
 const SapBaseService = require('./SapBaseService');
 const cron = require('node-cron');
 const pool = require('../config/db');
+const { getTodayBogota, getDeliveryDatesToSyncOn } = require('../utils/colombianHolidays');
 
 /**
  * Servicio para integración de órdenes con SAP Business One
@@ -562,7 +563,13 @@ scheduleInvoiceCheckTask() {
       
       // Registrar inicio de sincronización
       const syncStartTime = new Date();
-      
+
+      // "Hoy" en America/Bogota (nunca UTC) y fechas de entrega a transmitir hoy:
+      // siempre +2; el viernes además el lunes NO festivo (+3).
+      const todayBogota = getTodayBogota();
+      const deliveryDatesToSync = getDeliveryDatesToSyncOn(todayBogota);
+      const todayDow = new Date(`${todayBogota}T12:00:00Z`).getUTCDay(); // 5=viernes, 6=sábado
+
       // Obtener órdenes pendientes de sincronizar 48 horas antes de la fecha de entrega
       // Se enfoca en órdenes en estado "En Producción" (3) que aún no han sido sincronizadas
       // y cuya fecha de entrega sea dentro de 2 días (48 horas)
@@ -579,23 +586,45 @@ scheduleInvoiceCheckTask() {
         AND cp.cardcode_sap IS NOT NULL
         AND COALESCE(o.sap_sync_attempts, 0) < 3 -- Limitar intentos
         AND o.delivery_date IS NOT NULL  -- Solo órdenes con fecha de entrega definida
-        AND DATE(o.delivery_date) = DATE((CURRENT_TIMESTAMP AT TIME ZONE 'America/Bogota') + INTERVAL '2 days')  -- Solo órdenes que se entregan en 2 días (fecha Colombia)
+        AND DATE(o.delivery_date) = ANY($1::date[])  -- Fechas de entrega a transmitir hoy (fecha Colombia)
         ORDER BY o.created_at ASC
       `;
-      
-      const { rows } = await pool.query(query);
+
+      const { rows } = await pool.query(query, [deliveryDatesToSync]);
       stats.total = rows.length;
 
-      const targetDeliveryDate = this.formatDateBogota(new Date(Date.now() + 2 * 24 * 60 * 60 * 1000));
+      const targetDeliveryDate = deliveryDatesToSync.join(', ');
 
       this.logger.info(`Encontradas ${rows.length} órdenes para sincronizar`, {
         targetDeliveryDate,
+        deliveryDatesToSync,
+        syncDateBogota: todayBogota,
         orderTimeLimit: this.orderTimeLimit,
         syncSchedule: this.syncSchedule
       });
 
+      // Órdenes cuya fecha de entrega (Bogotá) cae en lunes
+      const mondayRows = rows.filter(r =>
+        new Date(`${this.formatDateBogota(r.delivery_date)}T12:00:00Z`).getUTCDay() === 1
+      );
+      if (todayDow === 5 && deliveryDatesToSync.length > 1) {
+        // Viernes con lunes no festivo en la lista: excepción de transmisión anticipada
+        this.logger.info('Excepción viernes: se incluyen pedidos con entrega el lunes no festivo', {
+          syncDate: todayBogota,
+          mondayDeliveryDate: deliveryDatesToSync[1],
+          orderIds: mondayRows.map(r => r.order_id)
+        });
+      }
+      if (todayDow === 6 && mondayRows.length > 0) {
+        // Sábado: lunes que no salieron el viernes (respaldo). Idempotente por U_JZ_WebOrderId.
+        this.logger.warn('RESPALDO: pedidos con entrega el lunes transmitidos el sábado (no salieron el viernes)', {
+          syncDate: todayBogota,
+          orderIds: mondayRows.map(r => r.order_id)
+        });
+      }
+
       if (rows.length > 0) {
-        this.logger.info('Sincronizando órdenes que se entregan en 2 días', {
+        this.logger.info('Sincronizando órdenes con fecha de entrega en la ventana de hoy', {
           deliveryDate: targetDeliveryDate,
           ordersToSync: rows.map(r => ({
             orderId: r.order_id,
@@ -606,7 +635,7 @@ scheduleInvoiceCheckTask() {
       } else {
         this.logger.info('No hay órdenes para sincronizar hoy', {
           targetDeliveryDate,
-          note: 'Solo se sincronizan órdenes 2 días antes de su fecha de entrega'
+          note: 'Se sincronizan órdenes 2 días antes de su fecha de entrega (lunes no festivo: también el viernes anterior)'
         });
       }
       

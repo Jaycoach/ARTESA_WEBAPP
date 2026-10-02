@@ -199,6 +199,39 @@ function getEasterSunday(year) {
   function addWorkingDays(date, workingDays) {
     return getNextWorkingDay(date, workingDays);
   }
+
+  /**
+   * "Hoy" (YYYY-MM-DD) en America/Bogota para un instante dado, sin depender de la TZ del proceso
+   * (el contenedor corre en UTC: a las 20:05 Colombia ya es el día siguiente en UTC).
+   * @param {Date} [now]
+   * @returns {string} YYYY-MM-DD
+   */
+  function getTodayBogota(now = new Date()) {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Bogota', year: 'numeric', month: '2-digit', day: '2-digit'
+    }).format(now);
+  }
+
+  /**
+   * Fechas de entrega (YYYY-MM-DD) que deben transmitirse a SAP en una fecha de sincronización.
+   * Siempre incluye +2 días. Si syncDate es viernes y +3 es lunes NO festivo, agrega +3.
+   * Solo strings de fecha; el festivo se consulta con un Date a mediodía local (sin desfase UTC).
+   * @param {string} syncDateStr - 'YYYY-MM-DD' (fecha Colombia)
+   * @returns {string[]} lista de 'YYYY-MM-DD'
+   */
+  function getDeliveryDatesToSyncOn(syncDateStr) {
+    const [y, m, d] = syncDateStr.split('-').map(Number);
+    const addDays = (n) => {
+      const t = new Date(Date.UTC(y, m - 1, d + n));
+      return `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, '0')}-${String(t.getUTCDate()).padStart(2, '0')}`;
+    };
+    const dates = [addDays(2)];
+    if (new Date(Date.UTC(y, m - 1, d)).getUTCDay() === 5) { // viernes
+      const [ly, lm, ld] = addDays(3).split('-').map(Number);
+      if (!isColombianHoliday(new Date(ly, lm - 1, ld, 12, 0, 0))) dates.push(addDays(3));
+    }
+    return dates;
+  }
   /**
  * Alias para mantener compatibilidad
  */
@@ -212,5 +245,7 @@ function isHoliday(date) {
   isHoliday,
   isWorkingDay,
   getNextWorkingDay,
-  addWorkingDays
+  addWorkingDays,
+  getTodayBogota,
+  getDeliveryDatesToSyncOn
 };
