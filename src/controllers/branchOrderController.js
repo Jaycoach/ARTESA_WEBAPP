@@ -630,6 +630,11 @@ class BranchOrderController {
 
       const order = orderRows[0];
 
+      // Un pedido ya transmitido a SAP (o en transmisión) no se puede cancelar desde el portal
+      if (Order.isSapLocked(order)) {
+        return res.status(409).json({ success: false, message: Order.SAP_LOCKED_MESSAGE });
+      }
+
       // Validar transiciones de estado permitidas para sucursales
       // Las sucursales pueden:
       // - Cancelar pedidos en estados: Abierto (1), En Proceso (2), En Producción (3)
@@ -682,6 +687,7 @@ class BranchOrderController {
           UPDATE orders 
           SET ${updateFields.join(', ')}, status_id = $${paramIndex}, updated_at = CURRENT_TIMESTAMP
           WHERE order_id = $${paramIndex + 1}
+            AND sap_synced IS NOT TRUE AND sap_doc_entry IS NULL AND sap_sync_status IS DISTINCT FROM 'processing'
           RETURNING *
         `;
         queryParams.push(status_id, orderId);
@@ -692,12 +698,19 @@ class BranchOrderController {
           UPDATE orders 
           SET status_id = $1, updated_at = CURRENT_TIMESTAMP
           WHERE order_id = $2
+            AND sap_synced IS NOT TRUE AND sap_doc_entry IS NULL AND sap_sync_status IS DISTINCT FROM 'processing'
           RETURNING *
         `;
         finalParams = [status_id, orderId];
       }
 
       const { rows: updatedRows } = await pool.query(finalQuery, finalParams);
+
+      // La condición de bloqueo vive en el WHERE del UPDATE (atómica): si no actualizó ninguna fila
+      // y la orden existe (se leyó arriba), fue transmitida a SAP entre la lectura y el UPDATE.
+      if (updatedRows.length === 0) {
+        return res.status(409).json({ success: false, message: Order.SAP_LOCKED_MESSAGE });
+      }
 
       // Agregar nota si se proporciona
       if (note) {
@@ -776,6 +789,11 @@ class BranchOrderController {
       }
 
       const order = orderRows[0];
+
+      // Un pedido ya transmitido a SAP (o en transmisión) no se puede modificar desde el portal
+      if (Order.isSapLocked(order)) {
+        return res.status(409).json({ success: false, message: Order.SAP_LOCKED_MESSAGE });
+      }
 
       // Verificar si la orden está en un estado que permite modificación desde sucursal
       const nonModifiableStates = [4, 5, 6]; // Entregado (4), Cerrado (5), Cancelado (6)
@@ -871,6 +889,10 @@ class BranchOrderController {
         branchId: req.branch?.branch_id,
         orderId: req.params?.orderId
       });
+
+      if (error.code === 'ORDER_SAP_LOCKED') {
+        return res.status(409).json({ success: false, message: Order.SAP_LOCKED_MESSAGE });
+      }
 
       res.status(500).json({
         success: false,

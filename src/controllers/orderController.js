@@ -823,6 +823,12 @@ const updateOrder = async (req, res) => {
       });
     }
 
+    // Un pedido ya transmitido a SAP (o en transmisión) no se puede modificar desde el portal
+    if (Order.isSapLocked(currentOrder)) {
+      logger.warn('Intento de modificar orden ya transmitida a SAP', { orderId, userId: user.id });
+      return res.status(409).json({ success: false, message: Order.SAP_LOCKED_MESSAGE });
+    }
+
     // Validar fecha de entrega si se proporciona
     if (updateData.delivery_date) {
       // Obtener configuración de hora límite
@@ -981,6 +987,9 @@ const updateOrder = async (req, res) => {
     });
     
     // Manejo de errores específicos
+    if (error.code === 'ORDER_SAP_LOCKED') {
+      return res.status(409).json({ success: false, message: Order.SAP_LOCKED_MESSAGE });
+    }
     if (error.message.includes('No se puede modificar')) {
       return res.status(400).json({
         success: false,
@@ -1569,11 +1578,11 @@ const cancelOrder = async (req, res) => {
       });
     }
 
-    // Verificar si la orden ya fue sincronizada con SAP
-    if (order.sap_synced) {
-      return res.status(400).json({
+    // Verificar si la orden ya fue transmitida a SAP (o está en transmisión)
+    if (Order.isSapLocked(order)) {
+      return res.status(409).json({
         success: false,
-        message: 'No se puede cancelar esta orden porque ya fue sincronizada con SAP'
+        message: Order.SAP_LOCKED_MESSAGE
       });
     }
 
@@ -1600,7 +1609,11 @@ const cancelOrder = async (req, res) => {
       orderId: req.params?.orderId,
       userId: req.user?.id
     });
-    
+
+    if (error.code === 'ORDER_SAP_LOCKED') {
+      return res.status(409).json({ success: false, message: Order.SAP_LOCKED_MESSAGE });
+    }
+
     res.status(500).json({
       success: false,
       message: 'Error al cancelar la orden',

@@ -24,6 +24,28 @@ const logger = createContextLogger('OrderModel');
  * @class Order
  */
 class Order {
+  /** Mensaje al cliente cuando el pedido ya fue transmitido a SAP (409). */
+  static SAP_LOCKED_MESSAGE = 'Este pedido ya fue transmitido a SAP y no puede modificarse ni cancelarse desde el portal. Comuníquese con el área comercial.';
+
+  /**
+   * Un pedido está bloqueado para mutaciones del portal si ya se transmitió a SAP
+   * (sap_synced), tiene DocEntry de SAP, o está siendo transmitido en este momento
+   * (sap_sync_status = 'processing', candado atómico de syncOrdersToSAP).
+   * @param {Object} row - Fila de orders (debe incluir sap_synced, sap_doc_entry, sap_sync_status)
+   * @returns {boolean}
+   */
+  static isSapLocked(row) {
+    return !!row && (row.sap_synced === true || row.sap_doc_entry != null || row.sap_sync_status === 'processing');
+  }
+
+  /** Error 409 para uso en el modelo (los controladores lo mapean por error.code). */
+  static sapLockedError() {
+    const err = new Error(Order.SAP_LOCKED_MESSAGE);
+    err.code = 'ORDER_SAP_LOCKED';
+    err.statusCode = 409;
+    return err;
+  }
+
   /**
    * Estados finales de una orden (Entregado, Cerrado, Cancelado). Fuente única de verdad,
    * ya usada internamente como const local en updateOrder() y cancelOrder() (líneas 598, 927);
@@ -590,13 +612,19 @@ static async create(orderData) {
       await client.query('BEGIN');
       
       // Primero verificamos si la orden existe
-      const checkQuery = 'SELECT order_id, status_id FROM orders WHERE order_id = $1';
+      const checkQuery = 'SELECT order_id, status_id, sap_synced, sap_doc_entry, sap_sync_status FROM orders WHERE order_id = $1 FOR UPDATE';
       const checkResult = await client.query(checkQuery, [orderId]);
-      
+
       if (checkResult.rows.length === 0) {
         logger.warn('Orden no encontrada para actualización', { orderId });
         await client.query('ROLLBACK');
         return null;
+      }
+
+      // Respaldo de la guarda de los controladores: nunca mutar un pedido ya transmitido a SAP
+      if (Order.isSapLocked(checkResult.rows[0])) {
+        logger.warn('Intento de modificar orden ya transmitida a SAP (bloqueado en modelo)', { orderId });
+        throw Order.sapLockedError();
       }
       
       const currentOrder = checkResult.rows[0];
@@ -919,16 +947,22 @@ static async create(orderData) {
       await client.query('BEGIN');
       
       // Primero verificamos si la orden existe y si puede ser cancelada
-      const checkQuery = 'SELECT order_id, status_id, user_id FROM orders WHERE order_id = $1';
+      const checkQuery = 'SELECT order_id, status_id, user_id, sap_synced, sap_doc_entry, sap_sync_status FROM orders WHERE order_id = $1 FOR UPDATE';
       const checkResult = await client.query(checkQuery, [orderId]);
-      
+
       if (checkResult.rows.length === 0) {
         logger.warn('Orden no encontrada para cancelación', { orderId });
         await client.query('ROLLBACK');
         return null;
       }
-      
+
       const currentOrder = checkResult.rows[0];
+
+      // Respaldo de la guarda de los controladores: nunca cancelar un pedido ya transmitido a SAP
+      if (Order.isSapLocked(currentOrder)) {
+        logger.warn('Intento de cancelar orden ya transmitida a SAP (bloqueado en modelo)', { orderId });
+        throw Order.sapLockedError();
+      }
       
       // Verificar si la orden ya está en un estado final
       const finalStates = [4, 5, 6]; // Entregado, Cerrado, Cancelado

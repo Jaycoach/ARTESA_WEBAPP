@@ -657,6 +657,7 @@ scheduleInvoiceCheckTask() {
              WHERE order_id = $1
                AND (sap_synced = false OR sap_synced IS NULL)
                AND sap_sync_status IS DISTINCT FROM 'processing'
+               AND status_id IN (1, 2, 3)
                AND COALESCE(sap_sync_attempts, 0) = $2
              RETURNING order_id`,
             [orderRow.order_id, orderRow.sap_sync_attempts]
